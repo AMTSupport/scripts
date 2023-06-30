@@ -94,7 +94,8 @@ function Exists([Parameter(Mandatory)] [String]$Program) {
 }
 
 function Install([Parameter(Mandatory)] [String[]]$Needed) {
-    $ChocoCommand = "choco install --yes --acceptlicense --no-progress"
+    # Force is used to prevent the script from stopping if a package is already installed from a different source like ninite
+    $ChocoCommand = "choco install --yes --acceptlicense --no-progress --force"
 
     if ($dryrun) {
         $ChocoCommand = "$ChocoCommand --noop"
