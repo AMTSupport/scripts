@@ -1,15 +1,42 @@
 #Requires -Version 5.1
+#Requires -RunAsAdministrator
 
 <#
 .DESCRIPTION
+    Simplifies the installation and management of Chocolatey packages.
+    This script is designed to be run as a scheduled task.
 
+.PARAMETER dryrun
+    If specified, the script will not make any changes to the system.
+    This is useful for testing the script.
+
+.PARAMETER runMode
+    Specifies the mode to run the script in.
+    Valid values are:
+        - run       (This will try install the default packages and then update any avaiable packages)
+        - update    (This will update any avaiable packages, or if packages are specified, update those packages only)
+        - install   (This will install the specified packages only)
+        - uninstall (This will uninstall the specified packages only)
 #>
 
-# Section start :: Set variables
+Param (
+    [Parameter(Mandatory=$false)]
+    [switch]$dryrun = $false,
 
-$DefaultPrograms = @("GoogleChrome", "adobereader")
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("run", "update", "install", "uninstall")]
+    [string]$runMode = "run",
 
-# Section end :: Set variables
+    [Parameter(Mandatory=$false)]
+    [string[]]$packages = @(),
+
+    [Parameter(Mandatory=$false)]
+    [string[]]$defaultPackages = @(
+        "GoogleChrome",
+        "adobereader",
+        "displaylink"
+    )
+)
 
 # Section start :: Classes
 
@@ -26,17 +53,14 @@ function Hold-Shutdown([Parameter] [boolean]$release = $false) {
 Class Logger {
     static [String]$LogFilePath = "$env:TEMP\Choco.log"
     static [String]$LogFormat = "[{0}|{1}] {2}"
-    [Commandline]$Commandline
 
-    Logger([Commandline]$CommandlineIn) {
-        $this.Commandline = $CommandlineIn
-
+    Logger() {
         if ((Test-Path -Path ([Logger]::LogFilePath)) -eq $false) {
             New-Item -Path ([Logger]::LogFilePath) -ItemType File
         }
     }
 
-    [Void] static WriteLog ([String]$Message, [String]$Type) {
+    static WriteLog ([String]$Message, [String]$Type) {
         $logMessage = [Logger]::LogFormat -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"),$Type,$Message
         $logMessage | Out-File -FilePath ([Logger]::LogFilePath) -Append
         $logMessage | Write-Host
@@ -46,194 +70,12 @@ Class Logger {
         [Logger]::WriteLog($Message, "INFO")
     }
 
-    [Void] static Error ([String]$Message) {
+    [Void] Error ([String]$Message) {
         [Logger]::WriteLog($Message, "ERROR")
     }
 
-    [Void] static Verbose ([String]$Message) {
+    [Void] Verbose ([String]$Message) {
         [Logger]::WriteLog($Message, "VERBOSE")
-        return
-
-        # if ($this.Commandline -eq $null) {
-            # return
-        # if ($this.Commandline.IsVerbose()) {
-        #     $this.WriteLog($Message, "VERBOSE")
-        # }
-    }
-}
-
-Class Argument {
-    [Char]$Short
-    [String]$Long
-    [Boolean]$Required
-    [Boolean]$TakesValue
-    [Boolean]$TakesMany
-
-    Argument([Char]$ShortIn, [String]$LongIn, [Boolean]$RequiredIn, [Boolean]$TakesValueIn, [Boolean]$TakesManyIn) {
-        $this.Short = $ShortIn
-        $this.Long = $LongIn
-        $this.Required = $RequiredIn
-        $this.TakesValue = $TakesValueIn
-        $this.TakesMany = $TakesManyIn
-    }
-
-    [Boolean] matches([String]$Tag) {
-        return ($this.Short -eq $Tag -or $this.Long -eq $Tag)
-    }
-}
-
-Class ProcessedArgument {
-    [Argument]$Base
-
-    ProcessedArgument([Argument]$BaseIn) {
-        $this.Base = $BaseIn
-    }
-}
-
-Class PresentArgument : ProcessedArgument {
-    PresentArgument([Argument]$BaseIn) : base($BaseIn) { }
-}
-
-Class AbsentArgument : ProcessedArgument {
-    AbsentArgument([Argument]$BaseIn) : base($BaseIn) { }
-}
-
-Class ValuedArgument : ProcessedArgument {
-    [String]$Value
-
-    ValuedArgument([Argument]$BaseIn, [String]$ValueIn) : base($BaseIn) {
-        $this.Value = $ValueIn
-    }
-}
-
-Class ArrayValuedArgument : ProcessedArgument {
-    [String[]]$Value
-
-    ArrayValuedArgument([Argument]$BaseIn, [String[]]$ValueIn) : base($BaseIn) {
-        $this.Value = $ValueIn
-    }
-}
-
-Class Commandline {
-    static [String]$Regex = "^(-{1,2})(?<Tag>[a-zA-Z]+)$"
-    static [PSCustomObject]$ArgumentsBase = @{
-        DryRun = [Argument]::new("d", "dry", $false, $false, $false)
-        Verbose = [Argument]::new("v", "verbose", $false, $false, $false)
-        Install = [Argument]::new("S", "install", $false, $true, $true)
-        Uninstall = [Argument]::new("R", "uninstall", $false, $true, $true)
-        Update = [Argument]::new("U", "update", $false, $false, $false)
-    }
-    [PSCustomObject]$Arguments = @{}
-
-    Commandline([String[]]$ArgumentsIn) {
-        $listedArguments = @([Commandline]::ArgumentsBase.GetEnumerator())
-        $matching = $null
-        $appendingList = $null
-
-        foreach ($arg in $ArgumentsIn) {
-            [Logger]::Verbose("Processing argument: $arg")
-
-            if ($matching -ne $null) {
-                [Logger]::Verbose("Looking for value of argument: $($matching.Key)")
-
-                if ($arg -match [Commandline]::Regex) {
-                    [Logger]::Error("Found argument when looking for value: $arg; exiting...")
-                    exit 1
-                }
-
-                if ($matching.Value.TakesMany) {
-                    [Logger]::Verbose("Appending $arg to value of argument: $($matching.Key)")
-                    if ($appendingList -eq $null) {
-                        $appendingList = @($arg)
-                    } else {
-                        $appendingList += $arg
-                    }
-
-                    continue
-                } else {
-                    [Logger]::Verbose("Setting value of argument: $($matching.Key)")
-                    $processed = [ValuedArgument]::new($matching.Value, $arg)
-                }
-
-            } else {
-                if ($arg -notmatch [Commandline]::Regex) {
-                    [Logger]::Error("Invalid Argument Regex: $arg; exiting...")
-                    exit 1
-                }
-
-                $tag = $Matches.Tag
-
-                $matching = $listedArguments | Where-Object { $_.Value.matches($tag) }
-                if ($matching -eq $null) {
-                    [Logger]::Error("No matching argument found: $arg; exiting...")
-                    exit 1
-                }
-
-                [Logger]::Verbose("Found matching argument: $($matching.Key)")
-
-                if ($matching.Value.TakesValue) {
-                    [Logger]::Verbose("Argument takes value: $($matching.Key)")
-                    if ($matching.Value.TakesMany) {
-                        [Logger]::Verbose("Argument takes many values: $($matching.Key)")
-                    }
-
-                    continue
-                }
-
-                $processed = [PresentArgument]::new($matching.Value)
-            }
-
-            $this.Arguments[$matching.Key] = $processed
-            $matching = $null
-        }
-
-        if ($appendingList -ne $null -and $appendingList -gt 0) {
-            [Logger]::Verbose("Setting value of argument: $($matching.Key)")
-            $processed = [ArrayValuedArgument]::new($matching.Value, $appendingList)
-            $this.Arguments[$matching.Key] = $processed
-        }
-
-        foreach ($arg in $listedArguments) {
-            if ($arg.Value.Required -and $this.Arguments[$arg.Key] -eq $null) {
-                [Logger]::Error("Required Argument not present: $($arg.Key); exiting...")
-                exit 1
-            }
-
-            if ($this.Arguments[$arg.Key] -eq $null) {
-                $this.Arguments[$arg.Key] = [AbsentArgument]::new($arg.Value)
-            }
-        }
-    }
-
-    [String[]] Uninstall() {
-        $rawPrograms = $this.Arguments["Uninstall"]
-        if ($rawPrograms -is [AbsentArgument]) {
-            return $null
-        }
-
-        return $rawPrograms.Value -As [String[]]
-    }
-
-
-    [String[]] Install() {
-        $rawPrograms = $this.Arguments["Install"]
-        if ($rawPrograms -is [AbsentArgument]) {
-            return $null
-        }
-
-        return $rawPrograms.Value -As [String[]]
-    }
-
-    [Boolean] Updating() {
-        return ($this.Arguments["Update"] -is [PresentArgument])
-    }
-
-    [Boolean] IsDryRun() {
-        return ($this.Arguments["DryRun"] -is [PresentArgument])
-    }
-
-    [Boolean] IsVerbose() {
-        return ($this.Arguments["Verbose"] -is [PresentArgument])
     }
 }
 
@@ -251,15 +93,10 @@ function Exists([Parameter(Mandatory)] [String]$Program) {
     return ($output -contains $Program)
 }
 
-function Install(
-    [Parameter(Mandatory)]
-    [Commandline]$Commandline,
-    [Parameter(Mandatory)]
-    [String[]]$Needed
-) {
+function Install([Parameter(Mandatory)] [String[]]$Needed) {
     $ChocoCommand = "choco install --yes --acceptlicense --no-progress"
 
-    if ($Commandline.isDryRun()) {
+    if ($dryrun) {
         $ChocoCommand = "$ChocoCommand --noop"
     }
 
@@ -267,15 +104,10 @@ function Install(
     Invoke-Expression $ChocoCommand
 }
 
-function Uninstall(
-    [Parameter(Mandatory)]
-    [Commandline]$Commandline,
-    [Parameter(Mandatory)]
-    [String[]]$Removing
-) {
+function Uninstall([Parameter(Mandatory)] [String[]]$Removing) {
     $ChocoCommand = "choco uninstall --yes --no-progress"
 
-    if ($Commandline.isDryRun()) {
+    if ($dryrun) {
         $ChocoCommand = "$ChocoCommand --noop"
     }
 
@@ -283,10 +115,16 @@ function Uninstall(
     Invoke-Expression $ChocoCommand
 }
 
-function Update([Parameter(Mandatory)] [Commandline]$Commandline) {
-    $ChocoCommand = "choco upgrade all --yes --no-progress"
+function Update([Parameter(Mandatory=$false)] [String[]]$targets) {
+    if ($null -eq $targets) {
+        $targets = "all"
+    } else {
+        $targets = $targets -join " "
+    }
 
-    if ($Commandline.isDryRun()) {
+    $ChocoCommand = "choco upgrade $($targets) --yes --no-progress"
+
+    if ($dryrun) {
         $ChocoCommand = "$ChocoCommand --noop"
     }
 
@@ -297,146 +135,135 @@ function Update([Parameter(Mandatory)] [Commandline]$Commandline) {
 
 # Section start :: Main Functions
 
-function Init ([Parameter()] [String[]]$args) {
-    process {
-        $Init = [PSCustomObject]@{
-            Commandline = $null
-            Logger = $null
-        }
+function InstallRequirements () {
+    $script:logger.Verbose("Started running {0} function." -f $MyInvocation.MyCommand)
 
-        $Init.Commandline = [Commandline]::new($args)
-        $Init.Logger = [Logger]::new($Init.Commandline)
-        $Init.Logger.Info("Initialising...")
-
-        if ($Init.Commandline.IsDryRun()) {
-            $Init.Logger.Info("Dry run enabled.")
-        }
-
-        if ($Init.Commandline.IsVerbose()) {
-            $Init.Logger.Info("Verbose output enabled.")
-        }
-
-        return $Init
+    if ($null -ne (Get-Command -Name choco -ErrorAction SilentlyContinue)) {
+        $script:logger.Verbose("Chocolatey is already installed. Skipping installation.")
+        return
     }
+
+    # Test for present Chocolatey files
+    if (Test-Path -Path "$($env:SystemDrive)\ProgramData\Chocolatey") {
+        $script:logger.Error("Chocolatey files found, please remove them before continuing.")
+        exit 1001
+    }
+
+    $script:logger.Info("Installing chocolatey...")
+
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    if ($dryrun -ne $true) {
+        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+    }
+
+    $script:logger.Info("Chocolatey installed.")
+
+    $script:logger.Verbose("Completed running {0} function." -f $MyInvocation.MyCommand)
 }
 
-function InstallRequirements ([Parameter(Mandatory = $true)] [PSCustomObject]$Init) {
-    process {
-        if ((Get-Command -Name choco -ErrorAction SilentlyContinue) -ne $null) {
-            [Logger]::Verbose("Chocolatey is already installed. Skipping installation.")
-            return
-        }
+function InstallPackages ([Parameter(Mandatory)] [String[]]$packages) {
+    $script:logger.Verbose("Started running {0} function." -f $MyInvocation.MyCommand)
 
-        # Test for present Chocolatey files
-        if (Test-Path -Path "$($env:SystemDrive)\ProgramData\Chocolatey") {
-            [Logger]::Verbose("Chocolatey files found, please remove them before continuing.")
-            exit 1
-        }
-
-        $Init.Logger.Info("Installing requirements...")
-
-        # [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        if ($Init.Commandline.IsDryRun() -ne $true) {
-            iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-        }
+    if ($null -eq $packages -or $packages.Count -eq 0) {
+        $script:logger.Verbose("No packages to install.")
+        return
     }
+
+    $script:logger.Info("Installing packages...")
+    $script:logger.Info("Wanted Packages: $($packages -join ', ')")
+    $Needed = @()
+
+    foreach ($program in $packages) {
+        if (Installed $program) {
+            $script:logger.Verbose("Package already installed: ``$program``")
+            continue
+        }
+
+        if ((Exists $program) -eq $false) {
+            $script:logger.Error("Package not found: ``$program``")
+            exit 1002
+        }
+
+        $Needed += $program
+    }
+
+    if ($Needed.Count -eq 0) {
+        $script:logger.Verbose("All packages already installed.")
+        return
+    }
+
+    $script:logger.Verbose("Packages to install: $($Needed -join ', ')")
+    Install $Needed
+
+    $script:logger.Verbose("Completed running {0} function." -f $MyInvocation.MyCommand)
 }
 
-function InstallPackages ([Parameter(Mandatory = $true)] [PSCustomObject]$Init) {
+function UninstallPackages ([Parameter(Mandatory)] [String[]]$packages) {
+    $script:logger.Verbose("Started running {0} function." -f $MyInvocation.MyCommand)
 
-    process {
-        $Wanted = $Init.Commandline.Install()
-        if ($Wanted -eq $null) {
-            [Logger]::Verbose("No packages to install.")
-            return
-        }
-
-        $Init.Logger.Info("Installing packages...")
-        $Init.Logger.Info("Wanted Packages: $($Wanted -join ', ')")
-        $Needed = @()
-
-        foreach ($program in $Wanted) {
-            if (Installed $program) {
-                $Init.Logger.Info("Package already installed: ``$program``")
-                continue
-            }
-
-            if ($program -match "^default(s)?$") {
-                $Init.Logger.Info("Installing default packages...")
-                $DefaultPrograms | ForEach-Object { $Needed += $_ }
-                continue
-            }
-
-            if ((Exists $program) -eq $false) {
-                [Logger]::Error("Package not found: ``$program``")
-                exit 1
-            }
-
-            $Needed += $program
-        }
-
-        if ($Needed.Count -eq 0) {
-            $Init.Logger.Info("All packages already installed.")
-            return
-        }
-
-        $Init.Logger.Info("Packages to install: $($Needed -join ', ')")
-        Install $Init.Commandline $Needed
+    if ($null -eq $packages -or $packages.Count -eq 0) {
+        $script:logger.Verbose("No packages to uninstall.")
+        return
     }
+
+    $script:logger.Info("Uninstalling packages...")
+    $script:logger.Info("Unwanted Packages: $($packages -join ', ')")
+    $Removing = @()
+
+    $packages | ForEach-Object {
+        if ((Installed $_) -eq $false) {
+            $script:logger.Verbose("Package not installed: ``$_``")
+            continue
+        }
+
+        $Removing += $_
+    }
+
+    if ($Removing.Count -eq 0) {
+        $script:logger.Verbose("No packages to uninstall.")
+    } else {
+        $script:logger.Verbose("Packages to uninstall: $($Removing -join ', ')")
+        Uninstall $Removing
+    }
+
+    $script:logger.Verbose("Completed running {0} function." -f $MyInvocation.MyCommand)
 }
 
-function UninstallPackages ([Parameter(Mandatory = $true)] [PSCustomObject]$Init) {
-    process {
-        $Unwanted = $Init.Commandline.Uninstall()
-        if ($Unwanted -eq $null) {
-            [Logger]::Verbose("No packages to uninstall.")
-            return
-        }
+function UpdatePackages ([Parameter(Mandatory=$false)] [String[]]$packages) {
+    $script:logger.Verbose("Started running {0} function." -f $MyInvocation.MyCommand)
 
-        $Init.Logger.Info("Uninstalling packages...")
-        $Init.Logger.Info("Unwanted Packages: $($Unwanted -join ', ')")
-        $Removing = @()
-
-        $Unwanted | ForEach-Object {
-            if ((Installed $_) -eq $false) {
-                $Init.Logger.Info("Package not installed: ``$_``")
-                continue
-            }
-
-            $Removing += $_
-        }
-
-        if ($Removing.Count -eq 0) {
-            $Init.Logger.Info("No packages to uninstall.")
-            return
-        }
-
-        $Init.Logger.Info("Packages to uninstall: $($Removing -join ', ')")
-        Uninstall $Init.Commandline $Removing
+    $script:logger.Info("Updating packages...")
+    if ($null -eq $packages -or $packages.Count -eq 0) {
+        Update
+    } else {
+        Update $packages
     }
+
+    $script:logger.Verbose("Completed running {0} function." -f $MyInvocation.MyCommand)
 }
 
-function UpdatePackages ([Parameter(Mandatory = $true)] [PSCustomObject]$Init) {
-    process {
-        if ($Init.Commandline.Updating() -eq $false) {
-            [Logger]::Verbose("Not updating packages.")
-            return
-        }
+function main() {
+    $script:logger = [Logger]::new()
+    InstallRequirements
 
-        $Init.Logger.Info("Updating packages...")
-        Update $Init.Commandline
+    switch ($runMode) {
+        "install" {
+            InstallPackages $packages
+        }
+        "uninstall" {
+            UninstallPackages $packages
+        }
+        "update" {
+            UpdatePackages $packages
+        }
+        "run" {
+            InstallPackages $defaultPackages
+            UpdatePackages
+        }
     }
 }
 
 # Section end :: Functions
 
-# Section start :: Main
-
-$Init = (Init $args)
-InstallRequirements $Init
-InstallPackages $Init
-UninstallPackages $Init
-UpdatePackages $Init
-
-# Section end :: Main
+main
