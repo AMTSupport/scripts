@@ -2,13 +2,12 @@
 #Requires -RunAsAdministrator
 
 Param (
-    [Parameter(Mandatory=$true, Position=0)]
-    [ValidateNotNullOrEmpty]
+    [Parameter(Mandatory=$true)]
     [string]$ProvidedValue,
 
     [System.Object[]]$RegistryValues=@(
         [RegistryValue]::new(
-            "HKML:\Software\Policies\Microsoft\OneDrive",
+            "HKLM:\Software\Policies\Microsoft\OneDrive",
             "AADJMachineDomainGuid",
             "RZ"
         )
@@ -61,12 +60,12 @@ function Set-RegistryValue([Parameter(Mandatory=$true)] [RegistryValue]$value) {
         $null
     }
 
-    if ($existingValue -eq $value.Value) {
-        Write-Host "Registry value ``$($value.toString())`` is already set to ``$($value.Value)``"
+    if ($existingValue -eq $ProvidedValue) {
+        Write-Host "Registry value ``$($value.toString())`` is already set to ``$ProvidedValue``"
         return
     }
 
-    Write-Host "Updating registry value from ``$existingValue`` to ``$($value.Value)``"
+    Write-Host "Updating registry value from ``$existingValue`` to ``$ProvidedValue``"
     if ($dryrun -eq $false) {
         New-ItemProperty -Path $value.RegPath -Name $value.ValueName -Value $ProvidedValue -PropertyType $value.ValueType -Force | Out-Null
     }
