@@ -2,6 +2,9 @@
 # Requires -RunAsAdministrator
 
 <#
+.Description
+    This script will download and execute a remote executable from a GitHub repository.
+    The arguments passed to the script are passed to the executable.
 .TODO
     Implement Hash checking for the downloaded file.
 #>
@@ -68,7 +71,7 @@ Class Repository {
     [Void] Execute([String]$parsedArgs = [String]::Empty) {
         Write-Host "Executing ``$($this.Path)`` with arguments ``$parsedArgs``"
 
-        & "$($this.Path)" "$($parsedArgs)" | %{
+        & "$($this.Path)" "$($parsedArgs)" | ForEach-Object {
             if ($_ -match 'OK')
             { Write-Host $_ -f Green }
             elseif ($_ -match 'FAIL|ERROR')

@@ -1,8 +1,9 @@
 <#
-.DESCRIPTION
-    This cleaner script is used to remove leftover files and folders from the EDR agent.
+.SYNOPSIS
+    This cleaner script is used to remove leftover files and folders from the EDR & EcoSystem agent.
 
 .NOTES
+    This cannot be ran from a background terminal or system account since we need to use the winget command.
     This will not run the SentinelCleaner, or the SentinelOneInstaller as we cannot distribute those files.
     This should be ran after EDR Has being disabled from the dashboard.
 

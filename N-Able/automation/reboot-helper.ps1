@@ -7,6 +7,9 @@
     When this task is triggered the user will receive a windows toast notification and a popup window notifying them of the pending reboot with it's reason.
     The script will create a Log file in the users temp directory with the reboot time and reason.
     This script is intended to be run as a scheduled task each day at a time when the computer is likely to be in use.
+
+.NOTES
+    This is currently broken and being worked on. Do not use.
 #>
 
 # Section start :: Set variables
