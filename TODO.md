@@ -11,3 +11,6 @@
     * Start windows updates
 * Boot 3 & 4
     * Start windows updated again
+
+# Module System
+Ability to load module from github to minimize the size of the script and make it more modular
