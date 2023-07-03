@@ -1,23 +1,88 @@
-$DomainGUID = $args[0]
+#Requires -Version 5.1
+#Requires -RunAsAdministrator
 
-if ($DomainGUID -eq $null) {
-    write-host "Error- Domain GUID not passed"
-    Exit 1000
+Param (
+    [Parameter(Mandatory=$true, Position=0)]
+    [ValidateNotNullOrEmpty]
+    [string]$ProvidedValue,
+
+    [System.Object[]]$RegistryValues=@(
+        [RegistryValue]::new(
+            "HKML:\Software\Policies\Microsoft\OneDrive",
+            "AADJMachineDomainGuid",
+            "RZ"
+        )
+    ),
+
+    [Parameter(HelpMessage = "If dry run is enabled, no changes will be made to the system.")]
+    [switch]$dryrun
+)
+
+class RegistryValue {
+    [string]$RegPath
+    [string]$ValueName
+    [string]$ValueType
+
+    RegistryValue([string]$RegPath, [string]$ValueName, [string]$ValueType) {
+        $this.RegPath = $RegPath
+        $this.ValueName = $ValueName
+        $this.ValueType = $ValueType
+    }
+
+    [String] ToString() {
+        return "$($this.RegPath)`:$($this.ValueName)"
+    }
 }
 
-try {
-    # Create the path manually if it doesn't exist already.
-    new-item -itemtype directory -path "hklm:\Software\Policies\Microsoft\OneDrive" -force
-} catch {
-    write-host  "Error-Unable to create  hklm:\Software\Policies\Microsoft\OneDrive"
-    Exit 1001
+function Get-Parameters {
+    if ($dryrun) {
+        Write-Host "Dry run mode enabled; No changes will be made to the system."
+        Write-Host "RegPath: $RegPath"
+        Write-Host "ValueName: $ValueName"
+        Write-Host "ValueType: $ValueType"
+        Write-Host "Value: $ProvidedValue"
+    }
 }
 
-try {
-    Set-ItemProperty -Path "hklm:\Software\Policies\Microsoft\OneDrive" -Name "AADJMachineDomainGuid" -Value $DomainGUID -Force
-} catch {
-    write-host "Error-Unable to set Domain GUID"
-    exit 10002
+function New-RegistryKey([Parameter(Mandatory=$true)] [RegistryValue]$value) {
+    try {
+        Get-ItemProperty -Path $value.RegPath -Name $value.ValueName -ErrorAction Stop | Out-Null
+        Write-Host "Existing registry key ``$($value.toString())`` found."
+    }
+    catch {
+        Write-Host "Creating registry key ``$($value.toString())``"
+        if ($dryrun -eq $false) {
+            New-Item -Path $value.RegPath -Force | Out-Null
+        }
+    }
 }
 
-Exit 0
+function Set-RegistryValue([Parameter(Mandatory=$true)] [RegistryValue]$value) {
+    $existingValue = try {
+        Get-ItemProperty -Path $value.RegPath -Name $value.ValueName -ErrorAction Stop | Select-Object -ExpandProperty $value.ValueName
+    } catch {
+        Write-Host "The registry value ``$($value.toString())`` does not have an existing value."
+        $null
+    }
+
+    if ($existingValue -eq $value.Value) {
+        Write-Host "Registry value ``$($value.toString())`` is already set to ``$($value.Value)``"
+        return
+    }
+
+    Write-Host "Updating registry value from ``$existingValue`` to ``$($value.Value)``"
+    if ($dryrun -eq $false) {
+        New-ItemProperty -Path $value.RegPath -Name $value.ValueName -Value $ProvidedValue -PropertyType $value.ValueType -Force | Out-Null
+    }
+}
+
+function Main {
+    Get-Parameters
+
+    foreach ($registryValue in $RegistryValues) {
+        New-RegistryKey $registryValue
+        Set-RegistryValue $registryValue
+    }
+}
+
+Main

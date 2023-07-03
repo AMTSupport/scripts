@@ -1,28 +1,11 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
-<#
-.SYNOPSIS
-  Enforce SMB Signing
-#>
-
 Param (
-    [System.Object[]]$RegistryValues=@(
+    [System.Object[]]$RegistryValues = @(
         [RegistryValue]::new(
-            "HKLM:\System\CurrentControlSet\Services\LanManServer\Parameters",
-            "RequireSecuritySignature",
-            "DWord",
-            "1"
-        ),
-        [RegistryValue]::new(
-            "HKLM:\System\CurrentControlSet\Services\LanManServer\Parameters",
-            "EnableSecuritySignature",
-            "DWord",
-            "1"
-        ),
-        [RegistryValue]::new(
-            "HKLM:\System\CurrentControlSet\Services\LanManWorkstation\Parameters",
-            "RequireSecuritySignature",
+            "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork",
+            "Enabled",
             "DWord",
             "1"
         )
@@ -60,7 +43,7 @@ function Get-Parameters {
     }
 }
 
-function New-RegistryKey([Parameter(Mandatory=$true)] [RegistryValue]$value) {
+function New-RegistryKey([Parameter(Mandatory = $true)] [RegistryValue]$value) {
     try {
         Get-ItemProperty -Path $value.RegPath -Name $value.ValueName -ErrorAction Stop | Out-Null
         Write-Host "Existing registry key ``$($value.toString())`` found."
@@ -73,10 +56,11 @@ function New-RegistryKey([Parameter(Mandatory=$true)] [RegistryValue]$value) {
     }
 }
 
-function Set-RegistryValue([Parameter(Mandatory=$true)] [RegistryValue]$value) {
+function Set-RegistryValue([Parameter(Mandatory = $true)] [RegistryValue]$value) {
     $existingValue = try {
         Get-ItemProperty -Path $value.RegPath -Name $value.ValueName -ErrorAction Stop | Select-Object -ExpandProperty $value.ValueName
-    } catch {
+    }
+    catch {
         Write-Host "The registry value ``$($value.toString())`` does not have an existing value."
         $null
     }

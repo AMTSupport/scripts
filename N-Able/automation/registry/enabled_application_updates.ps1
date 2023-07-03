@@ -3,26 +3,40 @@
 
 <#
 .SYNOPSIS
-  Enforce SMB Signing
+  Ensures that the internal auto-update behaviour of these applications is not disabled.
 #>
 
 Param (
     [System.Object[]]$RegistryValues=@(
+        # Google Chrome
         [RegistryValue]::new(
-            "HKLM:\System\CurrentControlSet\Services\LanManServer\Parameters",
-            "RequireSecuritySignature",
+            "HKLM:\SOFTWARE\Policies\Google\Update",
+            "Update{8A69D345-D564-463C-AFF1-A69D9E530F96}",
             "DWord",
             "1"
         ),
         [RegistryValue]::new(
-            "HKLM:\System\CurrentControlSet\Services\LanManServer\Parameters",
-            "EnableSecuritySignature",
+            "HKLM:\SOFTWARE\Policies\Google\Update",
+            "Update{4DC8B4CA-1BDA-483E-B5FA-D3C12E15B62D}",
             "DWord",
             "1"
         ),
         [RegistryValue]::new(
-            "HKLM:\System\CurrentControlSet\Services\LanManWorkstation\Parameters",
-            "RequireSecuritySignature",
+            "HKLM:\SOFTWARE\Policies\Google\Update",
+            "Update{8BA986DA-5100-405E-AA35-86F34A02ACBF}",
+            "DWord",
+            "1"
+        ),
+        [RegistryValue]::new(
+            "HKLM:\SOFTWARE\Policies\Google\Update",
+            "UpdateDefault",
+            "DWord",
+            "1"
+        ),
+        # Zoom
+        [RegistryValue]::new(
+            "HKLM:\SOFTWARE\Policies\Zoom\Zoom Meetings\General",
+            "EnableClientAutoUpdate",
             "DWord",
             "1"
         )
