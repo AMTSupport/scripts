@@ -1,0 +1,1 @@
+get-childitem "C:\NinitePro\NiniteDownloads\files" |remove-item

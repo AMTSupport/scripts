@@ -1,0 +1,1 @@
+del c:\windows\temp\cab_* /f /q

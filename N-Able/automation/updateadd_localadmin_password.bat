@@ -1,12 +1,12 @@
 @echo off
 Setlocal
-REM Change the following two lines for each client
+
 If "%1" == "" GOTO ERROR
 REM check for default arg 
 IF "%1" == "-logfile" GOTO ERROR
 
 set password=%1
-echo LocalAdmin password script - Password = %1
+echo LocalAdmin password = %1
 
 
 net user LocalAdmin %password% >nul
@@ -34,4 +34,3 @@ Echo Account Added
 :END
 
 ENDLOCAL
-
