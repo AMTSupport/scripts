@@ -41,10 +41,6 @@ class RegistryValue {
 function Get-Parameters {
     if ($dryrun) {
         Write-Host "Dry run mode enabled; No changes will be made to the system."
-        Write-Host "RegPath: $RegPath"
-        Write-Host "ValueName: $ValueName"
-        Write-Host "ValueType: $ValueType"
-        Write-Host "Value: $Value"
     }
 }
 
