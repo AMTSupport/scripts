@@ -47,8 +47,8 @@ function Prepare {
     }
 
     try {
-        # Connect-AzureAD -ErrorAction Stop
-        # Connect-MsolService -ErrorAction Stop
+        Connect-AzureAD -ErrorAction Stop
+        Connect-MsolService -ErrorAction Stop
     } catch {
         Write-Host "Failed to connect to AzureAD or MSOL Service"
         exit 1002
@@ -89,9 +89,8 @@ function Get-Current {
 
 function Get-Excel {
     $import = Import-Excel $script:ExcelFile
-    
-    Remove-Item ./temp.xlsx
-    $ExcelData = $import | Export-Excel ./temp.xlsx -PassThru -AutoSize -FreezeTopRowFirstColumn
+
+    $ExcelData = $import | Export-Excel $script:ExcelFile -PassThru -AutoSize -FreezeTopRowFirstColumn
 
     $ExcelData
 }
