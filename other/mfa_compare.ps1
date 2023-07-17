@@ -210,6 +210,12 @@ function Get-EmailToCell([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
 
     # TODO - Cleanup
     process {
+        $Rows = $WorkSheet.Dimension.Rows
+        if ($null -eq $Rows -or $Rows -lt 2) {
+            Write-Host "No data found in worksheet $($WorkSheet.Name)"
+            return @{}
+        }
+
         $EmailTable = @{}
         foreach ($Index in 2..$WorkSheet.Dimension.Rows) {
             $Email = $WorkSheet.Cells[$Index, 2].Value
@@ -226,6 +232,12 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
     begin { Enter-Scope $MyInvocation }
 
     process {
+        # This is a new worksheet, no history to update
+        if ($null -eq $ActiveWorkSheet.Dimensions.Rows) {
+            Write-Host "No data found in worksheet $($ActiveWorkSheet.Name)"
+            return
+        }
+
         $TotalColumns = $ActiveWorkSheet.Dimension.Columns
         $RemovedColumns = 0
         $KeptRange = ($TotalColumns - $KeepHistory)..$TotalColumns
@@ -270,8 +282,22 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
                 $HistoryWorkSheet.InsertColumn($HistoryColumnIndex, 1)
                 $HistoryWorkSheet.Cells[1, $HistoryColumnIndex].Value = $Date.ToString('MMM-yy')
 
+                $HistoryEmails = Get-EmailToCell -WorkSheet $HistoryWorkSheet
                 foreach ($RowIndex in 2..$ActiveWorkSheet.Dimension.Rows) {
-                    $HistoryWorkSheet.Cells[$RowIndex, $HistoryColumnIndex].Value = $ActiveWorkSheet.Cells[$RowIndex, $ColumnIndex].Value
+                    $Email = $ActiveWorkSheet.Cells[$RowIndex, 2].Value
+                    $HistoryIndex = $HistoryEmails[$Email]
+
+                    if ($null -eq $HistoryIndex) {
+                        $HistoryIndex = $HistoryWorkSheet.Dimension.Rows + 1
+                        $HistoryWorkSheet.InsertRow($HistoryIndex, 1)
+                        $HistoryWorkSheet.Cells[$HistoryIndex, 2].Value = $Email
+                    } else {
+                        # Update the name and phone number
+                        $HistoryWorkSheet.Cells[$HistoryIndex, 1].Value = $ActiveWorkSheet.Cells[$RowIndex, 1].Value
+                        $HistoryWorkSheet.Cells[$HistoryIndex, 3].Value = $ActiveWorkSheet.Cells[$RowIndex, 3].Value
+                    }
+
+                    $HistoryWorkSheet.Cells[$HistoryIndex, $HistoryColumnIndex].Value = $ActiveWorkSheet.Cells[$RowIndex, $ColumnIndex].Value
                 }
             }
 
@@ -304,62 +330,71 @@ function Get-ColumnDate {
     }
 }
 
-function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
+function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$DuplicateCheck) {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        # Start from 2 because the first row is the header
-        $RemovedRows = 0
-        $VisitiedEmails = New-Object System.Collections.Generic.List[String]
-        foreach ($RowIndex in 2..$WorkSheet.Dimension.Rows) {
-            $RowIndex = $RowIndex - $RemovedRows
-            $Email = $WorkSheet.Cells[$RowIndex, 2].Value
+        $Rows = $WorkSheet.Dimension.Rows
+        if ($null -ne $Rows -and $Rows -ge 2) {
+            # Start from 2 because the first row is the header
+            $RemovedRows = 0
+            $VisitiedEmails = New-Object System.Collections.Generic.List[String]
+            foreach ($RowIndex in 2..$WorkSheet.Dimension.Rows) {
+                $RowIndex = $RowIndex - $RemovedRows
+                $Email = $WorkSheet.Cells[$RowIndex, 2].Value
 
-            # Remove any empty rows between actual data
-            if ($null -eq $Email) {
-                Write-Host "Removing row $RowIndex because email is empty."
-                $WorkSheet.DeleteRow($RowIndex)
+                # Remove any empty rows between actual data
+                if ($null -eq $Email) {
+                    Write-Host "Removing row $RowIndex because email is empty."
+                    $WorkSheet.DeleteRow($RowIndex)
+                    $RemovedRows++
+                    continue
+                }
+
+                if ($DuplicateCheck) {
+                    if (!$VisitiedEmails.Contains($Email)) {
+                        $VisitiedEmails.Add($Email)
+                        continue
+                    }
+
+                    $ExistingIndex = $VisitiedEmails.IndexOf($Email) + 2
+                    $Question = "Duplicate email found at row $RowIndex`nThe email '$Email' was first seen at row $ExistingIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
+                    $Selection = Prompt-Selection "Duplicate Email" $Question @("&Existing", "&New", "&Break") 0
+                    $RemovingRow = switch ($Selection) {
+                        0 { $RowIndex }
+                        1 {
+                            $VisitiedEmails.Remove($Email)
+                            $VisitiedEmails.Add($Email)
+                            $ExistingIndex
+                        }
+                        default {
+                            Write-Host "Please manually review and remove the duplicate email that exists at rows $RowIndex and $($VisitiedEmails.IndexOf($Email) + 2)"
+                            Exit 1010
+                        }
+                    }
+                }
+
+                $WorkSheet.DeleteRow($RemovingRow)
                 $RemovedRows++
-                continue
             }
-
-            if (!$VisitiedEmails.Contains($Email)) {
-                $VisitiedEmails.Add($Email)
-                continue
-            }
-
-            $ExistingIndex = $VisitiedEmails.IndexOf($Email) + 2
-            $Question = "Duplicate email found at row $RowIndex`nThe email '$Email' was first seen at row $ExistingIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
-            $Selection = Prompt-Selection "Duplicate Email" $Question @("&Existing", "&New", "&Break") 0
-            $RemovingRow = switch ($Selection) {
-                0 { $RowIndex }
-                1 {
-                    $VisitiedEmails.Remove($Email)
-                    $VisitiedEmails.Add($Email)
-                    $ExistingIndex
-                }
-                default {
-                    Write-Host "Please manually review and remove the duplicate email that exists at rows $RowIndex and $($VisitiedEmails.IndexOf($Email) + 2)"
-                    Exit 1010
-                }
-            }
-
-            $WorkSheet.DeleteRow($RemovingRow)
-            $RemovedRows++
         }
 
-        $RemovedColumns = 0
-        foreach ($ColumnIndex in 3..$WorkSheet.Dimension.Columns) {
-            $ColumnIndex = $ColumnIndex - $RemovedColumns
+        $Columns = $WorkSheet.Dimension.Columns
+        if ($null -ne $Columns -and $Columns -ge 4) {
+            # Start from 4 because the first three columns are name,email,phone
+            $RemovedColumns = 0
+            foreach ($ColumnIndex in 4..$WorkSheet.Dimension.Columns) {
+                $ColumnIndex = $ColumnIndex - $RemovedColumns
 
-            # Remove any empty columns, or invalid date columns between actual data
-            # TODO -> Use Get-ColumnDate
-            $Value = $WorkSheet.Cells[1, $ColumnIndex].Value
-            if ($null -eq $Value -or $Value -eq 'Check') {
-                Write-Host "Removing column $ColumnIndex because date is empty or invalid."
-                $WorkSheet.DeleteColumn($ColumnIndex)
-                $RemovedColumns++
-                continue
+                # Remove any empty columns, or invalid date columns between actual data
+                # TODO -> Use Get-ColumnDate
+                $Value = $WorkSheet.Cells[1, $ColumnIndex].Value
+                if ($null -eq $Value -or $Value -eq 'Check') {
+                    Write-Host "Removing column $ColumnIndex because date is empty or invalid."
+                    $WorkSheet.DeleteColumn($ColumnIndex)
+                    $RemovedColumns++
+                    continue
+                }
             }
         }
     }
@@ -431,7 +466,7 @@ function Update-Data([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
             $Row = $EmailTable[$Data.Email]
             $AddedOffset = 0
             if ($null -eq $Row) {
-                $Row = if ($null -eq $LastIndex) { 2 } else { $LastIndex + 1 }
+                $Row = $LastIndex + 1
                 Write-Host "Inserting row $Row for $($Data.DisplayName)"
                 $WorkSheet.InsertRow($Row, 1)
                 $WorkSheet.Cells[$Row, 2].Value = $Data.Email
@@ -450,8 +485,8 @@ function Update-Data([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
 
         $RowOffset = 0
         $HistoryRowOffset = 0
-        $LastIndex = $null
-        $LastHistoryIndex = $null
+        $LastIndex = 1
+        $LastHistoryIndex = 1
         foreach ($data in $NewData) {
             ($Row, $AddingOffset) = Get-User -EmailTable $EmailTable -Data $data -WorkSheet $WorkSheet -LastIndex $LastIndex -Offset $RowOffset
             $RowOffset += $AddingOffset
@@ -480,6 +515,11 @@ function Set-Check([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
         $prevColumn = $lastColumn - 1
         $currColumn = $lastColumn
         $checkColumn = $lastColumn + 1
+
+        if ($WorkSheet.Dimension.Columns -eq 4) {
+            $prevColumn = $lastColumn + 2
+        }
+
         foreach ($row in 2..$WorkSheet.Dimension.Rows) {
             $prevNumber = $Cells[$row, $prevColumn].Value
             $currNumber = $Cells[$row, $currColumn].Value
@@ -515,8 +555,10 @@ function Set-Styles([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
         $lastColumn = $WorkSheet.Dimension.Address -split ':' | Select-Object -Last 1
         $lastColumn = $lastColumn -replace '[0-9]', ''
 
+        Write-Host "Last column is $lastColumn"
+
         Set-ExcelRange -Worksheet $WorkSheet -Range "A1:$($lastColumn)1" -Bold -HorizontalAlignment Center
-        Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($lastColumn)1" -NumberFormat "MMM-yy"
+        if ($WorkSheet.Dimension.Columns -ge 4) { Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($lastColumn)1" -NumberFormat "MMM-yy" }
         Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($lastColumn)$(($WorkSheet.Dimension.Rows))" -AutoSize -ResetFont -BackgroundPattern Solid
         # Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($lastColumn)$($WorkSheet.Dimension.Rows)"  # [System.Drawing.Color]::LightSlateGray
         # Set-ExcelRange -Worksheet $WorkSheet -Range "D2:$($lastColumn)$($WorkSheet.Dimension.Rows)" -NumberFormat "[<=9999999999]####-###-###;+(##) ###-###-###"
@@ -531,17 +573,22 @@ function Get-WorkSheets([OfficeOpenXml.ExcelPackage]$ExcelData) {
     process {
         $ActiveWorkSheet = $ExcelData.Workbook.Worksheets[1]
         if ($null -eq $ActiveWorkSheet) {
-            # TODO -> Add a new worksheet
             $ActiveWorkSheet = $ExcelData.Workbook.Worksheets.Add("Working")
-            $Cells = $ActiveWorkSheet.Cells
-            $Cells[1, 1].Value = "DisplayName"
-            $Cells[1, 2].Value = "Email"
-            $Cells[1, 3].Value = "MobilePhone"
         } else { $ActiveWorkSheet.Name = "Working" }
+
+        # New worksheet, add the columns and rows
+        if ($null -eq $ActiveWorkSheet.Dimension) {
+            $ActiveWorkSheet.InsertColumn(1, 3)
+            $ActiveWorkSheet.InsertRow(1, 1)
+        }
+
+        $Cells = $ActiveWorkSheet.Cells
+        $Cells[1, 1].Value = "Name"
+        $Cells[1, 2].Value = "Email"
+        $Cells[1, 3].Value = "Phone"
 
         $HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
         if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne "History") {
-            # TODO -> Add a new worksheet
             $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Copy("Working", "History")
             $HistoryWorkSheet.DeleteColumn(4, $HistoryWorkSheet.Dimension.Columns - 3)
         }
@@ -584,8 +631,10 @@ function Main {
 
         $NewData = Get-Current
         $ExcelData = Get-Excel
+
         ($ActiveWorkSheet, $HistoryWorkSheet) = Get-WorkSheets -ExcelData $ExcelData
-        @($ActiveWorkSheet, $HistoryWorkSheet) | ForEach-Object { Prepare-Worksheet -WorkSheet $_ }
+        Prepare-Worksheet -WorkSheet $ActiveWorkSheet -DuplicateCheck
+        Prepare-Worksheet -WorkSheet $HistoryWorkSheet
 
         Update-History -HistoryWorkSheet $HistoryWorkSheet -ActiveWorkSheet $ActiveWorkSheet
         Remove-Users -NewData $NewData -WorkSheet $ActiveWorkSheet
