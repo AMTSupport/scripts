@@ -117,15 +117,20 @@ function Prepare {
             Import-Module -Name $module
         }
 
-        # Get the first client folder that exists
-        $ClientFolder = "$ClientsFolder\$Client"
-        $ReportFolder = "$ClientFolder\$ReportsFolder"
-        $script:ExcelFile = "$ReportFolder\$ExcelFileName"
-
-        if ((Test-Path $ClientFolder) -eq $false) {
+        $ClientFolder = Get-ChildItem "$ClientsFolder\$Client*"
+        if ($ClientFolder.Count -gt 1) {
+            Write-Host "Multiple client folders found; please specify the full client name."
+            exit 1003
+        } elseif ($ClientFolder.Count -eq 0) {
             Write-Host "Client $Client not found; please check the spelling and try again."
             exit 1003
+        } else {
+            $Client = $ClientFolder | Select-Object -ExpandProperty Name
         }
+
+        # Get the first client folder that exists
+        $ReportFolder = "$ClientFolder\$ReportsFolder"
+        $script:ExcelFile = "$ReportFolder\$ExcelFileName"
 
         if ((Test-Path $ReportFolder) -eq $false) {
             Write-Host "Report folder not found; creating $ReportFolder"
