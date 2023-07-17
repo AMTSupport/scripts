@@ -47,7 +47,7 @@ function Scoped([System.Management.Automation.InvocationInfo]$Invocation, [Scrip
 
 
 
-function PromptForConfirmation {
+function Prompt-Confirmation {
     Param(
         [Parameter(Mandatory = $true)]
         [String]$title,
@@ -56,21 +56,37 @@ function PromptForConfirmation {
         [String]$question,
 
         [Parameter(Mandatory = $true)]
+        [bool]$defaultChoice
+    )
+    $DefaultChoice = if ($defaultChoice) { 0 } else { 1 }
+    $Result = Prompt-Selection -title $title -question $question -choices @("&Yes", "&No") -defaultChoice $defaultChoice
+    switch ($Result) {
+        0 { $true }
+        Default { $false }
+    }
+}
+
+function Prompt-Selection {
+    Param(
+        [Parameter(Mandatory = $true)]
+        [String]$title,
+
+        [Parameter(Mandatory = $true)]
+        [String]$question,
+
+        [Parameter(Mandatory = $true)]
+        [Array]$choices,
+
+        [Parameter(Mandatory = $true)]
         [Int]$defaultChoice
     )
 
     $Host.UI.RawUI.ForegroundColor = 'Yellow'
     $Host.UI.RawUI.BackgroundColor = 'Black'
-    $decision = $Host.UI.PromptForChoice($title, $question, @("&Yes", "&No"), $defaultChoice)
-    if ($decision -eq 0) {
-        $Host.UI.RawUI.ForegroundColor = 'White'
-        $Host.UI.RawUI.BackgroundColor = 'Black'
-        return $true
-    } else {
-        $Host.UI.RawUI.ForegroundColor = 'White'
-        $Host.UI.RawUI.BackgroundColor = 'Black'
-        return $false
-    }
+    $decision = $Host.UI.PromptForChoice($title, $question, $choices, $defaultChoice)
+    $Host.UI.RawUI.ForegroundColor = 'White'
+    $Host.UI.RawUI.BackgroundColor = 'Black'
+    return $decision
 }
 
 function Prepare {
@@ -91,7 +107,7 @@ function Prepare {
         foreach ($module in @('AzureAD', 'MSOnline', 'ImportExcel')) {
             if (Get-Module -ListAvailable $module -ErrorAction SilentlyContinue) {
                 Write-Host "Module $module found"
-            } elseif (PromptForConfirmation "Module $module not found" "Would you like to install it now?" 1) {
+            } elseif (Prompt-Confirmation "Module $module not found" "Would you like to install it now?" $true) {
                 Install-Module $module -AllowClobber -Scope CurrentUser
             } else {
                 Write-Host "Module $module not found; please install it using ```nInstall-Module $module -Force``"
@@ -122,11 +138,29 @@ function Prepare {
         }
 
         try {
-            Connect-AzureAD -ErrorAction Stop
-            Connect-MsolService -ErrorAction Stop
+            $AzureAD = Get-AzureADCurrentSessionInfo -ErrorAction Stop
+            $Continue = Prompt-Confirmation "AzureAD connection found" "It looks like you are already connected to AzureAD as $($AzureAD.Account). Would you like to continue?" $true
+            if ($Continue -eq $false) { throw } else { Write-Host "Continuing with existing connection" }
         } catch {
-            Write-Host "Failed to connect to AzureAD or MSOL Service"
-            exit 1002
+            try {
+                Connect-AzureAD -ErrorAction Stop
+            } catch {
+                Write-Host "Failed to connect to AzureAD"
+                exit 1002
+            }
+        }
+
+        try {
+            $CurrentCompany = Get-MsolCompanyInformation -ErrorAction Stop | Select-Object -Property DisplayName
+            $Continue = Prompt-Confirmation "MSOL connection found" "It looks like you are already connected to MSOL as $($CurrentCompany.DisplayName). Would you like to continue?" $true
+            if ($Continue -eq $false) { throw } else { Write-Host "Continuing with existing connection" }
+        } catch {
+            try {
+                Connect-MsolService -ErrorAction Stop
+            } catch {
+                Write-Host "Failed to connect to MSOL"
+                exit 1002
+            }
         }
     }
 
@@ -276,6 +310,7 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
     process {
         # Start from 2 because the first row is the header
         $RemovedRows = 0
+        $VisitiedEmails = New-Object System.Collections.Generic.List[String]
         foreach ($RowIndex in 2..$WorkSheet.Dimension.Rows) {
             $RowIndex = $RowIndex - $RemovedRows
             $Email = $WorkSheet.Cells[$RowIndex, 2].Value
@@ -287,6 +322,30 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
                 $RemovedRows++
                 continue
             }
+
+            if (!$VisitiedEmails.Contains($Email)) {
+                $VisitiedEmails.Add($Email)
+                continue
+            }
+
+            $ExistingIndex = $VisitiedEmails.IndexOf($Email) + 2
+            $Question = "Duplicate email found at row $RowIndex`nThe email '$Email' was first seen at row $ExistingIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
+            $Selection = Prompt-Selection "Duplicate Email" $Question @("&Existing", "&New", "&Break") 0
+            $RemovingRow = switch ($Selection) {
+                0 { $RowIndex }
+                1 {
+                    $VisitiedEmails.Remove($Email)
+                    $VisitiedEmails.Add($Email)
+                    $ExistingIndex
+                }
+                default {
+                    Write-Host "Please manually review and remove the duplicate email that exists at rows $RowIndex and $($VisitiedEmails.IndexOf($Email) + 2)"
+                    Exit 1010
+                }
+            }
+
+            $WorkSheet.DeleteRow($RemovingRow)
+            $RemovedRows++
         }
 
         $RemovedColumns = 0
