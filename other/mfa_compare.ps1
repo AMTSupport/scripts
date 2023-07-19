@@ -238,7 +238,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
 
     process {
         # This is a new worksheet, no history to update
-        if ($null -eq $ActiveWorkSheet.Dimensions.Rows) {
+        if ($null -eq $ActiveWorkSheet.Dimension) {
             Write-Host "No data found in worksheet $($ActiveWorkSheet.Name)"
             return
         }
@@ -339,6 +339,8 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
     begin { Enter-Scope $MyInvocation }
 
     process {
+        Write-Host "Preparing worksheet $($WorkSheet.Name)"
+
         $Rows = $WorkSheet.Dimension.Rows
         if ($null -ne $Rows -and $Rows -ge 2) {
             # Start from 2 because the first row is the header
@@ -347,6 +349,8 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
             foreach ($RowIndex in 2..$WorkSheet.Dimension.Rows) {
                 $RowIndex = $RowIndex - $RemovedRows
                 $Email = $WorkSheet.Cells[$RowIndex, 2].Value
+
+                Write-Host "Processing row $RowIndex with email '$Email'"
 
                 # Remove any empty rows between actual data
                 if ($null -eq $Email) {
@@ -357,10 +361,15 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
                 }
 
                 if ($DuplicateCheck) {
+                    Write-Host "Checking for duplicate email '$Email'"
+
                     if (!$VisitiedEmails.Contains($Email)) {
+                        Write-Host "Adding email '$Email' to the list of visited emails"
                         $VisitiedEmails.Add($Email)
                         continue
                     }
+
+                    Write-Host "Duplicate email '$Email' found at row $RowIndex"
 
                     $ExistingIndex = $VisitiedEmails.IndexOf($Email) + 2
                     $Question = "Duplicate email found at row $RowIndex`nThe email '$Email' was first seen at row $ExistingIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
@@ -377,10 +386,11 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
                             Exit 1010
                         }
                     }
-                }
 
-                $WorkSheet.DeleteRow($RemovingRow)
-                $RemovedRows++
+                    Write-Host "Removing row $RemovingRow "
+                    $WorkSheet.DeleteRow($RemovingRow)
+                    $RemovedRows++
+                }
             }
         }
 
@@ -594,6 +604,7 @@ function Get-WorkSheets([OfficeOpenXml.ExcelPackage]$ExcelData) {
 
         $HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
         if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne "History") {
+            Write-Host "Creating new worksheet for history"
             $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Copy("Working", "History")
             $HistoryWorkSheet.DeleteColumn(4, $HistoryWorkSheet.Dimension.Columns - 3)
         }
@@ -619,7 +630,7 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
             }
         }
 
-        Close-ExcelPackage $ExcelData -Show # -SaveAs "$ExcelFile"
+        Close-ExcelPackage $ExcelData -Show #-SaveAs "$ExcelFile.new.xlsx"
     }
 
     end { Exit-Scope $MyInvocation }
