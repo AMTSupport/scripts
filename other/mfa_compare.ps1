@@ -20,7 +20,7 @@ function Enter-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     $FunctionName = $Invocation.MyCommand.Name
     $script:Scope.Add($FunctionName)
 
-    Write-Host "Entered scope $script:Scope"
+    Write-Info "Entered scope $script:Scope"
 }
 
 <#
@@ -28,7 +28,7 @@ function Enter-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     Logs the end of a function and stops the timer to measure the duration.
 #>
 function Exit-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
-    Write-Host "Exited scope $script:Scope"
+    Write-Info "Exited scope $script:Scope"
 
     $script:Scope.Remove($Invocation.MyCommand.Name) | Out-Null
 }
@@ -42,10 +42,6 @@ function Scoped([System.Management.Automation.InvocationInfo]$Invocation, [Scrip
         Exit-Scope -Invocation $Invocation
     }
 }
-
-# Section End - Utility Functions
-
-
 
 function Prompt-Confirmation {
     Param(
@@ -89,6 +85,41 @@ function Prompt-Selection {
     return $decision
 }
 
+# Section End - Utility Functions
+
+# Section Start - Logging Functions
+
+function Write-Error {
+    Param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [String]$message
+    )
+
+    Write-Host $message -ForegroundColor Red
+}
+
+function Write-Warning {
+    Param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [String]$message
+    )
+
+    Write-Host "WARNING: $message" -ForegroundColor Yellow
+}
+
+function Write-Info {
+    Param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [String]$message
+    )
+
+    Write-Host $message -ForegroundColor White
+}
+
+# Section End - Logging Functions
+
+# Section Start - Main Functions
+
 function Prepare {
     begin { Enter-Scope $MyInvocation }
 
@@ -99,18 +130,18 @@ function Prepare {
         # TODO - This will probably fail is not joined to a domain
         $curUser = [Security.Principal.WindowsIdentity]::GetCurrent().name.split('\')[1]
         if ($curUser -eq 'localadmin') {
-            Write-Host "Please run this script as your normal user account, not as an administrator."
+            Write-Error "Please run this script as your normal user account, not as an administrator."
             exit 1000
         }
 
         # Check that all required modules are installed
         foreach ($module in @('AzureAD', 'MSOnline', 'ImportExcel')) {
             if (Get-Module -ListAvailable $module -ErrorAction SilentlyContinue) {
-                Write-Host "Module $module found"
+                Write-Info "Module $module found"
             } elseif (Prompt-Confirmation "Module $module not found" "Would you like to install it now?" $true) {
                 Install-Module $module -AllowClobber -Scope CurrentUser
             } else {
-                Write-Host "Module $module not found; please install it using ```nInstall-Module $module -Force``"
+                Write-Error "Module $module not found; please install it using ```nInstall-Module $module -Force``"
                 exit 1001
             }
 
@@ -119,10 +150,10 @@ function Prepare {
 
         $ClientFolder = Get-ChildItem "$ClientsFolder\$Client*"
         if ($ClientFolder.Count -gt 1) {
-            Write-Host "Multiple client folders found; please specify the full client name."
+            Write-Error "Multiple client folders found; please specify the full client name."
             exit 1003
         } elseif ($ClientFolder.Count -eq 0) {
-            Write-Host "Client $Client not found; please check the spelling and try again."
+            Write-Error "Client $Client not found; please check the spelling and try again."
             exit 1003
         } else {
             $Client = $ClientFolder | Select-Object -ExpandProperty Name
@@ -133,24 +164,24 @@ function Prepare {
         $script:ExcelFile = "$ReportFolder\$ExcelFileName"
 
         if ((Test-Path $ReportFolder) -eq $false) {
-            Write-Host "Report folder not found; creating $ReportFolder"
+            Write-Info "Report folder not found; creating $ReportFolder"
             New-Item -Path $ReportFolder -ItemType Directory | Out-Null
         }
 
         if (Test-Path $ExcelFile) {
-            Write-Host "Excel file found; creating backup $ExcelFile.bak"
+            Write-Info "Excel file found; creating backup $ExcelFile.bak"
             Copy-Item -Path $ExcelFile -Destination "$ExcelFile.bak" -Force
         }
 
         try {
             $AzureAD = Get-AzureADCurrentSessionInfo -ErrorAction Stop
             $Continue = Prompt-Confirmation "AzureAD connection found" "It looks like you are already connected to AzureAD as $($AzureAD.Account). Would you like to continue?" $true
-            if ($Continue -eq $false) { throw } else { Write-Host "Continuing with existing connection" }
+            if ($Continue -eq $false) { throw } else { Write-Info "Continuing with existing connection" }
         } catch {
             try {
                 Connect-AzureAD -ErrorAction Stop
             } catch {
-                Write-Host "Failed to connect to AzureAD"
+                Write-Error "Failed to connect to AzureAD"
                 exit 1002
             }
         }
@@ -158,12 +189,12 @@ function Prepare {
         try {
             $CurrentCompany = Get-MsolCompanyInformation -ErrorAction Stop | Select-Object -Property DisplayName
             $Continue = Prompt-Confirmation "MSOL connection found" "It looks like you are already connected to MSOL as $($CurrentCompany.DisplayName). Would you like to continue?" $true
-            if ($Continue -eq $false) { throw } else { Write-Host "Continuing with existing connection" }
+            if ($Continue -eq $false) { throw } else { Write-Info "Continuing with existing connection" }
         } catch {
             try {
                 Connect-MsolService -ErrorAction Stop
             } catch {
-                Write-Host "Failed to connect to MSOL"
+                Write-Error "Failed to connect to MSOL"
                 exit 1002
             }
         }
@@ -196,11 +227,29 @@ function Get-Excel {
 
     process {
         $import = if (Test-Path $script:ExcelFile) {
-            Write-Host "Excel file found; importing data"
-            Import-Excel $script:ExcelFile
+            Write-Info "Excel file found; importing data"
+            try {
+                Import-Excel $script:ExcelFile
+            } catch {
+                Write-Error "Failed to import Excel file."
+
+                $Message = $_.Exception.Message
+                $WriteMessage = switch -Regex ($Message) {
+                    "Duplicate column headers" {
+                        $Match = Select-String "Duplicate column headers found on row '(?<row>[0-9]+)' in columns '(?:(?<column>[0-9]+)(?:[ ]?))+'." -InputObject $_
+                        $Row = $Match.Matches.Groups[1].Captures
+                        $Columns = $Match.Matches.Groups[2].Captures
+                        "There were duplicate columns found on row $Row in columns $($Columns -join ", "); Please remove any duplicate columns and try again"
+                    }
+                    default { "Unknown error; Please examine the error message and try again" }
+                }
+                Write-Error $WriteMessage
+
+                exit 1004
+            }
         }
         else {
-            Write-Host "Excel file not found; creating new file"
+            Write-Info "Excel file not found; creating new file"
             New-Object -TypeName System.Collections.ArrayList
         }
 
@@ -217,7 +266,7 @@ function Get-EmailToCell([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
     process {
         $Rows = $WorkSheet.Dimension.Rows
         if ($null -eq $Rows -or $Rows -lt 2) {
-            Write-Host "No data found in worksheet $($WorkSheet.Name)"
+            Write-Info "No data found in worksheet $($WorkSheet.Name)"
             return @{}
         }
 
@@ -239,7 +288,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
     process {
         # This is a new worksheet, no history to update
         if ($null -eq $ActiveWorkSheet.Dimension) {
-            Write-Host "No data found in worksheet $($ActiveWorkSheet.Name)"
+            Write-Info "No data found in worksheet $($ActiveWorkSheet.Name)"
             return
         }
 
@@ -276,7 +325,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
                 }
             }
 
-            Write-Host "Processing Column $ColumnIndex which is $Date, and will keep: $WillKeep"
+            Write-Info "Processing Column $ColumnIndex which is $Date, moving to history: $WillKeep"
 
             if ($WillKeep -eq $true) {
                 continue
@@ -339,7 +388,7 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
     begin { Enter-Scope $MyInvocation }
 
     process {
-        Write-Host "Preparing worksheet $($WorkSheet.Name)"
+        Write-Info "Preparing worksheet $($WorkSheet.Name)"
 
         $Rows = $WorkSheet.Dimension.Rows
         if ($null -ne $Rows -and $Rows -ge 2) {
@@ -350,26 +399,26 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
                 $RowIndex = $RowIndex - $RemovedRows
                 $Email = $WorkSheet.Cells[$RowIndex, 2].Value
 
-                Write-Host "Processing row $RowIndex with email '$Email'"
+                Write-Info "Processing row $RowIndex with email '$Email'"
 
                 # Remove any empty rows between actual data
                 if ($null -eq $Email) {
-                    Write-Host "Removing row $RowIndex because email is empty."
+                    Write-Info "Removing row $RowIndex because email is empty."
                     $WorkSheet.DeleteRow($RowIndex)
                     $RemovedRows++
                     continue
                 }
 
                 if ($DuplicateCheck) {
-                    Write-Host "Checking for duplicate email '$Email'"
+                    Write-Info "Checking for duplicate email '$Email'"
 
                     if (!$VisitiedEmails.Contains($Email)) {
-                        Write-Host "Adding email '$Email' to the list of visited emails"
+                        Write-Info "Adding email '$Email' to the list of visited emails"
                         $VisitiedEmails.Add($Email)
                         continue
                     }
 
-                    Write-Host "Duplicate email '$Email' found at row $RowIndex"
+                    Write-Info "Duplicate email '$Email' found at row $RowIndex"
 
                     $ExistingIndex = $VisitiedEmails.IndexOf($Email) + 2
                     $Question = "Duplicate email found at row $RowIndex`nThe email '$Email' was first seen at row $ExistingIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
@@ -382,12 +431,12 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
                             $ExistingIndex
                         }
                         default {
-                            Write-Host "Please manually review and remove the duplicate email that exists at rows $RowIndex and $($VisitiedEmails.IndexOf($Email) + 2)"
+                            Write-Error "Please manually review and remove the duplicate email that exists at rows $RowIndex and $($VisitiedEmails.IndexOf($Email) + 2)"
                             Exit 1010
                         }
                     }
 
-                    Write-Host "Removing row $RemovingRow "
+                    Write-Info "Removing row $RemovingRow "
                     $WorkSheet.DeleteRow($RemovingRow)
                     $RemovedRows++
                 }
@@ -405,7 +454,7 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
                 # TODO -> Use Get-ColumnDate
                 $Value = $WorkSheet.Cells[1, $ColumnIndex].Value
                 if ($null -eq $Value -or $Value -eq 'Check') {
-                    Write-Host "Removing column $ColumnIndex because date is empty or invalid."
+                    Write-Info "Removing column $ColumnIndex because date is empty or invalid."
                     $WorkSheet.DeleteColumn($ColumnIndex)
                     $RemovedColumns++
                     continue
@@ -434,8 +483,8 @@ function Remove-Users([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$W
             }
 
             $Row = $Table.Value
-            Write-Host "Removing $Email from $row"
-            Write-Host "Row email is $($WorkSheet.Cells[$Row, 2].Value) from $Row. (should be $Email)"
+            Write-Info "Removing $Email from $row"
+            Write-Info "Row email is $($WorkSheet.Cells[$Row, 2].Value) from $Row. (should be $Email)"
             $WorkSheet.DeleteRow($Row)
         }
     }
@@ -482,13 +531,13 @@ function Update-Data([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
             $AddedOffset = 0
             if ($null -eq $Row) {
                 $Row = $LastIndex + 1
-                Write-Host "Inserting row $Row for $($Data.DisplayName)"
+                Write-Info "Inserting row $Row for $($Data.DisplayName)"
                 $WorkSheet.InsertRow($Row, 1)
                 $WorkSheet.Cells[$Row, 2].Value = $Data.Email
 
                 $AddedOffset++
             } else {
-                Write-Host "Updating row $Row with offset of ($Offset) for $($Data.DisplayName)"
+                Write-Info "Updating row $Row with offset of ($Offset) for $($Data.DisplayName)"
                 $Row = $Row + $Offset
             }
 
@@ -550,7 +599,7 @@ function Set-Check([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
                 'Miss-match',[System.Drawing.Color]::Red
             }
 
-            Write-Host "Setting cell $row,$checkColumn to $colour"
+            Write-Info "Setting cell $row,$checkColumn to $colour"
 
             $Cell.Value = $Result
             $Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
@@ -569,8 +618,6 @@ function Set-Styles([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
     process {
         $lastColumn = $WorkSheet.Dimension.Address -split ':' | Select-Object -Last 1
         $lastColumn = $lastColumn -replace '[0-9]', ''
-
-        Write-Host "Last column is $lastColumn"
 
         Set-ExcelRange -Worksheet $WorkSheet -Range "A1:$($lastColumn)1" -Bold -HorizontalAlignment Center
         if ($WorkSheet.Dimension.Columns -ge 4) { Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($lastColumn)1" -NumberFormat "MMM-yy" }
@@ -604,7 +651,7 @@ function Get-WorkSheets([OfficeOpenXml.ExcelPackage]$ExcelData) {
 
         $HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
         if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne "History") {
-            Write-Host "Creating new worksheet for history"
+            Write-Info "Creating new worksheet for history"
             $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Copy("Working", "History")
             $HistoryWorkSheet.DeleteColumn(4, $HistoryWorkSheet.Dimension.Columns - 3)
         }
@@ -624,7 +671,7 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
 
     process {
         if ($ExcelData.Workbook.Worksheets.Count -gt 2) {
-            Write-Host "Removing $($ExcelData.Workbook.Worksheets.Count - 2) worksheets"
+            Write-Info "Removing $($ExcelData.Workbook.Worksheets.Count - 2) worksheets"
             foreach ($Index in 3..$ExcelData.Workbook.Worksheets.Count) {
                 $ExcelData.Workbook.Worksheets.Delete(3)
             }
