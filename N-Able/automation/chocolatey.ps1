@@ -153,7 +153,6 @@ function InstallRequirements () {
     $script:logger.Info("Installing chocolatey...")
 
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-    Set-ExecutionPolicy Bypass -Scope Process -Force
     if ($dryrun -ne $true) {
         Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
     }
