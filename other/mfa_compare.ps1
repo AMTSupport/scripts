@@ -325,7 +325,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
                 }
             }
 
-            Write-Info "Processing Column $ColumnIndex which is $Date, moving to history: $WillKeep"
+            Write-Info "Processing Column $ColumnIndex which is dated $Date, moving to history: $(!$WillKeep)"
 
             if ($WillKeep -eq $true) {
                 continue
@@ -333,11 +333,16 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
 
             if ($null -ne $HistoryWorkSheet) {
                 $HistoryColumnIndex = $HistoryWorkSheet.Dimension.Columns + 1
+
+                Write-Info "Moving column $ColumnIndex from working page into history page at $HistoryColumnIndex"
+
                 $HistoryWorkSheet.InsertColumn($HistoryColumnIndex, 1)
                 $HistoryWorkSheet.Cells[1, $HistoryColumnIndex].Value = $Date.ToString('MMM-yy')
 
                 $HistoryEmails = Get-EmailToCell -WorkSheet $HistoryWorkSheet
                 foreach ($RowIndex in 2..$ActiveWorkSheet.Dimension.Rows) {
+                    Write-Info "Processing row $RowIndex"
+
                     $Email = $ActiveWorkSheet.Cells[$RowIndex, 2].Value
                     $HistoryIndex = $HistoryEmails[$Email]
 
@@ -418,20 +423,22 @@ function Prepare-Worksheet([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$Du
                         continue
                     }
 
-                    Write-Info "Duplicate email '$Email' found at row $RowIndex"
+                    Write-Info "Duplicate email '$Email' found at virtual row $RowIndex (Offset by $($RemovedRows + 2))"
 
-                    $ExistingIndex = $VisitiedEmails.IndexOf($Email) + 2
-                    $Question = "Duplicate email found at row $RowIndex`nThe email '$Email' was first seen at row $ExistingIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
+                    $AdditionalRealIndex = $RowIndex + $RemovedRows
+                    $ExistingRealIndex = $VisitiedEmails.IndexOf($Email) + 2 + $RemovedRows
+                    $Question = "Duplicate email found at row $AdditionalRealIndex`nThe email '$Email' was first seen at row $ExistingRealIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
                     $Selection = Prompt-Selection "Duplicate Email" $Question @("&Existing", "&New", "&Break") 0
                     $RemovingRow = switch ($Selection) {
                         0 { $RowIndex }
                         1 {
+                            $ExistingIndex = $VisitiedEmails.IndexOf($Email)
                             $VisitiedEmails.Remove($Email)
                             $VisitiedEmails.Add($Email)
                             $ExistingIndex
                         }
                         default {
-                            Write-Error "Please manually review and remove the duplicate email that exists at rows $RowIndex and $($VisitiedEmails.IndexOf($Email) + 2)"
+                            Write-Error "Please manually review and remove the duplicate email that exists at rows $ExistingRealIndex and $AdditionalRealIndex"
                             Exit 1010
                         }
                     }
@@ -638,27 +645,34 @@ function Get-WorkSheets([OfficeOpenXml.ExcelPackage]$ExcelData) {
             $ActiveWorkSheet = $ExcelData.Workbook.Worksheets.Add("Working")
         } else { $ActiveWorkSheet.Name = "Working" }
 
-        # New worksheet, add the columns and rows
-        if ($null -eq $ActiveWorkSheet.Dimension) {
-            $ActiveWorkSheet.InsertColumn(1, 3)
-            $ActiveWorkSheet.InsertRow(1, 1)
-        }
-
-        $Cells = $ActiveWorkSheet.Cells
-        $Cells[1, 1].Value = "Name"
-        $Cells[1, 2].Value = "Email"
-        $Cells[1, 3].Value = "Phone"
-
         $HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
         if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne "History") {
             Write-Info "Creating new worksheet for history"
-            $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Copy("Working", "History")
-            $HistoryWorkSheet.DeleteColumn(4, $HistoryWorkSheet.Dimension.Columns - 3)
+            $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Add("History")
         }
 
         # Move the worksheets to the correct position
         $ExcelData.Workbook.Worksheets.MoveToStart("Working")
         $ExcelData.Workbook.Worksheets.MoveAfter("History", "Working")
+
+        function New([OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
+            # Test if the worksheet has data by checking the dimension
+            # If the dimension is null then there is no data
+            if ($null -ne $WorkSheet.Dimension) {
+                return
+            }
+
+            $WorkSheet.InsertColumn(1, 3)
+            $WorkSheet.InsertRow(1, 1)
+
+            $Cells = $WorkSheet.Cells
+            $Cells[1, 1].Value = "Name"
+            $Cells[1, 2].Value = "Email"
+            $Cells[1, 3].Value = "Phone"
+        }
+
+        New $ActiveWorkSheet
+        New $HistoryWorkSheet
 
         return $ActiveWorkSheet, $HistoryWorkSheet
     }
