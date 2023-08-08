@@ -287,8 +287,8 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
 
     process {
         # This is a new worksheet, no history to update
-        if ($null -eq $ActiveWorkSheet.Dimension) {
-            Write-Info "No data found in worksheet $($ActiveWorkSheet.Name)"
+        if ($ActiveWorkSheet.Dimension.Columns -lt 4) {
+            Write-Info "No data found in worksheet $($ActiveWorkSheet.Name), skipping history update."
             return
         }
 
@@ -299,6 +299,8 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
             $WillKeep = $KeptRange -contains $ColumnIndex
             $ColumnIndex = $ColumnIndex - $RemovedColumns
             $DateValue = $ActiveWorkSheet.Cells[1, $ColumnIndex].Value
+
+            Write-Info "Processing Column $ColumnIndex which is dated $DateValue, moving to history: $(!$WillKeep)"
 
             # Empty column, remove and continue;
             if ($null -eq $DateValue -or $DateValue -eq '') {
@@ -317,6 +319,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
                     try {
                         [DateTime]::FromOADate($DateValue)
                     } catch {
+                        Write-Info "Deleting what is thought to be invalid or check column at $ColumnIndex"
                         # Probably the check column, remove and continue;
                         $ActiveWorkSheet.DeleteColumn($ColumnIndex)
                         $RemovedColumns++
@@ -514,7 +517,7 @@ function Update-Data([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
         # TODO -> Check for existing column for this month
         $ColumnName = Get-Date -Format "MMM-yy"
 
-        $ColumnIndex = $WorkSheet.Dimension.Columns + 1
+        $ColumnIndex = [Math]::Max(3, $WorkSheet.Dimension.Columns + 1)
         $WorkSheet.Cells[1, $ColumnIndex].Value = $ColumnName
 
         $EmailTable = Get-EmailToCell -WorkSheet $WorkSheet
