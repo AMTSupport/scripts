@@ -546,14 +546,14 @@ function Main {
                     Configure
 
                     Write-Host "Setting up scheduled task [$TaskName] to run the next phase [Cleanup]..."
-                    Set-StartupSchedule "cleanup" -Imediate
+                    Set-StartupSchedule "cleanup" -Imediate:$DryRun
                 }
                 "cleanup" {
                     # TODO - Windows bullshit ads and other crap
                     Uninstall-HP
 
                     Write-Host "Setting up scheduled task [$TaskName] to run the next phase [Install]..."
-                    Set-StartupSchedule "install" -Immediate
+                    Set-StartupSchedule "install" -Immediate:$DryRun
                 }
                 "install" {
                     if ($Script:InstallInfo.CompletedPhases -notcontains "configure") {
@@ -597,7 +597,7 @@ function Main {
                     Import-DownloadableModule -Name PSWindowsUpdate -ErrorAction  Stop
 
                     # This will install all updates, rebooting if required, and start the process over again
-                    Get-WindowsUpdate -Install -AcceptAll
+                    Get-WindowsUpdate -Install -AcceptAll -WhatIf:$DryRun
                     Set-StartupSchedule $Phase
                     Restart-Computer -Force -WhatIf:$DryRun
                 }
