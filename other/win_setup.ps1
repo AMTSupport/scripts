@@ -445,7 +445,7 @@ function Uninstall-HP {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        $HPPublisherId = "CN=ED344674-0FA1-4272-85CE-3187C9C86E26"
+        $HPPublisherId = "CN=ED346674-0FA1-4272-85CE-3187C9C86E26"
         Write-Information "Uninstalling HP bloatware..."
 
         # Removes myHP, HPAudioControl, HPSystemInformation, HPSupportAssistant, HPPrivacySettings, HPPowerManager, HPPCHardwareDiagnosticsWindows
