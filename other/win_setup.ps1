@@ -181,7 +181,7 @@ function Remove-Flag([String]$Context) {
 
     process {
         $Flag = "$($env:TEMP)\$Context.flag"
-        Remove-Item -Path $Flag -Force
+        Remove-Item -Path $Flag -Force -ErrorAction SilentlyContinue
     }
 
     end { Exit-Scope $MyInvocation }
