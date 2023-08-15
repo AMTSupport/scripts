@@ -528,11 +528,10 @@ function Main {
         Install-Requirements
         $Script:InstallInfo = Get-InstallInfo
 
-        # if ($Script:InstallInfo.CompletedPhases -contains $Phase) {
-        #     Write-Host "Skipping phase [$Phase] since it's already been completed..."
-        #     Write-Host "If you want to re-run this phase, delete the file [$InstallInfoFile] and re-run this script."
-        #     return
-        # }
+        if ($RecursionLevel -ge 3) {
+            Write-Warning "Recursion level [$RecursionLevel] is too high, aborting..."
+            exit 1005
+        }
 
         # Removes the scheduled task if it exists
         if ($ScheduledTask) {
