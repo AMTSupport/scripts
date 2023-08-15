@@ -191,19 +191,29 @@ function Set-RebootFlag { Set-Flag -Context "reboot" }
 function Remove-RebootFlag { Remove-Flag -Context "reboot" }
 function Get-RebootFlag { Get-Flag -Context "reboot" }
 
+function Get-TaskTrigger {
+    switch ($DryRun) {
+        $true { $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5) }
+        $false { $Trigger = New-ScheduledTaskTrigger -AtLogOn -User "$(whoami)" }
+    }
+
+    $Trigger
+}
+
+function Get-TaskSettings {
+    New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun
+}
+
+function Get-TaskPrincipal {
+    New-ScheduledTaskPrincipal -UserId "$(whoami)" -RunLevel Highest
+}
+
 function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate) {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        switch ($Imediate) {
-            $true { $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(10) }
-            $false { $Trigger = New-ScheduledTaskTrigger -AtLogOn -User "$(whoami)" }
-        }
-
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$($MyInvocation.MyCommand.Source)`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 })) -DryRun:$DryRun"
-        $Principal = New-ScheduledTaskPrincipal -UserId "$(whoami)" -RunLevel Highest
-        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun
-        $Task = New-ScheduledTask -Action $Action -Principal $Principal -Settings $Settings -Trigger $Trigger
+        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$($MyInvocation.PSCommandPath)`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 }) $(if ($DryRun) { "-DryRun" } else { " " })"
+        $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger)
 
         Register-ScheduledTask -TaskName $TaskName -InputObject $Task
     }
