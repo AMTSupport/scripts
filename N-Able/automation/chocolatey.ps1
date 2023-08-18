@@ -94,14 +94,33 @@ function Exists([Parameter(Mandatory)] [String]$Program) {
 }
 
 function Install([Parameter(Mandatory)] [String[]]$Needed) {
-    # Force is used to prevent the script from stopping if a package is already installed from a different source like ninite
-    $ChocoCommand = "choco install --yes --acceptlicense --no-progress --force"
+    $ChocoCommand = "choco install --stop-on-first-failure --yes --acceptlicense --no-progress"
+    $NeededConcat = "$($Needed -join " ")"
+    $ChocoInstalledList = choco list --local-only -r $NeededConcat
+
+
+    # TODO - Test that the source is choco, if not add --force
+    $Appended = $false
+    foreach ($Program in $Needed) {
+        if ($ChocoInstalledList -match $Program) {
+            $script:logger.Info("Skipping {0} as it is already installed." -f $Program)
+            continue
+        }
+
+        $script:logger.Info("Installing {0}..." -f $Program)
+        $ChocoCommand = "$ChocoCommand $Program"
+        $Appended = $true
+    }
+
+    if ($Appended -eq $false) {
+        $script:logger.Info("All required packages are already installed.")
+        return
+    }
 
     if ($dryrun) {
         $ChocoCommand = "$ChocoCommand --noop"
     }
 
-    $ChocoCommand = "$ChocoCommand $($Needed -join " ")"
     Invoke-Expression $ChocoCommand
 }
 
@@ -145,6 +164,7 @@ function InstallRequirements () {
     }
 
     # Test for present Chocolatey files
+    # TODO - Try auto repair
     if (Test-Path -Path "$($env:SystemDrive)\ProgramData\Chocolatey") {
         $script:logger.Error("Chocolatey files found, please remove them before continuing.")
         exit 1001
