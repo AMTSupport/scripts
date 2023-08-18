@@ -1,11 +1,11 @@
-# Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 #Requires -Version 5.1
 
 Param(
     [String]$Account = "localadmin",
     [String]$SentinelEndpoint = "apne1-swprd3.sentinelone.net",
 
-    [String]$SentinelApiKey,
+    # [String]$SentinelApiKey,
     [String]$Password,
 
     [switch]$Repair,
@@ -39,12 +39,13 @@ function Enter-Safemode {
     begin { Enter-Scope $MyInvocation }
 
     process {
+        Suspend-BitLocker -MountPoint "C:" -RebootCount 1 -WhatIf:$DryRun
+
         $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
         Set-ItemProperty $RegPath "AutoAdminLogon" -Value "1" -WhatIf:$DryRun
         Set-ItemProperty $RegPath "DefaultUsername" -Value "$Account" -WhatIf:$DryRun
         Set-ItemProperty $RegPath "DefaultPassword" -Value "$Password" -WhatIf:$DryRun
 
-        Start-Process -FilePath "bcdedit.exe" -ArgumentList "/set {default} safeboot minimal" -Wait -NoNewWindow -WhatIf:$DryRun
         Restart-Computer -Force -Confirm:$false -WhatIf:$DryRun
     }
 
@@ -60,7 +61,6 @@ function Exit-Safemode {
         Remove-ItemProperty -Path $RegPath -Name "DefaultUsername" -ErrorAction SilentlyContinue -WhatIf:$DryRun
         Remove-ItemProperty -Path $RegPath -Name "DefaultPassword" -ErrorAction SilentlyContinue -WhatIf:$DryRun
 
-        Start-Process -FilePath "bcdedit.exe" -ArgumentList "/deletevalue {default} safeboot" -Wait -NoNewWindow -WhatIf:$DryRun
         Restart-Computer -Force -Confirm:$false -WhatIf:$DryRun
     }
 
@@ -82,6 +82,10 @@ function Add-DesktopRunner {
         $shortcut.TargetPath = "pwsh"
         $shortcut.Arguments = "-NoExit -NonInteractive -ExecutionPolicy Bypass -File `"$($MyInvocation.PSCommandPath)`" -Repair -DryRun:$DryRun"
         $shortcut.Save()
+
+        $bytes = [System.IO.File]::ReadAllBytes("$desktop\Please click me.lnk")
+        $bytes[0x15] = $bytes[0x15] -bor 0x20 #set byte 21 (0x15) bit 6 (0x20) ON
+        [System.IO.File]::WriteAllBytes("$desktop\Please click me.lnk", $bytes)
     }
 
     end { Exit-Scope $MyInvocation }
@@ -123,10 +127,11 @@ function Get-SentinelInstaller {
         }
 
         # TODO - Get the latest installer from the API instead of hardcoding
-        $url = "https://${SentinelEndpoint}/web/api/v2.1/update/agent/download/1731852834663698166/1743420105324308764"
-        Invoke-RestMethod -Uri $url -UseBasicParsing -OutFile $installer -Method Get -Headers @{
-            Authorization = "ApiToken $SentinelApiKey"
-        }
+        $headers = @{}
+        $url = "https://nextcloud.racci.dev/s/MPsaSBsJDfQb6fX/download/SentinelOneInstaller_windows_64bit_v23_1_4_650.exe"
+        # $headers = @{Authorization = "ApiToken $SentinelApiKey" }
+        # $url = "https://${SentinelEndpoint}/web/api/v2.1/update/agent/download/1731852834663698166/1743420105324308764"
+        Invoke-RestMethod -Uri $url -UseBasicParsing -OutFile $installer -Method Get -Headers $headers
 
         Get-Item -Path $installer
     }
@@ -145,8 +150,7 @@ function Run-Repair {
             exit 1003
         }
 
-        Start-Process -FilePath $installer -ArgumentList "-c -t 1" -Wait -NoNewWindow -WhatIf:$DryRun
-        Start-Process -FilePath $installer -ArgumentList "-c -k 1" -Wait -NoNewWindow -WhatIf:$DryRun
+        Start-Process -FilePath $installer -ArgumentList "-c -k 1 -t 1" -Wait -NoNewWindow -WhatIf:$DryRun
 
         Remove-Item -Path $installer -WhatIf:$DryRun
         Remove-Item -Path "$([Environment]::GetFolderPath("CommonDesktopDirectory"))\Please Click Me.lnk" -WhatIf:$DryRun
@@ -160,10 +164,10 @@ function Main {
         Run-Repair
         Exit-Safemode
     } else {
-        if (!$SentinelApiKey) {
-            Write-Host "SentinelOne API key not provided, exiting."
-            exit 1000
-        }
+        # if (!$SentinelApiKey) {
+        #     Write-Host "SentinelOne API key not provided, exiting."
+        #     exit 1000
+        # }
 
         if (!$Password) {
             Write-Host "Password not provided, exiting."
