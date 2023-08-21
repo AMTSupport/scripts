@@ -552,7 +552,7 @@ function Main {
                     Configure
 
                     Write-Host "Setting up scheduled task [$TaskName] to run the next phase [Cleanup]..."
-                    Set-StartupSchedule "cleanup" -Imediate:$DryRun
+                    Set-StartupSchedule "cleanup" -Imediate
                 }
                 "cleanup" {
                     # TODO - Windows bullshit ads and other crap
