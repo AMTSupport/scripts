@@ -6,6 +6,9 @@ Param (
     [switch]$DryRun,
 
     [Parameter()]
+    [switch]$NoSchedule,
+
+    [Parameter()]
     [ValidateSet("Configure", "Cleanup", "Install", "Update")]
     [String]$Phase = "Configure",
 
@@ -212,6 +215,10 @@ function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate) {
     begin { Enter-Scope $MyInvocation }
 
     process {
+        if ($NoSchedule) {
+            return
+        }
+
         $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$($MyInvocation.PSCommandPath)`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 }) $(if ($DryRun) { "-DryRun" } else { " " })"
         $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger)
 
@@ -228,7 +235,8 @@ function Import-DownloadableModule([String]$Name) {
         $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
         if ($null -eq $Module) {
             Write-Host "Downloading module $Name..."
-            Install-Module -Name $Name -Scope CurrentUser -Confirm -Force
+            Install-PackageProvider -Name NuGet -Confirm:$false
+            Install-Module -Name $Name -Scope CurrentUser -Confirm:$false -Force
             $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
         }
 
@@ -510,7 +518,9 @@ function Uninstall-HP {
         }"'
         $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger)
 
-        Register-ScheduledTask -TaskName "HP Wolf Uninstall Reboot Persistence" -InputObject $Task
+        if (!$NoSchedule) {
+            Register-ScheduledTask -TaskName "HP Wolf Uninstall Reboot Persistence" -InputObject $Task
+        }
 
         # return the function while running this last command in the background
         Write-Host "Removing HP Wolf Security using winget..."
