@@ -240,17 +240,17 @@ function Import-DownloadableModule([String]$Name) {
 
 # Section End - Utility Functions
 
-function Configure {
+function Get-Network {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        if (-not (Get-NetConnectionProfile -InterfaceAlias "Wi-Fi")) {
+        if (-not (Get-NetConnectionProfile -InterfaceAlias "Wi-Fi" -ErrorAction SilentlyContinue)) {
             Write-Host "No Wi-Fi connection found, creating profile..."
 
             $profilefile = "SetupWireless-profile.xml"
 
             $SSIDHEX = ($NetworkName.ToCharArray() | foreach-object { '{0:X}' -f ([int]$_) }) -join ''
-            $XmlFile = "<?xml version=""1.0""?>
+            $XmlContent = "<?xml version=""1.0""?>
 <WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
     <name>$NetworkName</name>
     <SSIDConfig>
@@ -281,11 +281,11 @@ function Configure {
             if ($DryRun) {
                 Write-Host "Dry run enabled, skipping profile creation..."
                 Write-Host "Would have created profile file $profilefile with contents:"
-                Write-Host $XmlFile
+                Write-Host $XmlContent
             }
             else {
                 Write-Host "Creating profile file $profilefile..."
-                $XmlFile > ($profilefile)
+                $XmlContent > ($profilefile)
                 netsh wlan add profile filename="$($profilefile)"
                 netsh wlan show profiles $NetworkName key=clear
                 netsh wlan connect name=$NetworkName
@@ -297,7 +297,15 @@ function Configure {
             }
             Write-Host "Connected to $NetworkName."
         }
+    }
 
+    end { Exit-Scope $MyInvocation }
+}
+
+function Configure {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
         $DeviceName = $Script:InstallInfo.DeviceName
         if ($env:COMPUTERNAME -eq $DeviceName) {
             Write-Host "Device name is already set to $DeviceName."
@@ -525,6 +533,7 @@ function Main {
 
     process {
         $ErrorActionPreference = "Stop"
+        Get-Network
         Install-Requirements
         $Script:InstallInfo = Get-InstallInfo
 
