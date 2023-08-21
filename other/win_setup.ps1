@@ -194,10 +194,10 @@ function Set-RebootFlag { Set-Flag -Context "reboot" }
 function Remove-RebootFlag { Remove-Flag -Context "reboot" }
 function Get-RebootFlag { Get-Flag -Context "reboot" }
 
-function Get-TaskTrigger {
-    switch ($DryRun) {
+function Get-TaskTrigger([switch]$Imediate) {
+    switch ($Imediate) {
         $true { $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5) }
-        $false { $Trigger = New-ScheduledTaskTrigger -AtLogOn -User "$(whoami)" }
+        $false { $Trigger = New-ScheduledTaskTrigger -Once -AtLogOn -User "$(whoami)" }
     }
 
     $Trigger
@@ -220,7 +220,7 @@ function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate) {
         }
 
         $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$($MyInvocation.PSCommandPath)`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 }) $(if ($DryRun) { "-DryRun" } else { " " })"
-        $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger)
+        $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger -Imediate:$Imediate)
 
         Register-ScheduledTask -TaskName $TaskName -InputObject $Task
     }
