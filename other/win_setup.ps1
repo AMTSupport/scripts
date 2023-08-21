@@ -603,7 +603,7 @@ function Main {
                     Import-DownloadableModule -Name PSWindowsUpdate -ErrorAction  Stop
 
                     # This will install all updates, rebooting if required, and start the process over again
-                    Get-WindowsUpdate -Install -AcceptAll -WhatIf:$DryRun
+                    Get-WindowsUpdate -Install -AcceptAll -IgnoreReboot -WhatIf:$DryRun
                     Set-StartupSchedule $Phase
                     Restart-Computer -Force -WhatIf:$DryRun
                 }
