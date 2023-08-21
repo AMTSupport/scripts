@@ -552,6 +552,7 @@ function Main {
 
         if ($RecursionLevel -ge 3) {
             Write-Warning "Recursion level [$RecursionLevel] is too high, aborting..."
+            Unregister-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue -Confirm:$false
             exit 1005
         }
 
