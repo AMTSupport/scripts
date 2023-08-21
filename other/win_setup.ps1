@@ -228,7 +228,7 @@ function Import-DownloadableModule([String]$Name) {
         $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
         if ($null -eq $Module) {
             Write-Host "Downloading module $Name..."
-            Install-Module -Name $Name -Scope CurrentUser -Confirm:$false -Force
+            Install-Module -Name $Name -Scope CurrentUser -Confirm -Force
             $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
         }
 
