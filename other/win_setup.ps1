@@ -434,6 +434,7 @@ function Install-Agent {
         Write-Host "Downloading agent from [$Uri]..."
         Invoke-RestMethod -Uri $Uri -OutFile $OutputZip -UseBasicParsing -ErrorAction Stop
         Expand-Archive -Path $OutputZip -DestinationPath $OutputFolder -WhatIf:$DryRun -ErrorAction Stop
+        # Throws an error when downloading then running, but if already downloaded it works fine??
         $OutputExe = Get-ChildItem -Path $OutputFolder -Filter "*.exe" -File -ErrorAction SilentlyContinue | Select-Object -First 1
 
         if ($null -eq $OutputExe) {
@@ -446,6 +447,8 @@ function Install-Agent {
             $true { Write-Host "Dry run enabled, skipping agent installation..." }
             $false { Start-Process -FilePath $OutputExe.FullName -Wait }
         }
+
+        # TODO - Monitor process and restart when it has activated itself
     }
 }
 
@@ -499,19 +502,13 @@ function Uninstall-HP {
             }
         }
 
-        $Command = '
-        @("HP Security Update Service", "HP Wolf Security - Console") | ForEach-Object {
-            $WingetCmd $_
-        }
+        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoExit -Command "& {
+            winget uninstall -e --purge --name `""HP Wolf Security - Console`""
+            winget uninstall -e --purge --name `""HP Security Update Service`""
 
-        Unregister-ScheduledTask -TaskName "HP Wolf Uninstall Reboot Persistence" -Confirm:$false
-'
-
-        $Trigger = New-ScheduledTaskTrigger -AtLogOn -User "$(whoami)"
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-Command { $Command }"
-        $Principal = New-ScheduledTaskPrincipal -UserId "$(whoami)" -RunLevel Highest
-        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-        $Task = New-ScheduledTask -Action $Action -Principal $Principal -Trigger $Trigger -Settings $Settings
+            Unregister-ScheduledTask -TaskName `""HP Wolf Uninstall Reboot Persistence`"" -Confirm:`$false
+        }"'
+        $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger)
 
         Register-ScheduledTask -TaskName "HP Wolf Uninstall Reboot Persistence" -InputObject $Task
 
@@ -520,7 +517,7 @@ function Uninstall-HP {
         if ($DryRun) {
             Write-Host "Dry run enabled, skipping HP Wolf Security uninstallation..."
         } else {
-            Start-Process -FilePath "powershell.exe" -ArgumentList "-Command { "$WingetCmd `"HP Wolf Security`"" }"
+            Start-Process -FilePath "powershell.exe" -ArgumentList '-NoExit -Command "& { winget uninstall -e --purge --name `""HP Wolf Security`"" }"'
             Write-Host "HP Wolf Security is uninstalling, please wait for the uninstallation to complete..."
         }
     }
