@@ -428,6 +428,12 @@ function Install-Agent {
     process {
         $ErrorActionPreference = "Stop"
 
+        # Check if the agent is already installed
+        if (Get-Service -Name "Advanced Monitoring Agent" -ErrorAction SilentlyContinue) {
+            Write-Host "Agent is already installed, skipping installation..."
+            return
+        }
+
         # Download agent from N-Able
         Write-Information "Downloading agent..."
 
