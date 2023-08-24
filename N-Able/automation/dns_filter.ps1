@@ -131,7 +131,6 @@ function Get-AgentStatus {
     process {
         if ((Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*).DisplayName -contains "DNS Agent") {
             Log-Info "Application is installed"
-            return [Result]::Ok("Success")
         } else {
             Log-Info "DNS Filter not installed"
             return [Result]::Err($null, 777)
@@ -139,11 +138,17 @@ function Get-AgentStatus {
 
         if ((Get-Service -Name "DNS Agent").Status -eq "Running") {
             Log-Info "Service is running"
-            return [Result]::Ok("Success")
         } else {
             Log-Error "DNS Filter installed but Service is not running"
             return [Result]::Err($null, 666)
         }
+
+        return [Result]::Ok("Success")
+
+        # TODO: Look into using the API to check the status of this machine with the dashboard
+        # FIXME: This needs a permanent API key, currently only able to figure out a jwt token
+        $Uri = https://api.dnsfilter.com/v1/user_agents?search=$env:COMPUTERNAME&type=agents
+        $DashboardStatus = Invoke-WebRequest -Uri $Uri -Headers @{"accept"="application/json"} -ErrorAction Stop
     }
 
     end { Exit-Scope $MyInvocation }
