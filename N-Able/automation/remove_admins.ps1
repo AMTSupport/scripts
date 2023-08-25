@@ -1,53 +1,108 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
-#Requires -PSEdition Desktop
-
-# remove admin from accounts expect localadmin and domain admin (input argument: $admin)
-# if there were no accounts modified return 0, otherwise return 1 so the script will display as failed in the n-able dashboard
 
 Param(
     [Parameter()]
-    [String]$LocalAdmin = "localadmin",
+    [Switch]$NoModify,
 
-    [Parameter()]
+    [Parameter(Position = 0, ValueFromRemainingArguments)]
     [String[]]$UserExceptions = @()
 )
 
+#region - Scope Functions
+
+function Enter-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
+    $Params = $Invocation.BoundParameters
+    Write-Verbose "Entered scope $($Invocation.MyCommand.Name) with parameters [$($Params.Keys) = $($Params.Values)]"
+}
+
+function Exit-Scope([System.Management.Automation.InvocationInfo]$Invocation, [Object]$ReturnValue) {
+    Write-Verbose "Exited scope $($Invocation.MyCommand.Name) with return value [$ReturnValue]"
+}
+
+#endregion Scope Functions
+
+#region - Script Functions
+
 function Get-LocalAdmins {
-    $Admins = net localgroup administrators
-    $Admins = $Admins[6..($Admins.Length - 3)]
-    $Admins = $Admins | ForEach-Object { $_.Trim() }
-    $Admins = $Admins | Where-Object { $_ -notin ("nt authority\system", "administrator") }
+    begin { Enter-Scope $MyInvocation }
 
-    return $Admins
-}
+    process {
+        $Admins = net localgroup administrators
+        $Admins = $Admins[6..($Admins.Length - 3)]
+        $Admins = $Admins | ForEach-Object { $_.Trim() }
+        Write-Debug "Admins before filtering [$($Admins -join ', ')]"
 
-function Remove-Admins([Parameter(Mandatory)][String[]]$Users) {
-    Write-Host "Received Users: $Users"
-    $Removing = $Users | Where-Object { $_ -notin (@($LocalAdmin) + $UserExceptions) }
-    Write-Host "Removing Users: $Removing"
+        $Admins = $Admins | Where-Object { $_ -notin ("localadmin", "nt authority\system", "administrator") }
+        Write-Debug "Admins after filtering [$($Admins -join ', ')]"
 
-    $Removing | ForEach-Object {
-        Write-Host "Removing $_ from administrators group"
-        net localgroup administrators /del $_
+        return $Admins
     }
+
+    end { Exit-Scope $MyInvocation $Admins }
 }
+
+function Remove-Admins([String[]]$Users) {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
+        if (($null -eq $Users) -or ($Users.Count -eq 0)) {
+            Write-Host "No users were supplied, nothing to do."
+            return @()
+        }
+
+        Write-Debug "Users before filtering supplied exceptions [$($Users -join ', ')]"
+        $Removing = $Users | Where-Object {
+            $User = $_
+            $Result = $User -notin $UserExceptions
+            switch ($Result) {
+                $true { Write-Debug "User $User not in exceptions" }
+                $false { Write-Debug "User $User in exceptions" }
+            }
+            $Result
+        }
+        Write-Debug "Users after filtering supplied exceptions [$($Removing -join ', ')]"
+
+        if (($null -eq $Removing) -or ($Removing.Count -eq 0)) {
+            Write-Host "No users after filtering, nothing to do."
+            return @()
+        }
+
+        foreach ($User in $Removing) {
+            switch ($NoModify) {
+                $true { Write-Host "Would have removed $User from administrators group" }
+                $false { net localgroup administrators /del $User | Out-Null }
+            }
+        }
+
+        return $Removing
+    }
+
+    end { Exit-Scope $MyInvocation $Removing }
+}
+
+#endregion - Script Functions
+
+#region - Script Main Entry
 
 function Main {
-    $Global:ErrorActionPreference = "Stop"
-    $Global:VerbosePreference = "Continue"
-
+    $Script:ErrorActionPreference = "Stop"
 
     $LocalAdmins = Get-LocalAdmins
     $RemovedAdmins = Remove-Admins -Users $LocalAdmins
 
     if ($RemovedAdmins.Count -eq 0) {
         Write-Host "No accounts modified"
-        return 0
     } else {
-        Write-Host "Accounts modified: $RemovedAdmins"
-        return 1
+        switch ($NoModify) {
+            $true { Write-Host "Would have modified $RemovedAdmins" }
+            $false { Write-Host "Modified $RemovedAdmins" }
+        }
+
+        Exit 1001 # Exit code to indicate a change was made
     }
 }
 
 Main
+
+#endregion - Script Main Entry
