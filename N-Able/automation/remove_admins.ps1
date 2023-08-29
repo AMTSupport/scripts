@@ -6,7 +6,10 @@ Param(
     [Switch]$NoModify,
 
     [Parameter(Position = 0, ValueFromRemainingArguments)]
-    [String[]]$UserExceptions = @()
+    [String[]]$UserExceptions = @(),
+
+    [Parameter(DontShow)]
+    [String[]]$BaseHiddenUsers = @("localadmin", "nt authority\\system", "administrator", "AzureAD\\Admin")
 )
 
 #region - Scope Functions
@@ -33,7 +36,7 @@ function Get-LocalAdmins {
         $Admins = $Admins | ForEach-Object { $_.Trim() }
         Write-Debug "Admins before filtering [$($Admins -join ', ')]"
 
-        $Admins = $Admins | Where-Object { $_ -notin ("localadmin", "nt authority\system", "administrator") }
+        $Admins = $Admins | Where-Object { $_ -notin $BaseHiddenUsers }
         Write-Debug "Admins after filtering [$($Admins -join ', ')]"
 
         return $Admins
@@ -87,6 +90,8 @@ function Remove-Admins([String[]]$Users) {
 
 function Main {
     $Script:ErrorActionPreference = "Stop"
+    $Script:VerbosePreference = "Continue"
+    $Script:DebugPreference = "Continue"
 
     $LocalAdmins = Get-LocalAdmins
     $RemovedAdmins = Remove-Admins -Users $LocalAdmins
