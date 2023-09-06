@@ -2,38 +2,29 @@
 #Requires -Version 5.1
 
 Param(
-    [String]$Account = "localadmin",
+    [String]$Account = "localadmin", # TODO: Should this be the current user?
     [String]$SentinelEndpoint = "apne1-swprd3.sentinelone.net",
 
-    # [String]$SentinelApiKey,
     [String]$Password,
 
     [switch]$Repair,
     [switch]$DryRun
 )
 
-# Section Start - Utility Funtions
+#region - Scope Functions
 
-<#
-.SYNOPSIS
-    Logs the beginning of a function and starts a timer to measure the duration.
-#>
 function Enter-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     $Params = $Invocation.BoundParameters
     Write-Host "Entered scope $($Invocation.MyCommand.Name) with parameters [$($Params.Keys) = $($Params.Values)]"
 }
 
-<#
-.SYNOPSIS
-    Logs the end of a function and stops the timer to measure the duration.
-#>
 function Exit-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     Write-Host "Exited scope $($Invocation.MyCommand.Name)"
 }
 
-# Section End - Utility Funtions
+#endregion - Scope Functions
 
-# Section Start - Safe Mode Functions
+#region - Safe Mode Functions
 
 function Enter-Safemode {
     begin { Enter-Scope $MyInvocation }
@@ -46,7 +37,7 @@ function Enter-Safemode {
         Set-ItemProperty $RegPath "DefaultUsername" -Value "$Account" -WhatIf:$DryRun
         Set-ItemProperty $RegPath "DefaultPassword" -Value "$Password" -WhatIf:$DryRun
 
-        Restart-Computer -Force -Confirm:$false -WhatIf:$DryRun
+        Write-Host "Please reboot the computer into safemode to continue."
     }
 
     end { Exit-Scope $MyInvocation }
@@ -67,9 +58,9 @@ function Exit-Safemode {
     end { Exit-Scope $MyInvocation }
 }
 
-# Section End - Safe Mode Functions
+#endregion - Safe Mode Functions
 
-# Section Start - Steps
+#region - Steps
 
 function Add-DesktopRunner {
     begin { Enter-Scope $MyInvocation }
@@ -83,6 +74,7 @@ function Add-DesktopRunner {
         $shortcut.Arguments = "-NoExit -NonInteractive -ExecutionPolicy Bypass -File `"$($MyInvocation.PSCommandPath)`" -Repair -DryRun:$DryRun"
         $shortcut.Save()
 
+        # Ensure shortcut is run as administrator
         $bytes = [System.IO.File]::ReadAllBytes("$desktop\Please click me.lnk")
         $bytes[0x15] = $bytes[0x15] -bor 0x20 #set byte 21 (0x15) bit 6 (0x20) ON
         [System.IO.File]::WriteAllBytes("$desktop\Please click me.lnk", $bytes)
@@ -96,17 +88,31 @@ function Install-Requirements {
 
     process {
         if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
-            Write-Host "Chocolatey installation not found, must install first."
-            exit 1001
+            Write-Host "Chocolatey installation not found, installing..."
+
+            try {
+                [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+                Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+                # Update the environment
+                $env:ChocolateyInstall = Convert-Path "$((Get-Command choco).Path)\..\.."
+                Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+                Update-SessionEnvironment
+            } catch {
+                Write-Host "Chocolatey installation failed, exiting." -ForegroundColor Red
+                Write-Host "Exception: $($_.Exception.GetType())" -ForegroundColor Red
+                exit 1001
+            }
         }
 
         if (!(Get-Command pwsh -ErrorAction SilentlyContinue)) {
             Write-Host "PowerShell Core installation not found, installing with chocolatey..."
 
-            choco install powershell-core --no-progress --confirm
-
-            if (!(Get-Command pwsh -ErrorAction SilentlyContinue)) {
-                Write-Host "PowerShell Core installation failed, exiting."
+            try {
+                choco install powershell-core --no-progress --confirm
+            } catch {
+                Write-Host "PowerShell Core installation failed, exiting." -ForegroundColor Red
+                Write-Host "Exception: $($_.Exception.GetType())" -ForegroundColor Red
                 exit 1002
             }
         }
@@ -119,19 +125,30 @@ function Get-SentinelInstaller {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        $installer = "C:\Windows\Temp\sentinelone.exe"
+        $Installer = "$env:TEMP\sentinelone.exe"
 
-        if (Test-Path -Path $installer) {
-            Write-Host "SentinelOne installer found, skipping download."
-            return Get-Item -Path $installer
+        if (Test-Path -Path $Installer) {
+            Write-Host "SentinelOne installer found at [$Installer], skipping download."
+            return Get-Item -Path $Installer
         }
 
-        # TODO - Get the latest installer from the API instead of hardcoding
-        $headers = @{}
-        $url = "https://nextcloud.racci.dev/s/MPsaSBsJDfQb6fX/download/SentinelOneInstaller_windows_64bit_v23_1_4_650.exe"
-        # $headers = @{Authorization = "ApiToken $SentinelApiKey" }
-        # $url = "https://${SentinelEndpoint}/web/api/v2.1/update/agent/download/1731852834663698166/1743420105324308764"
-        Invoke-RestMethod -Uri $url -UseBasicParsing -OutFile $installer -Method Get -Headers $headers
+        # TODO: Get the latest installer from the API instead of hardcoding
+        try {
+            Write-Host "Downloading SentinelOne installer..."
+            $Url = "https://nextcloud.racci.dev/s/MPsaSBsJDfQb6fX/download/SentinelOneInstaller_windows_64bit_v23_1_4_650.exe"
+            Invoke-WebRequest -Uri $Url -OutFile $Installer -UseBasicParsing -ErrorAction Stop
+        } catch {
+            Write-Host "Failed to download SentinelOne installer!" -ForegroundColor Red
+            switch ($_.Exception.GetType()) {
+                [System.Net.WebException] {
+                    Write-Host "WebException: $($_.Exception.Message)" -ForegroundColor Red
+                }
+                default {
+                    Write-Host "Exception: $($_.Exception.GetType())" -ForegroundColor Red
+                }
+            }
+            exit 1004
+        }
 
         Get-Item -Path $installer
     }
@@ -139,36 +156,39 @@ function Get-SentinelInstaller {
     end { Exit-Scope $MyInvocation }
 }
 
-function Run-Repair {
+function Invoke-Repair {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        $installer = Get-SentinelInstaller
+        $Installer = Get-SentinelInstaller
 
-        if (!(Test-Path -Path $installer)) {
-            Write-Host "SentinelOne installer not found, exiting."
+        if (!(Test-Path -Path $Installer)) {
+            Write-Host "SentinelOne installer not found, exiting." -ForegroundColor Red
             exit 1003
         }
 
-        Start-Process -FilePath $installer -ArgumentList "-c -k 1 -t 1" -Wait -NoNewWindow -WhatIf:$DryRun
+        Write-Host "Running SentinelOne Uninstaller, this may take a while..."
+        $Process = Start-Process -FilePath $Installer -ArgumentList "-c -k 1 -t 1" -NoNewWindow -PassThru -WhatIf:$DryRun
+        while ($Process.HasExited -eq $false) {
+            Write-Host "Waiting for SentinelOne Uninstaller to finish..."
+            Start-Sleep -Seconds 5
+        }
+        # Start-Process -FilePath $Installer -ArgumentList "-c -k 1 -t 1" -Wait -NoNewWindow -WhatIf:$DryRun
 
-        Remove-Item -Path $installer -WhatIf:$DryRun
+        Remove-Item -Path $Installer -WhatIf:$DryRun
         Remove-Item -Path "$([Environment]::GetFolderPath("CommonDesktopDirectory"))\Please Click Me.lnk" -WhatIf:$DryRun
     }
 
     end { Exit-Scope $MyInvocation }
 }
 
+#endregion - Steps
+
 function Main {
     if ($Repair) {
-        Run-Repair
+        Invoke-Repair
         Exit-Safemode
     } else {
-        # if (!$SentinelApiKey) {
-        #     Write-Host "SentinelOne API key not provided, exiting."
-        #     exit 1000
-        # }
-
         if (!$Password) {
             Write-Host "Password not provided, exiting."
             exit 1000
