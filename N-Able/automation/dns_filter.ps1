@@ -147,8 +147,8 @@ function Get-AgentStatus {
 
         # TODO: Look into using the API to check the status of this machine with the dashboard
         # FIXME: This needs a permanent API key, currently only able to figure out a jwt token
-        $Uri = https://api.dnsfilter.com/v1/user_agents?search=$env:COMPUTERNAME&type=agents
-        $DashboardStatus = Invoke-WebRequest -Uri $Uri -Headers @{"accept"="application/json"} -ErrorAction Stop
+        # $Uri = https://api.dnsfilter.com/v1/user_agents?search=$env:COMPUTERNAME&type=agents
+        # $DashboardStatus = Invoke-WebRequest -Uri $Uri -Headers @{"accept"="application/json"} -ErrorAction Stop
     }
 
     end { Exit-Scope $MyInvocation }
