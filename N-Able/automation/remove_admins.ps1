@@ -1,5 +1,6 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
+#Requires -Modules ("Microsoft.Graph.Users", "Microsoft.Powershell.LocalAccounts")
 
 Param(
     [Parameter()]
@@ -9,7 +10,7 @@ Param(
     [String[]]$UserExceptions = @(),
 
     [Parameter(DontShow)]
-    [String[]]$BaseHiddenUsers = @("localadmin", "nt authority\\system", "administrator", "AzureAD\\Admin")
+    [String[]]$BaseHiddenUsers = @("localadmin", "nt authority\system", "administrator", "AzureAD\Admin")
 )
 
 #region - Scope Functions
@@ -25,6 +26,74 @@ function Exit-Scope([System.Management.Automation.InvocationInfo]$Invocation, [O
 
 #endregion Scope Functions
 
+#region - ASDI Functions
+
+function Get-Groups {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
+        $Groups = [ADSI]"WinNT://$env:COMPUTERNAME,computer"
+        $Groups = $Groups.psbase.children | Where-Object { $_.psbase.SchemaClassName -eq 'Group' } | ForEach-Object { $_.psbase }
+
+        return $Groups
+    }
+
+    end { Exit-Scope $MyInvocation $Groups }
+}
+
+function Get-Group([String]$Name) {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
+        $Group = ([ADSI]"WinNT://$env:COMPUTERNAME/$Name,group").PSBase
+        return $Group
+    }
+
+    end { Exit-Scope $MyInvocation $Group }
+}
+
+function Get-Group {
+    $Groups = Get-WmiObject -ComputerName $env:COMPUTERNAME -Class Win32_Group
+    $Group = $Groups | Where-Object { $_.Name -eq "Administrators" } | Select-Object -First 1
+    return $Group
+}
+
+function Get-GroupMembers([ADSI]$Group) {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
+        $Members = $Group.Invoke("Members") | ForEach-Object { $_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null) }
+        return $Members
+    }
+
+    end { Exit-Scope $MyInvocation $Members }
+}
+
+function Is-AzureADUser([ADSI]$User) {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
+        $Result = $false
+        $User = $User.psbase
+        $User = $User.InvokeGet("objectSid")
+        $User = New-Object System.Security.Principal.SecurityIdentifier($User, 0)
+        $User = $User.Translate([System.Security.Principal.NTAccount])
+        $User = $User.Value
+
+        if ($User.StartsWith("AzureAD\")) {
+            $Result = $true
+        }
+
+        write-host $Result
+
+        return $Result
+    }
+
+    end { Exit-Scope $MyInvocation $Result }
+}
+
+#endregion - ASDI Functions
+
 #region - Script Functions
 
 function Get-LocalAdmins {
@@ -35,6 +104,11 @@ function Get-LocalAdmins {
         $Admins = $Admins[6..($Admins.Length - 3)]
         $Admins = $Admins | ForEach-Object { $_.Trim() }
         Write-Debug "Admins before filtering [$($Admins -join ', ')]"
+
+        if ("localadmin" -notin $Admins) {
+            Write-Host "The account localadmin could not be found, aborting for safety." -ForegroundColor Red
+            Exit 1002
+        }
 
         $Admins = $Admins | Where-Object { $_ -notin $BaseHiddenUsers }
         Write-Debug "Admins after filtering [$($Admins -join ', ')]"
