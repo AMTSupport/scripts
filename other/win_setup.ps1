@@ -413,11 +413,12 @@ function Install-Agent {
         Write-Host "Downloading agent from [$Uri]..."
         Invoke-RestMethod -Uri $Uri -OutFile $OutputZip -UseBasicParsing -ErrorAction Stop
         Expand-Archive -Path $OutputZip -DestinationPath $OutputFolder -WhatIf:$DryRun -ErrorAction Stop
-        # Throws an error when downloading then running, but if already downloaded it works fine??
-        $OutputExe = Get-ChildItem -Path $OutputFolder -Filter "*.exe" -File -ErrorAction SilentlyContinue | Select-Object -First 1
 
+        Start-Sleep -Seconds 5 # For some reason i have to wait for the archive to be extracted before i can find the exe, even though it's already extracted.... wtf
+
+        $OutputExe = Get-ChildItem -Path $OutputFolder -Filter "*.exe" -File -ErrorAction Stop | Select-Object -First 1
         if ($null -eq $OutputExe) {
-            Write-Error "Failed to find agent executable in [$OutputFolder]"
+            Write-Host "Failed to find agent executable in [$OutputFolder]"
             Exit 1011
         }
 
@@ -427,7 +428,18 @@ function Install-Agent {
             $false { Start-Process -FilePath $OutputExe.FullName -Wait }
         }
 
-        # TODO - Monitor process and restart when it has activated itself
+        while ($true) {
+            $AgentStatus = Get-Service -Name 'Advanced Monitoring Agent' -ErrorAction SilentlyContinue
+            if ($AgentStatus -and $AgentStatus.Status -eq "Running") {
+                Write-Host "The agent has been installed and running, current status is [$AgentStatus]..."
+                break
+            }
+
+            Write-Host "Waiting for the agent to be installed and running, current status is [$AgentStatus]..."
+            Start-Sleep -Seconds 5
+        }
+
+        # TODO - Query if sentinel is configured, if so wait for sentinel and the agent to be running services, then restart the computer
     }
 }
 
@@ -435,13 +447,23 @@ function Uninstall-HP {
     begin { Enter-Scope $MyInvocation }
 
     process {
+        $WingetCmd = "winget uninstall --accept-source-agreements --disable-interactivity -e --purge --name"
+
+        if ($RecursionLevel -eq 1) {
+            Write-Host "Uninstalling remaining HP Security Wolf Components..."
+            Invoke-Expression "$WingetCmd `"HP Wolf Security - Console`""
+            Invoke-Expression "$WingetCmd `"HP Security Update Service`""
+
+            return
+        }
+
         $HPPublisherId = "CN=ED346674-0FA1-4272-85CE-3187C9C86E26"
         Write-Information "Uninstalling HP bloatware..."
 
         # Removes myHP, HPAudioControl, HPSystemInformation, HPSupportAssistant, HPPrivacySettings, HPPowerManager, HPPCHardwareDiagnosticsWindows
         $Packages = Get-AppxPackage -AllUsers -Publisher $HPPublisherId
         Write-Host "Removing $($Packages.Count) HP bloatware packages..."
-        $Packages | Remove-AppxPackage -WhatIf:$DryRun
+        $Packages | Remove-AppxPackage -WhatIf:$DryRun # TODO: Can i use the -AllUsers flag heres?
 
         # HP Documentation           HP_Documentation                                      1.0.0.1
         # HP Sure Recover { 052C94ED-06A6-4B48-ABAE-56D796EE7107 }                10.1.12.38
@@ -454,7 +476,6 @@ function Uninstall-HP {
         # HP Notifications { 84937F28-9CB4-49E7-A2CF-E32D97E6DAE6 }                1.1.28.1
         # HP Audio Control           RealtekSemiconductorCorp.HPAudioControl_dt26b99r8h8gj 2.41.289.0
 
-        $WingetCmd = "winget uninstall --accept-source-agreements --disable-interactivity -e --purge --name"
         $WingetUninstalls = @(
             "HP Documentation",
             "HP Sure Recover",
@@ -477,23 +498,11 @@ function Uninstall-HP {
             }
             catch {
                 Write-Warning "Failed to uninstall package [$PackageId] using winget..."
-                Write-Error $_
+                Write-Host -ForegroundColor Red $_
             }
         }
 
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoExit -Command "& {
-            winget uninstall -e --purge --name `""HP Wolf Security - Console`""
-            winget uninstall -e --purge --name `""HP Security Update Service`""
-
-            Unregister-ScheduledTask -TaskName `""HP Wolf Uninstall Reboot Persistence`"" -Confirm:`$false
-        }"'
-        $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger)
-
-        if (!$NoSchedule) {
-            Register-ScheduledTask -TaskName "HP Wolf Uninstall Reboot Persistence" -InputObject $Task
-        }
-
-        # return the function while running this last command in the background
+        # Return the function while running this last command in the background
         Write-Host "Removing HP Wolf Security using winget..."
         if ($DryRun) {
             Write-Host "Dry run enabled, skipping HP Wolf Security uninstallation..."
@@ -533,15 +542,17 @@ function Main {
                 "configure" {
                     Configure
 
-                    Write-Host "Setting up scheduled task [$TaskName] to run the next phase [Cleanup]..."
                     Set-StartupSchedule "cleanup" -Imediate
                 }
                 "cleanup" {
                     # TODO - Windows bullshit ads and other crap
                     Uninstall-HP
 
-                    Write-Host "Setting up scheduled task [$TaskName] to run the next phase [Install]..."
-                    Set-StartupSchedule "install" -Immediate:$DryRun
+                    switch ($RecursionLevel) {
+                        0 { Set-StartupSchedule $Phase -Imediate:$DryRun }
+                        1 { Set-StartupSchedule "Install" -Imediate }
+                        _ { Write-Host "Recursion level [$RecursionLevel] is too high, aborting..." -ForegroundColor Red; exit 1005 }
+                    }
                 }
                 "install" {
                     if ($Script:InstallInfo.CompletedPhases -notcontains "configure") {
@@ -578,7 +589,6 @@ function Main {
                         }
                     }
 
-                    Write-Host "Setting up scheduled task [$TaskName] to run the next phase [Update]..."
                     Set-StartupSchedule "update" -Immediate
                 }
                 "update" {
@@ -597,7 +607,7 @@ function Main {
                     # Sign the localadmin out
                 }
                 default {
-                    Write-Error "Unknown phase [$Phase]..."
+                    Write-Host -ForegroundColor Red "Unknown phase [$Phase]..."
                     exit 1000
                 }
             }
