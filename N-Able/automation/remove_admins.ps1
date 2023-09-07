@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
-#Requires -Modules ("Microsoft.Graph.Users", "Microsoft.Powershell.LocalAccounts")
+# Requires -Modules ("Microsoft.Graph.Users", "Microsoft.Powershell.LocalAccounts")
 
 Param(
     [Parameter()]
