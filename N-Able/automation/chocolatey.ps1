@@ -21,18 +21,18 @@
 
 Param (
     [Parameter(Mandatory=$false)]
-    [switch]$dryrun = $false,
-
-    [Parameter(Mandatory=$false)]
     [ValidateSet("run", "update", "install", "uninstall")]
     [string]$runMode = "run",
 
-    [Parameter(Mandatory=$false)]
+    [Parameter(Position = 0, ValueFromRemainingArguments)]
     [string[]]$packages = @(),
 
-    [Parameter(Mandatory=$false)]
+    [Parameter()]
+    [switch]$DryRun,
+
+    [Parameter(DontShow)]
     [string[]]$defaultPackages = @(
-        "GoogleChrome",
+        "googlechrome",
         "adobereader",
         "displaylink"
     )
