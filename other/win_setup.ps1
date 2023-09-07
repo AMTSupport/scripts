@@ -43,32 +43,29 @@ Param (
 
 # Section Start - Utility Functions
 
-<#
-.SYNOPSIS
-    Logs the beginning of a function and starts a timer to measure the duration.
-#>
+#region - Scope Functions
+
 function Enter-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     $Params = $Invocation.BoundParameters
     Write-Host "Entered scope $($Invocation.MyCommand.Name) with parameters [$($Params.Keys) = $($Params.Values)]"
 }
 
-<#
-.SYNOPSIS
-    Logs the end of a function and stops the timer to measure the duration.
-#>
 function Exit-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     Write-Host "Exited scope $($Invocation.MyCommand.Name)"
 }
+
+#endregion - Scope Functions
 
 function With-Phase([String]$InnerPhase, [ScriptBlock]$ScriptBlock) {
     begin { Write-Host "Entering $InnerPhase phase..." }
 
     process {
         try {
-            $ScriptBlock.Invoke()
+            & $ScriptBlock
         }
         catch {
             Write-Host "An error occurred during the $InnerPhase phase: $($_.Exception.Message)"
+            Write-Host -ForegroundColor Red $_.Exception.StackTrace
             exit 1001
         }
 
@@ -197,7 +194,7 @@ function Get-RebootFlag { Get-Flag -Context "reboot" }
 function Get-TaskTrigger([switch]$Imediate) {
     switch ($Imediate) {
         $true { $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5) }
-        $false { $Trigger = New-ScheduledTaskTrigger -Once -AtLogOn -User "$(whoami)" }
+        $false { $Trigger = New-ScheduledTaskTrigger -AtLogOn -User "$(whoami)" }
     }
 
     $Trigger
@@ -222,7 +219,7 @@ function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate) {
         $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$($MyInvocation.PSCommandPath)`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 }) $(if ($DryRun) { "-DryRun" } else { " " })"
         $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger -Imediate:$Imediate)
 
-        Register-ScheduledTask -TaskName $TaskName -InputObject $Task
+        Register-ScheduledTask -TaskName $TaskName -InputObject $Task -ErrorAction Stop | Out-Null
     }
 
     end { Exit-Scope $MyInvocation }
@@ -385,38 +382,6 @@ function Install-Requirements {
             Write-Host "WinGet not found, installing..."
             Install-Winget
         }
-
-        # # Check for winget and install it if it's not present
-        # if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
-        #     Write-Host "WinGet not found, installing..."
-
-        #     # Sometimes this method can fail on brand new installs, if it does, we use a manual method
-        #     try {
-        #         Write-Host "Attempting to install WinGet using the Add-AppxPackage method..."
-        #         Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
-        #     } catch {
-        #         Write-Host "Failed to install WinGet using the Add-AppxPackage method, trying manual method..."
-
-        #         Write-Host "Downloading WinGet and its dependencies..."
-        #         $Temp = Get-TempFolder "WinGet"
-        #         $WingetInstaller = "$Temp/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-        #         $VCLibs = "$Temp/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-        #         $Xaml = "$Temp/Microsoft.UI.Xaml.2.7.x64.appx"
-        #         Invoke-RestMethod -Uri https://aka.ms/getwinget -OutFile $WingetInstaller
-        #         Invoke-RestMethod -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile $VCLibs
-        #         Invoke-RestMethod -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.7.3/Microsoft.UI.Xaml.2.7.x64.appx -OutFile $Xaml
-
-        #         Write-Host "Force stopping the HP Support Assistant if it's running..."
-        #         Get-Process -Name myhp -ErrorAction SilentlyContinue | Stop-Process -Force
-
-        #         Write-Host "Installing WinGet and its dependencies..."
-        #         Add-AppxPackage $VCLibs
-        #         Add-AppxPackage $Xaml
-        #         Add-AppxPackage $WingetInstaller
-        #     }
-        # } else {
-        #     Write-Host "WinGet found, skipping installation..."
-        # }
     }
 
     end { Exit-Scope $MyInvocation }
