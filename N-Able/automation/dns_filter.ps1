@@ -1,5 +1,6 @@
 #Requires -RunAsAdministrator
 #Requires -Version 5.1
+#Requires -PSEdition Desktop
 
 Param(
     [Parameter(Mandatory = $true)]
@@ -38,28 +39,20 @@ class Result {
     }
 }
 
-# Section Start - Utility Functions
+#region - Scope Functions
 
-<#
-.SYNOPSIS
-    Logs the beginning of a function and starts a timer to measure the duration.
-#>
 function Enter-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     $Params = $Invocation.BoundParameters
     Write-Host "Entered scope $($Invocation.MyCommand.Name) with parameters [$($Params.Keys) = $($Params.Values)]" -ForegroundColor Blue
 }
 
-<#
-.SYNOPSIS
-    Logs the end of a function and stops the timer to measure the duration.
-#>
 function Exit-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
     Write-Host "Exited scope $($Invocation.MyCommand.Name)" -ForegroundColor Blue
 }
 
-# Section End - Utility Functions
+#endregion - Scope Functions
 
-# Section Start - Logging Functions
+#region - Logging Functions
 
 function Log-AppendFile([Parameter(Mandatory)][String]$Level, [Parameter(Mandatory)][String]$Message) {
     $Path = "$env:temp\DNS_Filter_Checks_Install.log"
@@ -86,7 +79,9 @@ function Log-Error([Parameter(Mandatory)][String]$Message) {
     Log-AppendFile "ERROR" $Message
 }
 
-# Section End - Logging Functions
+#endregion - Logging Functions
+
+#region - Install and Uninstall Functions
 
 # TODO - OS detection
 function Install-DnsFilterAgent {
@@ -125,6 +120,24 @@ function Install-DnsFilterAgent {
     end { Exit-Scope $MyInvocation }
 }
 
+function Uninstall-DnsFilterAgent {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
+        try {
+            Log-Info "Attempting to uninstall DNS Filter"
+            Get-Package -Name "DNS Agent" | Uninstall-Package -Force -ErrorAction Stop | Out-Null
+        } catch {
+            Log-Error "Failed to uninstall DNS Filter"
+            return [Result]::Err($_, 888)
+        }
+
+        return [Result]::Ok("Uninstalled")
+    }
+
+    end { Exit-Scope $MyInvocation }
+}
+
 function Get-AgentStatus {
     begin { Enter-Scope $MyInvocation }
 
@@ -141,6 +154,16 @@ function Get-AgentStatus {
         } else {
             Log-Error "DNS Filter installed but Service is not running"
             return [Result]::Err($null, 666)
+        }
+
+        $RegKey = "HKLM:\SOFTWARE\DNSAgent\Agent"
+        $RegValue = "NetworkKey"
+        $NetworkKey = (Get-ItemProperty -Path $RegKey -Name $RegValue).$RegValue
+        if ($NetworkKey -eq $SiteKey) {
+            Log-Info "SiteKey is correct"
+        } else {
+            Log-Error "SiteKey is incorrect"
+            return [Result]::Err($null, 1639)
         }
 
         return [Result]::Ok("Success")
@@ -168,8 +191,18 @@ function Main {
                 exit 0
             }
 
-            if ($CurrentStatus.is_err() -and $CurrentStatus.Code -ne 777) {
-                Log-Error "DNS Filter is not installed but the agent is not running."
+            if ($CurrentStatus.is_err() -and $CurrentStatus.Code -eq 1639) {
+                Log-Info "Uninstalling DNS Filter due to mismatching SiteKey."
+                $UninstallResult = Uninstall-DnsFilterAgent
+
+                if ($UninstallResult.is_ok()) {
+                    Log-Info "DNS Filter uninstalled successfully."
+                } else {
+                    Log-Error "DNS Filter uninstallation failed."
+                    if ($UninstallResult.Err) { Log-Error "Error: $($UninstallResult.Err)" }
+                    exit $UninstallResult.Code
+                }
+            } elseif ($CurrentStatus.is_err() -and $CurrentStatus.Code -ne 777) {
                 exit $CurrentStatus.Code
             }
 
@@ -190,11 +223,15 @@ function Main {
                 exit $InstallResult.Code
             }
 
+            # Due to an issue with the installation, we may have to manually start the service again.
+            Start-Sleep 5
+
             $CurrentStatus = Get-AgentStatus
             if ($CurrentStatus.is_ok()) {
                 Log-Info "DNS Filter has installed and is running successfully."
-            }
-            else {
+            } elseif (Start-Service -Name "DNS Agent" -ErrorAction SilentlyContinue) {
+                Log-Info "DNS Filter encountered an issue on first start, but was able to be recovered."
+            } else {
                 Log-Error "DNS Filter installation completed without error but the agent is not running."
                 exit $CurrentStatus.Code
             }
