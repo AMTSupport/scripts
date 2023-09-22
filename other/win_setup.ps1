@@ -1,6 +1,14 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
+# Windows Setup screen raw inputs
+# enter,down,enter,enter,tab,tab,tab,enter,tab,tab,tab,tab,tab,tab,enter,tab,tab,tab,tab,enter,localadmin,enter,enter,enter,enter,tab,tab,tab,tab,tab,enter,tab,tab,tab,tab,enter
+
+# After windows setup
+# windows,powershell,right,down,enter,left,enter,Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process,enter,a,enter,D:\win_setup.ps1,enter
+
+# TODO: Move script to system drive, then remove once completed.
+
 Param (
     [Parameter()]
     [switch]$DryRun,
@@ -252,7 +260,7 @@ function Get-Network {
         if (-not (Get-NetConnectionProfile -InterfaceAlias "Wi-Fi" -ErrorAction SilentlyContinue)) {
             Write-Host "No Wi-Fi connection found, creating profile..."
 
-            $profilefile = "SetupWireless-profile.xml"
+            $profilefile = "$env:TEMP\SetupWireless-profile.xml"
 
             $SSIDHEX = ($NetworkName.ToCharArray() | foreach-object { '{0:X}' -f ([int]$_) }) -join ''
             $XmlContent = "<?xml version=""1.0""?>
@@ -291,9 +299,9 @@ function Get-Network {
             else {
                 Write-Host "Creating profile file $profilefile..."
                 $XmlContent > ($profilefile)
-                netsh wlan add profile filename="$($profilefile)"
-                netsh wlan show profiles $NetworkName key=clear
-                netsh wlan connect name=$NetworkName
+                netsh wlan add profile filename="$($profilefile)" | Out-Null
+                netsh wlan show profiles $NetworkName key=clear | Out-Null
+                netsh wlan connect name=$NetworkName | Out-Null
             }
 
             Write-Host "Waiting for network connection..."
@@ -336,11 +344,10 @@ function Get-InstallInfo {
             Write-Host "Install info:"
             Write-Host $InstallInfo
 
-            # TODO - Check if the install info is still valid
-            # TODO - If the install info is still valid, ask the user if they want to use it
-
             $InstallInfo
         } else {
+            Write-Host "No install info found, creating new install info..."
+
             $Clients = (Get-SoapResponse -Uri (Get-BaseUrl "list_clients")).items.client
             $FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
             $SelectedClient = $FormattedClients | Out-GridView -Title "Select a client" -PassThru
@@ -394,7 +401,7 @@ function Install-Agent {
         $ErrorActionPreference = "Stop"
 
         # Check if the agent is already installed
-        if (Get-Service -Name "Advanced Monitoring Agent" -ErrorAction SilentlyContinue) {
+        if ((-not $DryRun) -and (Get-Service -Name "Advanced Monitoring Agent" -ErrorAction SilentlyContinue)) {
             Write-Host "Agent is already installed, skipping installation..."
             return
         }
@@ -406,17 +413,31 @@ function Install-Agent {
         $SiteId = $Script:InstallInfo.SiteId
         $Uri = "https://system-monitor.com/api/?apikey=$ApiKey&service=get_site_installation_package&endcustomerid=$ClientId&siteid=$SiteId&os=windows&type=remote_worker"
 
-        $Temp = Get-TempFolder "Agent"
+        $Temp = "$env:TEMP\Agent"
+        if (-not (Test-Path $Temp)) {
+            Write-Host "Creating temporary folder $Temp..."
+            New-Item -ItemType Directory -Path $Temp | Out-Null
+        }
+
         $OutputZip = "$Temp\agent.zip"
         $OutputFolder = "$Temp\unpacked"
 
         Write-Host "Downloading agent from [$Uri]..."
-        Invoke-RestMethod -Uri $Uri -OutFile $OutputZip -UseBasicParsing -ErrorAction Stop
-        Expand-Archive -Path $OutputZip -DestinationPath $OutputFolder -WhatIf:$DryRun -ErrorAction Stop
+        Invoke-WebRequest -Uri $Uri -OutFile $OutputZip -UseBasicParsing -ErrorAction Stop
+        Expand-Archive -Path $OutputZip -DestinationPath $OutputFolder -ErrorAction Stop
 
-        Start-Sleep -Seconds 5 # For some reason i have to wait for the archive to be extracted before i can find the exe, even though it's already extracted.... wtf
+        $Output = Get-ChildItem -Path $OutputFolder -Filter "*.exe" -File -ErrorAction Stop
 
-        $OutputExe = Get-ChildItem -Path $OutputFolder -Filter "*.exe" -File -ErrorAction Stop | Select-Object -First 1
+        # For some reason theres an issue with the path being an array
+        # When being downloaded within the same session, but not within the function
+        # Only once the function is returned does the value become an array.
+        # This seems to be a bug with powershell, but I'm not sure.
+        $OutputExe
+        foreach ($subpath in $Output) {
+            Write-Host $subpath
+            $OutputExe = $subpath
+        }
+
         if ($null -eq $OutputExe) {
             Write-Host "Failed to find agent executable in [$OutputFolder]"
             Exit 1011
@@ -520,15 +541,16 @@ function Main {
 
     process {
         $ErrorActionPreference = "Stop"
+
+        if ($MyInvocation.PSScriptRoot -ne $env:TEMP) {
+            Write-Host "Copying script to temp folder..."
+            Move-Item -Path $MyInvocation.PSCommandPath -Destination $env:TEMP -Force
+            Set-StartupSchedule $Phase -Imediate
+        }
+
         Get-Network
         Install-Requirements
         $Script:InstallInfo = Get-InstallInfo
-
-        if ($RecursionLevel -ge 3) {
-            Write-Warning "Recursion level [$RecursionLevel] is too high, aborting..."
-            Unregister-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue -Confirm:$false
-            exit 1005
-        }
 
         # Removes the scheduled task if it exists
         if ($ScheduledTask) {
@@ -555,7 +577,7 @@ function Main {
                     }
                 }
                 "install" {
-                    if ($Script:InstallInfo.CompletedPhases -notcontains "configure") {
+                    if ((-not $DryRun) -and $Script:InstallInfo.CompletedPhases -notcontains "configure") {
                         Write-Host "Skipping phase [$Phase] since the configure phase hasn't been completed yet..."
                         exit 1002
                     }
@@ -572,27 +594,16 @@ function Main {
                         exit 1003
                     }
 
-                    if (Get-Service -Name 'Advanced Monitoring Agent' -ErrorAction SilentlyContinue) {
-                        Write-Host "Skipping phase [$Phase] since the agent is already installed..."
-                    } else {
-                        Install-Agent
-
-                        while ($true) {
-                            $AgentStatus = Get-Service -Name 'Advanced Monitoring Agent' -ErrorAction SilentlyContinue
-                            if ($AgentStatus) {
-                                Write-Host "The agent has been installed, current status is [$AgentStatus]..."
-                                break
-                            }
-
-                            Write-Host "Waiting for the agent to be installed, current status is [$AgentStatus]..."
-                            Start-Sleep -Seconds 5
-                        }
-                    }
-
+                    Install-Agent
                     Set-StartupSchedule "update" -Immediate
                 }
                 "update" {
-                    Import-DownloadableModule -Name PSWindowsUpdate -ErrorAction  Stop
+                    Import-DownloadableModule -Name PSWindowsUpdate -ErrorAction Stop
+
+                    # After 3 reboots we procced to the finish phase
+                    if ($RecursionLevel -ge 3) {
+                        Set-StartupSchedule "finish" -Imediate
+                    }
 
                     # This will install all updates, rebooting if required, and start the process over again
                     Get-WindowsUpdate -Install -AcceptAll -IgnoreReboot -WhatIf:$DryRun
@@ -600,11 +611,13 @@ function Main {
                     Restart-Computer -Force -WhatIf:$DryRun
                 }
                 "finish" {
-                    # Ensure all phases are completed
-                    # Remove any scheduled tasks
-                    # Remove install info file
-                    # Remove any files put in the temp folder
-                    # Sign the localadmin out
+                    Write-Host "Finished all phases, removing scheduled task [$TaskName]..."
+                    Unregister-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue -Confirm:$false
+
+                    Write-Host "Removing temporary files..."
+                    Remove-Item -Path "$env:TEMP\*" -Force -Recurse -Exclude "InstallInfo.json"
+
+                    Write-Host "Finished all phases successfully."
                 }
                 default {
                     Write-Host -ForegroundColor Red "Unknown phase [$Phase]..."
