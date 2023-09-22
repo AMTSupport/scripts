@@ -94,7 +94,7 @@ function Exists([Parameter(Mandatory)] [String]$Program) {
 }
 
 function Install([Parameter(Mandatory)] [String[]]$Needed) {
-    $ChocoCommand = "choco install --stop-on-first-failure --yes --acceptlicense --no-progress"
+    $ChocoCommand = "choco install --yes --acceptlicense --no-progress"
     $NeededConcat = "$($Needed -join " ")"
     $ChocoInstalledList = choco list --local-only -r $NeededConcat
 
