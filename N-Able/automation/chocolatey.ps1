@@ -163,9 +163,22 @@ function InstallRequirements () {
         return
     }
 
-    # Test for present Chocolatey files
-    # TODO - Try auto repair
     if (Test-Path -Path "$($env:SystemDrive)\ProgramData\Chocolatey") {
+        $script:logger.Error("Chocolatey files found, seeing if we can repair them...")
+
+        if (Test-Path -Path "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe") {
+            $script:logger.Info("Chocolatey bin found, should be able to refreshenv!")
+
+            $script:logger.Info("Refreshing environment variables...")
+            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force
+            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyInstaller.psm1" -Force
+
+            refreshenv
+            Install-ChocolatetyEnvironmentVariable -variableName "ChocolateyInstall" -variableValue "$($env:SystemDrive)\ProgramData\Chocolatey" -variableType "Machine"
+
+            return
+        }
+
         $script:logger.Error("Chocolatey files found, please remove them before continuing.")
         exit 1001
     }
