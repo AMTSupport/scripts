@@ -10,7 +10,7 @@ Param(
     [String[]]$UserExceptions = @(),
 
     [Parameter(DontShow)]
-    [String[]]$BaseHiddenUsers = @("localadmin", "nt authority\system", "administrator", "AzureAD\Admin")
+    [String[]]$BaseHiddenUsers = @("localadmin", "nt authority\system", "administrator", "AzureAD\Admin", "AzureAD\AdminO365")
 )
 
 #region - Scope Functions
