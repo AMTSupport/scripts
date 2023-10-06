@@ -43,6 +43,8 @@ function Add-PrinterDriverImpl {
                 Exit 1001
             }
         }
+
+        Write-Host "No choco driver to install."
     }
 
     end { Exit-Scope $MyInvocation }
@@ -52,29 +54,30 @@ function Add-PrinterImpl {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        if (-not (Get-PrinterDriver -Name $PrinterDriver -ErrorAction SilentlyContinue)) {
-            Write-Host "Unable to find driver $PrinterDriver"
-            Exit 1003
+        $DriverWait = 0
+        while (-not (Get-PrinterDriver -Name $PrinterDriver -ErrorAction SilentlyContinue)) {
+            if ($DriverWait -gt 300) {
+                Write-Host "Unable to find driver $PrinterDriver"
+                Exit 1002
+            }
+
+            Write-Host "Waiting for driver $PrinterDriver"
+            Start-Sleep -Seconds 5
+            $DriverWait += 5
         }
 
-        switch (Get-PrinterPort -Name $PrinterIP -ErrorAction SilentlyContinue) {
-            $null {
-                Write-Host "Adding printer port $PrinterIP"
-                Add-PrinterPort -Name $PrinterIP -PrinterHostAddress $PrinterIP
-            }
-            default {
-                Write-Host "Printer port $PrinterIP already exists"
-            }
+        if (-not (Get-PrinterPort -Name $PrinterIP -ErrorAction SilentlyContinue)) {
+            Write-Host "Adding printer port $PrinterIP"
+            Add-PrinterPort -Name $PrinterIP -PrinterHostAddress $PrinterIP
+        } else {
+            Write-Host "Printer port $PrinterIP already exists"
         }
 
-        switch (Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue) {
-            $null {
-                Write-Host "Adding printer $PrinterName"
-                Add-Printer -Name $PrinterName -DriverName $PrinterDriver -PortName $PrinterIP
-            }
-            default {
-                Write-Host "Printer $PrinterName already exists"
-            }
+        if (-not (Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue)) {
+            Write-Host "Adding printer $PrinterName"
+            Add-Printer -Name $PrinterName -DriverName $PrinterDriver -PortName $PrinterIP
+        } else {
+            Write-Host "Printer $PrinterName already exists"
         }
     }
 
