@@ -94,7 +94,7 @@ function Is-AzureADUser([ADSI]$User) {
 
 #endregion - ASDI Functions
 
-#region - Script Functions
+#region - Admin Functions
 
 function Get-LocalAdmins {
     begin { Enter-Scope $MyInvocation }
@@ -160,22 +160,78 @@ function Remove-Admins([String[]]$Users) {
 
 #endregion - Script Functions
 
+#region - Fixup Groups
+
+function Get-LocalUsers {
+    Get-CimInstance Win32_UserAccount | Where-Object { $_.Disabled -eq $false }
+}
+
+function Get-LocalGroupMembers([Parameter(Mandatory)][String]$Group) {
+    $Users = (Get-CimInstance Win32_Group -filter "Name='$Group'" | Get-CimAssociatedInstance | where-object { $_.Disabled -eq $false })
+    return $Users
+}
+
+function Get-LocalUserGroups([Parameter(Mandatory)][String]$Username) {
+    $Groups = (Get-CimInstance Win32_UserAccount -Filter "Name='$Username'" | Get-CimAssociatedInstance -ResultClassName Win32_Group)
+    return $Groups
+}
+
+
+function Get-LocalUserWithoutGroups {
+    $Users = Get-LocalUsers
+    $Users = $Users | Where-Object { $null -eq (Get-LocalUserGroups -Username $_.Name) }
+    return $Users
+}
+
+function Set-MissingGroup {
+    begin { Enter-Scope $MyInvocation }
+
+    process {
+        $MissingGroups = Get-LocalUserWithoutGroups
+
+        if (($null -eq $MissingGroups) -or ($MissingGroups.Count -eq 0)) {
+            return @()
+        }
+
+        foreach ($User in $MissingGroups) {
+            switch ($NoModify) {
+                $true { Write-Host "Would have added $($User.Name) to Users group" }
+                $false { Add-LocalGroupMember -Group "Users" -Member $User.Name | Out-Null }
+            }
+        }
+
+        return $MissingGroups
+    }
+
+    end { Exit-Scope $MyInvocation }
+}
+
+#endregion - Fixup Groups
+
 #region - Script Main Entry
 
 function Main {
     $Script:ErrorActionPreference = "Stop"
-    $Script:VerbosePreference = "Continue"
-    $Script:DebugPreference = "Continue"
+    # $Script:VerbosePreference = "Continue"
+    # $Script:DebugPreference = "Continue"
 
     $LocalAdmins = Get-LocalAdmins
     $RemovedAdmins = Remove-Admins -Users $LocalAdmins
 
-    if ($RemovedAdmins.Count -eq 0) {
+    $FixedUsers = Set-MissingGroup
+
+    if ($RemovedAdmins.Count -eq 0 -and $FixedUsers.Count -eq 0) {
         Write-Host "No accounts modified"
     } else {
-        switch ($NoModify) {
-            $true { Write-Host "Would have modified $RemovedAdmins" }
-            $false { Write-Host "Modified $RemovedAdmins" }
+        foreach ($User in $FixedUsers) {
+            Write-Host "Fixed user $($User.Name) by adding them to the Users group"
+        }
+
+        foreach ($User in $RemovedAdmins) {
+            switch ($NoModify) {
+                $true { Write-Host "Would have removed user $($User) from the administrators group" }
+                $false { Write-Host "Removed user $($User) from the administrators group" }
+            }
         }
 
         Exit 1001 # Exit code to indicate a change was made
