@@ -98,7 +98,6 @@ function Install([Parameter(Mandatory)] [String[]]$Needed) {
     $NeededConcat = "$($Needed -join " ")"
     $ChocoInstalledList = choco list --local-only -r $NeededConcat
 
-
     # TODO - Test that the source is choco, if not add --force
     $Appended = $false
     foreach ($Program in $Needed) {
@@ -163,24 +162,38 @@ function InstallRequirements () {
         return
     }
 
-    if (Test-Path -Path "$($env:SystemDrive)\ProgramData\Chocolatey") {
+    if (Test-Path -Path "$($env:SystemDrive)\ProgramData\chocolatey") {
         $script:logger.Error("Chocolatey files found, seeing if we can repair them...")
+        $Repaired = $false
 
-        if (Test-Path -Path "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe") {
+        if (Test-Path -Path "$($env:SystemDrive)\ProgramData\chocolatey\bin\choco.exe") {
             $script:logger.Info("Chocolatey bin found, should be able to refreshenv!")
 
             $script:logger.Info("Refreshing environment variables...")
-            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force
-            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyInstaller.psm1" -Force
+            Import-Module "$($env:SystemDrive)\ProgramData\chocolatey\Helpers\chocolateyProfile.psm1" -Force
+            Import-Module "$($env:SystemDrive)\ProgramData\chocolatey\Helpers\chocolateyInstaller.psm1" -Force
 
             refreshenv
-            Install-ChocolatetyEnvironmentVariable -variableName "ChocolateyInstall" -variableValue "$($env:SystemDrive)\ProgramData\Chocolatey" -variableType "Machine"
 
-            return
+            $Repaired = $true
         }
 
-        $script:logger.Error("Chocolatey files found, please remove them before continuing.")
-        exit 1001
+        $ChocoLS = Get-ChildItem -Path "$($env:SystemDrive)\ProgramData\chocolatey" -Recurse -Force -ErrorAction SilentlyContinue
+        if (
+            ($ChocoLS.Length -eq 2) -and
+            ($ChocoLS[0].FullName -eq "$($env:SystemDrive)\ProgramData\chocolatey\lib") -and
+            ($ChocoLS[1].FullName -eq "$($env:SystemDrive)\ProgramData\chocolatey\lib\chocolatey")
+        ) {
+            $script:logger.Info("Broken state detected, deleting chocolatey files...")
+            Remove-Item -Path "$($env:SystemDrive)\ProgramData\chocolatey" -Recurse -Force -ErrorAction Stop
+
+            $Repaired = $true
+        }
+
+        if (!$Repaired) {
+            $script:logger.Error("Chocolatey files found, please remove them before continuing.")
+            exit 1001
+        }
     }
 
     $script:logger.Info("Installing chocolatey...")
