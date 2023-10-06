@@ -7,8 +7,6 @@
 # After windows setup
 # windows,powershell,right,down,enter,left,enter,Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process,enter,a,enter,D:\win_setup.ps1,enter
 
-# TODO: Move script to system drive, then remove once completed.
-
 Param (
     [Parameter()]
     [switch]$DryRun,
@@ -17,7 +15,7 @@ Param (
     [switch]$NoSchedule,
 
     [Parameter()]
-    [ValidateSet("Configure", "Cleanup", "Install", "Update")]
+    [ValidateSet("Configure", "Cleanup", "Install", "Update", "Finish")]
     [String]$Phase = "Configure",
 
     [Parameter()]
@@ -216,7 +214,7 @@ function Get-TaskPrincipal {
     New-ScheduledTaskPrincipal -UserId "$(whoami)" -RunLevel Highest
 }
 
-function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate) {
+function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate, [String]$CommandPath = $MyInvocation.PSCommandPath) {
     begin { Enter-Scope $MyInvocation }
 
     process {
@@ -224,7 +222,7 @@ function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate) {
             return
         }
 
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$($MyInvocation.PSCommandPath)`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 }) $(if ($DryRun) { "-DryRun" } else { " " })"
+        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$CommandPath`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 }) $(if ($DryRun) { "-DryRun" } else { " " })"
         $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger -Imediate:$Imediate)
 
         Register-ScheduledTask -TaskName $TaskName -InputObject $Task -ErrorAction Stop | Out-Null
@@ -542,10 +540,12 @@ function Main {
     process {
         $ErrorActionPreference = "Stop"
 
-        if ($MyInvocation.PSScriptRoot -ne $env:TEMP) {
+        if ($MyInvocation.PSScriptRoot -ne ((Get-Item $env:TEMP).FullName)) {
             Write-Host "Copying script to temp folder..."
-            Move-Item -Path $MyInvocation.PSCommandPath -Destination $env:TEMP -Force
-            Set-StartupSchedule $Phase -Imediate
+            $Into = "$env:TEMP\win_setup.ps1"
+            Copy-Item -Path $MyInvocation.PSCommandPath -Destination $Into -Force
+            Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$Into`" -Phase $Phase -RecursionLevel $RecursionLevel"
+            return
         }
 
         Get-Network
@@ -618,6 +618,7 @@ function Main {
                     Remove-Item -Path "$env:TEMP\*" -Force -Recurse -Exclude "InstallInfo.json"
 
                     Write-Host "Finished all phases successfully."
+                    exit 0 # Exit early since we will have an error with the completed phases check
                 }
                 default {
                     Write-Host -ForegroundColor Red "Unknown phase [$Phase]..."
