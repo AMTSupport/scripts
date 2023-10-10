@@ -25,22 +25,45 @@ function Get-CachableResponse {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        $CachePath = "$env:TEMP/RemoteRunner/cached.json"
+        $Parent = "$env:TEMP/RemoteRunner"
+        $CachePath = "$Parent/cached.json"
+        if (-not (Test-Path -Path $Parent)) {
+            Write-Verbose "Creating directory $Parent"
+            New-Item -Path $Parent -ItemType Directory | Out-Null
+        }
+
         if (Test-Path -Path $CachePath) {
             $CacheAge = (Get-Date) - (Get-Item -Path $CachePath).CreationTime
-            if ($CacheAge.Minutes -le 10) {
-                Write-Host "Cache is less than 10 minutes old, skipping api calls and assuming it's the latest version."
+            if ($CacheAge.Minutes -le 1) {
+                Write-Host "Cache is less than 1 minute old, skipping api calls and assuming it's the latest version."
                 $Cache = Get-Content -Path $CachePath | ConvertFrom-Json
                 return $Cache
             }
+
+            Remove-Item -Path $CachePath | Out-Null
         }
 
         $Url = "https://api.github.com/repos/AMTSupport/tools/releases"
-        Invoke-WebRequest -Uri $Url -OutFile $CachePath -UseBasicParsing | Out-Null
+        Invoke-RestMethod -Uri $Url -OutFile $CachePath -UseBasicParsing | Out-Null
         return Get-Content -Path $CachePath | ConvertFrom-Json
     }
 
     end { Exit-Scope $MyInvocation }
+}
+
+function Get-VersionComparable([String]$Version) {
+    $Index = $Version.LastIndexOf("-v");
+    $Trunicated = $Version.Substring($Index + 2);
+    $Split = $Trunicated.Split('.');
+
+    # Join-String was added in PowerShell 6.2
+    $Concat = if ($PSVersionTable.PSVersion.Major -ge 6 -and $PSVersionTable.PSVersion.Minor -ge 2) {
+        $Split | Join-String
+    } else {
+        $Split -join ''
+    }
+
+    return $Concat
 }
 
 function Get-LatestRelease([Parameter(Mandatory)][String]$Program) {
@@ -60,7 +83,7 @@ function Get-LatestRelease([Parameter(Mandatory)][String]$Program) {
             $programReleases = $releases | Where-Object { $_.tag_name -like "$ProgramName-v*" }
 
             # Sort the program releases by date, descending
-            $programReleases = $programReleases | Sort-Object -Property createdAt -Descending
+            $programReleases = $programReleases | Sort-Object { Get-VersionComparable -Version $_.tag_name } -Descending
 
             # Get the latest release of the program
             $latestProgramRelease = $programReleases[0]
