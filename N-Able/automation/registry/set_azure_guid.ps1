@@ -9,7 +9,7 @@ Param (
         [RegistryValue]::new(
             "HKLM:\Software\Policies\Microsoft\OneDrive",
             "AADJMachineDomainGuid",
-            "RZ"
+            "String"
         )
     ),
 
