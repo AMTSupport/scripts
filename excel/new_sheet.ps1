@@ -51,6 +51,7 @@ function Get-Excel {
         $WorkSheet.InsertColumn(1, 1)
         $WorkSheet.InsertRow(1, 1)
         $WorkSheet.Cells[1, 1].Value = "Company"
+        $WorkSheet.Cells[1, 2].Value = "Type"
 
         return $Excel
     }
@@ -58,7 +59,7 @@ function Get-Excel {
     end { Exit-Scope $MyInvocation $Excel }
 }
 
-function Set-Companies([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [String[]]$Companies) {
+function Set-Companies([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [PSCustomObject[]]$Companies) {
     begin { Enter-Scope $MyInvocation }
 
     process {
@@ -66,7 +67,8 @@ function Set-Companies([OfficeOpenXml.ExcelWorksheet]$WorkSheet, [String[]]$Comp
             $RowIndex = $Index + 2;
 
             Write-Host "Setting company $($Companies[$Index]) at row $RowIndex"
-            $WorkSheet.Cells[$RowIndex, 1].Value = ($Companies[$Index])
+            $WorkSheet.Cells[$RowIndex, 1].Value = ($Companies[$Index].name)
+            $WorkSheet.Cells[$RowIndex, 2].Value = ($Companies[$Index].company_type)
         }
     }
 
@@ -104,8 +106,8 @@ function Get-Companies {
 
     process {
         $Companies = ((Invoke-WebRequest -Headers @{"x-api-key" = $ApiKey} -Uri "https://$Endpoint/api/v1/companies?page_size=1000").Content) | ConvertFrom-Json
-        $Companies = $Companies.companies | Select-Object -ExpandProperty name | Sort-Object
-        $Companies
+        $Companies = $Companies.companies | Select-Object -Property name,company_type | Sort-Object -Property name
+        $Companies | Where-Object { $_.company_type -ne "Supplier" }
     }
 
     end { Exit-Scope $MyInvocation $Companies }
