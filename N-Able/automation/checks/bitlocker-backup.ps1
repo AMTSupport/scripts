@@ -14,7 +14,8 @@ function Main {
 
     if ($null -eq $AllProtectors -or $AllProtectors.Count -eq 0) {
         [Console]::Error.WriteLine("BitLocker is not enabled on the system drive.")
-        exit $Script:ERROR_BITLOCKER_DISABLED
+        # exit $Script:ERROR_BITLOCKER_DISABLED
+        return
     }
 
     $RecoveryProtector = ($AllProtectors | where-object { $_.KeyProtectorType -eq "RecoveryPassword" })
