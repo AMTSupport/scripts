@@ -6,6 +6,7 @@ Param(
     [Parameter()]
     [Switch]$NoModify,
 
+    # Allow limiting to specific machines like AzureAD\casfedi=CASFEDI-PC
     [Parameter(Position = 0, ValueFromRemainingArguments)]
     [String[]]$UserExceptions = @(),
 
@@ -119,7 +120,7 @@ function Get-LocalAdmins {
     end { Exit-Scope $MyInvocation $Admins }
 }
 
-function Remove-Admins([String[]]$Users) {
+function Remove-Admins([String[]]$Users, [PSObject[]]$Exceptions) {
     begin { Enter-Scope $MyInvocation }
 
     process {
@@ -131,12 +132,16 @@ function Remove-Admins([String[]]$Users) {
         Write-Debug "Users before filtering supplied exceptions [$($Users -join ', ')]"
         $Removing = $Users | Where-Object {
             $User = $_
-            $Result = $User -notin $UserExceptions
-            switch ($Result) {
-                $true { Write-Debug "User $User not in exceptions" }
-                $false { Write-Debug "User $User in exceptions" }
+
+            $Exception = $Exceptions | Where-Object { $_.User -ieq $User }
+            Write-Debug "$Exception"
+            if ($null -ne $Exception -and ($Exception.Computers -contains $env:COMPUTERNAME)) {
+                Write-Debug "User $User in exceptions."
+                $false
+            } else {
+                Write-Debug "User $User not in exceptions."
+                $true
             }
-            $Result
         }
         Write-Debug "Users after filtering supplied exceptions [$($Removing -join ', ')]"
 
@@ -215,8 +220,36 @@ function Main {
     # $Script:VerbosePreference = "Continue"
     # $Script:DebugPreference = "Continue"
 
+    $UserExceptions = $UserExceptions | ForEach-Object {
+        Write-Debug "Working on $_"
+
+        $Split = $_.Split('=')
+        Write-Debug "Split [$($Split | ConvertTo-Json -Depth 2)]"
+
+        if ($Split.Count -eq 2) {
+            Write-Debug "User has limited computers"
+
+            $Value = if ($Split[1].IndexOf(',') -ne -1) {
+                Write-Debug "Computers are comma separated (multiple)"
+                $Split[1] -split ','
+            } else {
+                Write-Debug "Computer only has a single value"
+                @($Split[1])
+            }
+            Write-Debug "Computers [$($Value | ConvertTo-Json -Depth 1)]"
+
+            @{User = $Split[0]; Computers = $Value }
+        } else {
+            Write-Debug "User is exempt from all computers"
+
+            @{User = $_; Computers = @($env:COMPUTERNAME) }
+        }
+    }
+
+    Write-Debug "User exceptions [$($UserExceptions | ConvertTo-Json -Depth 2)]"
+
     $LocalAdmins = Get-LocalAdmins
-    $RemovedAdmins = Remove-Admins -Users $LocalAdmins
+    $RemovedAdmins = Remove-Admins -Users $LocalAdmins -Exceptions $UserExceptions
 
     $FixedUsers = Set-MissingGroup
 
@@ -241,3 +274,5 @@ function Main {
 Main
 
 #endregion - Script Main Entry
+
+# AzureAD\CASFAdmin 'CASFAU\Domain Admins' CASFAU\casfadmin CASFAdmin TenciaAdmin CASFAU\zohoworkdrive=ZOHO-WORKDRIVE CASFAU\casfedi=CASF071
