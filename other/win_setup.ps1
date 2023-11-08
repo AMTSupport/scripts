@@ -255,7 +255,7 @@ function Get-Network {
     begin { Enter-Scope $MyInvocation }
 
     process {
-        if (-not (Get-NetConnectionProfile -InterfaceAlias "Wi-Fi" -ErrorAction SilentlyContinue)) {
+        if (-not ((Get-NetConnectionProfile -InterfaceAlias "Wi-Fi" -ErrorAction SilentlyContinue) -or (Get-NetConnectionProfile -InterfaceAlias "WiFi" -ErrorAction SilentlyContinue))) {
             Write-Host "No Wi-Fi connection found, creating profile..."
 
             $profilefile = "$env:TEMP\SetupWireless-profile.xml"
@@ -324,6 +324,16 @@ function Configure {
             Write-Host "Device name is not set to $DeviceName, setting it now..."
             Rename-Computer -NewName $DeviceName -WhatIf:$DryRun
             Set-RebootFlag
+        }
+
+        $AutoLogin = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -ErrorAction SilentlyContinue
+        if ($null -eq $AutoLogin) {
+            Write-Host "Auto login is not enabled, enabling it now..."
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -Value 1 -ErrorAction Stop
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUserName" -Value "localadmin" -ErrorAction Stop
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -Value "" -ErrorAction Stop
+        } else {
+            Write-Host "Auto login is already enabled, skipping..."
         }
     }
 
@@ -521,6 +531,7 @@ function Uninstall-HP {
             }
         }
 
+        # TODO - If already uninstall-don't schedule and run next phase instead of re-running this phase after reboot which won't be called
         # Return the function while running this last command in the background
         Write-Host "Removing HP Wolf Security using winget..."
         if ($DryRun) {
@@ -532,6 +543,18 @@ function Uninstall-HP {
     }
 
     end { Exit-Scope $MyInvocation }
+}
+
+function Update-Windows {
+    # After 3 reboots we procced to the finish phase
+    if ($RecursionLevel -ge 3) {
+        Set-StartupSchedule "finish" -Imediate
+    }
+
+    # This will install all updates, rebooting if required, and start the process over again
+    Get-WindowsUpdate -Install -AcceptAll -IgnoreReboot -WhatIf:$DryRun
+    Set-StartupSchedule $Phase
+    Restart-Computer -Force -WhatIf:$DryRun
 }
 
 function Main {
@@ -576,6 +599,7 @@ function Main {
                         _ { Write-Host "Recursion level [$RecursionLevel] is too high, aborting..." -ForegroundColor Red; exit 1005 }
                     }
                 }
+                # If already installed, run next phase immediatly
                 "install" {
                     if ((-not $DryRun) -and $Script:InstallInfo.CompletedPhases -notcontains "configure") {
                         Write-Host "Skipping phase [$Phase] since the configure phase hasn't been completed yet..."
@@ -595,20 +619,12 @@ function Main {
                     }
 
                     Install-Agent
-                    Set-StartupSchedule "update" -Immediate
+                    Set-StartupSchedule "update" -Imediate
                 }
                 "update" {
                     Import-DownloadableModule -Name PSWindowsUpdate -ErrorAction Stop
 
-                    # After 3 reboots we procced to the finish phase
-                    if ($RecursionLevel -ge 3) {
-                        Set-StartupSchedule "finish" -Imediate
-                    }
-
-                    # This will install all updates, rebooting if required, and start the process over again
-                    Get-WindowsUpdate -Install -AcceptAll -IgnoreReboot -WhatIf:$DryRun
-                    Set-StartupSchedule $Phase
-                    Restart-Computer -Force -WhatIf:$DryRun
+                    Update-Windows
                 }
                 "finish" {
                     Write-Host "Finished all phases, removing scheduled task [$TaskName]..."
