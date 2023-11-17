@@ -49,18 +49,63 @@ Param (
 
 # Section Start - Utility Functions
 
-#region - Scope Functions
+#region - Error Codes
 
-function Enter-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
-    $Params = $Invocation.BoundParameters
-    Write-Host "Entered scope $($Invocation.MyCommand.Name) with parameters [$($Params.Keys) = $($Params.Values)]"
+$Script:NULL_ARGUMENT = 1000
+$Script:FAILED_TO_LOG = 1001
+$Script:FAILED_TO_CONNECT = 1002
+$Script:ALREADY_RUNNING = 1003
+
+#endregion - Error Codes
+
+#region - Utility Functions
+
+function Local:Assert-NotNull([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [String]$Message) {
+    if ($null -eq $Object -or $Object -eq "") {
+        if ($null -eq $Message) {
+            Write-Error "Object is null" -Category InvalidArgument
+        }
+        else {
+            Write-Error $Message -Category InvalidArgument
+        }
+    }
 }
 
-function Exit-Scope([System.Management.Automation.InvocationInfo]$Invocation) {
-    Write-Host "Exited scope $($Invocation.MyCommand.Name)"
+
+function Local:Get-ScopeFormatted([Parameter(Mandatory)][System.Management.Automation.InvocationInfo]$Invocation) {
+    $Invocation | Local:Assert-NotNull "Invocation was null";
+
+    [String]$ScopeName = $Invocation.MyCommand.Name;
+    [String]$ScopeName = if ($null -ne $ScopeName) { "Scope: $ScopeName" } else { "Scope: Unknown" };
+    return $ScopeName
 }
 
-#endregion - Scope Functions
+function Local:Enter-Scope([Parameter(Mandatory)][System.Management.Automation.InvocationInfo]$Invocation) {
+    $Invocation | Local:Assert-NotNull "Invocation was null";
+
+    [String]$Local:ScopeName = Local:Get-ScopeFormatted -Invocation $Invocation;
+    $Local:Params = $Invocation.BoundParameters
+    if ($null -ne $Params -and $Params.Count -gt 0) {
+        [String[]]$Local:ParamsFormatted = $Params.GetEnumerator() | ForEach-Object { "$($_.Key) = $($_.Value)" } | Join-String -Separator "`n`t";
+        [String]$Local:ParamsFormatted = "Parameters: $ParamsFormatted"
+    }
+    else {
+        [String]$Local:ParamsFormatted = "Parameters: None"
+    }
+
+    Write-Verbose "Entered Scope`n`t$ScopeName`n`t$ParamsFormatted";
+}
+
+function Local:Exit-Scope([Parameter(Mandatory)][System.Management.Automation.InvocationInfo]$Invocation, [Object]$ReturnValue) {
+    $Invocation | Local:Assert-NotNull "Invocation was null";
+
+    [String]$Local:ScopeName = Local:Get-ScopeFormatted -Invocation $Invocation;
+    [String]$Local:ReturnValueFormatted = if ($null -ne $ReturnValue) { "Return Value: $ReturnValue" } else { "Return Value: None" };
+
+    Write-Verbose "Exited Scope`n`t$ScopeName`n`t$ReturnValueFormatted";
+}
+
+#endregion - Utility Functions
 
 function With-Phase([String]$InnerPhase, [ScriptBlock]$ScriptBlock) {
     begin { Write-Host "Entering $InnerPhase phase..." }
@@ -102,6 +147,7 @@ function Get-PromptInput {
     Write-Host $title
     Write-Host "$($question): " -NoNewline
 
+    $Host.UI.RawUI.FlushInputBuffer();
     $userInput = $Host.UI.ReadLine()
 
     $Host.UI.RawUI.ForegroundColor = 'White'
@@ -160,77 +206,6 @@ function Get-TempFolder([String]$Sub) {
     end { Exit-Scope $MyInvocation }
 }
 
-function Set-Flag([String]$Context) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $Flag = "$($env:TEMP)\$Context.flag"
-        New-Item -ItemType File -Path $Flag -Force
-    }
-
-    end { Exit-Scope $MyInvocation }
-}
-
-function Get-Flag([String]$Context) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $Flag = "$($env:TEMP)\$Context.flag"
-        Test-Path $Flag
-    }
-
-    end { Exit-Scope $MyInvocation }
-}
-
-function Remove-Flag([String]$Context) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $Flag = "$($env:TEMP)\$Context.flag"
-        Remove-Item -Path $Flag -Force -ErrorAction SilentlyContinue
-    }
-
-    end { Exit-Scope $MyInvocation }
-}
-
-function Set-RebootFlag { Set-Flag -Context "reboot" }
-function Remove-RebootFlag { Remove-Flag -Context "reboot" }
-function Get-RebootFlag { Get-Flag -Context "reboot" }
-
-function Get-TaskTrigger([switch]$Imediate) {
-    switch ($Imediate) {
-        $true { $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5) }
-        $false { $Trigger = New-ScheduledTaskTrigger -AtLogOn -User "$(whoami)" }
-    }
-
-    $Trigger
-}
-
-function Get-TaskSettings {
-    New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun
-}
-
-function Get-TaskPrincipal {
-    New-ScheduledTaskPrincipal -UserId "$(whoami)" -RunLevel Highest
-}
-
-function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate, [String]$CommandPath = $MyInvocation.PSCommandPath) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        if ($NoSchedule) {
-            return
-        }
-
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoExit -File `"$CommandPath`" -Phase $NextPhase -ScheduledTask -RecursionLevel $(if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 }) $(if ($DryRun) { "-DryRun" } else { " " })"
-        $Task = New-ScheduledTask -Action $Action -Principal (Get-TaskPrincipal) -Settings (Get-TaskSettings) -Trigger (Get-TaskTrigger -Imediate:$Imediate)
-
-        Register-ScheduledTask -TaskName $TaskName -InputObject $Task -ErrorAction Stop | Out-Null
-    }
-
-    end { Exit-Scope $MyInvocation }
-}
-
 function Import-DownloadableModule([String]$Name) {
     begin { Enter-Scope $MyInvocation }
 
@@ -249,24 +224,42 @@ function Import-DownloadableModule([String]$Name) {
     end { Exit-Scope $MyInvocation }
 }
 
-# Section End - Utility Functions
+#region - Environment Setup
 
-function Get-Network {
+# Setup Network if there is no existing connection.
+function Local:Invoke-EnsureNetworkSetup {
     begin { Enter-Scope $MyInvocation }
+    end { Exit-Scope $MyInvocation }
 
     process {
-        if (-not ((Get-NetConnectionProfile -InterfaceAlias "Wi-Fi" -ErrorAction SilentlyContinue) -or (Get-NetConnectionProfile -InterfaceAlias "WiFi" -ErrorAction SilentlyContinue))) {
-            Write-Host "No Wi-Fi connection found, creating profile..."
+        [Boolean]$Local:HasNetwork = (Get-NetConnectionProfile `
+            | Where-Object {
+                $Local:HasIPv4 = $_.IPv4Connectivity -eq "Internet";
+                $Local:HasIPv6 = $_.IPv6Connectivity -eq "Internet";
 
-            $profilefile = "$env:TEMP\SetupWireless-profile.xml"
+                $Local:HasIPv4 -or $Local:HasIPv6
+            } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
 
-            $SSIDHEX = ($NetworkName.ToCharArray() | foreach-object { '{0:X}' -f ([int]$_) }) -join ''
-            $XmlContent = "<?xml version=""1.0""?>
+        if ($Local:HasNetwork) {
+            Write-Host "Network is already setup, skipping network setup...";
+            return
+        }
+
+        Write-Host "No Wi-Fi connection found, creating profile..."
+
+        [String]$Local:ProfileFile = "$env:TEMP\SetupWireless-profile.xml";
+        If ($Local:ProfileFile | Test-Path) {
+            Write-Host "Profile file exists, removing it...";
+            Remove-Item -Path $Local:ProfileFile -Force;
+        }
+
+        $Local:SSIDHEX = ($NetworkName.ToCharArray() | foreach-object { '{0:X}' -f ([int]$_) }) -join ''
+        $Local:XmlContent = "<?xml version=""1.0""?>
 <WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
     <name>$NetworkName</name>
     <SSIDConfig>
         <SSID>
-            <hex>$SSIDHEX</hex>
+            <hex>$Local:SSIDHEX</hex>
             <name>$NetworkName</name>
         </SSID>
     </SSIDConfig>
@@ -289,118 +282,216 @@ function Get-Network {
 </WLANProfile>
 "
 
-            if ($DryRun) {
-                Write-Host "Dry run enabled, skipping profile creation..."
-                Write-Host "Would have created profile file $profilefile with contents:"
-                Write-Host $XmlContent
-            }
-            else {
-                Write-Host "Creating profile file $profilefile..."
-                $XmlContent > ($profilefile)
-                netsh wlan add profile filename="$($profilefile)" | Out-Null
-                netsh wlan show profiles $NetworkName key=clear | Out-Null
-                netsh wlan connect name=$NetworkName | Out-Null
-            }
+        if ($DryRun) {
+            Write-Host "Dry run enabled, skipping profile creation..."
+            Write-Host "Would have created profile file $Local:ProfileFile with contents:"
+            Write-Host $Local:XmlContent
+        } else {
+            Write-Host "Creating profile file $Local:ProfileFile...";
+            $Local:XmlContent > ($Local:ProfileFile);
 
-            Write-Host "Waiting for network connection..."
-            while (-not (Test-Connection -ComputerName google.com -Count 1 -Quiet)) {
-                Start-Sleep -Seconds 1
-            }
-            Write-Host "Connected to $NetworkName."
+            netsh wlan add profile filename="$($Local:ProfileFile)" | Out-Null
+            netsh wlan show profiles $NetworkName key=clear | Out-Null
+            netsh wlan connect name=$NetworkName | Out-Null
         }
-    }
 
-    end { Exit-Scope $MyInvocation }
+        Write-Host "Waiting for network connection..."
+        $Local:RetryCount = 0;
+        while (-not (Test-Connection -ComputerName google.com -Count 1 -Quiet)) {
+            If ($Local:RetryCount -ge 60) {
+                Write-Host "Failed to connect to $NetworkName after 10 retries, aborting..."
+                exit $Script:FAILED_TO_CONNECT
+            }
+
+            Start-Sleep -Seconds 1
+            $Local:RetryCount += 1
+        }
+
+        Write-Host "Connected to $NetworkName."
+    }
 }
 
-function Configure {
-    begin { Enter-Scope $MyInvocation }
+# If the script isn't located in the temp folder, copy it there and run it from there.
+function Local:Invoke-EnsureLocalScript {
+    begin { Local:Enter-Scope -Invocation $MyInvocation }
+    end { Local:Exit-Scope -Invocation $MyInvocation }
 
     process {
-        $DeviceName = $Script:InstallInfo.DeviceName
-        if ($env:COMPUTERNAME -eq $DeviceName) {
-            Write-Host "Device name is already set to $DeviceName."
-        } else {
-            Write-Host "Device name is not set to $DeviceName, setting it now..."
-            Rename-Computer -NewName $DeviceName -WhatIf:$DryRun
-            Set-RebootFlag
-        }
+        [String]$Local:ScriptPath = $MyInvocation.PSScriptRoot;
+        [String]$Local:TempPath = (Get-Item $env:TEMP).FullName;
 
-        $AutoLogin = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -ErrorAction SilentlyContinue
-        if ($null -eq $AutoLogin) {
-            Write-Host "Auto login is not enabled, enabling it now..."
-            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -Value 1 -ErrorAction Stop
-            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUserName" -Value "localadmin" -ErrorAction Stop
-            Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -Value "" -ErrorAction Stop
-        } else {
-            Write-Host "Auto login is already enabled, skipping..."
-        }
-    }
+        $Local:ScriptPath | Local:Assert-NotNull "Script path was null, this really shouldn't happen.";
+        $Local:TempPath | Local:Assert-NotNull "Temp path was null, this really shouldn't happen.";
 
-    end { Exit-Scope $MyInvocation }
-}
+        if ($Local:ScriptPath -ne $Local:TempPath) {
+            Write-Host "Copying script to temp folder...";
+            [String]$Into = "$Local:TempPath\win_setup.ps1";
 
-function Get-InstallInfo {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $File = "$($env:TEMP)\InstallInfo.json"
-        if (Test-Path $File) {
-            Write-Host "Reading install info from $File..."
-            $InstallInfo = Get-Content -Path $File -Raw | ConvertFrom-Json
-
-            Write-Host "Install info:"
-            Write-Host $InstallInfo
-
-            $InstallInfo
-        } else {
-            Write-Host "No install info found, creating new install info..."
-
-            $Clients = (Get-SoapResponse -Uri (Get-BaseUrl "list_clients")).items.client
-            $FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
-            $SelectedClient = $FormattedClients | Out-GridView -Title "Select a client" -PassThru
-
-            $Sites = (Get-SoapResponse -Uri "$(Get-BaseUrl "list_sites")&clientid=$($SelectedClient.Id)").items.site
-            $FormattedSites = Get-FormattedName2Id -InputArr $Sites -IdExpr { $_.siteid }
-            $SelectedSite = $FormattedSites | Out-GridView -Title "Select a site" -PassThru
-
-            # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
-            $DeviceName = Get-PromptInput -title "Device Name" -question "Enter a name for this device"
-
-            $InstallInfo = @{
-                "DeviceName" = $DeviceName
-                "ClientId"   = $SelectedClient.Id
-                "SiteId"     = $SelectedSite.Id
-                "Path"       = $File
+            try {
+                Copy-Item -Path $MyInvocation.PSCommandPath -Destination $Into -Force;
+            }
+            catch {
+                Write-Error "Failed to copy script to temp folder" -Category PermissionDenied;
             }
 
-            Write-Host "Saving install info to $File..."
-            $InstallInfo | ConvertTo-Json | Out-File -FilePath $File
-
-            Write-Host "Install info:"
-            Write-Host $InstallInfo
-
-            $InstallInfo
+            Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$Into`" -Phase $Phase -RecursionLevel $RecursionLevel"
+            Write-Host "Exiting original process due to script being copied to temp folder...";
+            exit 0;
         }
     }
-
-    end { Exit-Scope $MyInvocation }
 }
 
-function Install-Requirements {
-    begin { Enter-Scope $MyInvocation }
+# Get all required user input for the rest of the script to run automatically.
+function Local:Invoke-EnsureSetupInfo {
+    begin { Local:Enter-Scope -Invocation $MyInvocation }
+    end { Local:Exit-Scope -Invocation $MyInvocation }
+
+    process {
+        [String]$Local:File = "$($env:TEMP)\InstallInfo.json";
+
+        If (Test-Path $Local:File) {
+            Write-Host "Install Info exists, checking validity...";
+
+            try {
+                [PSCustomObject]$Local:InstallInfo = Get-Content -Path $Local:File -Raw | ConvertFrom-Json;
+                $Local:InstallInfo | Local:Assert-NotNull "Install info was null";
+
+                [String]$Local:DeviceName = $Local:InstallInfo.DeviceName;
+                $Local:DeviceName | Local:Assert-NotNull "Device name was null";
+
+                [String]$Local:ClientId = $Local:InstallInfo.ClientId;
+                $Local:ClientId | Local:Assert-NotNull "Client id was null";
+
+                [String]$Local:SiteId = $Local:InstallInfo.SiteId;
+                $Local:SiteId | Local:Assert-NotNull "Site id was null";
+
+                [String]$Local:Path = $Local:InstallInfo.Path;
+                $Local:Path | Local:Assert-NotNull "Path was null";
+
+
+                return $Local:InstallInfo;
+            } catch {
+                Write-Host "There was an issue with the install info, deleting the file for recreation...";
+                Remove-Item -Path $Local:File -Force;
+            }
+        }
+
+        Write-Host "No install info found, creating new install info...";
+
+        $Local:Clients = (Get-SoapResponse -Uri (Get-BaseUrl "list_clients")).items.client;
+        $Local:Clients | Local:Assert-NotNull "Failed to get clients from N-Able";
+
+        $Local:FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
+        $Local:FormattedClients | Local:Assert-NotNull "Failed to format clients";
+
+        $Local:SelectedClient;
+        while ($null -eq $Local:SelectedClient) {
+            $Local:Selection = $Local:FormattedClients | Out-GridView -Title "Select a client" -PassThru;
+            if ($null -eq $Local:Selection) {
+                Write-Host "No client was selected, re-running selection...";
+            } else {
+                $Local:SelectedClient = $Local:Selection;
+            }
+        }
+        $Local:SelectedClient | Local:Assert-NotNull "Failed to select a client.";
+
+        $Local:Sites = (Get-SoapResponse -Uri "$(Get-BaseUrl "list_sites")&clientid=$($SelectedClient.Id)").items.site;
+        $Local:Sites | Local:Assert-NotNull "Failed to get sites from N-Able";
+
+        $Local:FormattedSites = Get-FormattedName2Id -InputArr $Sites -IdExpr { $_.siteid };
+        $Local:FormattedSites | Local:Assert-NotNull "Failed to format sites";
+
+        $Local:SelectedSite;
+        while ($null -eq $Local:SelectedSite) {
+            $Local:Selection = $Local:FormattedSites | Out-GridView -Title "Select a site" -PassThru;
+            if ($null -eq $Local:Selection) {
+                Write-Host "No client was selected, re-running selection...";
+            } else {
+                $Local:SelectedClient = $Local:Selection;
+            }
+        }
+        $Local:SelectedSite | Local:Assert-NotNull "Failed to select a site.";
+
+        # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
+        [String]$Local:DeviceName = Get-PromptInput -title "Device Name" -question "Enter a name for this device"
+
+        [PSCustomObject]$Local:InstallInfo = @{
+            "DeviceName" = $Local:DeviceName
+            "ClientId"   = $Local:SelectedClient.Id
+            "SiteId"     = $Local:SelectedSite.Id
+            "Path"       = $Local:File
+        };
+
+        Write-Host "Saving install info to $Local:File...";
+        try {
+            $Local:InstallInfo | ConvertTo-Json | Out-File -FilePath $File -Force;
+        } catch {
+            Write-Error "There was an issue saving the install info to $Local:File" -Category PermissionDenied;
+        }
+
+        return $Local:InstallInfo
+    }
+}
+
+# Configure items like device name from the setup the user provided.
+function Local:Invoke-ConfigureDeviceFromSetup([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
+    begin { Local:Enter-Scope -Invocation $MyInvocation }
+    end { Local:Exit-Scope -Invocation $MyInvocation }
+
+    process {
+        $InstallInfo | Local:Assert-NotNull "Install info was null";
+
+        #region - Device Name
+        [String]$Local:DeviceName = $InstallInfo.DeviceName;
+        $Local:DeviceName | Local:Assert-NotNull "Device name was null";
+
+        [String]$Local:ExistingName = $env:COMPUTERNAME;
+        $Local:ExistingName | Local:Assert-NotNull "Existing name was null"; # TODO :: Alternative method of getting existing name if $env:COMPUTERNAME is null
+
+        if ($Local:ExistingName -eq $Local:DeviceName) {
+            Write-Host "Device name is already set to $Local:DeviceName.";
+        }
+        else {
+            Write-Host "Device name is not set to $Local:DeviceName, setting it now...";
+            Rename-Computer -NewName $Local:DeviceName -WhatIf:$DryRun;
+            Set-RebootFlag;
+        }
+        #endregion - Device Name
+
+        #region - Auto-Login
+        [String]$Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+        try {
+            $ErrorActionPreference = "Stop";
+
+            Set-ItemProperty -Path $Local:RegKey -Name "AutoAdminLogon" -Value 1 | Out-Null;
+            Set-ItemProperty -Path $Local:RegKey -Name "DefaultUserName" -Value "localadmin" | Out-Null;
+            Set-ItemProperty -Path $Local:RegKey -Name "DefaultPassword" -Value "" | Out-Null;
+        }
+        catch {
+            Write-Error "Failed to set auto-login registry keys";
+        }
+    }
+}
+
+# Make sure all required modules have been installed.
+function Local:Invoke-EnsureModulesInstalled {
+    begin { Local:Enter-Scope -Invocation $MyInvocation }
+    end { Local:Exit-Scope -Invocation $MyInvocation }
 
     process {
         Import-DownloadableModule -Name WingetTools
+        Import-DownloadableModule -Name PSWindowsUpdate
 
         if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
             Write-Host "WinGet not found, installing..."
             Install-Winget
         }
     }
-
-    end { Exit-Scope $MyInvocation }
 }
+
+#endregion -- Environment Setup
+
+#region - Steps
 
 function Install-Agent {
     begin { Enter-Scope $MyInvocation }
@@ -557,30 +648,226 @@ function Update-Windows {
     Restart-Computer -Force -WhatIf:$DryRun
 }
 
-function Main {
+#regionend - Steps
+
+#region - Queue Functions
+
+#region - Flag Settings
+function Local:Get-FlagPath([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
+    begin { Enter-Scope -Invocation $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:FlagPath }
+
+    process {
+        [String]$Local:FlagFolder = "$($env:TEMP)\Flags";
+        if (-not (Test-Path $Local:FlagFolder)) {
+            Write-Host "Creating flag folder $Local:FlagFolder...";
+            New-Item -ItemType Directory -Path $Local:FlagFolder;
+        }
+
+        [String]$Local:FlagPath = "$Local:FlagFolder\$Context.flag";
+        $Local:FlagPath
+    }
+}
+
+function Local:Set-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
+    begin { Enter-Scope -Invocation $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation }
+
+    process {
+        $Context | Local:Assert-NotNull "Context was null";
+
+        [String]$Flag = Local:Get-FlagPath -Context $Context;
+        New-Item -ItemType File -Path $Flag -Force;
+    }
+}
+
+function Local:Get-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
+    begin { Enter-Scope -Invocation $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:FlagResult }
+
+    process {
+        $Context | Local:Assert-NotNull "Context was null";
+
+        [String]$Local:Flag = Local:Get-FlagPath -Context $Context;
+        [Boolean]$Local:FlagResult = Test-Path $Local:Flag
+
+        $Local:FlagResult
+    }
+}
+
+function Local:Remove-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
+    begin { Enter-Scope -Invocation $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation }
+
+    process {
+        $Context | Local:Assert-NotNull "Context was null";
+
+        [String]$Local:Flag = Local:Get-FlagPath -Context $Context;
+        Remove-Item -Path $Local:Flag -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Set-RebootFlag { Local:Set-Flag -Context "reboot" }
+function Remove-RebootFlag { Local:Remove-Flag -Context "reboot" }
+function Get-RebootFlag { Local:Get-Flag -Context "reboot" }
+#endregion - Flag Settings
+
+#region - Task Scheduler Implementation
+function Local:Set-StartupSchedule([String]$NextPhase, [switch]$Imediate, [String]$CommandPath = $MyInvocation.PSCommandPath) {
+    begin { Enter-Scope -Invocation $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation }
+
+    process {
+        if ($NoSchedule) {
+            return
+        }
+
+        $Local:Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun;
+
+        [String]$Local:RunningUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name;
+        $Local:RunningUser | Local:Assert-NotNull "Running user was null, this really shouldn't happen.";
+        $Local:Principal = New-ScheduledTaskPrincipal -UserId $Local:RunningUser -RunLevel Highest;
+
+        switch ($Imediate) {
+            $true { $Local:Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5); }
+            $false { $Local:Trigger = New-ScheduledTaskTrigger -AtLogOn -User $Local:RunningUser; }
+        }
+
+        [Int]$Local:RecursionLevel = if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 };
+        $Local:Action = New-ScheduledTaskAction `
+            -Execute "powershell.exe" `
+            -Argument "-ExecutionPolicy Bypass -NoExit -File `"$CommandPath`" -Phase $NextPhase -ScheduledTask -RecursionLevel $Local:RecursionLevel $(if ($DryRun) { "-DryRun" } else { " " })";
+
+        $Local:Task = New-ScheduledTask `
+            -Action $Local:Action `
+            -Principal $Local:Principal `
+            -Settings $Local:Settings `
+            -Trigger $Local:Trigger;
+
+        Register-ScheduledTask -TaskName $TaskName -InputObject $Task -ErrorAction Stop | Out-Null
+    }
+}
+#endregion - Task Scheduler Implementation
+
+function Local:Remove-QueuedTask {
     begin { Enter-Scope $MyInvocation }
+    end { Exit-Scope $MyInvocation }
+
+    process {
+        $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue;
+        if ($null -ne $Task) {
+            Write-Host "Removing scheduled task [$TaskName]...";
+            Unregister-ScheduledTask -TaskName $TaskName -ErrorAction Stop -Confirm:$false | Out-Null;
+        }
+    }
+}
+
+function Local:Add-QueuedTask(
+    [Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$QueuePhase,
+    [switch]$OnlyOnRebootRequired = $false
+) {
+    begin { Enter-Scope $MyInvocation }
+    end { Exit-Scope $MyInvocation }
+
+    process {
+        [Boolean]$Local:RequiresReboot = Get-RebootFlag;
+
+        if ($OnlyOnRebootRequired -and (-not $Local:RequiresReboot)) {
+            Write-Host "The device does not require a reboot before the $QueuePhase phase can be started, skipping queueing...";
+            return;
+        }
+
+        # Schedule the task before possibly rebooting.
+        Local:Set-StartupSchedule -NextPhase $QueuePhase -Imediate:(-not $Local:RequiresReboot);
+
+        if ($Local:RequiresReboot) {
+            Write-Host "The device requires a reboot before the $QueuePhase phase can be started, rebooting in 15 seconds...";
+            Write-Host "Press any key to cancel the reboot...";
+            $Host.UI.RawUI.FlushInputBuffer();
+            $Local:Countdown = 150;
+            while ($Local:Countdown -gt 0) {
+                if ([Console]::KeyAvailable) {
+                    Write-Host "Key was pressed, canceling reboot.";
+                    break;
+                }
+
+                Write-Progress `
+                    -Activity "Writing Reboot Countdown" `
+                    -Status "Rebooting in $([Math]::Floor($Local:Countdown / 10)) seconds..." `
+                    -PercentComplete (($Local:Countdown / 150) * 100);
+
+                $Local:Countdown -= 1;
+                Start-Sleep -Milliseconds 100;
+            }
+
+            if ($Local:Countdown -eq 0) {
+                Write-Host "Rebooting now...";
+
+                Remove-RebootFlag;
+                Restart-Computer -Force -WhatIf:$DryRun;
+            } else {
+                # Add flag about missing reboot
+            }
+        }
+    }
+}
+
+#endregion - Queue Functions
+
+function Local:Invoke-FailedExit {
+    begin { Enter-Scope $MyInvocation }
+    end { Exit-Scope $MyInvocation }
+
+    process {
+        Local:Remove-QueuedTask;
+        Local:Remove-Flag -Context "running";
+
+        Write-Host "Failed to complete phase [$Phase], exiting...";
+    }
+}
+
+function Main {
+    begin { Local:Enter-Scope -Invocation $MyInvocation }
+    end { Local:Exit-Scope -Invocation $MyInvocation }
 
     process {
         $ErrorActionPreference = "Stop"
 
-        if ($MyInvocation.PSScriptRoot -ne ((Get-Item $env:TEMP).FullName)) {
-            Write-Host "Copying script to temp folder..."
-            $Into = "$env:TEMP\win_setup.ps1"
-            Copy-Item -Path $MyInvocation.PSCommandPath -Destination $Into -Force
-            Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$Into`" -Phase $Phase -RecursionLevel $RecursionLevel"
-            return
+        # Remove the task that possibly started this.
+        Local:Remove-QueuedTask;
+
+        If (Local:Get-Flag -Context "running") {
+            Write-Host "The script is already running, exiting...";
+            exit $Script:ALREADY_RUNNING;
+        } else {
+            Local:Set-Flag -Context "running";
         }
 
-        Get-Network
-        Install-Requirements
-        $Script:InstallInfo = Get-InstallInfo
-
-        # Removes the scheduled task if it exists
-        if ($ScheduledTask) {
-            Write-Host "Removing scheduled task [$TaskName]..."
-            Remove-RebootFlag
-            Unregister-ScheduledTask -TaskName $TaskName -ErrorAction Stop -Confirm:$false
+        try {
+            Local:Invoke-EnsureLocalScript;
+            Local:Invoke-EnsureNetworkSetup;
+            Local:Invoke-EnsureModulesInstalled;
+            $Local:InstallInfo = Local:Invoke-EnsureSetupInfo;
+        } catch {
+            Local:Remove-Flag -Context "running";
+            Write-Error "Failed to setup environment";
         }
+
+        Local:Invoke-ConfigureDeviceFromSetup -InstallInfo $Local:InstallInfo;
+        # Queue this phase to run again if a restart is required by one of the environment setups.
+        Local:Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired;
+
+
+        switch ($Phase) {
+            "configure" { Invoke-PhaseConfigure -InstallInfo $Local:InstallInfo }
+            "cleanup" { Invoke-PhaseCleanup -InstallInfo $Local:InstallInfo }
+            "install" { Invoke-PhaseInstall -InstallInfo $Local:InstallInfo }
+            "update" { Invoke-PhaseUpdate -InstallInfo $Local:InstallInfo }
+            "finish" { Invoke-PhaseFinish -InstallInfo $Local:InstallInfo }
+        }
+
+        Local:Add-QueuedTask -QueuePhase "finish";
+        Local:Remove-Flag -Context "running";
 
         With-Phase $Phase {
             switch ($Phase) {
@@ -643,8 +930,6 @@ function Main {
             }
         }
     }
-
-    end { Exit-Scope $MyInvocation }
 }
 
 Main
