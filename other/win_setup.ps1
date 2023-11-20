@@ -12,37 +12,31 @@ Param (
     [switch]$DryRun,
 
     [Parameter()]
-    [switch]$NoSchedule,
 
-    [Parameter()]
     [ValidateSet("Configure", "Cleanup", "Install", "Update", "Finish")]
     [String]$Phase = "Configure",
 
-    [Parameter()]
+    [Parameter(DontShow)]
     [ValidateLength(32, 32)]
     [String]$ApiKey = "",
 
-    [Parameter()]
+    [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
     [String]$Endpoint = "system-monitor.com",
 
-    [Parameter()]
+    [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
     [String]$NetworkName = "Guests",
 
-    [Parameter()]
+    [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
     [String]$NetworkPassword = "",
 
-    [Parameter()]
+    [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
     [String]$TaskName = "SetupScheduledTask",
 
-    [Parameter()]
-    [ValidateNotNullOrEmpty()]
-    [switch]$ScheduledTask,
-
-    [Parameter()]
+    [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
     [Int]$RecursionLevel = 0
 )
@@ -51,10 +45,17 @@ Param (
 
 #region - Error Codes
 
-$Script:NULL_ARGUMENT = 1000
-$Script:FAILED_TO_LOG = 1001
-$Script:FAILED_TO_CONNECT = 1002
-$Script:ALREADY_RUNNING = 1003
+$Script:NULL_ARGUMENT = 1000;
+$Script:FAILED_TO_LOG = 1001;
+$Script:FAILED_TO_CONNECT = 1002;
+$Script:ALREADY_RUNNING = 1003;
+$Script:FAILED_EXPECTED_VALUE = 1004;
+$Script:FAILED_SETUP_ENVIRONMENT = 1005;
+
+$Script:AGENT_FAILED_DOWNLOAD = 1011;
+$Script:AGENT_FAILED_EXPAND = 1012;
+$Script:AGENT_FAILED_FIND = 1013;
+$Script:AGENT_FAILED_INSTALL = 1014;
 
 #endregion - Error Codes
 
@@ -63,10 +64,23 @@ $Script:ALREADY_RUNNING = 1003
 function Local:Assert-NotNull([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [String]$Message) {
     if ($null -eq $Object -or $Object -eq "") {
         if ($null -eq $Message) {
-            Write-Error "Object is null" -Category InvalidArgument
+            Write-Host -ForegroundColor Red -Object "Object is null";
+            Local:Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
+        } else {
+            Write-Host -ForegroundColor Red -Object $Message;
+            Local:Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
         }
-        else {
-            Write-Error $Message -Category InvalidArgument
+    }
+}
+
+function Local:Assert-Equals([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [Parameter(Mandatory)][Object]$Expected, [String]$Message) {
+    if ($Object -ne $Expected) {
+        if ($null -eq $Message) {
+            Write-Host -ForegroundColor Red -Object "Object [$Object] does not equal expected value [$Expected]";
+            Local:Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
+        } else {
+            Write-Host -ForegroundColor Red -Object $Message;
+            Local:Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
         }
     }
 }
@@ -105,33 +119,6 @@ function Local:Exit-Scope([Parameter(Mandatory)][System.Management.Automation.In
     Write-Verbose "Exited Scope`n`t$ScopeName`n`t$ReturnValueFormatted";
 }
 
-#endregion - Utility Functions
-
-function With-Phase([String]$InnerPhase, [ScriptBlock]$ScriptBlock) {
-    begin { Write-Host "Entering $InnerPhase phase..." }
-
-    process {
-        try {
-            & $ScriptBlock
-        }
-        catch {
-            Write-Host "An error occurred during the $InnerPhase phase: $($_.Exception.Message)"
-            Write-Host -ForegroundColor Red $_.Exception.StackTrace
-            exit 1001
-        }
-
-        $NewInstallInfo = $Script:InstallInfo
-        [String[]]$CompletedPhases = $Script:InstallInfo.CompletedPhases
-        if ($null -eq $CompletedPhases) { $CompletedPhases = @($InnerPhase) } else { $CompletedPhases += $InnerPhase }
-        $NewInstallInfo.CompletedPhases = $CompletedPhases
-
-        $Script:InstallInfo = $NewInstallInfo
-        $Script:InstallInfo | ConvertTo-Json | Out-File -FilePath $Script:InstallInfo.Path -Encoding UTF8 -Force
-    }
-
-    end { Write-Host "Finished $InnerPhase phase successfully." }
-}
-
 function Get-PromptInput {
     Param(
         [Parameter(Mandatory = $true)]
@@ -156,7 +143,7 @@ function Get-PromptInput {
 }
 
 function Get-SoapResponse($Uri) {
-    begin { Enter-Scope $MyInvocation }
+    begin { Local:Enter-Scope $MyInvocation }
 
     process {
         $ContentType = "text/xml;charset=`"utf-8`""
@@ -167,7 +154,7 @@ function Get-SoapResponse($Uri) {
         $ParsedResponse
     }
 
-    end { Exit-Scope $MyInvocation }
+    end { Local:Exit-Scope $MyInvocation }
 }
 
 function Get-BaseUrl([String]$Service) {
@@ -190,20 +177,28 @@ function Get-FormattedName2Id([Object[]]$InputArr, [ScriptBlock]$NameExpr = { $_
     end { Exit-Scope $MyInvocation }
 }
 
-function Get-TempFolder([String]$Sub) {
-    begin { Enter-Scope $MyInvocation }
+function Get-TempFolder([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Sub, [switch]$ForceEmpty) {
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:TempFolder; }
 
     process {
-        $TempFolder = "$($env:TEMP)\$Sub"
-        if (-not (Test-Path $TempFolder)) {
-            Write-Host "Creating temporary folder $TempFolder..."
-            New-Item -ItemType Directory -Path $TempFolder
+        [String]$Local:TempFolder = "$($env:TEMP)\$Sub";
+
+        if ($ForceEmpty) {
+            Write-Host "Emptying temporary folder $Local:TempFolder..."
+            Remove-Item -Path $Local:TempFolder -Force -Recurse
+            New-Item -ItemType Directory -Path $Local:TempFolder
+        }
+        elseif (-not (Test-Path $Local:TempFolder)) {
+            Write-Host "Creating temporary folder $Local:TempFolder..."
+            New-Item -ItemType Directory -Path $Local:TempFolder
+        }
+        else {
+            Write-Host "Temporary folder $Local:TempFolder already exists."
         }
 
-        $TempFolder
+        $Local:TempFolder
     }
-
-    end { Exit-Scope $MyInvocation }
 }
 
 function Import-DownloadableModule([String]$Name) {
@@ -223,6 +218,8 @@ function Import-DownloadableModule([String]$Name) {
 
     end { Exit-Scope $MyInvocation }
 }
+
+#endregion - Utility Functions
 
 #region - Environment Setup
 
@@ -341,6 +338,17 @@ function Local:Invoke-EnsureLocalScript {
     }
 }
 
+function Local:Invoke-EnsureFlags {
+    begin { Local:Enter-Scope -Invocation $MyInvocation }
+    end { Local:Exit-Scope -Invocation $MyInvocation }
+
+    process {
+        If (Local:Get-RebootFlag) {
+
+        }
+    }
+}
+
 # Get all required user input for the rest of the script to run automatically.
 function Local:Invoke-EnsureSetupInfo {
     begin { Local:Enter-Scope -Invocation $MyInvocation }
@@ -433,222 +441,17 @@ function Local:Invoke-EnsureSetupInfo {
     }
 }
 
-# Configure items like device name from the setup the user provided.
-function Local:Invoke-ConfigureDeviceFromSetup([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
-    begin { Local:Enter-Scope -Invocation $MyInvocation }
-    end { Local:Exit-Scope -Invocation $MyInvocation }
-
-    process {
-        $InstallInfo | Local:Assert-NotNull "Install info was null";
-
-        #region - Device Name
-        [String]$Local:DeviceName = $InstallInfo.DeviceName;
-        $Local:DeviceName | Local:Assert-NotNull "Device name was null";
-
-        [String]$Local:ExistingName = $env:COMPUTERNAME;
-        $Local:ExistingName | Local:Assert-NotNull "Existing name was null"; # TODO :: Alternative method of getting existing name if $env:COMPUTERNAME is null
-
-        if ($Local:ExistingName -eq $Local:DeviceName) {
-            Write-Host "Device name is already set to $Local:DeviceName.";
-        }
-        else {
-            Write-Host "Device name is not set to $Local:DeviceName, setting it now...";
-            Rename-Computer -NewName $Local:DeviceName -WhatIf:$DryRun;
-            Set-RebootFlag;
-        }
-        #endregion - Device Name
-
-        #region - Auto-Login
-        [String]$Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
-        try {
-            $ErrorActionPreference = "Stop";
-
-            Set-ItemProperty -Path $Local:RegKey -Name "AutoAdminLogon" -Value 1 | Out-Null;
-            Set-ItemProperty -Path $Local:RegKey -Name "DefaultUserName" -Value "localadmin" | Out-Null;
-            Set-ItemProperty -Path $Local:RegKey -Name "DefaultPassword" -Value "" | Out-Null;
-        }
-        catch {
-            Write-Error "Failed to set auto-login registry keys";
-        }
-    }
-}
-
 # Make sure all required modules have been installed.
 function Local:Invoke-EnsureModulesInstalled {
     begin { Local:Enter-Scope -Invocation $MyInvocation }
     end { Local:Exit-Scope -Invocation $MyInvocation }
 
     process {
-        Import-DownloadableModule -Name WingetTools
         Import-DownloadableModule -Name PSWindowsUpdate
-
-        if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
-            Write-Host "WinGet not found, installing..."
-            Install-Winget
-        }
     }
 }
 
-#endregion -- Environment Setup
-
-#region - Steps
-
-function Install-Agent {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $ErrorActionPreference = "Stop"
-
-        # Check if the agent is already installed
-        if ((-not $DryRun) -and (Get-Service -Name "Advanced Monitoring Agent" -ErrorAction SilentlyContinue)) {
-            Write-Host "Agent is already installed, skipping installation..."
-            return
-        }
-
-        # Download agent from N-Able
-        Write-Information "Downloading agent..."
-
-        $ClientId = $Script:InstallInfo.ClientId
-        $SiteId = $Script:InstallInfo.SiteId
-        $Uri = "https://system-monitor.com/api/?apikey=$ApiKey&service=get_site_installation_package&endcustomerid=$ClientId&siteid=$SiteId&os=windows&type=remote_worker"
-
-        $Temp = "$env:TEMP\Agent"
-        if (-not (Test-Path $Temp)) {
-            Write-Host "Creating temporary folder $Temp..."
-            New-Item -ItemType Directory -Path $Temp | Out-Null
-        }
-
-        $OutputZip = "$Temp\agent.zip"
-        $OutputFolder = "$Temp\unpacked"
-
-        Write-Host "Downloading agent from [$Uri]..."
-        Invoke-WebRequest -Uri $Uri -OutFile $OutputZip -UseBasicParsing -ErrorAction Stop
-        Expand-Archive -Path $OutputZip -DestinationPath $OutputFolder -ErrorAction Stop
-
-        $Output = Get-ChildItem -Path $OutputFolder -Filter "*.exe" -File -ErrorAction Stop
-
-        # For some reason theres an issue with the path being an array
-        # When being downloaded within the same session, but not within the function
-        # Only once the function is returned does the value become an array.
-        # This seems to be a bug with powershell, but I'm not sure.
-        $OutputExe
-        foreach ($subpath in $Output) {
-            Write-Host $subpath
-            $OutputExe = $subpath
-        }
-
-        if ($null -eq $OutputExe) {
-            Write-Host "Failed to find agent executable in [$OutputFolder]"
-            Exit 1011
-        }
-
-        Write-Host "Installing agent from [$OutputExe]..."
-        switch ($DryRun) {
-            $true { Write-Host "Dry run enabled, skipping agent installation..." }
-            $false { Start-Process -FilePath $OutputExe.FullName -Wait }
-        }
-
-        while ($true) {
-            $AgentStatus = Get-Service -Name 'Advanced Monitoring Agent' -ErrorAction SilentlyContinue
-            if ($AgentStatus -and $AgentStatus.Status -eq "Running") {
-                Write-Host "The agent has been installed and running, current status is [$AgentStatus]..."
-                break
-            }
-
-            Write-Host "Waiting for the agent to be installed and running, current status is [$AgentStatus]..."
-            Start-Sleep -Seconds 5
-        }
-
-        # TODO - Query if sentinel is configured, if so wait for sentinel and the agent to be running services, then restart the computer
-    }
-}
-
-function Uninstall-HP {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $WingetCmd = "winget uninstall --accept-source-agreements --disable-interactivity -e --purge --name"
-
-        if ($RecursionLevel -eq 1) {
-            Write-Host "Uninstalling remaining HP Security Wolf Components..."
-            Invoke-Expression "$WingetCmd `"HP Wolf Security - Console`""
-            Invoke-Expression "$WingetCmd `"HP Security Update Service`""
-
-            return
-        }
-
-        $HPPublisherId = "CN=ED346674-0FA1-4272-85CE-3187C9C86E26"
-        Write-Information "Uninstalling HP bloatware..."
-
-        # Removes myHP, HPAudioControl, HPSystemInformation, HPSupportAssistant, HPPrivacySettings, HPPowerManager, HPPCHardwareDiagnosticsWindows
-        $Packages = Get-AppxPackage -AllUsers -Publisher $HPPublisherId
-        Write-Host "Removing $($Packages.Count) HP bloatware packages..."
-        $Packages | Remove-AppxPackage -WhatIf:$DryRun # TODO: Can i use the -AllUsers flag heres?
-
-        # HP Documentation           HP_Documentation                                      1.0.0.1
-        # HP Sure Recover { 052C94ED-06A6-4B48-ABAE-56D796EE7107 }                10.1.12.38
-        # HP Wolf Security - Console { 1B8CBE4F-A015-431D-B0B6-A8E33FD1C6CF }                11.0.19.378
-        # HP Wolf Security { 6F14D6F0-7663-11ED-9748-10604B96B11C }                4.4.2.1075
-        # HP Sure Run Module { 83C5C3DC-E060-491C-A071-FA36E29315A5 }                5.0.3.29
-        # HP Wolf Security { EC86888F-C7F8-11ED-AA30-3863BB3CB5AC }                4.4.2.2945
-        # HP Security Update Service { ECBD9C21-3CC3-41C2-BA81-FE17685C0205 }                4.4.2.2848
-        # HP Connection Optimizer { 6468C4A5-E47E-405F-B675-A70A70983EA6 }                2.0.19.0
-        # HP Notifications { 84937F28-9CB4-49E7-A2CF-E32D97E6DAE6 }                1.1.28.1
-        # HP Audio Control           RealtekSemiconductorCorp.HPAudioControl_dt26b99r8h8gj 2.41.289.0
-
-        $WingetUninstalls = @(
-            "HP Documentation",
-            "HP Sure Recover",
-            "HP Sure Run Module",
-            "HP Connection Optimizer",
-            "HP Notifications",
-            "HP Audio Control"
-        )
-
-        Write-Host "Removing $($WingetUninstalls.Count) HP bloatware packages using winget..."
-        foreach ($PackageId in $WingetUninstalls) {
-            try {
-                If ($DryRun) {
-                    Write-Host "Dry run enabled, skipping winget uninstall of [$PackageId]..."
-                    Write-Host "Would have run [$WingetCmd `"$PackageId`"]"
-                    continue
-                }
-
-                Invoke-Expression "$WingetCmd `"$PackageId`""
-            }
-            catch {
-                Write-Warning "Failed to uninstall package [$PackageId] using winget..."
-                Write-Host -ForegroundColor Red $_
-            }
-        }
-
-        # TODO - If already uninstall-don't schedule and run next phase instead of re-running this phase after reboot which won't be called
-        # Return the function while running this last command in the background
-        Write-Host "Removing HP Wolf Security using winget..."
-        if ($DryRun) {
-            Write-Host "Dry run enabled, skipping HP Wolf Security uninstallation..."
-        } else {
-            Start-Process -FilePath "powershell.exe" -ArgumentList '-NoExit -Command "& { winget uninstall -e --purge --name `""HP Wolf Security`"" }"'
-            Write-Host "HP Wolf Security is uninstalling, please wait for the uninstallation to complete..."
-        }
-    }
-
-    end { Exit-Scope $MyInvocation }
-}
-
-function Update-Windows {
-    # After 3 reboots we procced to the finish phase
-    if ($RecursionLevel -ge 3) {
-        Set-StartupSchedule "finish" -Imediate
-    }
-
-    # This will install all updates, rebooting if required, and start the process over again
-    Get-WindowsUpdate -Install -AcceptAll -IgnoreReboot -WhatIf:$DryRun
-    Set-StartupSchedule $Phase
-    Restart-Computer -Force -WhatIf:$DryRun
-}
-
-#regionend - Steps
+#endregion - Environment Setup
 
 #region - Queue Functions
 
@@ -669,7 +472,7 @@ function Local:Get-FlagPath([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Str
     }
 }
 
-function Local:Set-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
+function Local:Set-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context, [Object]$Data) {
     begin { Enter-Scope -Invocation $MyInvocation }
     end { Exit-Scope -Invocation $MyInvocation }
 
@@ -678,6 +481,10 @@ function Local:Set-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]
 
         [String]$Flag = Local:Get-FlagPath -Context $Context;
         New-Item -ItemType File -Path $Flag -Force;
+
+        if ($null -ne $Data) {
+            $Data | Out-File -FilePath $Flag -Force;
+        }
     }
 }
 
@@ -695,6 +502,24 @@ function Local:Get-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]
     }
 }
 
+function Local:Get-FlagData([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
+    begin { Enter-Scope -Invocation $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:FlagData }
+
+    process {
+        $Context | Local:Assert-NotNull "Context was null";
+
+        [String]$Local:Flag = Local:Get-FlagPath -Context $Context;
+        [Boolean]$Local:FlagResult = Test-Path $Local:Flag
+
+        if ($Local:FlagResult) {
+            $Local:FlagData = Get-Content -Path $Local:Flag;
+        }
+
+        $Local:FlagData
+    }
+}
+
 function Local:Remove-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
     begin { Enter-Scope -Invocation $MyInvocation }
     end { Exit-Scope -Invocation $MyInvocation }
@@ -707,9 +532,40 @@ function Local:Remove-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Stri
     }
 }
 
-function Set-RebootFlag { Local:Set-Flag -Context "reboot" }
-function Remove-RebootFlag { Local:Remove-Flag -Context "reboot" }
-function Get-RebootFlag { Local:Get-Flag -Context "reboot" }
+#region - Reboot Flag
+function Local:Set-RebootFlag { Local:Set-Flag -Context "reboot" }
+function Local:Remove-RebootFlag { Local:Remove-Flag -Context "reboot" }
+function Local:Get-RebootFlag {
+    if (-not (Local:Get-Flag -Context "reboot")) {
+        return $false;
+    }
+
+    # Get the write time for the reboot flag file; if it was written before the computer started, we have reboot, return false;
+    [DateTime]$Local:RebootFlagTime = (Get-Item (Local:Get-FlagPath -Context "reboot")).LastWriteTime;
+    [DateTime]$Local:StartTime = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty LastBootUpTime;
+
+    return $Local:RebootFlagTime -gt $Local:StartTime;
+}
+#endregion - Reboot Flag
+#region - Running Flag
+function Local:Set-RunningFlag { Local:Set-Flag -Context "running" -Data $PID }
+function Local:Remove-RunningFlag { Local:Remove-Flag -Context "running" }
+function Local:Get-RunningFlag {
+    if (-not (Local:Get-Flag -Context "running")) {
+        return $false;
+    }
+
+    # Check if the PID in the running flag is still running, if not, remove the flag and return false;
+    [Int]$Local:RunningPID = Local:Get-FlagData -Context "running";
+    if (-not (Get-Process -Id $Local:RunningPID -ErrorAction SilentlyContinue)) {
+        Local:Remove-RunningFlag;
+        return $false;
+    }
+
+    return $true;
+}
+#endregion - Running Flag
+
 #endregion - Flag Settings
 
 #region - Task Scheduler Implementation
@@ -718,10 +574,6 @@ function Local:Set-StartupSchedule([String]$NextPhase, [switch]$Imediate, [Strin
     end { Exit-Scope -Invocation $MyInvocation }
 
     process {
-        if ($NoSchedule) {
-            return
-        }
-
         $Local:Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun;
 
         [String]$Local:RunningUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name;
@@ -736,7 +588,7 @@ function Local:Set-StartupSchedule([String]$NextPhase, [switch]$Imediate, [Strin
         [Int]$Local:RecursionLevel = if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 };
         $Local:Action = New-ScheduledTaskAction `
             -Execute "powershell.exe" `
-            -Argument "-ExecutionPolicy Bypass -NoExit -File `"$CommandPath`" -Phase $NextPhase -ScheduledTask -RecursionLevel $Local:RecursionLevel $(if ($DryRun) { "-DryRun" } else { " " })";
+            -Argument "-ExecutionPolicy Bypass -NoExit -File `"$CommandPath`" -Phase $NextPhase -RecursionLevel $Local:RecursionLevel $(if ($DryRun) { "-DryRun" } else { " " })";
 
         $Local:Task = New-ScheduledTask `
             -Action $Local:Action `
@@ -766,8 +618,8 @@ function Local:Add-QueuedTask(
     [Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$QueuePhase,
     [switch]$OnlyOnRebootRequired = $false
 ) {
-    begin { Enter-Scope $MyInvocation }
-    end { Exit-Scope $MyInvocation }
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation; }
 
     process {
         [Boolean]$Local:RequiresReboot = Get-RebootFlag;
@@ -803,7 +655,7 @@ function Local:Add-QueuedTask(
             if ($Local:Countdown -eq 0) {
                 Write-Host "Rebooting now...";
 
-                Remove-RebootFlag;
+                Local:Remove-RebootFlag;
                 Restart-Computer -Force -WhatIf:$DryRun;
             } else {
                 # Add flag about missing reboot
@@ -814,33 +666,436 @@ function Local:Add-QueuedTask(
 
 #endregion - Queue Functions
 
-function Local:Invoke-FailedExit {
-    begin { Enter-Scope $MyInvocation }
-    end { Exit-Scope $MyInvocation }
+#region - Phase Functions
+
+# Configure items like device name from the setup the user provided.
+function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
 
     process {
-        Local:Remove-QueuedTask;
-        Local:Remove-Flag -Context "running";
+        $InstallInfo | Local:Assert-NotNull "Install info was null";
 
-        Write-Host "Failed to complete phase [$Phase], exiting...";
+        #region - Device Name
+        [String]$Local:DeviceName = $InstallInfo.DeviceName;
+        $Local:DeviceName | Local:Assert-NotNull "Device name was null";
+
+        [String]$Local:ExistingName = $env:COMPUTERNAME;
+        $Local:ExistingName | Local:Assert-NotNull "Existing name was null"; # TODO :: Alternative method of getting existing name if $env:COMPUTERNAME is null
+
+        if ($Local:ExistingName -eq $Local:DeviceName) {
+            Write-Host "Device name is already set to $Local:DeviceName.";
+        } else {
+            Write-Host "Device name is not set to $Local:DeviceName, setting it now...";
+            Rename-Computer -NewName $Local:DeviceName -WhatIf:$DryRun;
+            Local:Set-RebootFlag;
+        }
+        #endregion - Device Name
+
+        #region - Auto-Login
+        [String]$Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+        try {
+            $ErrorActionPreference = "Stop";
+
+            Set-ItemProperty -Path $Local:RegKey -Name "AutoAdminLogon" -Value 1 | Out-Null;
+            Set-ItemProperty -Path $Local:RegKey -Name "DefaultUserName" -Value "localadmin" | Out-Null;
+            Set-ItemProperty -Path $Local:RegKey -Name "DefaultPassword" -Value "" | Out-Null;
+        }
+        catch {
+            Write-Error "Failed to set auto-login registry keys";
+        }
+        #endregion - Auto-Login
+
+        [String]$Local:NextPhase = "Cleanup";
+        return $Local:NextPhase;
     }
 }
 
-function Main {
-    begin { Local:Enter-Scope -Invocation $MyInvocation }
-    end { Local:Exit-Scope -Invocation $MyInvocation }
+function Invoke-PhaseCleanup {
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
 
     process {
-        $ErrorActionPreference = "Stop"
+        function Stop-HPServices {
+            begin { Enter-Scope -Invocation $MyInvocation; }
+            end { Exit-Scope -Invocation $MyInvocation; }
 
-        # Remove the task that possibly started this.
+            process {
+                [String[]]$Local:Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
+                foreach ($Local:Service in $Local:Services) {
+                    Write-Host "Stopping service [$Local:Service]...";
+                    if (Get-Service -Name $Local:Service -ErrorAction SilentlyContinue) {
+                        Stop-Service -Name $Local:Service -Force -WhatIf:$DryRun -Confirm:$false;
+                        Set-Service -Name $Local:Service -StartupType Disabled -WhatIf:$DryRun;
+                    }
+                }
+            }
+        }
+        function Remove-Packages {
+            begin { Enter-Scope -Invocation $MyInvocation; }
+            end { Exit-Scope -Invocation $MyInvocation; }
+
+            process {
+                [String]$Local:ProgressActivity = "Remove-Packages";
+                [String[]]$Local:UninstallablePrograms = @(
+                    "HP Device Access Manager"
+                    "HP Client Security Manager"
+                    "HP Connection Optimizer"
+                    "HP Documentation"
+                    "HP MAC Address Manager"
+                    "HP Notifications"
+                    "HP System Info HSA Service"
+                    "HP Security Update Service"
+                    "HP System Default Settings"
+                    "HP Sure Click"
+                    "HP Sure Click Security Browser"
+                    "HP Sure Run"
+                    "HP Sure Run Module"
+                    "HP Sure Recover"
+                    "HP Sure Sense"
+                    "HP Sure Sense Installer"
+                    "HP Wolf Security"
+                    "HP Wolf Security - Console"
+                    "HP Wolf Security Application Support for Sure Sense"
+                    "HP Wolf Security Application Support for Windows"
+                );
+
+                Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Getting installed programs..." -PercentComplete 0;
+                $Local:InstalledPrograms = Get-Package | Where-Object { $Local:UninstallablePrograms -contains $_.Name };
+                Write-Progress -Activity $Local:ProgressActivity -PercentComplete 10;
+
+                if ($null -eq $Local:InstalledPrograms -or $Local:InstalledPrograms.Count -eq 0) {
+                    Write-Progress -Activity $Local:ProgressActivity -Status "No installed programs found for HP." -PercentComplete 100 -Completed;
+                    return;
+                }
+                else {
+                    Write-Progress -Activity $Local:ProgressActivity -Status "Removing $($Local:InstalledPrograms.Count) HP bloatware programs...";
+                }
+
+                $Local:PercentPerPackage = 90 / $Local:InstalledPrograms.Count;
+                $Local:PercentComplete = 10;
+                foreach ($Local:Program in $Local:InstalledPrograms) {
+                    Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Removing program [$($Local:Program.Name)]..." -PercentComplete $Local:PercentComplete;
+
+                    try {
+                        $ErrorActionPreference = "Stop";
+
+                        $Local:Program | Uninstall-Package -AllVersions -Force -WhatIf:$DryRun | Out-Null;
+                        Write-Host "Sucessfully removed program [$($Local:Program.Name)]";
+                    }
+                    catch {
+                        Write-Warning "Failed to remove program [$($Local:Package.Name)]";
+                        Write-Host "Attempting to uninstall as MSI Package: $($Local:Package.Name)";
+
+                        try {
+                            $Local:Product = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq $Local:Package.Name };
+                            if ($null -eq $Local:Product) {
+                                Write-Warning "Can't find MSI Package for program [$($Local:Package.Name)]";
+                            }
+                            else {
+                                msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
+                                Write-Host "Sucessfully removed program [$($Local:Package.Name)]";
+                            }
+                        }
+                        catch {
+                            Write-Warning "Failed to remove program [$($Local:Package.Name)]";
+                        }
+                    }
+
+                    $Local:PercentComplete += $Local:PercentPerPackage;
+                }
+
+                # Fallback attempt 1 to remove HP Wolf Security using msiexec
+                Try {
+                    MsiExec /x "{0E2E04B0-9EDD-11EB-B38C-10604B96B11E}" /qn /norestart
+                    Write-Host -Object "Fallback to MSI uninistall for HP Wolf Security initiated"
+                }
+                Catch {
+                    Write-Warning -Object "Failed to uninstall HP Wolf Security using MSI - Error message: $($_.Exception.Message)"
+                }
+
+                # Fallback attempt 2 to remove HP Wolf Security using msiexec
+                Try {
+                    MsiExec /x "{4DA839F0-72CF-11EC-B247-3863BB3CB5A8}" /qn /norestart
+                    Write-Host -Object "Fallback to MSI uninistall for HP Wolf 2 Security initiated"
+                }
+                Catch {
+                    Write-Warning -Object  "Failed to uninstall HP Wolf Security 2 using MSI - Error message: $($_.Exception.Message)"
+                }
+            }
+        }
+        function Remove-ProvisionedPackages {
+            begin { Enter-Scope -Invocation $MyInvocation; }
+            end { Exit-Scope -Invocation $MyInvocation; }
+
+            process {
+                [String]$Local:ProgressActivity = "Remove-ProvisionedPackages";
+                [String]$Local:HPIdentifier = "AD2F1837";
+
+                Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Getting provisioned packages..." -PercentComplete 0;
+                [Object[]]$Local:ProvisionedPackages = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match "^$Local:HPIdentifier" };
+                Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Getting provisioned packages..." -PercentComplete 10;
+
+                if ($null -eq $Local:ProvisionedPackages -or $Local:ProvisionedPackages.Count  -eq 0) {
+                    Write-Progress -Activity $Local:ProgressActivity -Status "No provisioned packages found for HP." -PercentComplete 100 -Completed;
+                    return;
+                } else {
+                    Write-Progress -Activity $Local:ProgressActivity -Status "Removing $($Local:ProvisionedPackages.Count) HP bloatware provisioned packages...";
+                }
+
+                $Local:PercentPerPackage = 90 / $Local:ProvisionedPackages.Count;
+                $Local:PercentComplete = 10;
+                foreach ($Local:Package in $Local:ProvisionedPackages) {
+                    Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Removing provisioned package [$($Local:Package.DisplayName)]..." -PercentComplete $Local:PercentComplete;
+
+                    try {
+                        $ErrorActionPreference = "Stop";
+
+                        Remove-AppxProvisionedPackage -PackageName $Local:Package.PackageName -Online | Out-Null;
+                        Write-Host "Sucessfully removed provisioned package [$($Local:Package.DisplayName)]";
+                    } catch {
+                        Write-Warning "Failed to remove provisioned package [$($Local:Package.DisplayName)]";
+                        Write-Host -ForegroundColor Red $_
+                    }
+
+                    $Local:PercentComplete += $Local:PercentPerPackage;
+                }
+            }
+        }
+        function Remove-AppxPackages {
+            begin { Enter-Scope -Invocation $MyInvocation; }
+            end { Exit-Scope -Invocation $MyInvocation; }
+
+            process {
+                [String]$Local:ProgressActivity = "Remove-AppxPackages";
+                [String]$Local:HPIdentifier = "AD2F1837";
+
+                Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Getting provisioned packages..." -PercentComplete 0;
+                [Object[]]$Local:AppxPackages = Get-AppxPackage -AllUsers | Where-Object { $_.DisplayName -match "^$Local:HPIdentifier" };
+                Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Getting provisioned packages..." -PercentComplete 10;
+
+                if ($null -eq $Local:AppxPackages -or $Local:AppxPackages.Count  -eq 0) {
+                    Write-Progress -Activity $Local:ProgressActivity -Status "No appx-packages found for HP." -PercentComplete 100 -Completed;
+                    return;
+                } else {
+                    Write-Progress -Activity $Local:ProgressActivity -Status "Removing $($Local:AppxPackages.Count) HP bloatware appx-packages...";
+                }
+
+                $Local:PercentPerPackage = 90 / $Local:AppxPackages.Count;
+                $Local:PercentComplete = 10;
+                foreach ($Local:Package in $Local:AppxPackages) {
+                    Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Removing appx-package [$($Local:Package.DisplayName)]..." -PercentComplete $Local:PercentComplete;
+
+                    try {
+                        $ErrorActionPreference = "Stop";
+
+                        Remove-AppxPackage -Package $Local:Package.PackageFullName -AllUsers | Out-Null;
+                        Write-Host "Sucessfully removed appx-package [$($Local:Package.DisplayName)]";
+                    } catch {
+                        Write-Warning "Failed to remove appx-package [$($Local:Package.DisplayName)]";
+                        Write-Host -ForegroundColor Red $_
+                    }
+
+                    $Local:PercentComplete += $Local:PercentPerPackage;
+                }
+
+            }
+        }
+
+        Stop-HPServices;
+        Remove-Packages;
+        Remove-ProvisionedPackages;
+        Remove-AppxPackages;
+
+        # Queue next phase as self if still needed for Wolf uninstall.
+        [String]$Local:NextPhase = "Install";
+        return $Local:NextPhase;
+    }
+}
+
+# Install the agent and any other required software.
+function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+
+    process {
+        [String]$Local:AgentServiceName = "Advanced Monitoring Agent";
+        [String]$Local:NextPhase = "Update";
+
+        # Check if the agent is already installed and running.
+        if (Get-Service -Name $Local:AgentServiceName -ErrorAction SilentlyContinue) {
+            Write-Host "Agent is already installed, skipping installation...";
+            return $Local:NextPhase;
+        }
+
+        [String]$Local:ClientId = $Script:InstallInfo.ClientId;
+        [String]$Local:SiteId = $Script:InstallInfo.SiteId;
+        [String]$Local:Uri = "https://system-monitor.com/api/?apikey=$ApiKey&service=get_site_installation_package&endcustomerid=$ClientId&siteid=$SiteId&os=windows&type=remote_worker";
+
+        [String]$Local:OutputFolder = Get-TempFolder -Name "Agent";
+        [String]$Local:OutputZip = "$Local:OutputFolder\agent.zip";
+        [String]$Local:OutputExtracted = "$Local:OutputFolder\unpacked";
+
+        Write-Host "Downloading agent from [$Local:Uri]";
+        try {
+            $ErrorActionPreference = "Stop";
+            Invoke-WebRequest -Uri $Local:Uri -OutFile $Local:OutputZip -UseBasicParsing;
+        } catch {
+            Write-Host -ForegroundColor Red "Failed to download agent from [$Local:Uri]";
+            Local:Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_DOWNLOAD;
+        }
+
+        Write-Host "Expanding archive [$Local:OutputZip] to [$Local:OutputExtracted]...";
+        try {
+            $ErrorActionPreference = "Stop";
+            Expand-Archive -Path $Local:OutputZip -DestinationPath $Local:OutputExtracted;
+        } catch {
+            Write-Host -ForegroundColor Red "Failed to expand archive [$Local:OutputZip] to [$Local:OutputExtracted]";
+            Local:Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_EXPAND;
+        }
+
+        Write-Host "Finding agent executable in [$Local:OutputExtracted]...";
+        try {
+            $ErrorActionPreference = "Stop";
+            [String]$Local:OutputExe = Get-ChildItem -Path $Local:OutputExtracted -Filter "*.exe" -File;
+
+            # For some reason theres an issue with the path being an array
+            # When being downloaded within the same session, but not within the function
+            # Only once the function is returned does the value become an array.
+            # This seems to be a bug with powershell, but I'm not sure.
+            # [String]$Local:OutputExe = $null;
+            # foreach ($Local:SubPath in $Local:Output) {
+            #     $LocaL:OutputExe = $Local:SubPath;
+            # }
+
+            $Local:OutputExe | Local:Assert-NotNull "Failed to find agent executable in [$OutputExtracted]";
+        } catch {
+            Write-Host -ForegroundColor Red "Failed to find agent executable in [$OutputExtracted]";
+            Local:Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_FIND;
+        }
+
+        Write-Host "Installing agent from [$Local:OutputExe]...";
+        switch ($DryRun) {
+            $true { Write-Host -ForegroundColor Cyan "Dry run enabled, skipping agent installation..."; }
+            $false {
+                try {
+                    # Might need .FullName
+                    $Local:Installer = Start-Process -FilePath $Local:OutputExe -Wait;
+                    $Local:Installer.ExitCode | Local:Assert-Equals -Expected 0 -Message "Agent installer failed with exit code [$($Local:Installer.ExitCode)]";
+
+                    Local:Set-RebootFlag;
+                } catch {
+                    Write-Host -ForegroundColor Red "Failed to install agent from [$Local:OutputExe]";
+                    Local:Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_INSTALL;
+                }
+            }
+        }
+
+        while ($true) {
+            $Local:AgentStatus = Get-Sevice -Name $Local:AgentServiceName -ErrorAction SilentlyContinue;
+            if ($Local:AgentStatus -and $Local:AgentStatus.Status -eq "Running") {
+                Write-Host -ForegroundColor Cyan "The agent has been installed and running, current status is [$Local:AgentStatus]...";
+                break;
+            }
+
+            Start-Sleep -Milliseconds 100;
+        }
+
+        Write-Host -ForegroundColor Cyan "Unable to determine when the agent is fully installed, sleeping for 5 minutes...";
+        $Local:Countdown = 3000;
+        while ($Local:Countdown -gt 0) {
+            Write-Progress `
+                -Activity "Agent Installation" `
+                -Status "Waiting for $([Math]::Floor($Local:Countdown / 10)) seconds..." `
+                -PercentComplete (($Local:Countdown / 150) * 100)
+                -Complete ($Local:Countdown -eq 1);
+
+            $Local:Countdown -= 1;
+            Start-Sleep -Milliseconds 100;
+        }
+
+        # TODO - Query if sentinel is configured, if so wait for sentinel and the agent to be running services, then restart the computer
+
+        return $Local:NextPhase;
+    }
+}
+
+function Invoke-PhaseUpdate {
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+
+    process {
+        [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { "Finish" } else { "Update" };
+
+        Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false -WhatIf:$DryRun;
+        Local:Set-RebootFlag;
+
+        return $Local:NextPhase;
+    }
+}
+
+function Invoke-PhaseFinish {
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+
+    process {
+        [String]$Local:NextPhase = $null;
+
+        # TODO :: Check if everything is completed and configured correctly, if not maybe re-run a phase?
+
+        return $Local:NextPhase;
+    }
+}
+
+#endregion - Phase Functions
+
+#region - Exit Functions
+
+function Local:Invoke-FailedExit([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Int]$ExitCode) {
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation; }
+
+    process {
         Local:Remove-QueuedTask;
+        Local:Remove-RunningFlag;
 
-        If (Local:Get-Flag -Context "running") {
-            Write-Host "The script is already running, exiting...";
+        # TODO :: Better recovery for failed exits
+        Write-Host -ForegroundColor Red "Failed to complete phase [$Phase], exiting...";
+        Exit $ExitCode;
+    }
+}
+
+function Local:Invoke-QuickExit {
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation; }
+
+    process {
+        Local:Remove-RunningFlag;
+
+        Write-Host -ForegroundColor Red "Exiting...";
+        Exit 0;
+    }
+}
+
+#endregion - Exit Functions
+
+function Invoke-Main {
+    begin { Local:Enter-Scope -Invocation $MyInvocation; }
+    end { Local:Exit-Scope -Invocation $MyInvocation; }
+
+    process {
+        Trap {
+            Write-Host -ForegroundColor Red -Object "Unknown error occured, exiting...";
+            Write-Host -ForegroundColor Red -Object $_;
+            Local:Invoke-FailedExit -ExitCode 9999;
+        }
+
+        # Ensure only one process is running at a time.
+        If (Local:Get-RunningFlag) {
+            Write-Host -ForegroundColor Red "The script is already running in another session, exiting...";
             exit $Script:ALREADY_RUNNING;
         } else {
-            Local:Set-Flag -Context "running";
+            Local:Set-RunningFlag;
         }
 
         try {
@@ -849,87 +1104,30 @@ function Main {
             Local:Invoke-EnsureModulesInstalled;
             $Local:InstallInfo = Local:Invoke-EnsureSetupInfo;
         } catch {
-            Local:Remove-Flag -Context "running";
-            Write-Error "Failed to setup environment";
+            Local:Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
         }
 
         Local:Invoke-ConfigureDeviceFromSetup -InstallInfo $Local:InstallInfo;
         # Queue this phase to run again if a restart is required by one of the environment setups.
         Local:Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired;
 
-
+        [String]$Local:NextPhase = $null;
         switch ($Phase) {
-            "configure" { Invoke-PhaseConfigure -InstallInfo $Local:InstallInfo }
-            "cleanup" { Invoke-PhaseCleanup -InstallInfo $Local:InstallInfo }
-            "install" { Invoke-PhaseInstall -InstallInfo $Local:InstallInfo }
-            "update" { Invoke-PhaseUpdate -InstallInfo $Local:InstallInfo }
-            "finish" { Invoke-PhaseFinish -InstallInfo $Local:InstallInfo }
+            "configure" { $Local:NextPhase = Invoke-PhaseConfigure -InstallInfo $Local:InstallInfo; }
+            "cleanup" { $Local:NextPhase = Invoke-PhaseCleanup; }
+            "install" { $Local:NextPhase = Invoke-PhaseInstall -InstallInfo $Local:InstallInfo; }
+            "update" { $Local:NextPhase = Invoke-PhaseUpdate; }
+            "finish" { $Local:NextPhase = Invoke-PhaseFinish; }
         }
 
-        Local:Add-QueuedTask -QueuePhase "finish";
-        Local:Remove-Flag -Context "running";
-
-        With-Phase $Phase {
-            switch ($Phase) {
-                "configure" {
-                    Configure
-
-                    Set-StartupSchedule "cleanup" -Imediate
-                }
-                "cleanup" {
-                    # TODO - Windows bullshit ads and other crap
-                    Uninstall-HP
-
-                    switch ($RecursionLevel) {
-                        0 { Set-StartupSchedule $Phase -Imediate:$DryRun }
-                        1 { Set-StartupSchedule "Install" -Imediate }
-                        _ { Write-Host "Recursion level [$RecursionLevel] is too high, aborting..." -ForegroundColor Red; exit 1005 }
-                    }
-                }
-                # If already installed, run next phase immediatly
-                "install" {
-                    if ((-not $DryRun) -and $Script:InstallInfo.CompletedPhases -notcontains "configure") {
-                        Write-Host "Skipping phase [$Phase] since the configure phase hasn't been completed yet..."
-                        exit 1002
-                    }
-
-                    if (Get-RebootFlag) {
-                        Write-Host "The device requires a reboot before the install phase can be completed, rebooting now..."
-                        # TODO - Add a scheduled task to run this script again after reboot
-                        If ($DryRun) {
-                            Write-Host "Dry run enabled, skipping reboot..."
-                        } else {
-                            Set-StartupSchedule $Phase -Imediate:$DryRun
-                            Restart-Computer -Force -WhatIf:$DryRun
-                        }
-                        exit 1003
-                    }
-
-                    Install-Agent
-                    Set-StartupSchedule "update" -Imediate
-                }
-                "update" {
-                    Import-DownloadableModule -Name PSWindowsUpdate -ErrorAction Stop
-
-                    Update-Windows
-                }
-                "finish" {
-                    Write-Host "Finished all phases, removing scheduled task [$TaskName]..."
-                    Unregister-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue -Confirm:$false
-
-                    Write-Host "Removing temporary files..."
-                    Remove-Item -Path "$env:TEMP\*" -Force -Recurse -Exclude "InstallInfo.json"
-
-                    Write-Host "Finished all phases successfully."
-                    exit 0 # Exit early since we will have an error with the completed phases check
-                }
-                default {
-                    Write-Host -ForegroundColor Red "Unknown phase [$Phase]..."
-                    exit 1000
-                }
-            }
+        # Should only happen when we are done and there is nothing else to queue.
+        if ($null -eq $Local:NextPhase) {
+            Local:Invoke-QuickExit;
         }
+
+        Local:Add-QueuedTask -QueuePhase $Local:NextPhase;
+        Local:Invoke-QuickExit;
     }
 }
 
-Main
+Invoke-Main
