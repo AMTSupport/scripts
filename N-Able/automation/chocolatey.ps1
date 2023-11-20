@@ -176,14 +176,7 @@ function InstallRequirements () {
             refreshenv
 
             $Repaired = $true
-        }
-
-        $ChocoLS = Get-ChildItem -Path "$($env:SystemDrive)\ProgramData\chocolatey" -Recurse -Force -ErrorAction SilentlyContinue
-        if (
-            ($ChocoLS.Length -eq 2) -and
-            ($ChocoLS[0].FullName -eq "$($env:SystemDrive)\ProgramData\chocolatey\lib") -and
-            ($ChocoLS[1].FullName -eq "$($env:SystemDrive)\ProgramData\chocolatey\lib\chocolatey")
-        ) {
+        } else {
             $script:logger.Info("Broken state detected, deleting chocolatey files...")
             Remove-Item -Path "$($env:SystemDrive)\ProgramData\chocolatey" -Recurse -Force -ErrorAction Stop
 

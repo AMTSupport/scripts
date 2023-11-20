@@ -1,19 +1,17 @@
-#Requires -Modules Microsoft.Graph.Intune, Microsoft.Graph
-
-Param(
-    [Parameter(ValueFromRemainingArguments)]
-    [String[]]$SharepointLibraries,
-
-    [Parameter(DontShow)]
-    [Microsoft.Open.AzureAD.Model.Group]$Script:IntuneGroup = { Get-IntuneGroup }
-)
+#Requires -Modules Microsoft.Graph.Intune
+#Requires -PSEdition Desktop
+#Requires -Version 5.1
 
 #region - Utilities functions
 
-function Assert-Connection {
-    if ($null -eq (Get-IntuneDeviceAppManagement -ErrorAction SilentlyContinue)) {
+function Local:Assert-Connection {
+    try {
+        Get-AzureADCurrentSessionInfo -ErrorAction Stop | Out-Null
+        Get-MSGraphEnvironment -ErrorAction Stop | Out-Null
+    } catch {
         try {
-            Connect-MSGraph
+            Connect-AzureAD -ErrorAction Stop;
+            Connect-MSGraph -ErrorAction Stop;
         } catch {
             throw "Not connected to Azure AD."
         }
@@ -32,16 +30,13 @@ function Get-TenantId {
 }
 
 function Get-IntuneGroup {
+    $Local:GroupName = "Intune";
     Assert-Connection
 
-    $TenantId = Get-TenantId
-    $IntuneGroup = Get-AzureADGroup -Filter "DisplayName eq 'Intune Users'" -All $true | Where-Object {
-        $_.ExtensionProperty -match "deviceManagement" -and $_.ExtensionProperty.deviceManagement -match $TenantId
-    }
-
+    $Local:IntuneGroup = Get-AzureADGroup -Filter "DisplayName eq '$Local:GroupName'" -All $true;
     if ($null -eq $IntuneGroup) {
         # Create the group
-        $IntuneGroup = New-AzureADGroup -DisplayName "Intune Users" -Description "Group for users that are managed by Intune." -SecurityEnabled $true -GroupTypes "Unified"
+        $IntuneGroup = New-AzureADGroup -DisplayName $Local:GroupName -Description "Group for users that are managed by Intune." -SecurityEnabled $true;
     }
 
     return $IntuneGroup
@@ -51,59 +46,63 @@ function Get-IntuneGroup {
 
 #region - Device Compliance Policies
 
-function Local:Set-DeviceCompliancePolicy([String]$Local:Name, [Parameter(ValueFromPipeline)][PSCustomObject]$Local:Policy) {
-    Assert-Connection
+function Local:Set-DeviceCompliancePolicy(
+    [Parameter(Mandatory)][Microsoft.Open.AzureAD.Model.Group]$Local:IntuneGroup,
+    [Parameter(Mandatory, ValueFromPipeline)][PSCustomObject]$Local:PolicyConfiguration
+) {
+    Local:Assert-Connection
 
-    if ($null -eq $Local:Name) {
-        throw "Name cannot be null."
-    }
-
-    if ($null -eq $Local:Configuration) {
+    if ($null -eq $Local:PolicyConfiguration) {
         throw "Configuration cannot be null."
     }
 
-    $Local:ExistingPolicy = Get-IntuneDeviceCompliancePolicy -Filter "displayName eq '$Name'";
+    [String]$Local:PolicyName = $Local:PolicyConfiguration.displayName;
+    if ($null -eq $Local:PolicyName) {
+        throw "Name cannot be null."
+    }
+
+    $Local:ExistingPolicy = Get-IntuneDeviceCompliancePolicy -Filter "displayName eq '$Local:PolicyName'";
 
     # Check if the policy is already set to the correct configuration
-    if ($null -ne $Local:ExistingPolicy -and $Local:ExistingPolicy.Json -eq ($Local:Policy | ConvertTo-Json)) {
-        Write-Host "Configuration profile '$Local:Name' is already set to the correct configuration.";
+    if ($null -ne $Local:ExistingPolicy -and $Local:ExistingPolicy.Json -eq ($Local:PolicyConfiguration | ConvertTo-Json)) {
+        Write-Host "Configuration profile '$Local:PolicyName' is already set to the correct configuration.";
         return
     } elseif ($null -ne $Local:ExistingPolicy) {
         # Remove the existing policy
-        Write-Host "Removing existing configuration profile '$Local:Name'.";
+        Write-Host "Removing existing configuration profile '$Local:PolicyName'.";
         Remove-IntuneDeviceCompliancePolicy -Id $Local:ExistingPolicy.Id;
     }
 
     # Create the policy
-    Write-Host "Creating configuration profile '$Local:Name'.";
+    Write-Host "Creating configuration profile '$Local:PolicyName'.";
     $Local:SubmittedPolicy = New-IntuneDeviceCompliancePolicy `
-        -displayName $Local:Name `
-        -description "Baseline configuration profile for $Local:Name devices." `
-        @Local:Policy;
+        -displayName $Local:PolicyName `
+        -description "Baseline configuration profile for $Local:PolicyName devices." `
+        @Local:PolicyConfiguration;
 
 
     # Assign the policy
-    Write-Host "Assigning configuration profile '$Local:Name'.";
+    Write-Host "Assigning configuration profile '$Local:PolicyName'.";
     Invoke-IntuneDeviceCompliancePolicyAssign -deviceCompliancePolicyId $Local:SubmittedPolicy `
         -assignments (New-DeviceCompliancePolicyAssignmentObject `
             -target (New-DeviceAndAppManagementAssignmentTargetObject `
                 -groupAssignmentTarget `
-                -groupId $Script:IntuneGroup.Id `
+                -groupId $Local:IntuneGroup.Id `
             ));
 }
 
 #region - Windows Compliance Policies
 
-function Set-DeviceCompliancePolicy_Windows {
-    [String]$Local:Name = "Windows - Baseline"
-
+function New-DeviceCompliancePolicy_Windows {
     [PSCustomObject]@{
+        displayName = "Windows - Baseline"
+
         windows10CompliancePolicy = $true
 
         bitLockerEnabled = $true
         secureBootEnabled = $true
         codeIntegrityEnabled = $true
-    } | Local:Set-DeviceCompliancePolicy -Name $Local:Name
+    }
 }
 
 #endregion - Windows Compliance Policies
@@ -112,10 +111,11 @@ function Set-DeviceCompliancePolicy_Windows {
 #region - Apple Compliance Policies
 #endregion - Apple Compliance Policies
 #endregion - Device Compliance Policies
+
 #region - Device Configuration Profiles
 
 function Local:Set-DeviceConfigurationProfile([String]$Local:Name, [Parameter(ValueFromPipeline)][PSCustomObject]$Local:Configuration) {
-    Assert-Connection
+    Local:Assert-Connection
 
     if ($null -eq $Local:Name) {
         throw "Name cannot be null."
@@ -190,6 +190,7 @@ function Set-DeviceWindowsConfigurationProfile_IdentityProtection {
 #region - MacOS Configuration Profiles
 #endregion - MacOS Configuration Profiles
 #endregion - Device Configuration Profiles
+
 #region - Conditional Access Policies
 
 function Set-TemplatePolicies {
@@ -210,7 +211,9 @@ function Set-CustomPolicies {
 }
 
 #endregion - Conditional Access Policies
+
 #region - Endpoint Security
+
 #region - Antivirus
 
 function Set-EndpointSecurityAntivirusWindows {
@@ -226,6 +229,7 @@ function Set-EndpointSecurityAntivirusLinux {
 }
 
 #endregion - Antivirus
+
 #region - Disk Encryption
 
 function Set-EndpointSecurityEncryptionWindows {
@@ -237,4 +241,35 @@ function Set-EndpointSecurityEncryptionMacOS {
 }
 
 #endregion - Disk Encryption
+
 #endregion - Endpoint Security
+
+function Invoke-Main {
+    # Get Connections
+    Assert-Connection
+
+    # Setup the Intune Group
+    [Microsoft.Open.AzureAD.Model.Group]$Local:IntuneGroup = Get-IntuneGroup
+
+    # Setup the Device Compliance Policies
+    [PSCustomObject[]]$Local:DeviceCompliancePolicies = @(New-DeviceCompliancePolicy_Windows);
+    $Local:DeviceCompliancePolicies | ForEach-Object {
+        Local:Set-DeviceCompliancePolicy -IntuneGroup $Local:IntuneGroup -PolicyConfiguration $_;
+    }
+
+    # Setup the Device Configuration Profiles
+    [PSCustomObject[]]$Local:DeviceConfigurationProfiles = @();
+    $Local:DeviceConfigurationProfiles | ForEach-Object {
+        Local:Set-DeviceConfigurationProfile -Name $_.Name -Configuration $_.Configuration;
+    }
+
+    # Setup the Conditional Access Policies
+}
+
+# If the script is being run directly, invoke the main function
+if ($MyInvocation.CommandOrigin -eq 'Runspace') {
+    Invoke-Main
+} else {
+    Write-Host "Script is being imported."
+    Write-Host $MyInvocation.CommandOrigin
+}
