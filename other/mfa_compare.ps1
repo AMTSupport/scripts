@@ -530,20 +530,53 @@ function Update-Data([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
                 [Parameter(Mandatory = $true)]
                 [PSCustomObject]$Data,
                 [Parameter(Mandatory = $true)]
-                [OfficeOpenXml.ExcelWorksheet]$WorkSheet,
+                [OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet,
                 [Parameter(Mandatory = $true)]
                 [int]$LastIndex,
                 [Parameter(Mandatory = $true)]
                 [int]$Offset
             )
 
+            if ($null -eq $Data) {
+                Write-Error "Data is null"
+                return
+            }
+
+            if ($null -eq $EmailTable) {
+                Write-Error "EmailTable is null"
+                return
+            }
+
+            if ($null -eq $ActiveWorkSheet) {
+                Write-Error "ActiveWorkSheet is null"
+                return
+            }
+
+            if ($null -eq $LastIndex) {
+                Write-Error "LastIndex is null"
+                return
+            }
+
+            if ($null -eq $Offset) {
+                Write-Error "Offset is null"
+                return
+            }
+
             $Row = $EmailTable[$Data.Email]
             $AddedOffset = 0
             if ($null -eq $Row) {
-                $Row = $LastIndex + 1
-                Write-Info "Inserting row $Row for $($Data.DisplayName)"
-                $WorkSheet.InsertRow($Row, 1)
-                $WorkSheet.Cells[$Row, 2].Value = $Data.Email
+                [Int]$Row = $LastIndex + 1
+
+                Write-Info "``$($Data.DisplayName)`` not found in table, inserting new row at index ``$Row``";
+
+                if ($Row -lt 1) {
+                    Write-Info "Row is less than 1, setting to 1"
+                    $Row = 1
+                }
+
+                $ActiveWorkSheet.InsertRow($Row, 1);
+                # $WorkSheet.InsertRow($Row, 1)
+                $ActiveWorkSheet.Cells[$Row, 2].Value = $Data.Email
 
                 $AddedOffset++
             } else {
@@ -551,8 +584,8 @@ function Update-Data([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
                 $Row = $Row + $Offset
             }
 
-            $WorkSheet.Cells[$Row, 1].Value = $Data.DisplayName
-            $WorkSheet.Cells[$Row, 3].Value = $Data.MobilePhone
+            $ActiveWorkSheet.Cells[$Row, 1].Value = $Data.DisplayName
+            $ActiveWorkSheet.Cells[$Row, 3].Value = $Data.MobilePhone
 
             $Row,$AddedOffset
         }
@@ -562,9 +595,9 @@ function Update-Data([PSCustomObject]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
         $LastIndex = 1
         $LastHistoryIndex = 1
         foreach ($data in $NewData) {
-            ($Row, $AddingOffset) = Get-User -EmailTable $EmailTable -Data $data -WorkSheet $WorkSheet -LastIndex $LastIndex -Offset $RowOffset
+            ($Row, $AddingOffset) = Get-User -EmailTable $EmailTable -Data $data -ActiveWorkSheet $WorkSheet -LastIndex $LastIndex -Offset $RowOffset
             $RowOffset += $AddingOffset
-            ($HistoryRow, $AddingOffset) = Get-User -EmailTable $HistoryEmailTable -Data $data -WorkSheet $HistoryWorkSheet -LastIndex $LastHistoryIndex -Offset $HistoryRowOffset
+            ($HistoryRow, $AddingOffset) = Get-User -EmailTable $HistoryEmailTable -Data $data -ActiveWorkSheet $HistoryWorkSheet -LastIndex $LastHistoryIndex -Offset $HistoryRowOffset
             $HistoryRowOffset += $AddingOffset
 
             $Cell = $WorkSheet.Cells[$Row, $ColumnIndex]
