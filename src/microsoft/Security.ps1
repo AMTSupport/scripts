@@ -1,44 +1,34 @@
-#Requires -Modules MSOnline,ExchangeOnlineManagement
+#Requires -Modules MSOnline,ExchangeOnlineManagement,AzureAD,Microsoft.Online.SharePoint.PowerShell
 
 Param(
     [Parameter(Mandatory)]
-    [ValidateSet("SecurityAlerts")]
+    [ValidateSet("SecurityAlerts", "ConditionalAccess", "Sharepoint", "Exchange")]
     [String]$Action
 )
 
-#region - Login Functions
+#region - OneDrive & Sharepoint
 
-function Connect-ExchangeOnlineImpl {
-    try {
-        Connect-ExchangeOnline -ErrorAction Stop
-    } catch {
-        Write-Error "Failed to connect to ExchangeOnline"
-        exit 1002
-    }
+function Set-Sharepoint_SharingDomains {
+    Connect-Service -Service AzureAD;
+
+    Set-SPOTenant -SharingDomainRestrictionMode AllowList -SharingAllowedDomainList (Get-AzureADDomain | Select-Object -ExpandProperty Name)
 }
-
-function Connect-SecurityComplience {
-    try {
-        Connect-IPPSSession
-    } catch {
-        Write-Error "Failed to connect to IPPSSession"
-        exit 1002
-    }
-}
-
-#endregion - Login Functions
 
 #region - Exchange Mailbox Policies
 
-function Set-DisableAdditionStorageProviders {
+function Disable-Outlook_StorageProviders {
+    Connect-Service -Service ExchangeOnline;
+
     Set-OwaMailboxPolicy -Identity OwaMailboxPolicy-Default -AdditionalStorageProvidersAvailable $false
 }
 
-function Set-OfficeSafeAttachmentsPolicy {
+function Set-Exchange_SafeAttachmentsPolicy {
     # TODO
 }
 
-function Set-OfficeSafeLinksPolicy {
+function Set-Exchange_SafeLinksPolicy {
+    Connect-Service -Service ExchangeOnline;
+
     #region - Consts
     $Local:RuleName = "Default safe links"
     #endregion - Consts
@@ -75,12 +65,16 @@ function Set-OfficeSafeLinksPolicy {
 }
 
 # https://learn.microsoft.com/en-us/purview/audit-mailboxes?view=o365-worldwide
-function Set-MailboxAuditing {
+function Enable-Exchange_MailboxAuditing {
+    Connect-Service -Service ExchangeOnline;
+
     Set-OrganizationConfig -AuditDisabled $false
     Get-Mailbox | ForEach-Object { Set-Mailbox -AuditEnabled $true -Identity $_.WindowsEmailAddress }
 }
 
-function Set-MailTips {
+function Enable-Exchange_MailTips {
+    Connect-Service -Service ExchangeOnline;
+
     Set-OrganizationConfig -MailTipsAllTipsEnabled $true -MailTipsExternalRecipientsTipsEnabled $true -MailTipsGroupMetricsEnabled $true -MailTipsLargeAudienceThreshold '25'
 }
 
@@ -206,14 +200,14 @@ function New-ConditionalAccessPrivilegedIdentityManagementPolicy {
 
 #endregion - Conditional Access Policies
 
-function Main {
-    switch ($Action) {
-        "SecurityAlerts" {
-            Connect-SecurityComplience
+Import-Module ../common/Environment.psm1;
 
+Invoke-RunMain $MyInvocation {
+    switch ($Action) {
+        'SecurityAlerts' {
             $AlertsUser = Get-AlertsUser
             if ($AlertsUser) {
-                $Continue = $Host.UI.PromptForChoice("Alerts User: $($AlertsUser.WindowsLiveID)", "Is this the correct alerts user?", @("&Yes", "&No"), 0)
+                $Continue = $Host.UI.PromptForChoice("Alerts User: $($AlertsUser.WindowsLiveID)", 'Is this the correct alerts user?', @('&Yes', '&No'), 0)
                 if ($Continue -eq 1) {
                     Write-Host "Please update the alerts user manually at ``https://admin.microsoft.com/Adminportal/Home#/users``."
                     exit 1003
@@ -222,10 +216,20 @@ function Main {
                 Set-SecurityAndCompilenceAlerts -AlertsUser $AlertsUser
             }
         }
-        "ConditionalAccess" {
-            New-ConditionalAccessPrivilegedIdentityManagementPolicy
+        'ConditionalAccess' {
+            New-ConditionalAccessPrivilegedIdentityManagementPolicy;
+        }
+        'Sharepoint' {
+
+        }
+        'Exchange' {
+            Disable-Outlook_StorageProviders
+
+            Set-Exchange_SafeAttachmentsPolicy
+            Set-Exchange_SafeLinksPolicy
+
+            Enable-Exchange_MailboxAuditing
+            Enable-Exchange_MailTips
         }
     }
-}
-
-Main
+};
