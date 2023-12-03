@@ -6,21 +6,26 @@ function Connect-Service(
     # If true prompt for confirmation if already connected.
     [Switch]$Confirm
 ) {
-    $Connected = switch ($Service) {
-        'ExchangeOnline' {
-            Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName;
+    $Local:Connected = try {
+        switch ($Service) {
+            'ExchangeOnline' {
+                # if (!(Get-PSSession | Where-Object { $_.Name -match 'ExchangeOnline' -and $_.Availability -eq 'Available' })) { Connect-ExchangeOnline }
+                Get-ConnectionInformation -ErrorAction SilentlyContinue | Select-Object -ExpandProperty UserPrincipalName;
+            }
+            'SecurityComplience' {
+                Get-IPPSSession -ErrorAction SilentlyContinue | Select-Object -ExpandProperty UserPrincipalName;
+            }
+            'AzureAD' {
+                Get-AzureADCurrentSessionInfo -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Account;
+            }
         }
-        'SecurityComplience' {
-            Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName;
-        }
-        'AzureAD' {
-            Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account;
-        }
+    } catch {
+        $null
     }
 
-    if ($Connected) {
+    if ($Local:Connected) {
         if ($Confirm) {
-            $Local:Continue = Get-UserConfirmation -Title "Already connected to $Service as [$Connected]" -Question 'Do you want to continue?' -DefaultChoice $true;
+            $Local:Continue = Get-UserConfirmation -Title "Already connected to $Service as [$Local:Connected]" -Question 'Do you want to continue?' -DefaultChoice $true;
             if (-not $Local:Continue) {
                 return;
             }
