@@ -243,8 +243,8 @@ Invoke-RunMain $MyInvocation {
         if (-not $Output) {
             Write-Host -ForegroundColor Cyan -Object $Local:CompiledScript;
         } else {
-            $Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
-            if ($Local:OutputFile.Exists) {
+            [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
+            if (Test-Path $Local:OutputFile) {
                 if (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true) {
                     Write-Host -ForegroundColor Cyan -Object 'Output file already exists. Deleting...';
                     Remove-Item -Path $Local:OutputFile -Force | Out-Null;
