@@ -1,0 +1,55 @@
+{
+    "Create a new function": {
+        "scope": "powershell",
+        "prefix": "function",
+        "body": [
+            "function ${1:FunctionName} {",
+            "    begin { Enter-Scope -Invocation \\$MyInvocation; }",
+            "    end { Exit-Scope -Invocation \\$MyInvocation; }",
+            "",
+            "    process { }",
+            "}"
+        ],
+        "description": "Create a new function with scope management, and no return value"
+    },
+    "Create a new function with return value": {
+        "scope": "powershell",
+        "prefix": "functionr",
+        "body": [
+            "function ${1:FunctionName} {",
+            "    begin { Enter-Scope -Invocation \\$MyInvocation; }",
+            "    end { Exit-Scope -Invocation \\$MyInvocation -ReturnValue \\$Local:${2:ReturnValue}; }",
+            "",
+            "    process {",
+            "        \\$Local:${2:ReturnValue} = $3;",
+            "",
+            "        return \\$Local:${2:ReturnValue};",
+            "    }",
+            "}"
+        ],
+        "description": "Create a new function with scope management, and a return value"
+    },
+
+    "Advanced Script Init": {
+        "scope": "powershell",
+        "prefix": "run",
+        "body": [
+            "Import-Module ../common/Environment.psm1;",
+            "",
+            "Invoke-RunMain \\$MyInvocation {",
+            "",
+            "};"
+        ],
+        "description": "Create a new script using the run framework"
+    },
+
+    "Parameter": {
+        "scope": "powershell",
+        "prefix": "param",
+        "body": [
+            "[Parameter(Mandatory)][ValidateNotNull()][${1:ParameterType}]${2:ParameterName}",
+        ],
+        "description": "Create a new parameter"
+    },
+    }
+}
