@@ -25,60 +25,102 @@ function Invoke-EnsureAdministrator {
 #>
 function Invoke-RunMain {
     Param(
-        [Parameter(Mandatory, Position = 0)]
+        [Parameter(Mandatory)]
         [ValidateNotNull()]
         [System.Management.Automation.InvocationInfo]$Invocation,
 
-        [Parameter(Mandatory, Position = 1)]
+        [Parameter(Mandatory)]
         [ValidateNotNull()]
         [ScriptBlock]$Main
     )
 
-    begin {
-        $Local:ImportedModules = [System.Collections.Generic.List[String]]::new();
-        $Local:ToImport = Get-ChildItem -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
+    #region - Begin
+    $Local:ImportedModules = [System.Collections.Generic.List[String]]::new();
 
-        Write-Verbose -Message "♻️ Importing $($Local:ToImport.Count) modules.";
+    if ($Global:CompiledScript) {
+        Write-Verbose -Message '✅ Script has been embeded with required modules.';
+        $Local:ToImport = $Global:EmbededModules;
+    } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
+        Write-Verbose -Message '✅ Script is in git repository; Using local files.';
+        $Local:ToImport = Get-ChildItem -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
+    } else {
+        $Local:RepoPath = "$($env:TEMP)/AMTScripts";
+
+        if (-not (Test-Path -Path $Local:RepoPath)) {
+            Write-Verbose -Message '♻️ Cloning repository.';
+            git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
+        }
+        else {
+            Write-Verbose -Message '♻️ Updating repository.';
+            git -C $Local:RepoPath pull;
+        }
+
+        Write-Verbose -Message '♻️ Collecting common modules.';
+        $Local:ToImport = Get-ChildItem -Path "$Local:RepoPath/src/common/*.psm1";
+    }
+
+    Write-Verbose -Message "♻️ Importing $($Local:ToImport.Count) modules.";
+    if ($Global:CompiledScript) {
+        Write-Verbose -Message "✅ Modules to import: `n`t$($Local:ToImport.Keys -join "`n`t")";
+
+        foreach ($Local:Module in $Local:ToImport.GetEnumerator()) {
+            $Local:ModuleKey = $Local:Module.Key;
+            $Local:ModuleDefinition = $Local:Module.Value;
+
+            New-Module -ScriptBlock $Local:ModuleDefinition -AsCustomObject | Import-Module -Name $Local:ModuleKey -Global;
+        }
+    } else {
         Write-Verbose -Message "✅ Modules to import: `n`t$($Local:ToImport.Name -join "`n`t")";
 
         Import-Module -Name $Local:ToImport.FullName -Global;
-        $Local:ImportedModules += $Local:ToImport;
     }
 
-    end {
-        Write-Verbose -Message "♻️ Cleaning up $($Local:ImportedModules.Count) imported modules.";
-        Write-Verbose -Message "✅ Imported modules: `n`t$($Local:ImportedModules -join "`n`t")";
+    $Local:ImportedModules += $Local:ToImport;
+    #endregion - Begin
 
-        $Local:ImportedModules | ForEach-Object { Remove-Module -FullyQualifiedName $_.FullName -Force -ErrorAction SilentlyContinue | Out-Null; }
-    }
-
-    process {
-        Trap {
-            $Local:DeepestException = $_.Exception;
-            while ($true) {
-                if (-not $Local:DeepestException.InnerException) {
-                    break;
-                }
-
-                $Local:DeepestException = $Local:DeepestException.InnerException;
-            }
-
-            Write-Host -ForegroundColor Red -Object "❌ Uncaught Exception during script execution";
-            Write-Host -ForegroundColor Red -Object "❌ Exception: $($Local:DeepestException.Message)";
-
-            $Local:Position = $Local:DeepestException.ErrorRecord.InvocationInfo.PositionMessage;
-            if ($Local:Position) {
-                Write-Host -ForegroundColor Red -Object "❌ Position: $Local:Position";
-            }
-        }
-
+    #region - Process
+    try {
         # If the script is being run directly, invoke the main function
         if ($Invocation.CommandOrigin -eq 'Runspace') {
             Write-Verbose -Message '✅ Running main function.';
 
             Invoke-Command -ScriptBlock $Main;
         }
+    } catch {
+        $Local:DeepestException = $_.Exception;
+        while ($true) {
+            if (-not $Local:DeepestException.InnerException) {
+                break;
+            }
+
+            $Local:DeepestException = $Local:DeepestException.InnerException;
+        }
+
+        Write-Host -ForegroundColor Red -Object '❌ Uncaught Exception during script execution';
+        Write-Host -ForegroundColor Red -Object "❌ Exception: $($Local:DeepestException.Message)";
+
+        $Local:Position = $Local:DeepestException.ErrorRecord.InvocationInfo.PositionMessage;
+        if ($Local:Position) {
+            Write-Host -ForegroundColor Red -Object "❌ Position: $Local:Position";
+        }
     }
+    #endregion - Process
+
+    #region - End
+    Write-Verbose -Message "♻️ Cleaning up $($Local:ImportedModules.Count) imported modules.";
+    if ($Global:CompiledScript) {
+        Write-Verbose -Message "✅ Imported modules: `n`t$($Local:ImportedModules.Keys -join "`n`t")";
+
+        $Local:ImportedModules.Keys | ForEach-Object { Remove-Module -Name $_ -Force -ErrorAction SilentlyContinue | Out-Null; };
+
+        $Global:CompiledScript = $null;
+        $Global:EmbededModules = $null;
+    } else {
+        Write-Verbose -Message "✅ Imported modules: `n`t$($Local:ImportedModules -join "`n`t")";
+
+        $Local:ImportedModules | ForEach-Object { Remove-Module -FullyQualifiedName $_.FullName -Force -ErrorAction SilentlyContinue | Out-Null; }
+    }
+    #endregion - End
 }
 
 Export-ModuleMember -Function Invoke-EnsureAdministrator,Invoke-RunMain;
