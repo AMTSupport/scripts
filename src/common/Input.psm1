@@ -92,4 +92,27 @@ function Get-UserSelection {
     }
 }
 
-Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection;
+function Get-PopupSelection {
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [Object[]]$InputAttrs,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$ItemName
+    )
+
+    $Local:Selection;
+    while (-not $Local:Selection) {
+        $Local:Selection = $InputAttrs | Out-GridView -Title "Select a(n) $ItemName" -PassThru;
+        if (-not $Local:Selection) {
+            Write-Host "No $ItemName was selected, re-running selection...";
+        }
+    }
+
+    $Local:Selection | Assert-NotNull -Message "Failed to select a $ItemName.";
+    return $Local:Selection;
+}
+
+Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection;

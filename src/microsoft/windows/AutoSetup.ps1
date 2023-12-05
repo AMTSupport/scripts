@@ -11,7 +11,7 @@ Param (
     [Parameter()]
     [switch]$DryRun,
 
-    [Parameter]
+    [Parameter()]
     [ValidateSet("Configure", "Cleanup", "Install", "Update", "Finish")]
     [String]$Phase = "Configure",
 
@@ -57,7 +57,7 @@ $Script:AGENT_FAILED_INSTALL = 1014;
 #region - Utility Functions
 
 function Get-SoapResponse($Uri) {
-    begin { Enter-Scope $MyInvocation }
+    begin { Enter-Scope -Invocation $MyInvocation; }
 
     process {
         $ContentType = "text/xml;charset=`"utf-8`""
@@ -68,69 +68,27 @@ function Get-SoapResponse($Uri) {
         $ParsedResponse
     }
 
-    end { Exit-Scope $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation; }
 }
 
 function Get-BaseUrl([String]$Service) {
-    begin { Enter-Scope $MyInvocation }
+    begin { Enter-Scope -Invocation $MyInvocation; }
 
     process {
         "https://${Endpoint}/api/?apikey=$ApiKey&service=$Service"
     }
 
-    end { Exit-Scope $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation; }
 }
 
 function Get-FormattedName2Id([Object[]]$InputArr, [ScriptBlock]$NameExpr = { $_.name."#cdata-section" }, [ScriptBlock]$IdExpr) {
-    begin { Enter-Scope $MyInvocation }
+    begin { Enter-Scope -Invocation $MyInvocation; }
 
     process {
         $InputArr | Select-Object -Property @{Name = "Name"; Expression = $NameExpr }, @{Name = "Id"; Expression = $IdExpr }
     }
 
-    end { Exit-Scope $MyInvocation }
-}
-
-function Get-TempFolder([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Sub, [switch]$ForceEmpty) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:TempFolder; }
-
-    process {
-        [String]$Local:TempFolder = "$($env:TEMP)\$Sub";
-
-        if ($ForceEmpty) {
-            Write-Host "Emptying temporary folder $Local:TempFolder..."
-            Remove-Item -Path $Local:TempFolder -Force -Recurse
-            New-Item -ItemType Directory -Path $Local:TempFolder
-        }
-        elseif (-not (Test-Path $Local:TempFolder)) {
-            Write-Host "Creating temporary folder $Local:TempFolder..."
-            New-Item -ItemType Directory -Path $Local:TempFolder
-        }
-        else {
-            Write-Host "Temporary folder $Local:TempFolder already exists."
-        }
-
-        $Local:TempFolder
-    }
-}
-
-function Import-DownloadableModule([String]$Name) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
-        if ($null -eq $Module) {
-            Write-Host "Downloading module $Name..."
-            Install-PackageProvider -Name NuGet -Confirm:$false
-            Install-Module -Name $Name -Scope CurrentUser -Confirm:$false -Force
-            $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
-        }
-
-        Import-Module $Module
-    }
-
-    end { Exit-Scope $MyInvocation }
+    end { Exit-Scope -Invocation $MyInvocation; }
 }
 
 #endregion - Utility Functions
@@ -139,8 +97,8 @@ function Import-DownloadableModule([String]$Name) {
 
 # Setup Network if there is no existing connection.
 function Invoke-EnsureNetworkSetup {
-    begin { Enter-Scope $MyInvocation }
-    end { Exit-Scope $MyInvocation }
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
         [Boolean]$Local:HasNetwork = (Get-NetConnectionProfile `
@@ -210,8 +168,7 @@ function Invoke-EnsureNetworkSetup {
         $Local:RetryCount = 0;
         while (-not (Test-Connection -Destination google.com -Count 1 -Quiet)) {
             If ($Local:RetryCount -ge 60) {
-                Write-Host "Failed to connect to $NetworkName after 10 retries, aborting..."
-                exit $Script:FAILED_TO_CONNECT
+                Write-Error "Failed to connect to $NetworkName after 10 retries" -Category ConnectionError;
             }
 
             Start-Sleep -Seconds 1
@@ -224,8 +181,8 @@ function Invoke-EnsureNetworkSetup {
 
 # If the script isn't located in the temp folder, copy it there and run it from there.
 function Invoke-EnsureLocalScript {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation }
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
         [String]$Local:ScriptPath = $MyInvocation.PSScriptRoot;
@@ -235,33 +192,32 @@ function Invoke-EnsureLocalScript {
         $Local:TempPath | Assert-NotNull -Message "Temp path was null, this really shouldn't happen.";
 
         if ($Local:ScriptPath -ne $Local:TempPath) {
-            Write-Host "Copying script to temp folder...";
-            [String]$Into = "$Local:TempPath\win_setup.ps1";
+            Write-Host -ForegroundColor Cyan -Object "Copying script to temp folder...";
+            [String]$Local:Into = "$Local:TempPath\$($MyInvocation.PSCommandPath | Split-Path -Leaf)";
 
             try {
-                Copy-Item -Path $MyInvocation.PSCommandPath -Destination $Into -Force;
-            }
-            catch {
+                Copy-Item -Path $MyInvocation.PSCommandPath -Destination $Local:Into -Force;
+            } catch {
                 Write-Error "Failed to copy script to temp folder" -Category PermissionDenied;
             }
 
-            Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -NoExit -File `"$Into`" -Phase $Phase -RecursionLevel $RecursionLevel"
-            Write-Host "Exiting original process due to script being copied to temp folder...";
-            exit 0;
+            Add-QueuedTask -QueuePhase $Phase -ScriptPath $Local:Into;
+            Write-Host -ForegroundColor Cyan -Object "Exiting original process due to script being copied to temp folder...";
+            Invoke-QuickExit;
         }
     }
 }
 
 # Get all required user input for the rest of the script to run automatically.
 function Invoke-EnsureSetupInfo {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation }
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
         [String]$Local:File = "$($env:TEMP)\InstallInfo.json";
 
         If (Test-Path $Local:File) {
-            Write-Host "Install Info exists, checking validity...";
+            Write-Host -ForegroundColor Cyan -Object "Install Info exists, checking validity...";
 
             try {
                 [PSCustomObject]$Local:InstallInfo = Get-Content -Path $Local:File -Raw | ConvertFrom-Json;
@@ -282,49 +238,35 @@ function Invoke-EnsureSetupInfo {
 
                 return $Local:InstallInfo;
             } catch {
-                Write-Host "There was an issue with the install info, deleting the file for recreation...";
+                Write-Host -ForegroundColor Red -Object "There was an issue with the install info, deleting the file for recreation...";
                 Remove-Item -Path $Local:File -Force;
             }
         }
 
-        Write-Host "No install info found, creating new install info...";
+        Write-Host -ForegroundColor Cyan -Object "No install info found, creating new install info...";
 
+        #region - Get Client Selection
         $Local:Clients = (Get-SoapResponse -Uri (Get-BaseUrl "list_clients")).items.client;
         $Local:Clients | Assert-NotNull -Message "Failed to get clients from N-Able";
 
         $Local:FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
         $Local:FormattedClients | Assert-NotNull -Message "Failed to format clients";
 
-        $Local:SelectedClient;
-        while ($null -eq $Local:SelectedClient) {
-            $Local:Selection = $Local:FormattedClients | Out-GridView -Title "Select a client" -PassThru;
-            if ($null -eq $Local:Selection) {
-                Write-Host "No client was selected, re-running selection...";
-            } else {
-                $Local:SelectedClient = $Local:Selection;
-            }
-        }
-        $Local:SelectedClient | Assert-NotNull -Message "Failed to select a client.";
+        $Local:SelectedClient = Get-PopupSelection -InputAttrs $Local:FormattedClients -ItemName "client";
+        #endregion - Get Client Selection
 
+        #region - Get Site Selection
         $Local:Sites = (Get-SoapResponse -Uri "$(Get-BaseUrl "list_sites")&clientid=$($SelectedClient.Id)").items.site;
         $Local:Sites | Assert-NotNull -Message "Failed to get sites from N-Able";
 
         $Local:FormattedSites = Get-FormattedName2Id -InputArr $Sites -IdExpr { $_.siteid };
         $Local:FormattedSites | Assert-NotNull -Message "Failed to format sites";
 
-        $Local:SelectedSite;
-        while ($null -eq $Local:SelectedSite) {
-            $Local:Selection = $Local:FormattedSites | Out-GridView -Title "Select a site" -PassThru;
-            if ($null -eq $Local:Selection) {
-                Write-Host "No client was selected, re-running selection...";
-            } else {
-                $Local:SelectedClient = $Local:Selection;
-            }
-        }
-        $Local:SelectedSite | Assert-NotNull -Message "Failed to select a site.";
+        $Local:SelectedSite = Get-PopupSelection -InputAttrs $Local:FormattedSites -ItemName "site";
+        #endregion - Get Site Selection
 
         # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
-        [String]$Local:DeviceName = Get-PromptInput -title "Device Name" -question "Enter a name for this device"
+        [String]$Local:DeviceName = Get-UserInput -Title "Device Name" -Question "Enter a name for this device"
 
         [PSCustomObject]$Local:InstallInfo = @{
             "DeviceName" = $Local:DeviceName
@@ -333,24 +275,25 @@ function Invoke-EnsureSetupInfo {
             "Path"       = $Local:File
         };
 
-        Write-Host "Saving install info to $Local:File...";
+        Write-Host -ForegroundColor Cyan -Object "Saving install info to $Local:File...";
         try {
             $Local:InstallInfo | ConvertTo-Json | Out-File -FilePath $File -Force;
         } catch {
-            Write-Error "There was an issue saving the install info to $Local:File" -Category PermissionDenied;
+            Write-Host -ForegroundColor Red -Object "There was an issue saving the install info to $Local:File";
+            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
         }
 
-        return $Local:InstallInfo
+        return $Local:InstallInfo;
     }
 }
 
 # Make sure all required modules have been installed.
 function Invoke-EnsureModulesInstalled {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation }
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
-        Import-DownloadableModule -Name PSWindowsUpdate
+        Import-DownloadableModule -Name PSWindowsUpdate;
     }
 }
 
@@ -358,140 +301,67 @@ function Invoke-EnsureModulesInstalled {
 
 #region - Queue Functions
 
-#region - Flag Settings
-function Get-FlagPath([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:FlagPath }
+function Remove-QueuedTask {
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
-        [String]$Local:FlagFolder = "$($env:TEMP)\Flags";
-        if (-not (Test-Path $Local:FlagFolder)) {
-            Write-Host "Creating flag folder $Local:FlagFolder...";
-            New-Item -ItemType Directory -Path $Local:FlagFolder;
+        [CimInstance]$Local:Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue;
+        if (-not $Local:Task) {
+            Write-Verbose -Message "Scheduled task [$TaskName] does not exist, skipping removal...";
+            return;
         }
 
-        [String]$Local:FlagPath = "$Local:FlagFolder\$Context.flag";
-        $Local:FlagPath
+        Write-Verbose -Message "Removing scheduled task [$TaskName]...";
+        $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
     }
 }
 
-function Set-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context, [Object]$Data) {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation }
+function Add-QueuedTask(
+    [Parameter(Mandatory)]
+    [ValidateSet("Configure", "Cleanup", "Install", "Update", "Finish")]
+    [String]$QueuePhase,
+
+    [Parameter(HelpMessage="The path of the script to run when the task is triggered.")]
+    [ValidateNotNullOrEmpty()]
+    [String]$ScriptPath = $MyInvocation.PSCommandPath,
+
+    [switch]$OnlyOnRebootRequired = $false
+) {
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
-        $Context | Assert-NotNull -Message "Context was null";
-
-        [String]$Flag = Get-FlagPath -Context $Context;
-        New-Item -ItemType File -Path $Flag -Force;
-
-        if ($null -ne $Data) {
-            $Data | Out-File -FilePath $Flag -Force;
-        }
-    }
-}
-
-function Get-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:FlagResult }
-
-    process {
-        $Context | Assert-NotNull -Message "Context was null";
-
-        [String]$Local:Flag = Get-FlagPath -Context $Context;
-        [Boolean]$Local:FlagResult = Test-Path $Local:Flag
-
-        $Local:FlagResult
-    }
-}
-
-function Get-FlagData([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:FlagData }
-
-    process {
-        $Context | Assert-NotNull -Message "Context was null";
-
-        [String]$Local:Flag = Get-FlagPath -Context $Context;
-        [Boolean]$Local:FlagResult = Test-Path $Local:Flag
-
-        if ($Local:FlagResult) {
-            $Local:FlagData = Get-Content -Path $Local:Flag;
+        [Boolean]$Local:RequiresReboot = (Get-RebootFlag).Required();
+        if ($OnlyOnRebootRequired -and (-not $Local:RequiresReboot)) {
+            Write-Host -ForegroundColor Cyan -Object "The device does not require a reboot before the $QueuePhase phase can be started, skipping queueing...";
+            return;
         }
 
-        $Local:FlagData
-    }
-}
-
-function Remove-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation }
-
-    process {
-        $Context | Assert-NotNull -Message "Context was null";
-
-        [String]$Local:Flag = Get-FlagPath -Context $Context;
-        Remove-Item -Path $Local:Flag -Force -ErrorAction SilentlyContinue
-    }
-}
-
-#region - Reboot Flag
-function Set-RebootFlag { Set-Flag -Context "reboot" }
-function Remove-RebootFlag { Remove-Flag -Context "reboot" }
-function Get-RebootFlag {
-    if (-not (Get-Flag -Context "reboot")) {
-        return $false;
-    }
-
-    # Get the write time for the reboot flag file; if it was written before the computer started, we have reboot, return false;
-    [DateTime]$Local:RebootFlagTime = (Get-Item (Get-FlagPath -Context "reboot")).LastWriteTime;
-    [DateTime]$Local:StartTime = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty LastBootUpTime;
-
-    return $Local:RebootFlagTime -gt $Local:StartTime;
-}
-#endregion - Reboot Flag
-#region - Running Flag
-function Set-RunningFlag { Set-Flag -Context "running" -Data $PID }
-function Remove-RunningFlag { Remove-Flag -Context "running" }
-function Get-RunningFlag {
-    if (-not (Get-Flag -Context "running")) {
-        return $false;
-    }
-
-    # Check if the PID in the running flag is still running, if not, remove the flag and return false;
-    [Int]$Local:RunningPID = Get-FlagData -Context "running";
-    if (-not (Get-Process -Id $Local:RunningPID -ErrorAction SilentlyContinue)) {
-        Remove-RunningFlag;
-        return $false;
-    }
-
-    return $true;
-}
-#endregion - Running Flag
-
-#endregion - Flag Settings
-
-#region - Task Scheduler Implementation
-function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate, [String]$CommandPath = $MyInvocation.PSCommandPath) {
-    begin { Enter-Scope -Invocation $MyInvocation }
-    end { Exit-Scope -Invocation $MyInvocation }
-
-    process {
+        # Schedule the task before possibly rebooting.
         $Local:Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun;
 
         [String]$Local:RunningUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name;
         $Local:RunningUser | Assert-NotNull -Message "Running user was null, this really shouldn't happen.";
         $Local:Principal = New-ScheduledTaskPrincipal -UserId $Local:RunningUser -RunLevel Highest;
 
-        switch ($Imediate) {
-            $true { $Local:Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5); }
-            $false { $Local:Trigger = New-ScheduledTaskTrigger -AtLogOn -User $Local:RunningUser; }
+        $Local:Trigger = switch ($Local:RequiresReboot) {
+            $true { New-ScheduledTaskTrigger -AtLogOn -User $Local:RunningUser; }
+            $false { New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5); }
+        };
+
+        [Int]$Local:RecursionLevel = if ($Phase -eq $QueuePhase) { $RecursionLevel + 1 } else { 0 };
+        [String[]]$Local:AdditionalArgs = @("-Phase $QueuePhase", "-RecursionLevel $Local:RecursionLevel");
+        if ($DryRun) {
+            $Local:AdditionalArgs += "-DryRun";
+        }
+        if ($VerbosePreference -ne "SilentlyContinue") {
+            $Local:AdditionalArgs += "-Verbose";
         }
 
-        [Int]$Local:RecursionLevel = if ($Phase -eq $NextPhase) { $RecursionLevel + 1 } else { 0 };
         $Local:Action = New-ScheduledTaskAction `
-            -Execute "powershell.exe" `
-            -Argument "-ExecutionPolicy Bypass -NoExit -File `"$CommandPath`" -Phase $NextPhase -RecursionLevel $Local:RecursionLevel $(if ($DryRun) { "-DryRun" } else { " " })";
+            -Execute 'powershell.exe' `
+            -Argument "-ExecutionPolicy Bypass -NoExit -File `"$ScriptPath`" $($Local:AdditionalArgs -join ' ')";
 
         $Local:Task = New-ScheduledTask `
             -Action $Local:Action `
@@ -499,50 +369,16 @@ function Set-StartupSchedule([String]$NextPhase, [switch]$Imediate, [String]$Com
             -Settings $Local:Settings `
             -Trigger $Local:Trigger;
 
-        Register-ScheduledTask -TaskName $TaskName -InputObject $Task -ErrorAction Stop | Out-Null
-    }
-}
-#endregion - Task Scheduler Implementation
-
-function Remove-QueuedTask {
-    begin { Enter-Scope $MyInvocation }
-    end { Exit-Scope $MyInvocation }
-
-    process {
-        $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue;
-        if ($null -ne $Task) {
-            Write-Host "Removing scheduled task [$TaskName]...";
-            Unregister-ScheduledTask -TaskName $TaskName -ErrorAction Stop -Confirm:$false | Out-Null;
-        }
-    }
-}
-
-function Add-QueuedTask(
-    [Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$QueuePhase,
-    [switch]$OnlyOnRebootRequired = $false
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-
-    process {
-        [Boolean]$Local:RequiresReboot = Get-RebootFlag;
-
-        if ($OnlyOnRebootRequired -and (-not $Local:RequiresReboot)) {
-            Write-Host "The device does not require a reboot before the $QueuePhase phase can be started, skipping queueing...";
-            return;
-        }
-
-        # Schedule the task before possibly rebooting.
-        Set-StartupSchedule -NextPhase $QueuePhase -Imediate:(-not $Local:RequiresReboot);
+        Register-ScheduledTask -TaskName $TaskName -InputObject $Task -Force -ErrorAction Stop | Out-Null;
 
         if ($Local:RequiresReboot) {
-            Write-Host "The device requires a reboot before the $QueuePhase phase can be started, rebooting in 15 seconds...";
-            Write-Host "Press any key to cancel the reboot...";
+            Write-Host -ForegroundColor Cyan -Object "The device requires a reboot before the $QueuePhase phase can be started, rebooting in 15 seconds...";
+            Write-Host -ForegroundColor Cyan -Object "Press any key to cancel the reboot...";
             $Host.UI.RawUI.FlushInputBuffer();
             $Local:Countdown = 150;
             while ($Local:Countdown -gt 0) {
                 if ([Console]::KeyAvailable) {
-                    Write-Host "Key was pressed, canceling reboot.";
+                    Write-Host -ForegroundColor Cyan -Object "Key was pressed, canceling reboot.";
                     break;
                 }
 
@@ -556,9 +392,10 @@ function Add-QueuedTask(
             }
 
             if ($Local:Countdown -eq 0) {
-                Write-Host "Rebooting now...";
+                Write-Host -ForegroundColor Cyan -Object "Rebooting now...";
 
-                Remove-RebootFlag;
+                (Get-RunningFlag).Remove();
+                (Get-RebootFlag).Remove();
                 Restart-Computer -Force -WhatIf:$DryRun;
             } else {
                 # Add flag about missing reboot
@@ -587,11 +424,11 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
         $Local:ExistingName | Assert-NotNull -Message "Existing name was null"; # TODO :: Alternative method of getting existing name if $env:COMPUTERNAME is null
 
         if ($Local:ExistingName -eq $Local:DeviceName) {
-            Write-Host "Device name is already set to $Local:DeviceName.";
+            Write-Host -ForegroundColor Cyan -Object "Device name is already set to $Local:DeviceName.";
         } else {
-            Write-Host "Device name is not set to $Local:DeviceName, setting it now...";
+            Write-Host -ForegroundColor Cyan -Object "Device name is not set to $Local:DeviceName, setting it now...";
             Rename-Computer -NewName $Local:DeviceName -WhatIf:$DryRun;
-            Set-RebootFlag;
+            (Get-RebootFlag).Set($null);
         }
         #endregion - Device Name
 
@@ -680,7 +517,7 @@ function Invoke-PhaseCleanup {
             process {
                 [String[]]$Local:Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
 
-                Write-Host -ForegroundColor Cyan "ℹ️ Disabling $($Services.Value.Count) services...";
+                Write-Host -ForegroundColor Cyan -Object "Disabling $($Services.Value.Count) services...";
                 Invoke-Progress -GetItems { $Local:Services } -ProcessItem {
                     Param($Local:ServiceName)
 
@@ -688,26 +525,26 @@ function Invoke-PhaseCleanup {
                         $ErrorActionPreference = 'Stop';
                         $Local:Instance = Get-Service -Name $Local:Service;
                     } catch {
-                        Write-Host -ForegroundColor Yellow "⚠️ Skipped service $Local:Service as it isn't installed.";
+                        Write-Host -ForegroundColor Yellow "Skipped service $Local:Service as it isn't installed.";
                     }
 
                     if ($null -ne $Local:Instance) {
-                        Write-Host -ForegroundColor Cyan "🛑 Stopping service $Local:Instance...";
+                        Write-Host -ForegroundColor Cyan "Stopping service $Local:Instance...";
                         try {
                             $ErrorActionPreference = 'Stop';
                             $Local:Instance | Stop-Service -Force -WhatIf:$DryRun -Confirm:$false;
-                            Write-Host -ForegroundColor Green "✅ Stopped service $Local:Instance";
+                            Write-Host -ForegroundColor Green "Stopped service $Local:Instance";
                         } catch {
-                            Write-Warning -Message "❌ Failed to stop $Local:Instance";
+                            Write-Warning -Message "Failed to stop $Local:Instance";
                         }
 
-                        Write-Host -ForegroundColor Yellow "🛑 Disabling service $Service...";
+                        Write-Host -ForegroundColor Yellow "Disabling service $Service...";
                         try {
                             $ErrorActionPreference = 'Stop';
                             $Local:Instance | Set-Service -StartupType Disabled -Force -WhatIf:$DryRun -Confirm:$false;
-                            Write-Host -ForegroundColor Green "✅ Disabled service $Service";
+                            Write-Host -ForegroundColor Green "Disabled service $Service";
                         } catch {
-                            Write-Warning -Message "❌ Failed to disable $Service";
+                            Write-Warning -Message "Failed to disable $Service";
                         }
                     }
                 };
@@ -875,84 +712,73 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
 
         # Check if the agent is already installed and running.
         if (Get-Service -Name $Local:AgentServiceName -ErrorAction SilentlyContinue) {
-            Write-Host "Agent is already installed, skipping installation...";
+            Write-Host -ForegroundColor Cyan -Object "Agent is already installed, skipping installation...";
             return $Local:NextPhase;
         }
 
         [String]$Local:ClientId = $Script:InstallInfo.ClientId;
         [String]$Local:SiteId = $Script:InstallInfo.SiteId;
-        [String]$Local:Uri = "https://system-monitor.com/api/?apikey=$ApiKey&service=get_site_installation_package&endcustomerid=$ClientId&siteid=$SiteId&os=windows&type=remote_worker";
+        [String]$Local:Uri = "https://system-monitor.com/api/?apikey=${ApiKey}&service=get_site_installation_package&endcustomerid=${ClientId}&siteid=${SiteId}&os=windows&type=remote_worker";
 
-        [String]$Local:OutputFolder = Get-TempFolder -Name "Agent";
-        [String]$Local:OutputZip = "$Local:OutputFolder\agent.zip";
-        [String]$Local:OutputExtracted = "$Local:OutputFolder\unpacked";
+        Invoke-WithinEphemeral {
+            Write-Host -ForegroundColor Cyan -Object "Downloading agent from [$Local:Uri]";
+            try {
+                $ErrorActionPreference = "Stop";
+                Invoke-WebRequest -Uri $Local:Uri -OutFile 'agent.zip' -UseBasicParsing;
+            } catch {
+                Write-Host -ForegroundColor Red "Failed to download agent from [$Local:Uri]";
+                Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_DOWNLOAD;
+            }
 
-        Write-Host "Downloading agent from [$Local:Uri]";
-        try {
-            $ErrorActionPreference = "Stop";
-            Invoke-WebRequest -Uri $Local:Uri -OutFile $Local:OutputZip -UseBasicParsing;
-        } catch {
-            Write-Host -ForegroundColor Red "Failed to download agent from [$Local:Uri]";
-            Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_DOWNLOAD;
-        }
+            Write-Host -ForegroundColor Cyan -Object "Expanding archive [$Local:OutputZip] to [$Local:OutputExtracted]...";
+            try {
+                $ErrorActionPreference = "Stop";
+                Expand-Archive -Path $Local:OutputZip -DestinationPath .;
+            } catch {
+                Write-Host -ForegroundColor Red "Failed to expand archive [$Local:OutputZip] to [$Local:OutputExtracted]";
+                Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_EXPAND;
+            }
 
-        Write-Host "Expanding archive [$Local:OutputZip] to [$Local:OutputExtracted]...";
-        try {
-            $ErrorActionPreference = "Stop";
-            Expand-Archive -Path $Local:OutputZip -DestinationPath $Local:OutputExtracted;
-        } catch {
-            Write-Host -ForegroundColor Red "Failed to expand archive [$Local:OutputZip] to [$Local:OutputExtracted]";
-            Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_EXPAND;
-        }
+            Write-Host -ForegroundColor Cyan -Object "Finding agent executable in [$Local:OutputExtracted]...";
+            try {
+                $ErrorActionPreference = 'Stop';
+                [String]$Local:OutputExe = Get-ChildItem -Path $Local:OutputExtracted -Filter '*.exe' -File;
+                $Local:OutputExe | Assert-NotNull -Message "Failed to find agent executable in [$OutputExtracted]";
+            }
+            catch {
+                Write-Host -ForegroundColor Red "Failed to find agent executable in [$OutputExtracted]";
+                Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_FIND;
+            }
 
-        Write-Host "Finding agent executable in [$Local:OutputExtracted]...";
-        try {
-            $ErrorActionPreference = "Stop";
-            [String]$Local:OutputExe = Get-ChildItem -Path $Local:OutputExtracted -Filter "*.exe" -File;
+            Write-Host -ForegroundColor Cyan -Object "Installing agent from [$Local:OutputExe]...";
+            switch ($DryRun) {
+                $true { Write-Host -ForegroundColor Cyan -Object 'Dry run enabled, skipping agent installation...'; }
+                $false {
+                    try {
+                        # Might need .FullName
+                        $Local:Installer = Start-Process -FilePath $Local:OutputExe -Wait;
+                        $Local:Installer.ExitCode | Assert-Equals -Expected 0 -Message "Agent installer failed with exit code [$($Local:Installer.ExitCode)]";
 
-            # For some reason theres an issue with the path being an array
-            # When being downloaded within the same session, but not within the function
-            # Only once the function is returned does the value become an array.
-            # This seems to be a bug with powershell, but I'm not sure.
-            # [String]$Local:OutputExe = $null;
-            # foreach ($Local:SubPath in $Local:Output) {
-            #     $LocaL:OutputExe = $Local:SubPath;
-            # }
-
-            $Local:OutputExe | Assert-NotNull -Message "Failed to find agent executable in [$OutputExtracted]";
-        } catch {
-            Write-Host -ForegroundColor Red "Failed to find agent executable in [$OutputExtracted]";
-            Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_FIND;
-        }
-
-        Write-Host "Installing agent from [$Local:OutputExe]...";
-        switch ($DryRun) {
-            $true { Write-Host -ForegroundColor Cyan "Dry run enabled, skipping agent installation..."; }
-            $false {
-                try {
-                    # Might need .FullName
-                    $Local:Installer = Start-Process -FilePath $Local:OutputExe -Wait;
-                    $Local:Installer.ExitCode | Assert-Equals -Expected 0 -Message "Agent installer failed with exit code [$($Local:Installer.ExitCode)]";
-
-                    Set-RebootFlag;
-                } catch {
-                    Write-Host -ForegroundColor Red "Failed to install agent from [$Local:OutputExe]";
-                    Invoke-FailedExit -ExitCode $Script:AGENT_FAILED_INSTALL;
+                        (Get-RebootFlag).Set($null);
+                    } catch {
+                        Write-Host -ForegroundColor Red "Failed to install agent from [$Local:OutputExe]";
+                        Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_INSTALL;
+                    }
                 }
             }
-        }
 
-        while ($true) {
-            $Local:AgentStatus = Get-Sevice -Name $Local:AgentServiceName -ErrorAction SilentlyContinue;
-            if ($Local:AgentStatus -and $Local:AgentStatus.Status -eq "Running") {
-                Write-Host -ForegroundColor Cyan "The agent has been installed and running, current status is [$Local:AgentStatus]...";
-                break;
+            while ($true) {
+                $Local:AgentStatus = Get-Sevice -Name $Local:AgentServiceName -ErrorAction SilentlyContinue;
+                if ($Local:AgentStatus -and $Local:AgentStatus.Status -eq "Running") {
+                    Write-Host -ForegroundColor Cyan -Object "The agent has been installed and running, current status is [$Local:AgentStatus]...";
+                    break;
+                }
+
+                Start-Sleep -Milliseconds 100;
             }
-
-            Start-Sleep -Milliseconds 100;
         }
 
-        Write-Host -ForegroundColor Cyan "Unable to determine when the agent is fully installed, sleeping for 5 minutes...";
+        Write-Host -ForegroundColor Cyan -Object 'Unable to determine when the agent is fully installed, sleeping for 5 minutes...';
         $Local:Countdown = 3000;
         while ($Local:Countdown -gt 0) {
             Write-Progress `
@@ -979,7 +805,7 @@ function Invoke-PhaseUpdate {
         [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { "Finish" } else { "Update" };
 
         Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false -WhatIf:$DryRun;
-        Set-RebootFlag;
+        (Get-RebootFlag).Set($null);
 
         return $Local:NextPhase;
     }
@@ -1008,7 +834,7 @@ function Invoke-FailedExit([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Int]
 
     process {
         Remove-QueuedTask;
-        Remove-RunningFlag;
+        (Get-RunningFlag).Remove();
 
         If ($null -ne $ErrorRecord) {
             [System.Management.Automation.InvocationInfo]$Local:InvocationInfo = $ErrorRecord.InvocationInfo;
@@ -1023,70 +849,65 @@ function Invoke-FailedExit([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Int]
             Write-Host -ForegroundColor Red $Local:RootCause.Message;
         }
 
-        # TODO :: Better recovery for failed exits
-        Write-Host -ForegroundColor Red "Failed to complete phase [$Phase], exiting...";
+        Write-Host -ForegroundColor Red "Failed to complete phase [$Phase]...";
         Exit $ExitCode;
     }
 }
 
 function Invoke-QuickExit {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-
-    process {
-        Remove-RunningFlag;
-
-        Write-Host -ForegroundColor Red "Exiting...";
-        Exit 0;
-    }
+    (Get-RunningFlag).Remove();
+    Exit 0;
 }
 
 #endregion - Exit Functions
 
-Import-Module '../../common/Environment.psm1';
+Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    Trap {
-        Write-Host -ForegroundColor Red -Object "Unknown error occured, exiting...";
-        Write-Host -ForegroundColor Red -Object $_;
-        Write-Host -ForegroundColor Red -Object $_.Exception;
-        Invoke-FailedExit -ExitCode 9999;
-    }
-
-    # Ensure only one process is running at a time.
-    If (Get-RunningFlag) {
-        Write-Host -ForegroundColor Red "The script is already running in another session, exiting...";
-        exit $Script:ALREADY_RUNNING;
-    } else {
-        Set-RunningFlag;
-    }
-
     try {
-        Invoke-EnsureLocalScript;
-        Invoke-EnsureNetworkSetup;
-        Invoke-EnsureModulesInstalled;
-        $Local:InstallInfo = Invoke-EnsureSetupInfo;
-    } catch {
-        Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
-    }
+        Trap {
+            Invoke-FailedExit -ErrorRecord $_ -ExitCode 9999;
+        }
 
-    Invoke-ConfigureDeviceFromSetup -InstallInfo $Local:InstallInfo;
-    # Queue this phase to run again if a restart is required by one of the environment setups.
-    Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired;
+        # Ensure only one process is running at a time.
+        If ((Get-RunningFlag).IsRunning()) {
+            Write-Host -ForegroundColor Red "The script is already running in another session, exiting...";
+            Exit $Script:ALREADY_RUNNING;
+        } else {
+            (Get-RunningFlag).Set($null);
+            Remove-QueuedTask;
+        }
 
-    [String]$Local:NextPhase = $null;
-    switch ($Phase) {
-        "configure" { $Local:NextPhase = Invoke-PhaseConfigure -InstallInfo $Local:InstallInfo; }
-        "cleanup" { $Local:NextPhase = Invoke-PhaseCleanup; }
-        "install" { $Local:NextPhase = Invoke-PhaseInstall -InstallInfo $Local:InstallInfo; }
-        "update" { $Local:NextPhase = Invoke-PhaseUpdate; }
-        "finish" { $Local:NextPhase = Invoke-PhaseFinish; }
-    }
+        try {
+            Invoke-EnsureLocalScript;
+            Invoke-EnsureNetworkSetup;
+            Invoke-EnsureModulesInstalled;
+            $Local:InstallInfo = Invoke-EnsureSetupInfo;
 
-    # Should only happen when we are done and there is nothing else to queue.
-    if ($null -eq $Local:NextPhase) {
+            # Queue this phase to run again if a restart is required by one of the environment setups.
+            Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired;
+        } catch {
+            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+        }
+
+        [String]$Local:NextPhase = $null;
+        $Local:NextPhase = switch ($Phase) {
+            "configure" { Invoke-PhaseConfigure -InstallInfo $Local:InstallInfo; }
+            "cleanup" { Invoke-PhaseCleanup; }
+            "install" { Invoke-PhaseInstall -InstallInfo $Local:InstallInfo; }
+            "update" { Invoke-PhaseUpdate; }
+            "finish" { Invoke-PhaseFinish; }
+        }
+
+        # Should only happen when we are done and there is nothing else to queue.
+        if (-not $Local:NextPhase) {
+            Write-Host -ForegroundColor Cyan -Object "No next phase was returned, exiting...";
+            Invoke-QuickExit;
+        }
+
+        Write-Host -ForegroundColor Cyan -Object "Queueing next phase [$Local:NextPhase]...";
+        Add-QueuedTask -QueuePhase $Local:NextPhase;
         Invoke-QuickExit;
+    } finally {
+        (Get-RunningFlag).Remove();
     }
-
-    Add-QueuedTask -QueuePhase $Local:NextPhase;
-    Invoke-QuickExit;
 }
