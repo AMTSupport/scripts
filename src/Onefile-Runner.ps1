@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.3
 
 [CmdletBinding(SupportsShouldProcess)]
 Param(
@@ -176,15 +176,29 @@ function New-CompiledScript(
         if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(i?)^\s*param\s*\(') {
             ($Local:ParamStart, $Local:ParamEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '\(' -ClosePattern '\)';
 
-            $Local:ParamBlock = $Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n";
-            $Local:FilteredLines = $Local:FilteredLines[($Local:ParamEnd + 1)..($Local:FilteredLines.Count - 1)];
+            [String]$Local:ParamBlock = $Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n";
+            [String[]]$Local:FilteredLines = $Local:FilteredLines[($Local:ParamEnd + 1)..($Local:FilteredLines.Count - 1)];
         }
 
         [String]$Local:InvokeMain = $null;
-        if ($Local:FilteredLines | Select-String -Quiet -Pattern '(?smi)^Invoke-RunMain\s*(?:-Invocation(?:\s*|=)?)?(?<invocation>\$[A-Z]+)\s*(?:-Main(?:\s*|=)?)?{') {
-            ($Local:ScriptStart, $Local:ScriptEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '{' -ClosePattern '}';
+        [Int32]$Local:MatchIndex = -1;
+        $Local:FilteredLines | ForEach-Object {
+            if ($_ | Select-String -Pattern '(?smi)^Invoke-RunMain\s*(?:-Invocation(?:\s*|=)?)?(?<invocation>\$[A-Z]+)\s*(?:-Main(?:\s*|=)?)?{') {
+                $Local:MatchIndex = $Local:FilteredLines.IndexOf($_);
+                return;
+            }
+        }
+        if ($Local:MatchIndex -ne -1) {
+            Write-Host -ForegroundColor Cyan -Object "Found Invoke-RunMain line: $Local:MatchIndex";
 
+            ($Local:ScriptStart, $Local:ScriptEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines[($Local:MatchIndex)..($Local:FilteredLines.Count)] -OpenPattern '\{' -ClosePattern '\}';
+            $Local:ScriptStart += $Local:MatchIndex;
+            $Local:ScriptEnd += $Local:MatchIndex;
             $Local:InvokeMain = $Local:FilteredLines[$Local:ScriptStart..$Local:ScriptEnd] | Join-String -Separator "`n";
+
+            Write-Host -ForegroundColor Cyan -Object "Found Invoke-RunMain block at lines $Local:ScriptStart to $Local:ScriptEnd";
+            Write-Host -ForegroundColor Cyan -Object "Invoke-RunMain block content: $Local:InvokeMain";
+
             if ($Local:ScriptStart -gt 0) {
                 $Local:BeforeMain = $Local:FilteredLines[0..($Local:ScriptStart - 1)];
                 $Local:FilteredLines = $Local:FilteredLines[($Local:ScriptEnd + 1)..($Local:FilteredLines.Count)] + $Local:BeforeMain;
@@ -200,7 +214,7 @@ function New-CompiledScript(
         [String]$Local:ScriptBody = $Local:FilteredLines | Join-String -Separator "`n";
 
         # Replace the import environment module with the embeded version
-        $Local:ScriptBody = $Local:ScriptBody -replace '(?smi)^Import-Module ([./]*./)common/Environment\.psm1;?\s*$', '';
+        $Local:ScriptBody = $Local:ScriptBody -replace '(?smi)^Import-Module (\$PSScriptRoot)?([./]*./)common/Environment\.psm1;?\s*$', '';
 
         [String]$Local:CompiledScript = @"
 $Local:RequirmentLines
@@ -215,10 +229,10 @@ $Local:ParamBlock
     };"
     } | Join-String -Separator "```n`t")
 }
+$Local:ScriptBody
 $(if ($Local:InvokeMain) {
     "(New-Module -ScriptBlock `$Global:EmbededModules['Environment.psm1'] -AsCustomObject).'Invoke-RunMain'(`$MyInvocation, $Local:InvokeMain);"
 })
-$Local:ScriptBody
 "@;
 
         return $Local:CompiledScript;
