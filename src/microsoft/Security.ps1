@@ -1,4 +1,4 @@
-#Requires -Modules MSOnline,ExchangeOnlineManagement,AzureAD,Microsoft.Online.SharePoint.PowerShell
+#Requires -Modules MSOnline,ExchangeOnlineManagement,AzureADPreview,Microsoft.Online.SharePoint.PowerShell
 
 Param(
     [Parameter(Mandatory)]
@@ -11,7 +11,7 @@ Param(
 function Set-Sharepoint_SharingDomains {
     Connect-Service -Service AzureAD;
 
-    Set-SPOTenant -SharingDomainRestrictionMode AllowList -SharingAllowedDomainList (Get-AzureADDomain | Select-Object -ExpandProperty Name)
+    Set-SPOTenant -SharingDomainRestrictionMode AllowList -SharingAllowedDomainList ((Get-AzureADDomain | Select-Object -ExpandProperty Name) -join ' ')
 }
 
 #region - Exchange Mailbox Policies
@@ -20,62 +20,6 @@ function Disable-Outlook_StorageProviders {
     Connect-Service -Service ExchangeOnline;
 
     Set-OwaMailboxPolicy -Identity OwaMailboxPolicy-Default -AdditionalStorageProvidersAvailable $false
-}
-
-function Set-Exchange_SafeAttachmentsPolicy {
-    # TODO
-}
-
-function Set-Exchange_SafeLinksPolicy {
-    Connect-Service -Service ExchangeOnline;
-
-    #region - Consts
-    $Local:RuleName = "Default safe links"
-    #endregion - Consts
-
-    $params = @{
-        Name                     = "Default SafeLinks Policy"
-        EnableSafeLinksForEmail  = $true
-        EnableSafeLinksForTeams  = $true
-        EnableSafeLinksForOffice = $true
-        TrackClicks              = $true
-        AllowClickThrough        = $false
-        ScanUrls                 = $true
-        EnableForInternalSenders = $true
-        DeliverMessageAfterScan  = $true
-        DisableUrlRewrite        = $false
-
-
-    }
-    New-SafeLinksPolicy @params
-
-    if ($null -ne (Get-SafeLinksPolicy -Identity $Local:RuleName -ErrorAction SilentlyContinue)) {
-        Write-Host "Default SafeLinks Policy already exists. Removing..."
-
-        try {
-            Remove-SafeLinksPolicy -Identity $Local:RuleName -Confirm:$false -ErrorAction Stop
-        } catch {
-            Write-Error "Failed to remove Default SafeLinks Policy."
-            exit 1002
-        }
-    }
-
-    # Create the rule for all users in all valid domains and associate with Policy
-    New-SafeLinksRule -Name $Local:RuleName -SafeLinksPolicy "Default SafeLinks Policy" -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0
-}
-
-# https://learn.microsoft.com/en-us/purview/audit-mailboxes?view=o365-worldwide
-function Enable-Exchange_MailboxAuditing {
-    Connect-Service -Service ExchangeOnline;
-
-    Set-OrganizationConfig -AuditDisabled $false
-    Get-Mailbox | ForEach-Object { Set-Mailbox -AuditEnabled $true -Identity $_.WindowsEmailAddress }
-}
-
-function Enable-Exchange_MailTips {
-    Connect-Service -Service ExchangeOnline;
-
-    Set-OrganizationConfig -MailTipsAllTipsEnabled $true -MailTipsExternalRecipientsTipsEnabled $true -MailTipsGroupMetricsEnabled $true -MailTipsLargeAudienceThreshold '25'
 }
 
 #endregion - Exchange Mailbox Policies
@@ -158,6 +102,8 @@ function Set-SecurityAndCompilenceAlerts([PSObject]$AlertsUser) {
 #region - Conditional Access Policies
 
 function New-ConditionalAccessPrivilegedIdentityManagementPolicy {
+    Connect-Service AzureAD;
+
     #region - Const Variables
     $Local:PolicyName = "Privileged Identity Managementt"
     $Local:DirectoryRoles = @("Application administrator", "Authentication administrator", "Billing administrator", "Cloud application administrator", "Conditional Access administrator", "Exchange administrator", "Global administrator", "Global reader", "Helpdesk administrator", "Password administrator", "Privileged authentication administrator", "Privileged role administrator", "Security administrator", "SharePoint administrator", "User administrator")
@@ -200,7 +146,7 @@ function New-ConditionalAccessPrivilegedIdentityManagementPolicy {
 
 #endregion - Conditional Access Policies
 
-Import-Module ../common/Environment.psm1;
+Import-Module $PSScriptRoot/../common/Environment.psm1;
 
 Invoke-RunMain $MyInvocation {
     switch ($Action) {
