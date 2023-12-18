@@ -1,54 +1,78 @@
 function Connect-Service(
     [Parameter(Mandatory)]
-    [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD')]
-    [String]$Service,
+    [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+    [String[]]$Services,
+
+    [Parameter()]
+    [String[]]$Scopes,
 
     # If true prompt for confirmation if already connected.
-    [Switch]$Confirm
+    [Switch]$DontConfirm
 ) {
-    $Local:Connected = try {
-        switch ($Service) {
-            'ExchangeOnline' {
-                # if (!(Get-PSSession | Where-Object { $_.Name -match 'ExchangeOnline' -and $_.Availability -eq 'Available' })) { Connect-ExchangeOnline }
-                Get-ConnectionInformation -ErrorAction SilentlyContinue | Select-Object -ExpandProperty UserPrincipalName;
-            }
-            'SecurityComplience' {
-                Get-IPPSSession -ErrorAction SilentlyContinue | Select-Object -ExpandProperty UserPrincipalName;
-            }
-            'AzureAD' {
-                Get-AzureADCurrentSessionInfo -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Account;
-            }
-        }
-    } catch {
-        $null
-    }
+    foreach ($Local:Service in $Services) {
+        Info "Connecting to $Local:Service...";
 
-    if ($Local:Connected) {
-        if ($Confirm) {
-            $Local:Continue = Get-UserConfirmation -Title "Already connected to $Service as [$Local:Connected]" -Question 'Do you want to continue?' -DefaultChoice $true;
-            if (-not $Local:Continue) {
-                return;
-            }
-        } else {
-            Write-Verbose "Already connected to $Service. Skipping..."
-            return
-        }
-    }
+        $Local:Connected = try {
+            $ErrorActionPreference = 'SilentlyContinue'; # For some reason AzureAD loves to be noisy.
 
-    try {
-        switch ($Service) {
-            'ExchangeOnline' {
-                Connect-ExchangeOnline;
+            switch ($Service) {
+                'ExchangeOnline' {
+                    Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName;
+                }
+                'SecurityComplience' {
+                    Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName;
+                }
+                'AzureAD' {
+                    Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account;
+                }
+                'Graph' {
+                    Get-MSGraphEnvironment | Select-Object -ExpandProperty Account;
+                }
+                'Msol' {
+                    Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName;
+                }
             }
-            'SecurityComplience' {
-                Connect-IPPSSession;
-            }
-            'AzureAD' {
-                Connect-AzureAD;
+        } catch {
+            $null
+        }
+
+        if ($Local:Connected) {
+            if (!$DontConfirm) {
+                $Local:Continue = Get-UserConfirmation -Title "Already connected to $Local:Service as [$Local:Connected]" -Question 'Do you want to continue?' -DefaultChoice $true;
+                if (-not $Local:Continue) {
+                    return;
+                }
+
+                Verbose 'Continuing with current connection...';
+            } else {
+                Verbose "Already connected to $Local:Service. Skipping..."
+                return
             }
         }
-    } catch {
-        Write-Error "Failed to connect to $Service";
-        exit 1002;
+
+        try {
+            Info "Getting credentials for $Local:Service...";
+
+            switch ($Local:Service) {
+                'ExchangeOnline' {
+                    Connect-ExchangeOnline;
+                }
+                'SecurityComplience' {
+                    Connect-IPPSSession;
+                }
+                'AzureAD' {
+                    Connect-AzureAD;
+                }
+                'Graph' {
+                    Connect-MgGraph -NoWelcome -Scopes $Scopes;
+                }
+                'Msol' {
+                    Connect-MsolService;
+                }
+            }
+        } catch {
+            Invoke-Error "Failed to connect to $Local:Service";
+            Invoke-FailedExit -ExitCode 1002 -ErrorRecord $_;
+        }
     }
 }
