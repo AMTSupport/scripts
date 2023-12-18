@@ -51,13 +51,13 @@ function Get-UserConfirmation {
         [ValidateNotNullOrEmpty()]
         [String]$Question,
 
-        [Parameter(Mandatory)]
+        [Parameter()]
         [ValidateNotNullOrEmpty()]
         [Boolean]$DefaultChoice
     )
 
-    $Local:DefaultChoice = if ($DefaultChoice) { 0 } else { 1 }
-    $Local:Result = Get-UserSelection -Title $Title -Question $Question -Choices @('&Yes', '&No') -DefaultChoice $Local:DefaultChoice
+    $Local:DefaultChoice = if ($null -eq $DefaultChoice) { 1 } elseif ($DefaultChoice) { 0 } else { 1 };
+    $Local:Result = Get-UserSelection -Title $Title -Question $Question -Choices @('&Yes', '&No') -DefaultChoice $Local:DefaultChoice;
     switch ($Local:Result) {
         0 { $true }
         Default { $false }
@@ -78,9 +78,9 @@ function Get-UserSelection {
         [ValidateNotNullOrEmpty()]
         [Array]$Choices,
 
-        [Parameter(Mandatory)]
+        [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [Int]$DefaultChoice
+        [Int]$DefaultChoice = 0
     )
 
     return Invoke-WithColour {
