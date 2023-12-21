@@ -1,11 +1,4 @@
-function Invoke-EnsureAdministrator {
-    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Write-Warning -Message '❌ Not running as administrator!  Please re-run your terminal session as Administrator, and try again.'
-        throw "Not running as administrator!";
-    }
-
-    Write-Verbose -Message '✅ Running as administrator.';
-}
+Using Namespace System.Management.Automation;
 
 <#
 .SYNOPSIS
@@ -27,7 +20,7 @@ function Invoke-RunMain {
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNull()]
-        [System.Management.Automation.InvocationInfo]$Invocation,
+        [InvocationInfo]$Invocation,
 
         [Parameter(Mandatory)]
         [ValidateNotNull()]
@@ -39,7 +32,7 @@ function Invoke-RunMain {
         Param(
             [Parameter(Mandatory)]
             [ValidateNotNull()]
-            [System.Management.Automation.InvocationInfo]$Invocation,
+            [InvocationInfo]$Invocation,
 
             [Parameter(Mandatory)]
             [ValidateNotNull()]
@@ -47,10 +40,9 @@ function Invoke-RunMain {
         )
 
         begin {
-            Write-Host -ForegroundColor Yellow -Object '⚠️ This script is provided as-is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement.  In no event shall the authors or copyright holders be liable for any claim, damages or other liability.'
+            Write-Host -ForegroundColor Yellow -Object '⚠️ Disclaimer: This script is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
 
             $Local:ImportedModules = [System.Collections.Generic.List[String]]::new();
-
             if ($Global:CompiledScript) {
                 Write-Verbose -Message '✅ Script has been embeded with required modules.';
                 $Local:ToImport = $Global:EmbededModules;
@@ -80,12 +72,12 @@ function Invoke-RunMain {
                     $Local:ModuleKey = $Local:Module.Key;
                     $Local:ModuleDefinition = $Local:Module.Value;
 
-                    New-Module -ScriptBlock $Local:ModuleDefinition -Name $Local:ModuleKey | Import-Module -Global -Force;
+                    New-Module -ScriptBlock $Local:ModuleDefinition -Name $Local:ModuleKey | Import-Module -Global -Force -Verbose:$VerbosePreference -Debug:$DebugPreference;
                 }
             } else {
                 Write-Verbose -Message "✅ Modules to import: `n`t$($Local:ToImport.Name -join "`n`t")";
 
-                Import-Module -Name $Local:ToImport.FullName -Global;
+                Import-Module -Name $Local:ToImport.FullName -Global -Verbose:$VerbosePreference -Debug:$DebugPreference;
             }
 
             $Local:ImportedModules += $Local:ToImport;
@@ -99,40 +91,31 @@ function Invoke-RunMain {
                 Write-Verbose -Message '✅ Running main function.';
 
                 Invoke-Command -ScriptBlock $Main -NoNewScope;
-                # } else {
-                    # Write-Verbose -Message '✅ Script is being imported, not running main function.';
-                # }
+                Invoke-QuickExit; # Exit and allow exit handlers to run.
             } catch {
-                $Local:DeepestException = $_.Exception;
-                while ($true) {
-                    if (-not $Local:DeepestException.InnerException) {
-                        break;
-                    }
-
-                    $Local:DeepestException = $Local:DeepestException.InnerException;
-                }
-
-                Write-Host -ForegroundColor Red -Object '❌ Uncaught Exception during script execution';
-                Write-Host -ForegroundColor Red -Object "❌ Exception: $($Local:DeepestException.Message)";
-
-                $Local:Position = $Local:DeepestException.ErrorRecord.InvocationInfo.PositionMessage;
-                if ($Local:Position) {
-                    Write-Host -ForegroundColor Red -Object "❌ Position: $Local:Position";
-                }
+                Invoke-Error 'Uncaught Exception during script execution';
+                Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
             } finally {
-                if ($Global:CompiledScript) {
-                    Write-Verbose -Message "♻️ Cleaning up $($Local:ImportedModules.GetEnumerator().Count) imported modules.";
-                    Write-Verbose -Message "✅ Imported modules: `n`t$($Local:ImportedModules.Keys -join "`n`t")";
+                ([Int16]$Local:ModuleCount, [String[]]$Local:ModuleNames) = if ($Global:CompiledScript) {
+                    $Local:ImportedModules.GetEnumerator().Count, $Local:ImportedModules.GetEnumerator().Keys
+                } else {
+                    $Local:ImportedModules.Count, $Local:ImportedModules
+                };
 
-                    $Local:ImportedModules.Keys | ForEach-Object { Remove-Module -Name $_ -Force -ErrorAction SilentlyContinue | Out-Null; };
+                Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Local:ModuleCount) imported modules.";
+                Invoke-Verbose -Prefix '✅' -Message "Removing modules: `n`t$($Local:ModuleNames -join "`n`t")";
+
+                if ($Global:CompiledScript) {
+                    $Local:ImportedModules.Keys | ForEach-Object {
+                        Remove-Module -Name $_ -Force;
+                    };
 
                     $Global:CompiledScript = $null;
                     $Global:EmbededModules = $null;
                 } else {
-                    Write-Verbose -Message "♻️ Cleaning up $($Local:ImportedModules.Count) imported modules.";
-                    Write-Verbose -Message "✅ Imported modules: `n`t$($Local:ImportedModules -join "`n`t")";
-
-                    $Local:ImportedModules | ForEach-Object { Remove-Module -FullyQualifiedName $_.FullName -Force -ErrorAction SilentlyContinue | Out-Null; }
+                    $Local:ImportedModules | ForEach-Object {
+                        Remove-Module -FullyQualifiedName $_.FullName -Force;
+                    }
                 }
             }
         }
@@ -141,4 +124,4 @@ function Invoke-RunMain {
     Invoke-Inner -Invocation $Invocation -Main $Main;
 }
 
-Export-ModuleMember -Function Invoke-EnsureAdministrator,Invoke-RunMain;
+Export-ModuleMember -Function Invoke-RunMain;
