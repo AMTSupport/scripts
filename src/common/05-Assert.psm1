@@ -1,13 +1,18 @@
 #Requires -Version 5.1
 
-function Assert-NotNull([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [String]$Message) {
+function Assert-NotNull(
+    [Parameter(Mandatory, ValueFromPipeline)]
+    [Object]$Object,
+
+    [Parameter()]
+    [String]$Message
+) {
     if ($null -eq $Object -or $Object -eq '') {
         if ($null -eq $Message) {
-            Write-Host -ForegroundColor Red -Object 'Object is null';
+            Invoke-Error -Message 'Object is null';
             Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
-        }
-        else {
-            Write-Host -ForegroundColor Red -Object $Message;
+        } else {
+            Invoke-Error $Message;
             Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
         }
     }
