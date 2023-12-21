@@ -1,0 +1,23 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Schema for the mod.json file",
+    "type": "object",
+    "properties": {
+        "exports": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "functions": {
+                        "type": "string"
+                    }
+                },
+                "required": ["name", "functions"]
+            }
+        }
+    },
+    "required": ["exports"]
+}
