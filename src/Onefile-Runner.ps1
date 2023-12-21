@@ -1,5 +1,7 @@
 #Requires -Version 7.3
 
+using namespace System.Management.Automation.Language;
+
 [CmdletBinding(SupportsShouldProcess)]
 Param(
     [Parameter(Mandatory, HelpMessage="The path of the target script to compile a merged version of.")]
@@ -11,6 +13,11 @@ Param(
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Module folder does not exist: {0}")]
     [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Module folder is not a folder: {0}")]
     [String[]]$Modules = @($PSScriptRoot + '\common'),
+
+    [Parameter(HelpMessage="The root folder to search for modules to merge into the target script.")]
+    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Module root folder does not exist: {0}")]
+    [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Module root folder is not a folder: {0}")]
+    [String]$ModuleRoot = $PSScriptRoot,
 
     [Parameter(HelpMessage="The folder to write the merged version of the target script to, if not specified the merged version will be written to the console.")]
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Output file path is invalid: {0}")]
@@ -129,6 +136,62 @@ function Get-Requirements([Parameter(Mandatory)][String[]]$Lines, [HashTable]$Re
     }
 }
 
+function Get-Modules {
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:Modules; }
+
+    process {
+        # Get all the modules in the root/common folder
+        # Then also decend into any subfolders and look for a mod.json file.
+        # The mod.json file is used to define the exported functions and aliases for modules in the folder.
+
+        [System.Management.Automation.OrderedHashtable]$Local:ModuleDictionary = [Ordered]@{};
+        Get-ChildItem -Path $ModuleRoot -Filter 'mod.json' -Recurse | ForEach-Object {
+            Invoke-Debug "Found module description file: $($_.FullName)";
+
+            [String]$Local:ModuleDescription = Get-Content -Raw -Path $_.FullName;
+            if (-not $Local:ModuleDescription) {
+                Invoke-Warn -Message "Module description file is empty: $($_.FullName). Skipping...";
+                continue;
+            }
+
+            [PSCustomObject]$Local:ModuleDescription = ConvertFrom-Json -InputObject $Local:ModuleDescription;
+            if (-not $Local:ModuleDescription) {
+                Invoke-Warn -Message "Module description file is not valid JSON: $($_.FullName). Skipping...";
+                continue;
+            }
+
+            $Local:FullNamePrefix = $_.DirectoryName.Replace($ModuleRoot, '').TrimStart('\');
+            $Local:ModuleDescription | ForEach-Object {
+                [String]$Local:ModuleName = $_.Name;
+                [String]$Local:ModulePath = Join-Path -Path $ModuleRoot -ChildPath $Local:FullNamePrefix -AdditionalChildPath $Local:ModuleName;
+                [String]$Local:ExportedFunctions = $_.Functions;
+                Invoke-Debug "Found module: $Local:ModuleName, path: $Local:ModulePath, functions: $Local:ExportedFunctions";
+
+                if ($Local:ModuleDictionary[$Local:ModulePath]) {
+                    Invoke-Warn -Message "Duplicate module: $Local:ModuleName.";
+                    continue;
+                }
+
+                $Local:ModuleDictionary.Add($Local:ModuleName, $Local:ModuleDescription);
+            }
+        };
+    }
+}
+
+function Get-CompliledContent(
+    [Parameter(Mandatory)]
+    [String[]]$Lines
+) {
+    [Tokens[]]$Local:Tokens = $null;
+    [ParseError[]]$Local:Errors = $null;
+    [Parser]::ParseInput(($Lines | Join-String -Separator "`n"), [ref]$Local:Tokens, [ref]$Local:Errors);
+
+    [Tokens]$Local:Tokens = $Local:Tokens | Where-Object { $_.Kind -ne 'Comment' -and $_.Kind -ne 'NewLine' };
+
+    $Local:Tokens, $Local:Errors;
+}
+
 function Get-FilteredContent([Parameter(Mandatory)][String[]]$Content) {
     begin { Enter-Scope -Invocation $MyInvocation; }
     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CleanedLines; }
@@ -140,7 +203,15 @@ function Get-FilteredContent([Parameter(Mandatory)][String[]]$Content) {
             ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:CleanedLines -OpenPattern '<#' -ClosePattern '#>';
 
             if ($Local:StartIndex -ge 0 -and $Local:EndIndex -ge 0) {
-                $Local:CleanedLines = $Local:CleanedLines[0..($Local:StartIndex - 1)] + $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
+                Invoke-Debug -Message "Found comment block at lines $Local:StartIndex to $Local:EndIndex";
+                Invoke-Debug -Message "Comment block content: $($Local:CleanedLines[$Local:StartIndex..$Local:EndIndex] | Join-String -Separator "`n")";
+
+                if ($Local:StartIndex -gt 0) {
+                    $Local:CleanedLines = $Local:CleanedLines[0..($Local:StartIndex - 1)] + $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
+                } else {
+                    $Local:CleanedLines = $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
+                }
+
                 continue;
             }
 
@@ -172,9 +243,25 @@ function New-CompiledScript(
             "#Requires -${Type} ${Value}"
         } | Join-String -Separator "`n";
 
+        [String]$Local:CmdletBinding = $null;
+        if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(i?)^\s*\[CmdletBinding\(([a-z,\s]+)\)\]') {
+            Invoke-Debug -Message 'Found CmdletBinding attribute';
+
+            ($Local:ParamStart, $Local:ParamEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '\[' -ClosePattern '\]';
+            Invoke-Debug -Message "Found CmdletBinding attribute at lines $Local:ParamStart to $Local:ParamEnd";
+            Invoke-Debug -Message "CmdletBinding attribute content: $($Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n")";
+
+            [String]$Local:CmdletBinding = $Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n";
+            [String[]]$Local:FilteredLines = $Local:FilteredLines[($Local:ParamEnd + 1)..($Local:FilteredLines.Count - 1)];
+        }
+
         [String]$Local:ParamBlock = $null;
         if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(i?)^\s*param\s*\(') {
+            Invoke-Debug -Message 'Found param block';
+
             ($Local:ParamStart, $Local:ParamEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '\(' -ClosePattern '\)';
+            Invoke-Debug -Message "Found param block at lines $Local:ParamStart to $Local:ParamEnd";
+            Invoke-Debug -Message "Param block content: $($Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n")";
 
             [String]$Local:ParamBlock = $Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n";
             [String[]]$Local:FilteredLines = $Local:FilteredLines[($Local:ParamEnd + 1)..($Local:FilteredLines.Count - 1)];
@@ -189,15 +276,15 @@ function New-CompiledScript(
             }
         }
         if ($Local:MatchIndex -ne -1) {
-            Write-Host -ForegroundColor Cyan -Object "Found Invoke-RunMain line: $Local:MatchIndex";
+            Invoke-Debug "Found Invoke-RunMain line: $Local:MatchIndex";
 
             ($Local:ScriptStart, $Local:ScriptEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines[($Local:MatchIndex)..($Local:FilteredLines.Count)] -OpenPattern '\{' -ClosePattern '\}';
             $Local:ScriptStart += $Local:MatchIndex;
             $Local:ScriptEnd += $Local:MatchIndex;
             $Local:InvokeMain = $Local:FilteredLines[$Local:ScriptStart..$Local:ScriptEnd] | Join-String -Separator "`n";
 
-            Write-Host -ForegroundColor Cyan -Object "Found Invoke-RunMain block at lines $Local:ScriptStart to $Local:ScriptEnd";
-            Write-Host -ForegroundColor Cyan -Object "Invoke-RunMain block content: $Local:InvokeMain";
+            Invoke-Debug "Found Invoke-RunMain block at lines $Local:ScriptStart to $Local:ScriptEnd";
+            Invoke-Debug "Invoke-RunMain block content: $Local:InvokeMain";
 
             if ($Local:ScriptStart -gt 0) {
                 $Local:BeforeMain = $Local:FilteredLines[0..($Local:ScriptStart - 1)];
@@ -218,6 +305,7 @@ function New-CompiledScript(
 
         [String]$Local:CompiledScript = @"
 $Local:RequirmentLines
+$Local:CmdletBinding
 $Local:ParamBlock
 `$Global:CompiledScript = `$true;
 `$Global:EmbededModules = @{
