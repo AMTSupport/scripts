@@ -1,0 +1,7 @@
+<Configuration>
+    <vGPU>Enable</vGPU>
+    <Networking>Enable</Networking>
+    <LogonCommand>
+        <Command>powershell.exe -ExecutionPolicy Bypass</Command>
+    </LogonCommand>
+</Configuration>
