@@ -12,7 +12,10 @@
                         "type": "string"
                     },
                     "functions": {
-                        "type": "string"
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "required": ["name", "functions"]
