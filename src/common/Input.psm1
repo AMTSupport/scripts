@@ -94,24 +94,27 @@ function Get-UserSelection {
 
 function Get-PopupSelection {
     Param(
-        [Parameter(Mandatory)]
+        [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [Object[]]$InputAttrs,
+        [String]$Title = 'Select a(n) Item',
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
-        [String]$ItemName
+        [Object[]]$Items,
+
+        [Parameter()]
+        [switch]$AllowNone
     )
 
     $Local:Selection;
     while (-not $Local:Selection) {
-        $Local:Selection = $InputAttrs | Out-GridView -Title "Select a(n) $ItemName" -PassThru;
-        if (-not $Local:Selection) {
-            Write-Host "No $ItemName was selected, re-running selection...";
+        $Local:Selection = $Items | Out-GridView -Title $Title -PassThru;
+        if ((-not $AllowNone) -and (-not $Local:Selection)) {
+            Write-Host "No Item was selected, re-running selection...";
         }
     }
 
-    $Local:Selection | Assert-NotNull -Message "Failed to select a $ItemName.";
+    $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
     return $Local:Selection;
 }
 

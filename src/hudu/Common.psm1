@@ -1,4 +1,4 @@
-function Get-Companies {
+function Get-HuduCompanies {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -37,4 +37,4 @@ function Get-Companies {
     }
 }
 
-Export-ModuleMember -Function Get-Companies;
+Export-ModuleMember -Function Get-HuduCompanies;
