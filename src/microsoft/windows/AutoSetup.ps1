@@ -269,7 +269,7 @@ function Invoke-EnsureSetupInfo {
         $Local:FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
         $Local:FormattedClients | Assert-NotNull -Message "Failed to format clients";
 
-        $Local:SelectedClient = Get-PopupSelection -InputAttrs $Local:FormattedClients -ItemName "client";
+        $Local:SelectedClient = Get-PopupSelection -Items $Local:FormattedClients -Title "Please select a Client";
         #endregion - Get Client Selection
 
         #region - Get Site Selection
@@ -279,7 +279,7 @@ function Invoke-EnsureSetupInfo {
         $Local:FormattedSites = Get-FormattedName2Id -InputArr $Sites -IdExpr { $_.siteid };
         $Local:FormattedSites | Assert-NotNull -Message "Failed to format sites";
 
-        $Local:SelectedSite = Get-PopupSelection -InputAttrs $Local:FormattedSites -ItemName "site";
+        $Local:SelectedSite = Get-PopupSelection -Items $Local:FormattedSites -Title "Please select a Site";
         #endregion - Get Site Selection
 
         # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
@@ -487,20 +487,24 @@ function Invoke-PhaseCleanup {
             [String]$Local:ProgressActivity = $MyInvocation.MyCommand.Name;
 
             Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Getting items..." -PercentComplete 0;
+            Write-Debug 'Getting items';
             [Object[]]$Local:InputItems = $GetItems.InvokeReturnAsIs();
             Write-Progress -Activity $Local:ProgressActivity -PercentComplete 10;
 
             if ($null -eq $Local:InputItems -or $Local:InputItems.Count -eq 0) {
                 Write-Progress -Activity $Local:ProgressActivity -Status "No items found." -PercentComplete 100 -Completed;
+                Invoke-Debug 'No Items found';
                 return;
             } else {
                 Write-Progress -Activity $Local:ProgressActivity -Status "Processing $($Local:InputItems.Count) items...";
+                Invoke-Debug "Processing $($Local:InputItems.Count) items...";
             }
 
             [System.Collections.IList]$Local:FailedItems = New-Object System.Collections.Generic.List[System.Object];
             [Int]$Local:PercentPerItem = 90 / $Local:InputItems.Count;
             [Int]$Local:PercentComplete = 0;
             foreach ($Local:Item in $Local:InputItems) {
+                Write-Debug "Processing item [$Local:Item]...";
                 Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Processing item [$Local:Item]..." -PercentComplete $Local:PercentComplete;
 
                 try {
@@ -533,10 +537,10 @@ function Invoke-PhaseCleanup {
             end { Exit-Scope -Invocation $MyInvocation; }
 
             process {
-                [String[]]$Local:Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
+                [String[]]$Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
 
-                Invoke-Info "Disabling $($Services.Value.Count) services...";
-                Invoke-Progress -GetItems { $Local:Services } -ProcessItem {
+                Invoke-Info "Disabling $($Services.Count) services...";
+                Invoke-Progress -GetItems { $Services; } -ProcessItem {
                     Param($ServiceName)
 
                     try {
@@ -632,17 +636,17 @@ function Invoke-PhaseCleanup {
                 # Fallback attempt 1 to remove HP Wolf Security using msiexec
                 Try {
                     MsiExec /x "{0E2E04B0-9EDD-11EB-B38C-10604B96B11E}" /qn /norestart
-                    Invoke-Info -Object "Fallback to MSI uninistall for HP Wolf Security initiated"
+                    Invoke-Info -Message 'Fallback to MSI uninistall for HP Wolf Security initiated';
                 } Catch {
-                    Invoke-Warn -Object "Failed to uninstall HP Wolf Security using MSI - Error message: $($_.Exception.Message)"
+                    Invoke-Warn -Message "Failed to uninstall HP Wolf Security using MSI - Error message: $($_.Exception.Message)"
                 }
 
                 # Fallback attempt 2 to remove HP Wolf Security using msiexec
                 Try {
-                    MsiExec /x "{4DA839F0-72CF-11EC-B247-3863BB3CB5A8}" /qn /norestart
-                    Invoke-Info -Object "Fallback to MSI uninistall for HP Wolf 2 Security initiated"
+                    MsiExec /x "{4DA839F0-72CF-11EC-B247-3863BB3CB5A8}" /qn /norestart;
+                    Invoke-Info -Message 'Fallback to MSI uninistall for HP Wolf 2 Security initiated';
                 } Catch {
-                    Invoke-Warn -Object  "Failed to uninstall HP Wolf Security 2 using MSI - Error message: $($_.Exception.Message)"
+                    Invoke-Warn -Message "Failed to uninstall HP Wolf Security 2 using MSI - Error message: $($_.Exception.Message)"
                 }
             }
         }
@@ -656,7 +660,7 @@ function Invoke-PhaseCleanup {
                 Invoke-Progress -GetItems { Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
 
-                    Remove-AppxProvisionedPackage -PackageName $Package.PackageName -Online -AllUsers;
+                    Remove-AppxProvisionedPackage -PackageName $Package.PackageName -Online -AllUsers | Out-Null;
                     Invoke-Info "Sucessfully removed provisioned package [$($Package.DisplayName)]";
                 }
             }
@@ -668,7 +672,7 @@ function Invoke-PhaseCleanup {
             process {
                 [String]$HPIdentifier = "AD2F1837";
 
-                Invoke-Progress -GetItems { $Packages = Get-AppxPackage -AllUsers | Where-Object { $_.Name -match "^$HPIdentifier" }; $Packages } -ProcessItem {
+                Invoke-Progress -GetItems { Get-AppxPackage -AllUsers | Where-Object { $_.Name -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
 
                     Remove-AppxPackage -Package $Package.PackageFullName -AllUsers;
@@ -686,8 +690,12 @@ function Invoke-PhaseCleanup {
                 Invoke-Progress -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' } } -ProcessItem {
                     Param($Driver)
 
-                    pnputil /delete-driver $Driver /uninstall /force;
-                    Invoke-Info "Removed driver: $($_.OriginalFileName.toString())";
+                    try {
+                        pnputil /delete-driver $Driver /uninstall /force;
+                        Invoke-Info "Removed driver: $($_.OriginalFileName.toString())";
+                    } catch {
+                        Invoke-Warn "Failed to remove driver: $($_.OriginalFileName.toString()): $($_.Exception.Message)";
+                    }
                 };
 
                 # Once the drivers are gone lets disable installation of 'drivers' for these HP 'devices' (typically automatic via Windows Update)
@@ -695,17 +703,15 @@ function Invoke-PhaseCleanup {
                 # SWC\HPIC000C = HP Application Enabling Services
                 # SWC\HPTPSH000C = HP Services Scan
                 # ACPI\HPIC000C = HP Application Driver
-                $RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs'
-
-                If (! (Test-Path $RegistryPath)) { New-Item -Path $RegistryPath -Force | Out-Null }
+                $Local:RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs'
+                If (-not (Test-Path $RegistryPath)) { New-Item -Path $RegistryPath -Force | Out-Null }
 
                 New-ItemProperty -Path $RegistryPath -Name '1' -Value 'SWC\HPA000C' -PropertyType STRING
                 New-ItemProperty -Path $RegistryPath -Name '2' -Value 'SWC\HPIC000C' -PropertyType STRING
                 New-ItemProperty -Path $RegistryPath -Name '3' -Value 'SWC\HPTPSH000C' -PropertyType STRING
                 New-ItemProperty -Path $RegistryPath -Name '4' -Value 'ACPI\HPIC000C' -PropertyType STRING
 
-                $RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions'
-
+                $Local:RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions'
                 New-ItemProperty -Path $RegistryPath -Name 'DenyDeviceIDs' -Value '1' -PropertyType DWORD
                 New-ItemProperty -Path $RegistryPath -Name 'DenyDeviceIDsRetroactive' -Value '1' -PropertyType DWORD
             }
