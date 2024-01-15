@@ -1,5 +1,3 @@
-Using Namespace System.Management.Automation;
-
 <#
 .SYNOPSIS
     Runs the main function of a script while ensuring that all common modules have been imported.
@@ -20,7 +18,7 @@ function Invoke-RunMain {
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNull()]
-        [InvocationInfo]$Invocation,
+        [System.Management.Automation.InvocationInfo]$Invocation,
 
         [Parameter(Mandatory)]
         [ValidateNotNull()]
@@ -32,7 +30,7 @@ function Invoke-RunMain {
         Param(
             [Parameter(Mandatory)]
             [ValidateNotNull()]
-            [InvocationInfo]$Invocation,
+            [System.Management.Automation.InvocationInfo]$Invocation,
 
             [Parameter(Mandatory)]
             [ValidateNotNull()]
