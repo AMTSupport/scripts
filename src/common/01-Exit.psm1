@@ -1,5 +1,3 @@
-Using Namespace System.Management.Automation;
-
 [HashTable]$Global:ExitHandlers = @{};
 [HashTable]$Global:ExitCodes = @{};
 
@@ -11,7 +9,7 @@ function Invoke-FailedExit {
         [Int]$ExitCode,
 
         [Parameter(HelpMessage='The error record that caused the exit, if any.')]
-        [ErrorRecord]$ErrorRecord
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
     )
 
     [String]$Local:ExitDescription = $Global:ExitCodes[$ExitCode];
@@ -31,11 +29,13 @@ function Invoke-FailedExit {
         Invoke-Error $Local:DeepestException.ErrorRecord.InvocationInfo.PositionMessage;
     }
 
-    foreach ($Local:ExitHandler in $Global:ExitHandlers.Values) {
+    foreach ($Local:ExitHandlerName in $Global:ExitHandlers.Keys) {
+        [PSCustomObject]$Local:ExitHandler = $Global:ExitHandlers[$Local:ExitHandler];
         if ($Local:ExitHandler.OnlyFailure -and $ExitCode -eq 0) {
             continue;
         }
 
+        Invoke-Debug -Message "Invoking exit handler '$Local:ExitHandlerName'...";
         Invoke-Command -ScriptBlock $Local:ExitHandler.Script;
     }
 
@@ -43,13 +43,17 @@ function Invoke-FailedExit {
 }
 
 function Invoke-QuickExit {
-    foreach ($Local:ExitHandler in $Global:ExitHandlers.Values) {
+    foreach ($Local:ExitHandlerName in $Global:ExitHandlers.Keys) {
+        [PSCustomObject]$Local:ExitHandler = $Global:ExitHandlers[$Local:ExitHandlerName];
         if ($Local:ExitHandler.OnlyFailure) {
             continue;
         }
 
+        Invoke-Debug -Message "Invoking exit handler '$Local:ExitHandlerName'...";
         Invoke-Command -ScriptBlock $Local:ExitHandler.Script;
     }
+
+    Exit 0;
 }
 
 function Register-ExitHandler {

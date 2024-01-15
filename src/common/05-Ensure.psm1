@@ -136,8 +136,13 @@ function Invoke-EnsureNetwork(
 }
 
 Register-ExitHandler -Name 'Remove Imported Modules' -ExitHandler {
-    Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
-    Invoke-Verbose -Prefix '✅' -Message "Removing modules: `n`t$($Script:ImportedModules -join "`n`t")";
+    if ($Script:ImportedModules.Count -lt 1) {
+        Invoke-Debug 'No additional modules were imported, skipping cleanup...';
+        return;
+    }
+
+    Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Script:ImportedModules.Count) additional imported modules.";
+    Invoke-Verbose -Prefix '✅' -Message "Removed modules: `n`t$($Script:ImportedModules -join "`n`t")";
 
     Remove-Module -Name $Script:ImportedModules -Force;
 };
