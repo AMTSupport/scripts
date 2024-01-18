@@ -67,10 +67,38 @@ function Invoke-EnsureModules {
     }
 }
 
+$Script:WifiXmlTemplate = "<?xml version=""1.0""?>
+<WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
+  <name>{0}</name>
+  <SSIDConfig>
+    <SSID>
+      <hex>{1}</hex>
+      <name>{0}</name>
+    </SSID>
+  </SSIDConfig>
+  <connectionType>ESS</connectionType>
+  <connectionMode>auto</connectionMode>
+  <MSM>
+    <security>
+      <authEncryption>
+        <authentication>{2}</authentication>
+        <encryption>{3}</encryption>
+        <useOneX>false</useOneX>
+      </authEncryption>
+      <sharedKey>
+        <keyType>passPhrase</keyType>
+        <protected>false</protected>
+        <keyMaterial>{4}</keyMaterial>
+      </sharedKey>
+    </security>
+  </MSM>
+</WLANProfile>
+";
 $Private:UNABLE_TO_SETUP_NETWORK = Register-ExitCode -Description 'Unable to setup network.';
 $Private:NETWORK_NOT_SETUP = Register-ExitCode -Description 'Network not setup, and no details provided.';
 function Invoke-EnsureNetwork(
     [Parameter(HelpMessage = 'The name of the network to connect to.')]
+    [ValidateNotNullOrEmpty()]
     [String]$Name,
 
     [Parameter(HelpMessage = 'The password of the network to connect if required.')]
@@ -89,51 +117,55 @@ function Invoke-EnsureNetwork(
 
         if ($Local:HasNetwork) {
             Invoke-Debug 'Network is setup, skipping network setup...';
-            return
-        }
-
-        if (-not $Name) {
-            Invoke-QuickExit -ExitCode $Script:NETWORK_NOT_SETUP;
+            return $false;
         }
 
         Invoke-Info 'Network is not setup, setting up network...';
 
-        [String]$Local:ProfileFile = "$env:TEMP\SetupWireless-profile.xml";
-        If ($Local:ProfileFile | Test-Path) {
-            Write-Host 'Profile file exists, removing it...';
-            Remove-Item -Path $Local:ProfileFile -Force;
-        }
+        Invoke-WithinEphemeral {
+            [String]$Local:ProfileFile = "$Name.xml";
+            [String]$Local:SSIDHex = ($Name.ToCharArray() | ForEach-Object { '{0:X}' -f ([int]$_) }) -join '';
+            if ($Password) {
+                $Local:SecureBSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password);
+                $Local:PlainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($Local:SecureBSTR);
+            }
 
-        $Local:SSIDHEX = ($Name.ToCharArray() | ForEach-Object { '{0:X}' -f ([int]$_) }) -join ''
-        $Local:XmlContent = "<?xml version=""1.0""?>
-<WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
-    <name>$Name</name>
-    <SSIDConfig>
-        <SSID>
-            <hex>$Local:SSIDHEX</hex>
-            <name>$Name</name>
-        </SSID>
-    </SSIDConfig>
-    <connectionType>ESS</connectionType>
-    <connectionMode>auto</connectionMode>
-    <MSM>
-        <security>
-            <authEncryption>
-                <authentication>WPA2PSK</authentication>
-                <encryption>AES</encryption>
-                <useOneX>false</useOneX>
-            </authEncryption>
-            <sharedKey>
-                <keyType>passPhrase</keyType>
-                <protected>false</protected>
-                <keyMaterial>$NetworkPassword</keyMaterial>
-            </sharedKey>
-        </security>
-    </MSM>
-</WLANProfile>
-"
+            [Xml]$Local:XmlContent = [String]::Format($Script:WifiXmlTemplate, $Name, $SSIDHex, 'WPA2PSK', 'AES', $PlainPassword);
+            # Remove the password if it is not provided.
+            if (-not $PlainPassword) {
+                $Local:XmlContent.WLANProfile.MSM.security.RemoveChild($Local:XmlContent.WLANProfile.MSM.security.sharedKey) | Out-Null;
+            }
+
+            $Local:XmlContent | Out-File -FilePath $Local:ProfileFile -Encoding UTF8;
+
+            if ($WhatIfPreference) {
+                Invoke-Info -Message 'WhatIf is set, skipping network setup...';
+                return $true;
+            } else {
+                Invoke-Info -Message 'Setting up network...';
+                netsh wlan add profile filename="$Local:ProfileFile" | Out-Null;
+                netsh wlan show profiles $Name key=clear | Out-Null;
+                netsh wlan connect name="$Name" | Out-Null;
+
+                Invoke-Info 'Waiting for network connection...'
+                $Local:RetryCount = 0;
+                while (-not (Test-Connection -Destination google.com -Count 1 -Quiet)) {
+                    If ($Local:RetryCount -ge 60) {
+                        Invoke-Error "Failed to connect to $NetworkName after 10 retries";
+                        Invoke-FailedExit -ExitCode $Script:FAILED_TO_CONNECT;
+                    }
+
+                    Start-Sleep -Seconds 1
+                    $Local:RetryCount += 1
+                }
+
+                Invoke-Info -Message 'Network setup successfully.';
+                return $true;
+            }
+        }
     }
 }
+
 
 Register-ExitHandler -Name 'Remove Imported Modules' -ExitHandler {
     if ($Script:ImportedModules.Count -lt 1) {
