@@ -13,16 +13,22 @@
             "attachDotnetDebugger": true
         },
         {
-            "name": "PowerShell Launch Current File",
+            "name": "PowerShell Launch Current File in Debugger",
             "type": "PowerShell",
             "request": "launch",
             "script": "${file}",
-            "cwd": "${cwd}"
+            "cwd": "${cwd}",
+            "args": [ "-Verbose" ],
+            "createTemporaryIntegratedConsole": true,
+            "attachDotnetDebugger": true,
         },
         {
-            "name": "PowerShell: Interactive Session",
+            "name": "PowerShell: Launch Current File",
             "type": "PowerShell",
-            "request": "launch"
+            "request": "launch",
+            "script": "${file}",
+            "cwd": "${workspaceFolder}",
+            "createTemporaryIntegratedConsole": true
         }
     ]
 }
