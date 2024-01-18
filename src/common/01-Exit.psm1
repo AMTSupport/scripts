@@ -1,5 +1,29 @@
 [HashTable]$Global:ExitHandlers = @{};
 [HashTable]$Global:ExitCodes = @{};
+[Boolean]$Global:ExitHandlersRun = $false;
+
+function Invoke-Handlers([switch]$IsFailure) {
+    if ($Global:ExitHandlersRun) {
+        Invoke-Debug -Message 'Exit handlers already run, skipping...';
+        return;
+    }
+
+    foreach ($Local:ExitHandlerName in $Global:ExitHandlers.Keys) {
+        [PSCustomObject]$Local:ExitHandler = $Global:ExitHandlers[$Local:ExitHandlerName];
+        if ($Local:ExitHandler.OnlyFailure -and (-not $IsFailure)) {
+            continue;
+        }
+
+        Invoke-Debug -Message "Invoking exit handler '$Local:ExitHandlerName'...";
+        try {
+            Invoke-Command -ScriptBlock $Local:ExitHandler.Script;
+        } catch {
+            Invoke-Warn "Failed to invoke exit handler '$Local:ExitHandlerName': $_";
+        }
+    }
+
+    $Global:ExitHandlersRun = $true;
+}
 
 function Invoke-FailedExit {
     [CmdletBinding()]
@@ -9,51 +33,78 @@ function Invoke-FailedExit {
         [Int]$ExitCode,
 
         [Parameter(HelpMessage='The error record that caused the exit, if any.')]
-        [System.Management.Automation.ErrorRecord]$ErrorRecord
+        [System.Management.Automation.ErrorRecord]$ErrorRecord,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [Switch]$DontExit
     )
 
     [String]$Local:ExitDescription = $Global:ExitCodes[$ExitCode];
-    if ($Local:ExitDescription) {
+    if ($null -ne $Local:ExitDescription -and $Local:ExitDescription.Length -gt 0) {
         Invoke-Error $Local:ExitDescription;
     }
 
     if ($ErrorRecord) {
         [System.Exception]$Local:DeepestException = $ErrorRecord.Exception;
+        [String]$Local:DeepestMessage = $Local:DeepestException.Message;
+        [System.Management.Automation.InvocationInfo]$Local:DeepestInvocationInfo = $ErrorRecord.InvocationInfo;
+
         while ($Local:DeepestException.InnerException) {
-            Invoke-Debug "Getting inner exception... (Current: $Local:DeepestException)"
-            Invoke-Debug "Inner exception: $($Local:DeepestException.InnerException)"
+            Invoke-Debug "Getting inner exception... (Current: $Local:DeepestException)";
+            Invoke-Debug "Inner exception: $($Local:DeepestException.InnerException)";
             $Local:DeepestException = $Local:DeepestException.InnerException;
+
+            if ($Local:DeepestException.Message) {
+                $Local:DeepestMessage = $Local:DeepestException.Message;
+            }
+
+            if ($Local:DeepestException.ErrorRecord.InvocationInfo) {
+                $Local:DeepestInvocationInfo = $Local:DeepestException.ErrorRecord.InvocationInfo;
+            }
         }
 
-        Invoke-Error $Local:DeepestException.Message;
-        Invoke-Error $Local:DeepestException.ErrorRecord.InvocationInfo.PositionMessage;
+        if ($Local:DeepestInvocationInfo) {
+            Invoke-FormattedError -InvocationInfo $Local:DeepestInvocationInfo -Message $Local:DeepestMessage;
+        } elseif ($Local:DeepestMessage) {
+            Invoke-Error -Message $Local:DeepestMessage;
+        }
     }
 
-    foreach ($Local:ExitHandlerName in $Global:ExitHandlers.Keys) {
-        [PSCustomObject]$Local:ExitHandler = $Global:ExitHandlers[$Local:ExitHandler];
-        if ($Local:ExitHandler.OnlyFailure -and $ExitCode -eq 0) {
-            continue;
+    Invoke-Handlers -IsFailure:($ExitCode -ne 0);
+    if (-not $DontExit) {
+        if (-not $Local:DeepestException) {
+            [System.Exception]$Local:DeepestException = [System.Exception]::new('Failed Exit');
         }
 
-        Invoke-Debug -Message "Invoking exit handler '$Local:ExitHandlerName'...";
-        Invoke-Command -ScriptBlock $Local:ExitHandler.Script;
-    }
+        if ($null -eq $Local:DeepestException.ErrorRecord.CategoryInfo.Category) {
+            [System.Management.Automation.ErrorCategory]$Local:Catagory = [System.Management.Automation.ErrorCategory]::NotSpecified;
+        } else {
+            [System.Management.Automation.ErrorCategory]$Local:Catagory = $Local:DeepestException.ErrorRecord.CategoryInfo.Category;
+        }
 
-    Exit $ExitCode;
+        [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
+            [System.Exception]$Local:DeepestException,
+            'FailedExit',
+            $Local:Catagory,
+            $ExitCode
+        );
+
+        throw $Local:ErrorRecord;
+    }
 }
 
 function Invoke-QuickExit {
-    foreach ($Local:ExitHandlerName in $Global:ExitHandlers.Keys) {
-        [PSCustomObject]$Local:ExitHandler = $Global:ExitHandlers[$Local:ExitHandlerName];
-        if ($Local:ExitHandler.OnlyFailure) {
-            continue;
-        }
+    Invoke-Handlers;
 
-        Invoke-Debug -Message "Invoking exit handler '$Local:ExitHandlerName'...";
-        Invoke-Command -ScriptBlock $Local:ExitHandler.Script;
-    }
+    [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
+        [System.Exception]::new('Quick Exit'),
+        'QuickExit',
+        [System.Management.Automation.ErrorCategory]::NotSpecified,
+        $null
+    );
 
-    Exit 0;
+    throw $Local:ErrorRecord;
 }
 
 function Register-ExitHandler {
@@ -72,7 +123,7 @@ function Register-ExitHandler {
 
     [String]$Local:TrimmedName = $Name.Trim();
     [PSCustomObject]$Local:Value = @{ OnlyFailure = $OnlyFailure; Script = $ExitHandler };
-    Invoke-Debug "Registering exit handler '$Local:TrimmedName' with value '$Local:Value'...";
+    Invoke-Debug "Registering exit handler '$Local:TrimmedName'";
 
     if ($Global:ExitHandlers[$Local:TrimmedName]) {
         Invoke-Warn "Exit handler '$Local:TrimmedName' already registered, overwriting...";
@@ -102,4 +153,4 @@ function Register-ExitCode {
     return $Local:ExitCode;
 }
 
-Export-ModuleMember -Function Invoke-FailedExit, Invoke-QuickExit, Register-ExitHandler, Register-ExitCode;
+Export-ModuleMember -Function Invoke-Handlers, Invoke-FailedExit, Invoke-QuickExit, Register-ExitHandler, Register-ExitCode;
