@@ -22,7 +22,10 @@ Param(
     [Parameter(HelpMessage="The folder to write the merged version of the target script to, if not specified the merged version will be written to the console.")]
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Output file path is invalid: {0}")]
     [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Output file path is not a folder: {0}")]
-    [String]$Output
+    [String]$Output,
+
+    [Parameter(HelpMessage="If specified, the output file will be overwritten if it already exists.")]
+    [Switch]$Force
 )
 
 function Find-StartToEndBlock(
@@ -455,7 +458,7 @@ Invoke-RunMain $MyInvocation {
         } else {
             [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
             if (Test-Path $Local:OutputFile) {
-                if (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true) {
+                if ($Force -or (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true)) {
                     Write-Host -ForegroundColor Cyan -Object 'Output file already exists. Deleting...';
                     Remove-Item -Path $Local:OutputFile -Force | Out-Null;
                 } else {
