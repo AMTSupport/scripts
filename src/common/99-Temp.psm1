@@ -9,18 +9,18 @@ function Get-NamedTempFolder {
 
     [String]$Local:Folder = [System.IO.Path]::GetTempPath() | Join-Path -ChildPath $Name;
     if ($ForceEmpty -and (Test-Path $Local:Folder -PathType Container)) {
-        Write-Verbose -Message "Emptying temporary folder $Local:Folder...";
-        Remove-Item -Path $Local:Folder -Force -Recurse;
+        Invoke-Verbose -Message "Emptying temporary folder $Local:Folder...";
+        Remove-Item -Path $Local:Folder -Force -Recurse | Out-Null;
     }
 
     if (-not (Test-Path $Local:Folder -PathType Container)) {
-        Write-Verbose -Message "Creating temporary folder $Local:Folder...";
-        New-Item -ItemType Directory -Path $Local:Folder;
+        Invoke-Verbose -Message "Creating temporary folder $Local:Folder...";
+        New-Item -ItemType Directory -Path $Local:Folder | Out-Null;
     } elseif (Test-Path $Local:Folder -PathType Container) {
-        Write-Verbose -Message "Temporary folder $Local:Folder already exists.";
+        Invoke-Verbose -Message "Temporary folder $Local:Folder already exists.";
         if ($ForceEmpty) {
-            Write-Verbose -Message "Emptying temporary folder $Local:Folder...";
-            Remove-Item -Path $Local:Folder -Force -Recurse;
+            Invoke-Verbose -Message "Emptying temporary folder $Local:Folder...";
+            Remove-Item -Path $Local:Folder -Force -Recurse | Out-Null;
         }
     }
 
@@ -28,7 +28,7 @@ function Get-NamedTempFolder {
 }
 
 function Get-UniqueTempFolder {
-    return Get-NamedTempFolder -Name ([System.IO.Path]::GetRandomFileName()) -ForceEmpty;
+    Get-NamedTempFolder -Name ([System.IO.Path]::GetRandomFileName()) -ForceEmpty;
 }
 
 function Invoke-WithinEphemeral {
@@ -40,11 +40,11 @@ function Invoke-WithinEphemeral {
 
     [String]$Local:Folder = Get-UniqueTempFolder;
     try {
-        Write-Verbose -Message "Executing script block within temporary folder $Local:Folder...";
+        Invoke-Verbose -Message "Executing script block within temporary folder $Local:Folder...";
         Push-Location -Path $Local:Folder;
         & $ScriptBlock;
     } finally {
-        Write-Verbose -Message "Cleaning temporary folder $Local:Folder...";
+        Invoke-Verbose -Message "Cleaning temporary folder $Local:Folder...";
         Pop-Location;
         Remove-Item -Path $Local:Folder -Force -Recurse;
     }

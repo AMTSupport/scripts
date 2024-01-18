@@ -78,6 +78,7 @@ class RebootFlag: Flag {
 
         # Get the write time for the reboot flag file; if it was written before the computer started, we have reboot, return false;
         [DateTime]$Local:RebootFlagTime = (Get-Item $this.FlagPath).LastWriteTime;
+        # Broken on first boot!
         [DateTime]$Local:StartTime = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty LastBootUpTime;
 
         return $Local:RebootFlagTime -gt $Local:StartTime;
