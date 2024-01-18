@@ -1,6 +1,6 @@
 #Requires -Version 7.3
 
-using namespace System.Management.Automation.Language;
+Using namespace System.Management.Automation.Language;
 
 [CmdletBinding(SupportsShouldProcess)]
 Param(
@@ -225,6 +225,113 @@ function Get-FilteredContent([Parameter(Mandatory)][String[]]$Content) {
     }
 }
 
+# function Invoke-ParseBody {
+#     [CmdletBinding()]
+#     param (
+#         [Parameter(Mandatory)]
+#         [String]$Body
+#     )
+
+#     begin { Enter-Scope -Invocation $MyInvocation; }
+#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CompiledBody; }
+
+#     process {
+#         [System.Management.Automation.Language.Token[]]$Local:Tokens = $null;
+#         [System.Management.Automation.Language.ParseError[]]$Local:Errors = $null;
+#         [System.Management.Automation.Language.Parser]::ParseInput($Body, [ref]$Local:Tokens, [ref]$Local:Errors);
+
+#         if ($Local:Errors) {
+#             $Local:Errors | ForEach-Object {
+#                 Write-Host -Object "Error parsing body: $($_.Message)";
+#             }
+
+#             Invoke-FailedExit -ExitCode $Script:UNABLE_TO_PARSE_BODY;
+#         }
+
+#         [Int16]$Local:Offset = 0;
+#         [String]$Local:CompiledBody = $Local:Tokens | ForEach-Object -Parallel {
+#             $Local:Kind = $_.Kind;
+#             $Local:Text = $_.Text;
+#             $Local:Start = $_.Start;
+#             $Local:Length = $_.Length;
+
+#             # if ($Local:Kind -eq 'Variable') {
+#             #     $Local:VariableName = $Local:Text.Substring(1);
+#             #     $Local:VariableValue = Get-Variable -Name $Local:VariableName -ValueOnly -ErrorAction SilentlyContinue;
+#             #     if (-not $Local:VariableValue) {
+#             #         Invoke-Error -Message "Unable to find variable: $Local:VariableName";
+#             #         Invoke-FailedExit -ExitCode $Script:UNABLE_TO_PARSE_BODY;
+#             #     }
+
+#             #     $Local:VariableValue = $Local:VariableValue.ToString();
+#             #     $Local:Text = $Local:Text.Replace($Local:VariableName, $Local:VariableValue);
+#             # }
+
+#             $Local:Text;
+#         } | Join-String -Separator '';
+
+#         return $Local:CompiledBody;
+#     }
+# }
+
+# function Get-UsingStatements(
+#     [Parameter(Mandatory)][Token[]]$Tokens,
+#     [Parameter(Mandatory)][Int,Int]$Range
+# ) {
+#     begin { Enter-Scope -Invocation $MyInvocation; }
+#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue [ref]$Local:UsingStatements,[ref]$Local:NewRange; }
+
+#     process {
+#         [Token[]]$Local:UsingStatements = $Tokens | Where-Object { $_.Kind -eq 'Using' };
+#         if ($Local:UsingStatements.Count -eq 0) {
+#             return $null,$Range;
+#         }
+
+
+
+
+#         return $Local:UsingStatements;
+#     }
+# }
+
+# function Remove-UsingStatements {
+#     param (
+#         [System.Management.Automation.Language.Ast]$Ast,
+#         [System.Collections.ObjectModel.Collection[System.Management.Automation.Language.Token]]$Tokens
+#     )
+
+#     try {
+#         # Find 'using' statements in the AST
+#         $usingStatements = $Ast.FindAll({ param($ast) $ast -is [System.Management.Automation.Language.UsingStatementAst] }, $true)
+
+#         # Collect the start and end positions of 'using' statements
+#         $usingRanges = $usingStatements | ForEach-Object { $_.Extent.StartOffset, $_.Extent.EndOffset }
+
+#         # Filter out tokens that are part of 'using' statements
+#         $filteredTokens = $Tokens | Where-Object {
+#             $TokenRange = $_.Extent.StartOffset..$_.Extent.EndOffset
+
+#             # Check if the token is outside all 'using' statement ranges
+#             $Count = ($usingRanges | Where-Object { ($TokenRange -contains $_) });
+#             if ($Count -ne 0) {
+#                 Write-Host -Object "Token is part of a using statement: $($_.Extent.Text)"
+
+#                 return $false
+#             } else {
+#                 return $true
+#             }
+#         }
+
+#         # Reconstruct the script from filtered tokens
+#         $newScript = $filteredTokens | ForEach-Object { $_.Extent.Text } | Out-String -NoNewline
+
+#         return $newScript
+#     }
+#     catch {
+#         Write-Error "Error processing AST: $_"
+#     }
+# }
+
 function New-CompiledScript(
     [Parameter(Mandatory)][ValidateNotNull()][String[]]$Lines,
     [Parameter(Mandatory)][ValidateNotNull()][HashTable]$ModuleTable,
@@ -308,18 +415,20 @@ $Local:RequirmentLines
 $Local:CmdletBinding
 $Local:ParamBlock
 `$Global:CompiledScript = `$true;
-`$Global:EmbededModules = @{
-    $($Local:ModuleTable.GetEnumerator() | ForEach-Object {
+`$Global:EmbededModules = [ordered]@{
+    $($Local:ModuleTable.GetEnumerator() | Sort-Object Name | ForEach-Object {
         $Local:Key = $_.Key;
         $Local:Value = $_.Value;
     "`"$Local:Key`" = {
+        [CmdletBinding(SupportsShouldProcess)]
+        Param()
         $(Get-FilteredContent -Content $Local:Value | Join-String -Separator "`n`t`t")
     };"
     } | Join-String -Separator "```n`t")
 }
 $Local:ScriptBody
 $(if ($Local:InvokeMain) {
-    "(New-Module -ScriptBlock `$Global:EmbededModules['Environment.psm1'] -AsCustomObject).'Invoke-RunMain'(`$MyInvocation, $Local:InvokeMain);"
+    "(New-Module -ScriptBlock `$Global:EmbededModules['Environment.psm1'] -AsCustomObject -ArgumentList `$MyInvocation.BoundParameters).'Invoke-RunMain'(`$MyInvocation, $Local:InvokeMain);"
 })
 "@;
 
@@ -328,7 +437,6 @@ $(if ($Local:InvokeMain) {
 }
 
 Import-Module ./common/Environment.psm1;
-
 Invoke-RunMain $MyInvocation {
     [HashTable]$Local:ModuleTable = Get-ModuleDefinitions;
     [HashTable]$Local:ModuleRequirements = @{};
