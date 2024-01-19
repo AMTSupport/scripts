@@ -151,7 +151,7 @@ function Invoke-RunMain {
                     $Global:EmbededModules = $null;
                 } else {
                     $Local:ImportedModules | ForEach-Object {
-                        Remove-Module -FullyQualifiedName $_.FullName -Force;
+                        Remove-Module -Name $_.BaseName -Force;
                     }
                 }
 
