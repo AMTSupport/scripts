@@ -439,7 +439,7 @@ $(if ($Local:InvokeMain) {
     }
 }
 
-Import-Module ./common/Environment.psm1;
+Import-Module $PSScript/../src/common/Environment.psm1 -ErrorAction Stop;
 Invoke-RunMain $MyInvocation {
     [HashTable]$Local:ModuleTable = Get-ModuleDefinitions;
     [HashTable]$Local:ModuleRequirements = @{};
