@@ -24,7 +24,7 @@ function Enter-Scope(
         "Parameters: $Local:ParamsFormatted";
     } else { 'Parameters: None'; }
 
-    Write-Verbose "Entered Scope`n`t$ScopeName`n`t$ParamsFormatted";
+    Invoke-Verbose "Entered Scope`n`t$ScopeName`n`t$ParamsFormatted";
 }
 
 function Exit-Scope(
@@ -43,7 +43,7 @@ function Exit-Scope(
         [String]$Local:ReturnValueFormatted = "Return Value: $Local:FormattedValue";
     } else { [String]$Local:ReturnValueFormatted = 'Return Value: None'; };
 
-    Write-Verbose "Exited Scope`n`t$ScopeName`n`t$ReturnValueFormatted";
+    Invoke-Verbose "Exited Scope`n`t$ScopeName`n`t$ReturnValueFormatted";
 }
 
 Export-ModuleMember -Function Enter-Scope,Exit-Scope;

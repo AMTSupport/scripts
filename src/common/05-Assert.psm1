@@ -21,11 +21,11 @@ function Assert-NotNull(
 function Assert-Equals([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [Parameter(Mandatory)][Object]$Expected, [String]$Message) {
     if ($Object -ne $Expected) {
         if ($null -eq $Message) {
-            Write-Host -ForegroundColor Red -Object "Object [$Object] does not equal expected value [$Expected]";
+            Invoke-Error -Message "Object [$Object] does not equal expected value [$Expected]";
             Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
         }
         else {
-            Write-Host -ForegroundColor Red -Object $Message;
+            Invoke-Error -Message $Message;
             Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
         }
     }

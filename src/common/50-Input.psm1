@@ -84,8 +84,14 @@ function Get-UserSelection {
     )
 
     return Invoke-WithColour {
-        Write-Host -ForegroundColor DarkCyan $Title;
-        Write-Host -ForegroundColor DarkCyan "$($Question): " -NoNewline;
+        [HashTable]$Local:BaseFormat = @{
+            PSColour    = 'DarkCyan';
+            PSPrefix    = '▶';
+            ShouldWrite = $true;
+        };
+
+        Invoke-Write @Local:BaseFormat -PSMessage $Title;
+        Invoke-Write @Local:BaseFormat -PSMessage $Question;
 
         $Host.UI.RawUI.FlushInputBuffer();
         return $Host.UI.PromptForChoice('', '', $Choices, $DefaultChoice);
@@ -110,7 +116,7 @@ function Get-PopupSelection {
     while (-not $Local:Selection) {
         $Local:Selection = $Items | Out-GridView -Title $Title -PassThru;
         if ((-not $AllowNone) -and (-not $Local:Selection)) {
-            Write-Host "No Item was selected, re-running selection...";
+            Invoke-Info "No Item was selected, re-running selection...";
         }
     }
 

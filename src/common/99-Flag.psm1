@@ -95,7 +95,7 @@ function Get-FlagPath(
 
         [String]$Local:FlagFolder = "$($env:TEMP)\Flags";
         if (-not (Test-Path $Local:FlagFolder)) {
-            Write-Host "Creating flag folder $Local:FlagFolder...";
+            Invoke-Verbose "Creating flag folder $Local:FlagFolder...";
             New-Item -ItemType Directory -Path $Local:FlagFolder;
         }
 
