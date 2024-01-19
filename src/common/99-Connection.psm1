@@ -39,14 +39,14 @@ function Connect-Service(
         if ($Local:Connected) {
             if (!$DontConfirm) {
                 $Local:Continue = Get-UserConfirmation -Title "Already connected to $Local:Service as [$Local:Connected]" -Question 'Do you want to continue?' -DefaultChoice $true;
-                if (-not $Local:Continue) {
-                    return;
+                if ($Local:Continue) {
+                    continue;
                 }
 
                 Invoke-Verbose 'Continuing with current connection...';
             } else {
                 Invoke-Verbose "Already connected to $Local:Service. Skipping..."
-                return
+                continue
             }
         }
 
