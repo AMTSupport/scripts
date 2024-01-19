@@ -10,7 +10,7 @@ function Connect-Service(
     [Switch]$DontConfirm
 ) {
     foreach ($Local:Service in $Services) {
-        Info "Connecting to $Local:Service...";
+        Invoke-Info "Connecting to $Local:Service...";
 
         $Local:Connected = try {
             $ErrorActionPreference = 'SilentlyContinue'; # For some reason AzureAD loves to be noisy.
@@ -43,15 +43,15 @@ function Connect-Service(
                     return;
                 }
 
-                Verbose 'Continuing with current connection...';
+                Invoke-Verbose 'Continuing with current connection...';
             } else {
-                Verbose "Already connected to $Local:Service. Skipping..."
+                Invoke-Verbose "Already connected to $Local:Service. Skipping..."
                 return
             }
         }
 
         try {
-            Info "Getting credentials for $Local:Service...";
+            Invoke-Info "Getting credentials for $Local:Service...";
 
             switch ($Local:Service) {
                 'ExchangeOnline' {
