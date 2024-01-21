@@ -5,17 +5,19 @@ function Invoke-WithColour {
         [ScriptBlock]$ScriptBlock
     )
 
-    $Local:UI = $Host.UI.RawUI;
-    $Local:PrevForegroundColour = $Local:UI.ForegroundColor;
-    $Local:PrevBackgroundColour = $Local:UI.BackgroundColor;
+    try {
+        $Local:UI = $Host.UI.RawUI;
+        $Local:PrevForegroundColour = $Local:UI.ForegroundColor;
+        $Local:PrevBackgroundColour = $Local:UI.BackgroundColor;
 
-    $Local:UI.ForegroundColor = 'Yellow';
-    $Local:UI.BackgroundColor = 'Black';
+        $Local:UI.ForegroundColor = 'Yellow';
+        $Local:UI.BackgroundColor = 'Black';
 
-    $Local:Return = & $ScriptBlock
-
-    $Local:UI.ForegroundColor = $Local:PrevForegroundColour;
-    $Local:UI.BackgroundColor = $Local:PrevBackgroundColour;
+        $Local:Return = & $ScriptBlock
+    } finally {
+        $Local:UI.ForegroundColor = $Local:PrevForegroundColour;
+        $Local:UI.BackgroundColor = $Local:PrevBackgroundColour;
+    }
 
     return $Local:Return;
 }
