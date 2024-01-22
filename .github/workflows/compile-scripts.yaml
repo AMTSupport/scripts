@@ -19,7 +19,6 @@ jobs:
       run: ./utils/Invoke-CompileAllScripts.ps1
 
     - name: Commit Compiled Scripts
-      if: steps.compile.outcome == 'success'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
