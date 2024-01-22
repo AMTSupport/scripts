@@ -32,9 +32,14 @@ function Invoke-EnsureDirectoryStructure {
     [String]$RelativePath = $CurrentPath.Substring((Get-Item $SourcePath).FullName.Length).TrimStart('\');
     [String]$Local:TargetPath = Join-Path $TargetBasePath $Local:RelativePath;
 
-    Invoke-Info "Creating directory structure for $($Local:TargetPath)";
+    while (-not (Test-Path -Path $Local:TargetPath)) {
+        Invoke-Info "Creating Parent Directory $Local:TargetPath";
+        New-Item -ItemType Directory -Path $Local:TargetPath | Out-Null;
+        [String]$Local:TargetPath = Split-Path -Path $Local:TargetPath -Parent;
+    }
 
     if (-not (Test-Path -Path $Local:TargetPath)) {
+        Invoke-Info "Creating Directory $Local:TargetPath";
         New-Item -ItemType Directory -Path $Local:TargetPath | Out-Null;
     }
 }
@@ -51,15 +56,13 @@ Invoke-RunMain $MyInvocation {
             continue;
         }
 
-        if (-not (Test-Path -Path $Local:Item.DirectoryName)) {
-            Invoke-EnsureDirectoryStructure -SourcePath $SourceDir -TargetBasePath $OutputDir -CurrentPath $Local:Item.FullName;
-        }
-
         Invoke-Info "Compiling $($Local:Item.FullName)";
+
         # Get the relative path of the file
         [String]$Local:RelativePath = $Local:Item.DirectoryName.Substring((Get-Item $SourceDir).FullName.Length).TrimStart('\');
         [String]$Local:OutputFolderPath = Join-Path $OutputDir $Local:RelativePath;
 
+        Invoke-EnsureDirectoryStructure -SourcePath $SourceDir -TargetBasePath $OutputDir -CurrentPath ($Local:Item.FullName | Split-Path -Parent);
         & "${CompilerScript}" -CompileScripts "$($Local:Item.FullName)" -Output "${Local:OutputFolderPath}" -Force -InnerInvocation | Out-Null;
     }
 }
