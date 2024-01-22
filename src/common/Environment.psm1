@@ -42,7 +42,13 @@ function Invoke-RunMain {
 
         [Parameter(Mandatory)]
         [ValidateNotNull()]
-        [ScriptBlock]$Main
+        [ScriptBlock]$Main,
+
+        [Parameter(DontShow)]
+        [Switch]$DontImport,
+
+        [Parameter(DontShow)]
+        [Switch]$HideDisclaimer
     )
 
     # Workaround for embedding modules in a script, can't use Invoke if a scriptblock contains begin/process/clean blocks
@@ -54,7 +60,13 @@ function Invoke-RunMain {
 
             [Parameter(Mandatory)]
             [ValidateNotNull()]
-            [ScriptBlock]$Main
+            [ScriptBlock]$Main,
+
+            [Parameter(DontShow)]
+            [Switch]$DontImport,
+
+            [Parameter(DontShow)]
+            [Switch]$HideDisclaimer
         )
 
         begin {
@@ -70,7 +82,14 @@ function Invoke-RunMain {
             $Local:PreviousEncoding = [Console]::InputEncoding, [Console]::OutputEncoding;
             $OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding;
 
-            Write-Host -ForegroundColor Yellow -Object '⚠️ Disclaimer: This script is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
+            if (-not $HideDisclaimer) {
+                Write-Host -ForegroundColor Yellow -Object '⚠️ Disclaimer: This script is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
+            }
+
+            if ($Local:DontImport) {
+                Write-Verbose -Message '♻️ Skipping module import.';
+                return;
+            }
 
             $Local:ImportedModules = [System.Collections.Generic.List[String]]::new();
             if ($Global:CompiledScript) {
@@ -139,19 +158,22 @@ function Invoke-RunMain {
                     $Local:ImportedModules.Count, $Local:ImportedModules
                 };
 
-                Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Local:ModuleCount) imported modules.";
-                Invoke-Verbose -Prefix '✅' -Message "Removing modules: `n`t$($Local:ModuleNames -join "`n`t")";
+                if (-not $Local:DontImport) {
+                    Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Local:ModuleCount) imported modules.";
+                    Invoke-Verbose -Prefix '✅' -Message "Removing modules: `n`t$($Local:ModuleNames -join "`n`t")";
 
-                if ($Global:CompiledScript) {
-                    $Local:ImportedModules.Keys | ForEach-Object {
-                        Remove-Module -Name $_ -Force;
-                    };
+                    if ($Global:CompiledScript) {
+                        $Local:ImportedModules.Keys | ForEach-Object {
+                            Remove-Module -Name $_ -Force;
+                        };
 
-                    $Global:CompiledScript = $null;
-                    $Global:EmbededModules = $null;
-                } else {
-                    $Local:ImportedModules | ForEach-Object {
-                        Remove-Module -Name $_.BaseName -Force;
+                        $Global:CompiledScript = $null;
+                        $Global:EmbededModules = $null;
+                    }
+                    else {
+                        $Local:ImportedModules | ForEach-Object {
+                            Remove-Module -Name $_.BaseName -Force;
+                        }
                     }
                 }
 
@@ -163,7 +185,7 @@ function Invoke-RunMain {
     [Boolean]$Local:Verbose = Get-OrFalse $Invocation.BoundParameters 'Verbose';
     [Boolean]$Local:Debug = Get-OrFalse $Invocation.BoundParameters 'Debug';
 
-    Invoke-Inner -Invocation $Invocation -Main $Main -Verbose:$Local:Verbose -Debug:$Local:Debug;
+    Invoke-Inner -Invocation $Invocation -Main $Main -DontImport:$DontImport -HideDisclaimer:$HideDisclaimer -Verbose:$Local:Verbose -Debug:$Local:Debug;
 }
 
 Export-ModuleMember -Function Invoke-RunMain;
