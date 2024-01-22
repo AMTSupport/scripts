@@ -1,3 +1,5 @@
+#Requires -Version 7.1
+
 [CmdletBinding(SupportsShouldProcess)]
 param (
     [Parameter(HelpMessage='This directory to source scripts from.')]
