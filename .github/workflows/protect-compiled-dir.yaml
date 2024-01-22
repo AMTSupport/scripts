@@ -1,0 +1,38 @@
+name: Protect Compiled Directory
+
+on: [pull_request, push]
+
+jobs:
+  check-modifications:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v2
+
+    - name: Check for Changes in 'compiled' Directory
+      run: |
+        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep 'compiled/'; then
+          echo "Manual changes to 'compiled' directory are not allowed."
+          exit 1
+        fi
+    #     git fetch --depth=1 origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+    #     git diff --name-only ${{ github.base_ref }} -- compiled/
+    #     if [ $? -eq 0 ]; then
+    #       echo "Compiled directory has changed."
+    #       exit 1
+    #     else
+    #       echo "Compiled directory has not changed."
+    #       exit 0
+    #     fi
+
+    # - name: Check that the 'compiled' Directory only contains commits from Github Actions
+    #   run: |
+    #     git fetch --depth=1 origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+    #     git log --pretty=format:"%an" ${{ github.base_ref }} -- compiled/
+    #     if [ $? -eq 0 ]; then
+    #       echo "Compiled directory contains commits from Github Actions."
+    #       exit 0
+    #     else
+    #       echo "Compiled directory contains commits from other sources."
+    #       exit 1
+    #     fi

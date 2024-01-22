@@ -12,12 +12,12 @@ Param(
     [Parameter(HelpMessage="The folders or files to search for modules to merge into the target script.")]
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Module folder does not exist: {0}")]
     [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Module folder is not a folder: {0}")]
-    [String[]]$Modules = @($PSScriptRoot + '\common'),
+    [String[]]$Modules = @("$PSScriptRoot\..\src\common"),
 
     [Parameter(HelpMessage="The root folder to search for modules to merge into the target script.")]
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Module root folder does not exist: {0}")]
     [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Module root folder is not a folder: {0}")]
-    [String]$ModuleRoot = $PSScriptRoot,
+    [String]$ModuleRoot = "$PSScriptRoot\..\src",
 
     [Parameter(HelpMessage="The folder to write the merged version of the target script to, if not specified the merged version will be written to the console.")]
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Output file path is invalid: {0}")]
@@ -25,7 +25,10 @@ Param(
     [String]$Output,
 
     [Parameter(HelpMessage="If specified, the output file will be overwritten if it already exists.")]
-    [Switch]$Force
+    [Switch]$Force,
+
+    [Parameter(DontShow, HelpMessage="If this was ran from within another script.")]
+    [Switch]$InnerInvocation
 )
 
 function Find-StartToEndBlock(
@@ -439,8 +442,11 @@ $(if ($Local:InvokeMain) {
     }
 }
 
-Import-Module $PSScript/../src/common/Environment.psm1 -ErrorAction Stop;
-Invoke-RunMain $MyInvocation {
+if (-not $InnerInvocation) {
+    Import-Module $PSScriptRoot/../src/common/Environment.psm1 -ErrorAction Stop;
+}
+
+Invoke-RunMain $MyInvocation -DontImport:$InnerInvocation -HideDisclaimer:$InnerInvocation {
     [HashTable]$Local:ModuleTable = Get-ModuleDefinitions;
     [HashTable]$Local:ModuleRequirements = @{};
     $Local:ModuleTable.GetEnumerator() | ForEach-Object {
