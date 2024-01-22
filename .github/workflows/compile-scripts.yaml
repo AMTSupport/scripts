@@ -3,7 +3,7 @@ name: Compile PowerShell Scripts
 on:
   push:
     branches: [ master ]
-    paths: [ 'src/**', '.github/workflows/compile-scripts.yaml' ]
+    paths: [ 'src/**', 'utils/**', '.github/workflows/compile-scripts.yaml' ]
 
 jobs:
   compile:
