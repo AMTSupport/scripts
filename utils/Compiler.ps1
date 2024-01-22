@@ -1,4 +1,4 @@
-#Requires -Version 7.3
+#Requires -Version 7.1
 
 Using namespace System.Management.Automation.Language;
 
