@@ -1,0 +1,28 @@
+name: Compile PowerShell Scripts
+
+on:
+  push:
+    branches: [ master ]
+    paths: [ 'src/**' ]
+
+jobs:
+  compile:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Compile Scripts
+      run: ./utils/Invoke-CompileAllScripts.ps1
+
+    - name: Commit Compiled Scripts
+      if: steps.compile.outcome == 'success'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add ./compiled/
+        git commit -m "Compile scripts" -a || echo "No changes to commit"
+        git push
