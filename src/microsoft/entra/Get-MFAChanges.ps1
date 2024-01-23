@@ -1,292 +1,61 @@
 #Requires -Version 5.1
 
+[CmdletBinding(SupportsShouldProcess)]
 Param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory)]
     [String]$Client,
 
-    [String]$SharedFolder = "AMT",
-    [String]$ReportsFolder = "Monthly Report",
-    [String]$ExcelFileName = "MFA Numbers.xlsx",
-    [String]$ClientsFolder = "$env:USERPROFILE\$SharedFolder\Clients - Documents"
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [String]$ClientsFolder,
+
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [String]$ExcelFileName = "MFA Numbers.xlsx"
 )
 
-#region - Error Codes
-
-$Script:NULL_ARGUMENT = 1000;
-$Script:FAILED_EXPECTED_VALUE = 1004;
-
-#endregion - Error Codes
-
-#region - Utility Functions
-
-function Assert-NotNull([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [String]$Message) {
-    if ($null -eq $Object -or $Object -eq '') {
-        if ($null -eq $Message) {
-            Write-Host -ForegroundColor Red -Object 'Object is null';
-            Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
-        } else {
-            Write-Host -ForegroundColor Red -Object $Message;
-            Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
-        }
-    }
-}
-
-function Assert-Equals([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [Parameter(Mandatory)][Object]$Expected, [String]$Message) {
-    if ($Object -ne $Expected) {
-        if ($null -eq $Message) {
-            Write-Host -ForegroundColor Red -Object "Object [$Object] does not equal expected value [$Expected]";
-            Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
-        } else {
-            Write-Host -ForegroundColor Red -Object $Message;
-            Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
-        }
-    }
-}
-
-function Get-ScopeFormatted([Parameter(Mandatory)][System.Management.Automation.InvocationInfo]$Invocation) {
-    $Invocation | Assert-NotNull -Message 'Invocation was null';
-
-    [String]$ScopeName = $Invocation.MyCommand.Name;
-    [String]$ScopeName = if ($null -ne $ScopeName) { "Scope: $ScopeName" } else { 'Scope: Unknown' };
-    $ScopeName
-}
-
-function Enter-Scope([Parameter(Mandatory)][System.Management.Automation.InvocationInfo]$Invocation) {
-    $Invocation | Assert-NotNull -Message 'Invocation was null';
-
-    [String]$Local:ScopeName = Get-ScopeFormatted -Invocation $Invocation;
-    $Local:Params = $Invocation.BoundParameters
-    if ($null -ne $Params -and $Params.Count -gt 0) {
-        [String[]]$ParamsFormatted = $Params.GetEnumerator() | ForEach-Object { "$($_.Key) = $($_.Value)" };
-        if ($PSVersionTable.PSVersion.Major -ge 6 -and $PSVersionTable.PSVersion.Minor -ge 2) {
-            $Local:ParamsFormatted = $Local:ParamsFormatted | Join-String -Separator "`n`t";
-        } else {
-            $Local:ParamsFormatted = $Split -join "`n`t";
-        }
-
-        $Local:ParamsFormatted = "Parameters: $Local:ParamsFormatted";
-    } else {
-        [String]$Local:ParamsFormatted = 'Parameters: None';
-    }
-
-    Write-Verbose "Entered Scope`n`t$ScopeName`n`t$ParamsFormatted";
-}
-
-function Exit-Scope([Parameter(Mandatory)][System.Management.Automation.InvocationInfo]$Invocation, [Object]$ReturnValue) {
-    $Invocation | Assert-NotNull -Message 'Invocation was null';
-
-    [String]$Local:ScopeName = Get-ScopeFormatted -Invocation $Invocation;
-    [String]$Local:ReturnValueFormatted = if ($null -ne $ReturnValue) {
-        [String]$Local:FormattedValue = switch ($ReturnValue) {
-            { $_ -is [System.Collections.Hashtable] } { "`n`t$(([HashTable]$ReturnValue).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n`t")" }
-            default { $ReturnValue }
-        }
-
-        "Return Value: $Local:FormattedValue"
-    } else { 'Return Value: None' };
-
-    Write-Verbose "Exited Scope`n`t$ScopeName`n`t$ReturnValueFormatted";
-}
-
-function Get-PromptInput {
-    Param(
-        [Parameter(Mandatory = $true)]
-        [String]$title,
-
-        [Parameter(Mandatory = $true)]
-        [String]$question
-    )
-
-    $Host.UI.RawUI.ForegroundColor = 'Yellow'
-    $Host.UI.RawUI.BackgroundColor = 'Black'
-
-    Write-Host $title
-    Write-Host "$($question): " -NoNewline
-
-    $Host.UI.RawUI.FlushInputBuffer();
-    $userInput = $Host.UI.ReadLine()
-
-    $Host.UI.RawUI.ForegroundColor = 'White'
-    $Host.UI.RawUI.BackgroundColor = 'Black'
-    return $userInput
-}
-
-function Prompt-Confirmation {
-    Param(
-        [Parameter(Mandatory = $true)]
-        [String]$title,
-
-        [Parameter(Mandatory = $true)]
-        [String]$question,
-
-        [Parameter(Mandatory = $true)]
-        [bool]$defaultChoice
-    )
-    $DefaultChoice = if ($defaultChoice) { 0 } else { 1 }
-    $Result = Prompt-Selection -title $title -question $question -choices @('&Yes', '&No') -defaultChoice $defaultChoice
-    switch ($Result) {
-        0 { $true }
-        Default { $false }
-    }
-}
-
-function Prompt-Selection {
-    Param(
-        [Parameter(Mandatory = $true)]
-        [String]$title,
-
-        [Parameter(Mandatory = $true)]
-        [String]$question,
-
-        [Parameter(Mandatory = $true)]
-        [Array]$choices,
-
-        [Parameter(Mandatory = $true)]
-        [Int]$defaultChoice
-    )
-
-    $Host.UI.RawUI.ForegroundColor = 'Yellow'
-    $Host.UI.RawUI.BackgroundColor = 'Black'
-    $decision = $Host.UI.PromptForChoice($title, $question, $choices, $defaultChoice)
-    $Host.UI.RawUI.ForegroundColor = 'White'
-    $Host.UI.RawUI.BackgroundColor = 'Black'
-    return $decision
-}
-
-function Import-DownloadableModule([String]$Name) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
-        if ($null -eq $Module) {
-            Write-Host "Downloading module $Name..."
-            Install-PackageProvider -Name NuGet -Confirm:$false
-            Install-Module -Name $Name -Scope CurrentUser -Confirm:$false -Force
-            $Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name }
-        }
-
-        Import-Module $Module
-    }
-
-    end { Exit-Scope $MyInvocation }
-}
-
-function Invoke-FailedExit([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Int]$ExitCode, [System.Management.Automation.ErrorRecord]$ErrorRecord) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-
-    process {
-        If ($null -ne $ErrorRecord) {
-            [System.Management.Automation.InvocationInfo]$Local:InvocationInfo = $ErrorRecord.InvocationInfo;
-            $Local:InvocationInfo | Assert-NotNull -Message 'Invocation info was null, how am i meant to find error now??';
-
-            [System.Exception]$Local:RootCause = $ErrorRecord.Exception;
-            while ($null -ne $Local:RootCause.InnerException) {
-                $Local:RootCause = $Local:RootCause.InnerException;
-            }
-
-            Write-Host -ForegroundColor Red $Local:InvocationInfo.PositionMessage;
-            Write-Host -ForegroundColor Red $Local:RootCause.Message;
-        }
-
-        Exit $ExitCode;
-    }
-}
-
-function Invoke-QuickExit {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-
-    process {
-        Remove-RunningFlag;
-
-        Write-Host -ForegroundColor Red 'Exiting...';
-        Exit 0;
-    }
-}
-
-#endregion - Utility Functions
+$Script:Columns = @{
+    DisplayName = 1;
+    Email = 2;
+    Phone = 3;
+};
 
 # Section Start - Main Functions
 
-function Invoke-SetupEnvironment {
+function Invoke-SetupEnvironment(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [String]$Client,
+
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [String]$ClientsFolder,
+
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [String]$ExcelFileName
+) {
     begin { Enter-Scope -Invocation $MyInvocation; }
     end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
-        $ErrorActionPreference = "Stop";
+        Invoke-EnsureUser;
+        Invoke-EnsureModules -Modules @('AzureAD', 'MSOnline', 'ImportExcel');
 
-        # Check that the script is not running as admin
-        # TODO - This will probably fail is not joined to a domain
-        $curUser = [Security.Principal.WindowsIdentity]::GetCurrent().name.split('\')[1]
-        if ($curUser -eq 'localadmin') {
-            Write-Error "Please run this script as your normal user account, not as an administrator."
-            exit 1000
-        }
-
-        # Check that all required modules are installed
-        foreach ($module in @('AzureAD', 'MSOnline', 'ImportExcel')) {
-            if (Get-Module -ListAvailable $module -ErrorAction SilentlyContinue) {
-                Write-Host -ForegroundColor Cyan "Module $module found"
-            } elseif (Prompt-Confirmation "Module $module not found" "Would you like to install it now?" $true) {
-                Install-Module $module -AllowClobber -Scope CurrentUser
-            } else {
-                Write-Error "Module $module not found; please install it using ```nInstall-Module $module -Force``"
-                exit 1001
-            }
-
-            Import-Module -Name $module
-        }
-
-        $ClientFolder = Get-ChildItem "$ClientsFolder\$Client*"
-        if ($ClientFolder.Count -gt 1) {
-            Write-Error "Multiple client folders found; please specify the full client name."
-            exit 1003
-        } elseif ($ClientFolder.Count -eq 0) {
-            Write-Error "Client $Client not found; please check the spelling and try again."
-            exit 1003
-        } else {
-            $Client = $ClientFolder | Select-Object -ExpandProperty Name
-        }
+        Connect-Service -Services 'Msol', 'AzureAD';
 
         # Get the first client folder that exists
-        $ReportFolder = "$ClientFolder\$ReportsFolder"
-        $script:ExcelFile = "$ReportFolder\$ExcelFileName"
+        $Local:ReportFolder = "$ClientFolder/Monthly Report"
+        $Script:ExcelFile = "$Local:ReportFolder/$ExcelFileName"
 
-        if ((Test-Path $ReportFolder) -eq $false) {
-            Write-Host -ForegroundColor Cyan "Report folder not found; creating $ReportFolder"
-            New-Item -Path $ReportFolder -ItemType Directory | Out-Null
+        if ((Test-Path $Local:ReportFolder) -eq $false) {
+            Invoke-Info -ForegroundColor Cyan "Report folder not found; creating $Local:ReportFolder";
+            New-Item -Path $Local:ReportFolder -ItemType Directory | Out-Null;
         }
 
-        if (Test-Path $ExcelFile) {
-            Write-Host -ForegroundColor Cyan "Excel file found; creating backup $ExcelFile.bak"
-            Copy-Item -Path $ExcelFile -Destination "$ExcelFile.bak" -Force
-        }
-
-        try {
-            $AzureAD = Get-AzureADCurrentSessionInfo -ErrorAction Stop
-            $Continue = Prompt-Confirmation "AzureAD connection found" "It looks like you are already connected to AzureAD as $($AzureAD.Account). Would you like to continue?" $true
-            if ($Continue -eq $false) { throw } else { Write-Host -ForegroundColor Cyan "Continuing with existing connection" }
-        } catch {
-            try {
-                Connect-AzureAD -ErrorAction Stop
-            } catch {
-                Write-Error "Failed to connect to AzureAD"
-                exit 1002
-            }
-        }
-
-        try {
-            $CurrentCompany = Get-MsolCompanyInformation -ErrorAction Stop | Select-Object -Property DisplayName
-            $Continue = Prompt-Confirmation "MSOL connection found" "It looks like you are already connected to MSOL as $($CurrentCompany.DisplayName). Would you like to continue?" $true
-            if ($Continue -eq $false) { throw } else { Write-Host -ForegroundColor Cyan "Continuing with existing connection" }
-        } catch {
-            try {
-                Connect-MsolService -ErrorAction Stop
-            } catch {
-                Write-Error "Failed to connect to MSOL"
-                exit 1002
-            }
+        if (Test-Path $Script:ExcelFile) {
+            Invoke-Info "Excel file found; creating backup $Script:ExcelFile.bak";
+            Copy-Item -Path $Script:ExcelFile -Destination "$Script:ExcelFile.bak" -Force;
         }
     }
 }
@@ -335,7 +104,7 @@ function Get-Excel {
             try {
                 Import-Excel $script:ExcelFile
             } catch {
-                Write-Error "Failed to import Excel file."
+                Invoke-Error "Failed to import Excel file.";
 
                 $Message = $_.Exception.Message
                 $WriteMessage = switch -Regex ($Message) {
@@ -347,7 +116,8 @@ function Get-Excel {
                     }
                     default { "Unknown error; Please examine the error message and try again" }
                 }
-                Write-Error $WriteMessage
+
+                Invoke-Error $WriteMessage
 
                 exit 1004
             }
@@ -373,7 +143,7 @@ function Get-EmailToCell([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Office
         [Int]$Local:SheetRows = $WorkSheet.Dimension.Rows;
         # If null or less than 2 rows, there is no pre-existing data.
         If ($null -eq $Local:SheetRows -or $Local:SheetRows -lt 2) {
-            Write-Host -ForegroundColor Cyan "No data found in worksheet $($WorkSheet.Name)";
+            Invoke-Info "No data found in worksheet $($WorkSheet.Name)";
             return @{};
         }
 
@@ -513,57 +283,139 @@ function Invoke-CleanupWorksheet(
     end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
-        $Rows = $WorkSheet.Dimension.Rows
-        if ($null -ne $Rows -and $Rows -ge 2) {
+        [Int]$Local:Rows = $WorkSheet.Dimension.Rows
+        if ($null -ne $Local:Rows -and $Local:Rows -ge 2) {
             # Start from 2 because the first row is the header
-            $RemovedRows = 0
-            $VisitiedEmails = New-Object System.Collections.Generic.List[String]
-            foreach ($RowIndex in 2..$WorkSheet.Dimension.Rows) {
-                $RowIndex = $RowIndex - $RemovedRows
-                $Email = $WorkSheet.Cells[$RowIndex, 2].Value
+            [Int]$Local:RemovedRows = 0;
+            [System.Collections.Generic.List[String]]$Local:VisitiedEmails = New-Object System.Collections.Generic.List[String];
 
-                Write-Host -ForegroundColor Cyan "Processing row $RowIndex with email '$Email'"
+            foreach ($Local:RowIndex in 2..$Local:Rows) {
+                [Int]$Local:RowIndex = $Local:RowIndex - $Local:RemovedRows;
+                [String]$Local:Email = $WorkSheet.Cells[$Local:RowIndex, $Script:Columns.Email].Value;
 
                 # Remove any empty rows between actual data
-                if ($null -eq $Email) {
-                    Write-Host -ForegroundColor Cyan "Removing row $RowIndex because email is empty."
-                    $WorkSheet.DeleteRow($RowIndex)
-                    $RemovedRows++
-                    continue
+                if ($null -eq $Local:Email) {
+                    Invoke-Info "Removing row $Local:RowIndex because email is empty.";
+                    $WorkSheet.DeleteRow($RowIndex);
+                    $Local:RemovedRows++;
+                    continue;
                 }
 
                 if ($DuplicateCheck) {
-                    Write-Host -ForegroundColor Cyan "Checking for duplicate email '$Email'"
+                    Invoke-Info "Checking for duplicate email '$Local:Email'";
 
-                    if (!$VisitiedEmails.Contains($Email)) {
-                        Write-Host -ForegroundColor Cyan "Adding email '$Email' to the list of visited emails"
-                        $VisitiedEmails.Add($Email)
-                        continue
+                    if (!$Local:VisitiedEmails.Contains($Local:Email)) {
+                        Invoke-Info "Adding email '$Local:Email' to the list of visited emails";
+                        $Local:VisitiedEmails.Add($Local:Email);
+                        continue;
                     }
 
-                    Write-Host -ForegroundColor Cyan "Duplicate email '$Email' found at virtual row $RowIndex (Offset by $($RemovedRows + 2))"
+                    Invoke-Info "Duplicate email '$Local:Email' found at virtual row $Local:RowIndex (Offset by $($Local:RemovedRows + 2))";
 
-                    $AdditionalRealIndex = $RowIndex + $RemovedRows
-                    $ExistingRealIndex = $VisitiedEmails.IndexOf($Email) + 2 + $RemovedRows
-                    $Question = "Duplicate email found at row $AdditionalRealIndex`nThe email '$Email' was first seen at row $ExistingRealIndex.`nPlease select which row you would like to keep, or enter 'b' to break and manually review the file."
-                    $Selection = Prompt-Selection "Duplicate Email" $Question @("&Existing", "&New", "&Break") 0
-                    $RemovingRow = switch ($Selection) {
+                    [Int]$Local:AdditionalRealIndex = $Local:RowIndex + $Local:RemovedRows;
+                    [Int]$Local:ExistingRealIndex = $Local:VisitiedEmails.IndexOf($Local:Email) + 2 + $Local:RemovedRows;
+
+                    # TODO :: FIXME
+                    if ($False) {
+                        function Get-RowColumns([Int]$RowIndex) {
+                            $Local:ColumnRange = 1..$WorkSheet.Dimension.Columns;
+                            [String[]]$Local:Row = $Local:ColumnRange | ForEach-Object { $WorkSheet.Cells[$RowIndex, $_].Text };
+
+                            $Local:Row;
+                        }
+
+                        function Invoke-FormattedRows([Int[]]$RowIndexes) {
+                            [String[]]$Local:Rows = $RowIndexes | ForEach-Object { Get-RowColumns $_ };
+
+                            Invoke-Info "Formatting rows: $($Local:Rows -join ', ')";
+
+                            [HashTable]$Local:LongestColumns = @{};
+                            $Rows | ForEach-Object {
+                                [String[]]$Local:Row = $_;
+                                [Int]$Local:Index = -1;
+
+                                $Local:Row | ForEach-Object {
+                                    [Int]$Local:Index++;
+                                    [String]$Local:Value = $_;
+                                    [Int]$Local:ValueLength = $Local:Value.Length;
+
+                                    [Int]$Local:CurrentLongest = $Local:LongestColumns[$Local:Index];
+                                    If ($null -eq $Local:CurrentLongest -or $Local:CurrentLongest -lt $Local:ValueLength) {
+                                        $Local:LongestColumns[$Local:Index] = $Local:ValueLength;
+                                    }
+                                }
+                            }
+
+                            Invoke-Info "Longest columns: $($Local:LongestColumns.Values | ForEach-Object { $_ })";
+
+                            [Int]$Local:TerminalWidth = $Host.UI.RawUI.BufferSize.Width;
+                            [Int]$Local:MustIncludeLength = $Local:LongestColumns[0] + $Local:LongestColumns[1] + $Local:LongestColumns[2];
+                            [Int]$Local:MaxColumnLength = $Local:TerminalWidth - $Local:MustIncludeLength;
+
+                            Invoke-Info "Terminal width: $Local:TerminalWidth";
+                            Invoke-Info "Must include length: $Local:MustIncludeLength";
+                            Invoke-Info "Max column length: $Local:MaxColumnLength";
+
+                            # Starting collecting the columns from the end of the array, if the combined length of the columns is greater than our max length, stop collecting.
+                            [Int]$Local:CollectingColumns = $Local:LongestColumns.Count - 1;
+                            [Int]$Local:CurrentLength = 0;
+                            while ($Local:CollectingColumns -ge 0) {
+                                [Int]$Local:CurrentLength += $Local:LongestColumns[$Local:CollectingColumns];
+                                If ($Local:CurrentLength -gt $Local:MaxColumnLength) {
+                                    break;
+                                }
+
+                                $Local:CollectingColumns--;
+                            }
+
+                            # With the columns we want to display, we can now format the rows.
+                            [String[]]$Local:Lines = "";
+                            $Rows | ForEach-Object {
+                                [String[]]$Local:Row = $_;
+                                for ($Local:Index = $Local:CurrentLongest - 1; $Local:Index -le ($Local:LongestColumns.Count - 1); $Local:Index++) {
+                                    [String]$Local:Value = $Local:Row[$Local:Index];
+                                    [Int]$Local:ValueLength = $Local:Value.Length;
+
+                                    [Int]$Local:Padding = $Local:LongestColumns[$Local:Index] - $Local:ValueLength;
+                                    [String]$Local:PaddingString = ' ' * $Local:Padding;
+
+                                    "$Local:Value$Local:PaddingString";
+                                }
+
+                                $Local:Lines += ($Local:Columns -join ' | ');
+                            }
+
+                            $Local:Lines -join "`n";
+                        }
+
+                        # $(Invoke-FormattedRows 1,$Local:VisitiedEmails.IndexOf($Local:Email),$Local:RowIndex);
+                    }
+
+                    [Int]$Local:Selection = Get-UserSelection `
+                        -Title "Duplicate email found at row $Local:AdditionalRealIndex." `
+                        -Question @"
+The email '$Local:Email' was first seen at row $Local:ExistingRealIndex.
+Please select which row you would like to keep, or enter 'b' to exit and manually review the file.
+"@ `
+                        -Choices @('&Existing', '&New', '&Break') -DefaultChoice 0;
+
+                    $Local:RemovingRow = switch ($Local:Selection) {
                         0 { $RowIndex }
                         1 {
-                            $ExistingIndex = $VisitiedEmails.IndexOf($Email)
-                            $VisitiedEmails.Remove($Email)
-                            $VisitiedEmails.Add($Email)
-                            $ExistingIndex
+                            $Local:ExistingIndex = $Local:VisitiedEmails.IndexOf($Local:Email);
+                            $Local:VisitiedEmails.Remove($Local:Email);
+                            $Local:VisitiedEmails.Add($Local:Email);
+                            $Local:ExistingIndex;
                         }
                         default {
-                            Write-Error "Please manually review and remove the duplicate email that exists at rows $ExistingRealIndex and $AdditionalRealIndex"
+                            Invoke-Error "Please manually review and remove the duplicate email that exists at rows $Local:ExistingRealIndex and $Local:AdditionalRealIndex"
                             Exit 1010
                         }
                     }
 
-                    Write-Host -ForegroundColor Cyan "Removing row $RemovingRow "
-                    $WorkSheet.DeleteRow($RemovingRow)
-                    $RemovedRows++
+                    Invoke-Info "Removing row $Local:RemovingRow";
+                    $WorkSheet.DeleteRow($RemovingRow);
+                    $Local:RemovedRows++;
                 }
             }
         }
@@ -926,59 +778,92 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
 
     process {
         if ($ExcelData.Workbook.Worksheets.Count -gt 2) {
-            Write-Host -ForegroundColor Cyan "Removing $($ExcelData.Workbook.Worksheets.Count - 2) worksheets"
+            Invoke-Info "Removing $($ExcelData.Workbook.Worksheets.Count - 2) worksheets";
             foreach ($Index in 3..$ExcelData.Workbook.Worksheets.Count) {
                 $ExcelData.Workbook.Worksheets.Delete(3)
             }
         }
 
-        Close-ExcelPackage $ExcelData -Show #-SaveAs "$ExcelFile.new.xlsx"
+        Close-ExcelPackage $ExcelData -Show; #-SaveAs "$ExcelFile.new.xlsx";
     }
 
     end { Exit-Scope $MyInvocation }
 }
 
-function Main {
-    begin { Enter-Scope -Invocation $MyInvocation; }
+Import-Module $PSScriptRoot/../../common/Environment.psm1;
+Invoke-RunMain $MyInvocation {
+    if (-not $ClientsFolder) {
+        $Local:PossiblePaths = @(
+            "$env:USERPROFILE\AMT\Clients - Documents",
+            "$env:USERPROFILE\OneDrive - AMT\Documents - Clients"
+        );
 
-    process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while running main";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
+        foreach ($Local:Path in $Local:PossiblePaths) {
+            if (Test-Path $Local:Path) {
+                $Local:ClientsFolder = $Local:Path;
+                break;
+            }
+        }
 
-        Invoke-SetupEnvironment;
-
-        [PSCustomObject[]]$Local:NewData = Get-CurrentData;
-        [OfficeOpenXml.ExcelPackage]$Local:ExcelData = Get-Excel;
-
-        [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = Get-ActiveWorkSheet -ExcelData $Local:ExcelData;
-        [OfficeOpenXml.ExcelWorksheet]$Local:HistoryWorkSheet = Get-HistoryWorkSheet -ExcelData $Local:ExcelData;
-        $Local:ActiveWorkSheet | Assert-NotNull -Message 'ActiveWorkSheet was null';
-        $Local:HistoryWorkSheet | Assert-NotNull -Message 'HistoryWorkSheet was null';
-
-        Invoke-CleanupWorksheet -WorkSheet $Local:ActiveWorkSheet -DuplicateCheck;
-        Invoke-CleanupWorksheet -WorkSheet $Local:HistoryWorkSheet;
-
-        Update-History -HistoryWorkSheet $Local:HistoryWorkSheet -ActiveWorkSheet $Local:ActiveWorkSheet;
-
-        Remove-Users -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet;
-        Add-Users -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet;
-
-        Update-Data -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet -AddNewData;
-        Update-Data -NewData $Local:NewData -WorkSheet $Local:HistoryWorkSheet;
-
-        Invoke-OrderUsers -WorkSheet $Local:ActiveWorkSheet;
-        Invoke-OrderUsers -WorkSheet $Local:HistoryWorkSheet;
-
-        Set-Check -WorkSheet $Local:ActiveWorkSheet
-
-        @($Local:ActiveWorkSheet, $Local:HistoryWorkSheet) | ForEach-Object { Set-Styles -WorkSheet $_ }
-
-        Save-Excel -ExcelData $Local:ExcelData
+        if (-not $Local:ClientsFolder) {
+            Invoke-Error 'Unable to find shared folder; please specify the full path to the shared folder.';
+            return
+        } else {
+            Invoke-Info "Clients folder found at $Local:ClientsFolder";
+        }
     }
 
-    end { Exit-Scope $MyInvocation }
-}
+    $Local:PossiblePaths = $Local:ClientsFolder | Get-ChildItem -Directory | Select-Object -ExpandProperty Name
+    Invoke-Debug "Possible paths: $($Local:PossiblePaths -join ', ')"
+    if (-not ($Local:PossiblePaths -contains $Client)) {
+        $Local:PossibleMatches = $Local:PossiblePaths | Where-Object { $_ -like "$Client" }
+        Invoke-Debug "Possible matches: $($Local:PossibleMatches -join ', ')"
 
-Main
+        if ($Local:PossibleMatches -is [String]) {
+            $Local:Client = $Local:PossibleMatches;
+        } elseif ($Local:PossibleMatches.Count -eq 1) {
+            $Local:Client = $Local:PossibleMatches[0]
+        } elseif ($Local:PossibleMatches.Count -gt 1) {
+            $Local:ClientIndex = Get-UserSelection -Title 'Multiple client folders found' -Question 'Please select the client you would like to run the script for' -Choices $Local:PossibleMatches;
+            $Local:Client = $Local:PossibleMatches[$Local:ClientIndex];
+        } else {
+            Invoke-Error "Client $Client not found; please check the spelling and try again."
+            return
+        }
+    } else {
+        $Local:Client = $Client;
+    }
+
+    [String]$Local:ClientFolder = "$ClientsFolder\$Local:Client";
+    Invoke-Info "Client $Local:Client found at $Local:ClientFolder";
+
+    Invoke-SetupEnvironment -Client $Local:Client -ClientsFolder $Local:ClientsFolder -ExcelFileName $ExcelFileName;
+
+    [PSCustomObject[]]$Local:NewData = Get-CurrentData;
+    [OfficeOpenXml.ExcelPackage]$Local:ExcelData = Get-Excel;
+
+    [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = Get-ActiveWorkSheet -ExcelData $Local:ExcelData;
+    [OfficeOpenXml.ExcelWorksheet]$Local:HistoryWorkSheet = Get-HistoryWorkSheet -ExcelData $Local:ExcelData;
+    $Local:ActiveWorkSheet | Assert-NotNull -Message 'ActiveWorkSheet was null';
+    $Local:HistoryWorkSheet | Assert-NotNull -Message 'HistoryWorkSheet was null';
+
+    Invoke-CleanupWorksheet -WorkSheet $Local:ActiveWorkSheet -DuplicateCheck;
+
+    Invoke-CleanupWorksheet -WorkSheet $Local:HistoryWorkSheet -DuplicateCheck; # Dont check for duplicates in history, we want to preserve it.
+    Update-History -HistoryWorkSheet $Local:HistoryWorkSheet -ActiveWorkSheet $Local:ActiveWorkSheet;
+
+    Remove-Users -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet;
+    Add-Users -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet;
+
+    Update-Data -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet -AddNewData;
+    Update-Data -NewData $Local:NewData -WorkSheet $Local:HistoryWorkSheet;
+
+    Invoke-OrderUsers -WorkSheet $Local:ActiveWorkSheet;
+    Invoke-OrderUsers -WorkSheet $Local:HistoryWorkSheet;
+
+    Set-Check -WorkSheet $Local:ActiveWorkSheet
+
+    @($Local:ActiveWorkSheet, $Local:HistoryWorkSheet) | ForEach-Object { Set-Styles -WorkSheet $_ }
+
+    Save-Excel -ExcelData $Local:ExcelData
+}
