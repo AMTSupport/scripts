@@ -1,9 +1,12 @@
 name: PowerShell Linting
 
 on:
+  push:
+    branches: [ master ]
+    paths: [ 'src/**', '.github/workflows/code-linting.yaml' ]
   pull_request:
     branches: [ master ]
-    paths: [ 'src/**' ]
+    paths: [ 'src/**', '.github/workflows/code-linting.yaml' ]
 
 jobs:
   lint:
