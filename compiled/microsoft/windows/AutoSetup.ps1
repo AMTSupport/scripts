@@ -30,25 +30,31 @@ $Global:EmbededModules = [ordered]@{
 		    $True
 		    # $null -ne $env:WT_SESSION;
 		}
-		function Local:Invoke-Write {
-		    [CmdletBinding()]
+		function Invoke-Write {
+		    [CmdletBinding(PositionalBinding)]
 		    param (
-		        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+		        [Parameter(ParameterSetName = 'InputObject', ValueFromPipeline)]
+		        [HashTable]$InputObject,
+		        [Parameter(ParameterSetName = 'Splat', Mandatory, ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
 		        [String]$PSMessage,
-		        [Parameter(ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
 		        [String]$PSPrefix,
-		        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+		        [Parameter(ParameterSetName = 'Splat', Mandatory, ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
 		        [String]$PSColour,
-		        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
-		        [Boolean]$ShouldWrite,
-		        [Parameter(ValueFromPipelineByPropertyName)]
+		        [Boolean]$ShouldWrite = $True,
+		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
 		        [Switch]$NoNewLine
 		    )
 		    process {
+		        if ($InputObject) {
+		            Invoke-Write @InputObject;
+		            return;
+		        }
 		        if (-not $ShouldWrite) {
 		            return;
 		        }
@@ -613,27 +619,47 @@ $Global:EmbededModules = [ordered]@{
 	"45-PackageManager.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        $Local:PackageManager = switch ($env:OS) {
-		    'Windows_NT' {
-		        $Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
-		        if (Test-Path -Path $Local:ChocolateyPath) {
-		            $Local:ChocolateyPath;
-		        } else {
-		            throw "Chocolatey is not installed on this system.";
-		        }
-		        return $Local:ChocolateyPath;
-		    };
+        [String]$Script:PackageManager = switch ($env:OS) {
+		    'Windows_NT' { "choco" };
 		    default {
 		        throw "Unsupported operating system.";
+		    };
+		};
+		[HashTable]$Script:PackageManager = switch ($Script:PackageManager) {
+		    "choco" {
+		        [String]$Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
+		        if (Test-Path -Path $Local:ChocolateyPath) {
+		            # Ensure Chocolatey is usable.
+		            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force;
+		            refreshenv | Out-Null;
+		        } else {
+		            throw 'Chocolatey is not installed on this system.';
+		        }
+		        @{
+		            Executable = $Local:ChocolateyPath;
+		            Commands = @{
+		                List       = 'list';
+		                Uninstall  = 'uninstall';
+		                Install    = 'install';
+		                Update     = 'upgrade';
+		            }
+		            Options = @{
+		                Common = @('--confirm', '--limit-output', '--exact');
+		                Force = '--force';
+		            }
+		        };
+		    };
+		    default {
+		        throw "Unsupported package manager.";
 		    };
 		};
 		function Test-Package(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageName,
-		    [Parameter()]
-		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageVersion
+		    [String]$PackageName
+		    # [Parameter()]
+		    # [ValidateNotNullOrEmpty()]
+		    # [String]$PackageVersion
 		) {
 		    $Local:Params = @{
 		        PSPrefix = '🔍';
@@ -641,40 +667,36 @@ $Global:EmbededModules = [ordered]@{
 		        PSColour = 'Yellow';
 		    };
 		    Invoke-Write @Local:Params;
-		    $Local:PackageArgs = @{
-		        PackageName = $PackageName;
-		        Force = $true;
-		        Confirm = $false;
-		    };
-		    if ($PackageVersion) {
-		        $Local:PackageArgs['Version'] = $PackageVersion;
-		    }
-		    & $Local:PackageManager list --local-only @Local:PackageArgs;
+		    # if ($PackageVersion) {
+		    #     $Local:PackageArgs['Version'] = $PackageVersion;
+		    # }
+		    # TODO :: Actually get the return value.
+		    & $Script:PackageManager.Executable $Script:PackageManager.Commands.List $Script:PackageManager.Options.Common $PackageName;
 		}
-		function Install-Package(
+		function Install-ManagedPackage(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageName,
-		    [Parameter()]
-		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageVersion
+		    [String]$PackageName
+		    # [Parameter()]
+		    # [ValidateNotNullOrEmpty()]
+		    # [String]$PackageVersion
 		) {
-		    $Local:Params = @{
+		    @{
 		        PSPrefix = '📦';
 		        PSMessage = "Installing package '$PackageName'...";
 		        PSColour = 'Green';
-		    };
-		    Invoke-Write @Local:Params;
-		    $Local:PackageArgs = @{
-		        PackageName = $PackageName;
-		        Force = $true;
-		        Confirm = $false;
-		    };
-		    if ($PackageVersion) {
-		        $Local:PackageArgs['Version'] = $PackageVersion;
-		    }
-		    & $Local:PackageManager install @Local:PackageArgs;
-		}
+		    } | Invoke-Write;
+		    # if ($PackageVersion) {
+		    #     $Local:PackageArgs['Version'] = $PackageVersion;
+		    # }
+		    # TODO :: Ensure success.
+		    & $Script:PackageManager.Executable $Script:PackageManager.Commands.Install $Script:PackageManager.Options.Common $PackageName;
+		}
+		function Uninstall-Package() {
+		}
+		function Update-Package() {
+		}
+		Export-ModuleMember -Function Test-Package, Install-ManagedPackage, Uninstall-Package, Update-Package;
     };`
 	"50-Input.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -976,6 +998,54 @@ $Global:EmbededModules = [ordered]@{
 		}
 		Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag;
     };`
+	"99-Registry.psm1" = {
+        [CmdletBinding(SupportsShouldProcess)]
+        Param()
+        function Invoke-EnsureRegistryPath {
+		    [CmdletBinding(SupportsShouldProcess)]
+		    param (
+		        [Parameter(Mandatory)]
+		        [ValidateSet('HKLM', 'HKCU')]
+		        [String]$Root,
+		        [Parameter(Mandatory)]
+		        [ValidateNotNull()]
+		        [String]$Path
+		    )
+		    [String[]]$Local:PathParts = $Path.Split('\') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) };
+		    [String]$Local:CurrentPath = "${Root}:";
+		    foreach ($Local:PathPart in $Local:PathParts) {
+		        [String]$Local:CurrentPath = Join-Path -Path $Local:CurrentPath -ChildPath $Local:PathPart;
+		        if (Test-Path -Path $Local:CurrentPath -PathType Container) {
+		            Invoke-Verbose "Registry key '$Local:CurrentPath' already exists.";
+		            continue;
+		        }
+		        if ($PSCmdlet.ShouldProcess($Local:CurrentPath, 'Create')) {
+		            Invoke-Verbose "Creating registry key '$Local:CurrentPath'...";
+		            New-Item -Path $Local:CurrentPath -Force -ItemType RegistryKey;
+		        }
+		    }
+		}
+		function Set-RegistryKey {
+		    [CmdletBinding(SupportsShouldProcess)]
+		    param (
+		        [Parameter(Mandatory)]
+		        [String]$Path,
+		        [Parameter(Mandatory)]
+		        [String]$Key,
+		        [Parameter(Mandatory)]
+		        [String]$Value,
+		        [Parameter(Mandatory)]
+		        [ValidateSet('Binary', 'DWord', 'ExpandString', 'MultiString', 'None', 'QWord', 'String')]
+		        [Microsoft.Win32.RegistryValueKind]$Kind
+		    )
+		    Invoke-EnsureRegistryPath -Root $Path.Substring(0, 4) -Path $Path.Substring(5);
+		    if ($PSCmdlet.ShouldProcess($Path, 'Set')) {
+		        Invoke-Verbose "Setting registry key '$Path'...";
+		        Set-ItemProperty -Path $Path -Name $Key -Value $Value -Type $Kind;
+		    }
+		}
+		Export-ModuleMember -Function New-RegistryKey, Remove-RegistryKey, Set-RegistryKey, Test-RegistryKey;
+    };`
 	"99-Temp.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
@@ -1024,6 +1094,144 @@ $Global:EmbededModules = [ordered]@{
 		    }
 		}
 		Export-ModuleMember -Function Get-NamedTempFolder, Get-UniqueTempFolder, Invoke-WithinEphemeral;
+    };`
+	"99-UsersAndAccounts.psm1" = {
+        [CmdletBinding(SupportsShouldProcess)]
+        Param()
+        function Local:Get-GroupByInputOrName(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
+		    [Object]$InputObject
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:Group; }
+		    process {
+		        if ($Input -is [String]) {
+		            [ADSI]$Local:Group = Get-Group -Name $InputObject;
+		        } elseif ($Input.SchemaClassName -ne 'Group') {
+		            throw "The supplied object is not a group.";
+		        } else {
+		            [ADSI]$Local:Group = $InputObject;
+		        }
+		    }
+		}
+		function Local:Get-UserByInputOrName(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
+		    [Object]$InputObject
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:User; }
+		    process {
+		        if ($Input -is [String]) {
+		            [ADSI]$Local:User = Get-User -Name $InputObject;
+		        } elseif ($Input.SchemaClassName -ne 'User') {
+		            throw "The supplied object is not a user.";
+		        } else {
+		            [ADSI]$Local:User = $InputObject;
+		        }
+		    }
+		}
+		function Get-FormattedUsers(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ADSI[]]$Users
+		) {
+		    return $Users | ForEach-Object {
+		        $Local:Path = $_.Path.Substring(8); # Remove the WinNT:// prefix
+		        $Local:PathParts = $Local:Path.Split('/');
+		        # The username is always last followed by the domain.
+		        [PSCustomObject]@{
+		            Name = $Local:PathParts[$Local:PathParts.Count - 1]
+		            Domain = $Local:PathParts[$Local:PathParts.Count - 2]
+		        };
+		    };
+		}
+		function Test-MemberOfGroup(
+		    [Parameter(Mandatory)]
+		    [Object]$Group,
+		    [Parameter(Mandatory)]
+		    [Object]$Username
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:User; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+		        return $Local:Group.Invoke("IsMember", $Local:User.Path);
+		    }
+		}
+		function Get-Group(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [String]$Name
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:Group; }
+		    process {
+		        [ADSI]$Local:Group = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
+		        return $Local:Group
+		    }
+		}
+		function Get-GroupMembers(
+		    [Parameter(Mandatory)]
+		    [Object]$Group
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:Members; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        $Group.Invoke("Members") `
+		            | ForEach-Object { [ADSI]$_ } `
+		            | Where-Object {
+		                $Local:Parent = $_.Parent.Substring(8); # Remove the WinNT:// prefix
+		                $Local:Parent -ne 'NT AUTHORITY'
+		            };
+		    }
+		}
+		function Add-MemberToGroup(
+		    [Parameter(Mandatory)]
+		    [Object]$Group,
+		    [Parameter(Mandatory)]
+		    [Object]$Username
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+		        if (Test-MemberOfGroup -Group $Local:Group -Username $Local:User) {
+		            Invoke-Verbose "User $Username is already a member of group $Group.";
+		            return $False;
+		        }
+		        Invoke-Verbose "Adding user $Name to group $Group...";
+		        $Local:Group.Invoke("Add", $Local:User.Path);
+		        return $True;
+		    }
+		}
+		function Remove-MemberFromGroup(
+		    [Parameter(Mandatory)]
+		    [Object]$Group,
+		    [Parameter(Mandatory)]
+		    [Object]$Username
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+		        if (-not (Test-MemberOfGroup -Group $Local:Group -Username $Local:User)) {
+		            Invoke-Verbose "User $Username is not a member of group $Group.";
+		            return $False;
+		        }
+		        Invoke-Verbose "Removing user $Name from group $Group...";
+		        $Local:Group.Invoke("Remove", $Local:User.Path);
+		        return $True;
+		    }
+		}
+		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUsers, Get-Group, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
     };`
 	"Environment.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1226,78 +1434,6 @@ function Get-FormattedName2Id(
     }
     end { Exit-Scope -Invocation $MyInvocation; }
 }
-function Invoke-EnsureNetworkSetup {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        [Boolean]$Local:HasNetwork = (Get-NetConnectionProfile `
-            | Where-Object {
-                $Local:HasIPv4 = $_.IPv4Connectivity -eq "Internet";
-                $Local:HasIPv6 = $_.IPv6Connectivity -eq "Internet";
-                $Local:HasIPv4 -or $Local:HasIPv6
-            } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
-        if ($Local:HasNetwork) {
-            Invoke-Info 'Network is already setup, skipping network setup...';
-            return
-        }
-        Invoke-Info "No Wi-Fi connection found, creating profile..."
-        [String]$Local:ProfileFile = "$env:TEMP\SetupWireless-profile.xml";
-        If ($Local:ProfileFile | Test-Path) {
-            Invoke-Info 'Profile file exists, removing it...';
-            Remove-Item -Path $Local:ProfileFile -Force;
-        }
-        $Local:SSIDHEX = ($NetworkName.ToCharArray() | foreach-object { '{0:X}' -f ([int]$_) }) -join ''
-        $Local:XmlContent = "<?xml version=""1.0""?>
-<WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
-    <name>$NetworkName</name>
-    <SSIDConfig>
-        <SSID>
-            <hex>$Local:SSIDHEX</hex>
-            <name>$NetworkName</name>
-        </SSID>
-    </SSIDConfig>
-    <connectionType>ESS</connectionType>
-    <connectionMode>auto</connectionMode>
-    <MSM>
-        <security>
-            <authEncryption>
-                <authentication>WPA2PSK</authentication>
-                <encryption>AES</encryption>
-                <useOneX>false</useOneX>
-            </authEncryption>
-            <sharedKey>
-                <keyType>passPhrase</keyType>
-                <protected>false</protected>
-                <keyMaterial>$NetworkPassword</keyMaterial>
-            </sharedKey>
-        </security>
-    </MSM>
-</WLANProfile>
-";
-        if ($WhatIfPreference) {
-            Invoke-Info "Dry run enabled, skipping profile creation..."
-            Invoke-Info "Would have created profile file $Local:ProfileFile with contents:"
-            Invoke-Info $Local:XmlContent
-        } else {
-            Invoke-Info "Creating profile file $Local:ProfileFile...";
-            $Local:XmlContent > ($Local:ProfileFile);
-            netsh wlan add profile filename="$($Local:ProfileFile)" | Out-Null
-            netsh wlan show profiles $NetworkName key=clear | Out-Null
-            netsh wlan connect name=$NetworkName | Out-Null
-        }
-        Invoke-Info "Waiting for network connection..."
-        $Local:RetryCount = 0;
-        while (-not (Test-Connection -Destination google.com -Count 1 -Quiet)) {
-            If ($Local:RetryCount -ge 60) {
-                Invoke-Error "Failed to connect to $NetworkName after 10 retries";
-                Invoke-FailedExit -ExitCode $Script:FAILED_TO_CONNECT;
-            }
-            Start-Sleep -Seconds 1
-            $Local:RetryCount += 1
-        }
-        Invoke-Info "Connected to $NetworkName."
-    }
-}
 function Invoke-EnsureLocalScript {
     begin { Enter-Scope -Invocation $MyInvocation; }
     end { Exit-Scope -Invocation $MyInvocation; }
@@ -1378,13 +1514,6 @@ function Invoke-EnsureSetupInfo {
         return $Local:InstallInfo;
     }
 }
-function Invoke-EnsureModulesInstalled {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        Import-DownloadableModule -Name PSWindowsUpdate;
-    }
-}
 function Remove-QueuedTask {
     begin { Enter-Scope -Invocation $MyInvocation; }
     end { Exit-Scope -Invocation $MyInvocation; }
@@ -1405,13 +1534,14 @@ function Add-QueuedTask(
     [Parameter(HelpMessage="The path of the script to run when the task is triggered.")]
     [ValidateNotNullOrEmpty()]
     [String]$ScriptPath = $MyInvocation.PSCommandPath,
-    [switch]$OnlyOnRebootRequired = $false
+    [switch]$OnlyOnRebootRequired = $false,
+    [switch]$ForceReboot = $false
 ) {
     begin { Enter-Scope -Invocation $MyInvocation; }
     end { Exit-Scope -Invocation $MyInvocation; }
     process {
         [Boolean]$Local:RequiresReboot = (Get-RebootFlag).Required();
-        if ($OnlyOnRebootRequired -and (-not $Local:RequiresReboot)) {
+        if ($OnlyOnRebootRequired -and (-not ($Local:RequiresReboot -or $ForceReboot))) {
             Invoke-Info "The device does not require a reboot before the $QueuePhase phase can be started, skipping queueing...";
             return;
         }
@@ -1443,27 +1573,20 @@ function Add-QueuedTask(
         Register-ScheduledTask -TaskName $TaskName -InputObject $Task -Force -ErrorAction Stop | Out-Null;
         if ($Local:RequiresReboot) {
             Invoke-Info "The device requires a reboot before the $QueuePhase phase can be started, rebooting in 15 seconds...";
-            Invoke-Info 'Press any key to cancel the reboot...';
-            $Host.UI.RawUI.FlushInputBuffer();
-            $Local:Countdown = 150;
-            while ($Local:Countdown -gt 0) {
-                if ([Console]::KeyAvailable) {
-                    Invoke-Info 'Key was pressed, canceling reboot.';
-                    break;
-                }
-                Write-Progress `
-                    -Activity "Writing Reboot Countdown" `
-                    -Status "Rebooting in $([Math]::Floor($Local:Countdown / 10)) seconds..." `
-                    -PercentComplete (($Local:Countdown / 150) * 100);
-                $Local:Countdown -= 1;
-                Start-Sleep -Milliseconds 100;
-            }
-            if ($Local:Countdown -eq 0) {
-                Invoke-Info "Rebooting now...";
-                (Get-RunningFlag).Remove();
-                (Get-RebootFlag).Remove();
-                Restart-Computer -Force;
-            }
+            Invoke-Timeout
+                -Timeout 15 `
+                -AllowCancel `
+                -Activity 'Reboot' `
+                -StatusMessage 'Rebooting in {0} seconds...' `
+                -TimeoutScript {
+                    Invoke-Info 'Rebooting now...';
+                    (Get-RunningFlag).Remove();
+                    (Get-RebootFlag).Remove();
+                    Restart-Computer -Force;
+                } `
+                -CancelScript {
+                    Invoke-Info 'Reboot cancelled, please reboot to continue.';
+                };
         }
     }
 }
@@ -1512,6 +1635,8 @@ function Invoke-PhaseCleanup {
                 [ScriptBlock]$GetItems,
                 [Parameter(Mandatory)][ValidateNotNull()]
                 [ScriptBlock]$ProcessItem,
+                [ValidateNotNull()]
+                [ScriptBlock]$GetItemName = { Param($Item) $Item; },
                 [ScriptBlock]$FailedProcessItem
             )
             [String]$Local:ProgressActivity = $MyInvocation.MyCommand.Name;
@@ -1531,20 +1656,22 @@ function Invoke-PhaseCleanup {
             [Int]$Local:PercentPerItem = 90 / $Local:InputItems.Count;
             [Int]$Local:PercentComplete = 0;
             foreach ($Local:Item in $Local:InputItems) {
-                Write-Debug "Processing item [$Local:Item]...";
-                Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Processing item [$Local:Item]..." -PercentComplete $Local:PercentComplete;
+                [String]$Local:ItemName = $GetItemName.InvokeReturnAsIs($Local:Item);
+                Write-Debug "Processing item [$Local:ItemName]...";
+                Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Processing item [$Local:ItemName]..." -PercentComplete $Local:PercentComplete;
                 try {
                     $ErrorActionPreference = "Stop";
                     $ProcessItem.InvokeReturnAsIs($Local:Item);
                 } catch {
-                    Invoke-Warn "Failed to process item [$Local:Item]";
+                    Invoke-Warn "Failed to process item [$Local:ItemName]";
+                    Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                     try {
                         $ErrorActionPreference = "Stop";
                         if ($null -eq $FailedProcessItem) {
                             $Local:FailedItems.Add($Local:Item);
                         } else { $FailedProcessItem.InvokeReturnAsIs($Local:Item); }
                     } catch {
-                        Invoke-Warn "Failed to process item [$Local:Item] in failed process item block";
+                        Invoke-Warn "Failed to process item [$Local:ItemName] in failed process item block";
                     }
                 }
                 $Local:PercentComplete += $Local:PercentPerItem;
@@ -1562,7 +1689,7 @@ function Invoke-PhaseCleanup {
                 [String[]]$Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
                 Invoke-Info "Disabling $($Services.Count) services...";
                 Invoke-Progress -GetItems { $Services; } -ProcessItem {
-                    Param($ServiceName)
+                    Param([String]$ServiceName)
                     try {
                         $ErrorActionPreference = 'Stop';
                         $Local:Instance = Get-Service -Name $ServiceName;
@@ -1581,10 +1708,11 @@ function Invoke-PhaseCleanup {
                         Invoke-Info "Disabling service $ServiceName...";
                         try {
                             $ErrorActionPreference = 'Stop';
-                            $Local:Instance | Set-Service -StartupType Disabled -Force -Confirm:$false;
+                            $Local:Instance | Set-Service -StartupType Disabled -Confirm:$false;
                             Invoke-Info "Disabled service $ServiceName";
                         } catch {
                             Invoke-Warn "Failed to disable $ServiceName";
+                            Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                         }
                     }
                 };
@@ -1633,30 +1761,19 @@ function Invoke-PhaseCleanup {
                     "HP Wolf Security Application Support for Sure Sense"
                     "HP Wolf Security Application Support for Windows"
                 );
-                Invoke-Progress -GetItems { Get-Package | Where-Object { $UninstallablePrograms -contains $_.Name -or $Programs -contains $_.Name } } -ProcessItem {
-                    Param($Program)
-                    $Local:Product = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq $Program.Name };
-                    if (-not $Local:Product) {
-                        throw "Can't find MSI Package for program [$($Program.Name)]";
-                    } else {
-                        msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
-                        Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
-                    }
-                };
-                # Fallback attempt 1 to remove HP Wolf Security using msiexec
-                Try {
-                    MsiExec /x "{0E2E04B0-9EDD-11EB-B38C-10604B96B11E}" /qn /norestart
-                    Invoke-Info -Message 'Fallback to MSI uninistall for HP Wolf Security initiated';
-                } Catch {
-                    Invoke-Warn -Message "Failed to uninstall HP Wolf Security using MSI - Error message: $($_.Exception.Message)"
-                }
-                # Fallback attempt 2 to remove HP Wolf Security using msiexec
-                Try {
-                    MsiExec /x "{4DA839F0-72CF-11EC-B247-3863BB3CB5A8}" /qn /norestart;
-                    Invoke-Info -Message 'Fallback to MSI uninistall for HP Wolf 2 Security initiated';
-                } Catch {
-                    Invoke-Warn -Message "Failed to uninstall HP Wolf Security 2 using MSI - Error message: $($_.Exception.Message)"
-                }
+                Invoke-Progress `
+                    -GetItems { Get-Package | Where-Object { $UninstallablePrograms -contains $_.Name -or $Programs -contains $_.Name } } `
+                    -GetItemName { Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program) $Program.Name; } `
+                    -ProcessItem {
+                        Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program)
+                        $Local:Product = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq $Program.Name };
+                        if (-not $Local:Product) {
+                            throw "Can't find MSI Package for program [$($Program.Name)]";
+                        } else {
+                            msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
+                            Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
+                        }
+                    };
             }
         }
         function Remove-ProvisionedPackages_HP {
@@ -1689,36 +1806,67 @@ function Invoke-PhaseCleanup {
             process {
                 # Uninstalling the drivers disables and (on reboot) removes the installed services.
                 # At this stage the only 'HP Inc.' driver we want to keep is HPSFU, used for firmware servicing.
-                Invoke-Progress -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' } } -ProcessItem {
-                    Param($Driver)
-                    try {
-                        pnputil /delete-driver $Driver /uninstall /force;
-                        Invoke-Info "Removed driver: $($_.OriginalFileName.toString())";
-                    } catch {
-                        Invoke-Warn "Failed to remove driver: $($_.OriginalFileName.toString()): $($_.Exception.Message)";
-                    }
-                };
+                Invoke-Progress `
+                    -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' }; } `
+                    -GetItemName { Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver) $Driver.OriginalFileName.ToString(); } `
+                    -ProcessItem {
+                        Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver)
+                        [String]$Local:FileName = $Driver.OriginalFileName.ToString();
+                        try {
+                            $ErrorActionPreference = 'Stop';
+                            pnputil /delete-driver $Local:FileName /uninstall /force;
+                            Invoke-Info "Removed driver: $($Local:FileName)";
+                        } catch {
+                            Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
+                        }
+                    };
                 # Once the drivers are gone lets disable installation of 'drivers' for these HP 'devices' (typically automatic via Windows Update)
                 # SWC\HPA000C = HP Device Health Service
                 # SWC\HPIC000C = HP Application Enabling Services
                 # SWC\HPTPSH000C = HP Services Scan
                 # ACPI\HPIC000C = HP Application Driver
-                $Local:RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs'
-                If (-not (Test-Path $RegistryPath)) { New-Item -Path $RegistryPath -Force | Out-Null }
-                New-ItemProperty -Path $RegistryPath -Name '1' -Value 'SWC\HPA000C' -PropertyType STRING
-                New-ItemProperty -Path $RegistryPath -Name '2' -Value 'SWC\HPIC000C' -PropertyType STRING
-                New-ItemProperty -Path $RegistryPath -Name '3' -Value 'SWC\HPTPSH000C' -PropertyType STRING
-                New-ItemProperty -Path $RegistryPath -Name '4' -Value 'ACPI\HPIC000C' -PropertyType STRING
-                $Local:RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions'
-                New-ItemProperty -Path $RegistryPath -Name 'DenyDeviceIDs' -Value '1' -PropertyType DWORD
-                New-ItemProperty -Path $RegistryPath -Name 'DenyDeviceIDsRetroactive' -Value '1' -PropertyType DWORD
+                @{
+                    'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs' = @{
+                        KIND = 'String';
+                        Values = @{
+                            1 = 'SWC\HPA000C'
+                            2 = 'SWC\HPIC000C'
+                            3 = 'SWC\HPTPSH000C'
+                            4 = 'ACPI\HPIC000C'
+                        };
+                    };
+                    'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions' = @{
+                        KIND = 'DWORD';
+                        Values = @{
+                            DenyDeviceIDs = 1;
+                            DenyDeviceIDsRetroactive = 1;
+                        };
+                    };
+                }.GetEnumerator() | ForEach-Object {
+                    [String]$Local:RegistryPath = $_.Key;
+                    [HashTable]$Local:RegistryTable = $_.Value;
+                    If (-not (Test-Path $Local:RegistryPath)) {
+                        New-Item -Path $Local:RegistryPath -Force | Out-Null
+                    } else {
+                        Invoke-Info "Registry path [$Local:RegistryPath] already exists, skipping creation...";
+                    }
+                    $Local:RegistryTable.Values.GetEnumerator() | ForEach-Object {
+                        [String]$Local:ValueName = $_.Key;
+                        [String]$Local:ValueData = $_.Value;
+                        If (-not (Test-Path "$Local:RegistryPath\$Local:ValueName")) {
+                            New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
+                            Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
+                        } else {
+                            Invoke-Info "Registry value [$Local:ValueName] already exists in path [$Local:RegistryPath], skipping creation...";
+                        }
+                    }
+                }
             }
         }
         Stop-Services_HP;
         Remove-ProvisionedPackages_HP;
         Remove-AppxPackages_HP;
         Remove-Programs_HP;
-        # Queue next phase as self if still needed for Wolf uninstall.
         [String]$Local:NextPhase = "Install";
         return $Local:NextPhase;
     }
@@ -1749,7 +1897,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
             Invoke-Info "Expanding archive...";
             try {
                 $ErrorActionPreference = "Stop";
-                Expand-Archive -Path 'agent.zip' -DestinationPath .;
+                Expand-Archive -Path 'agent.zip' -DestinationPath $PWD | Out-Null;
             } catch {
                 Invoke-Error "Failed to expand archive";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_EXPAND;
@@ -1757,7 +1905,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
             Invoke-Info "Finding agent executable...";
             try {
                 $ErrorActionPreference = 'Stop';
-                [String]$Local:OutputExe = Get-ChildItem -Path . -Filter '*.exe' -File;
+                [String]$Local:OutputExe = Get-ChildItem -Path $PWD -Filter '*.exe' -File;
                 $Local:OutputExe | Assert-NotNull -Message "Failed to find agent executable";
             } catch {
                 Invoke-Info "Failed to find agent executable";
@@ -1773,26 +1921,9 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
                 Invoke-Error "Failed to install agent from [$Local:OutputExe]";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_INSTALL;
             }
-            while ($true) {
-                $Local:AgentStatus = Get-Sevice -Name $Local:AgentServiceName -ErrorAction SilentlyContinue;
-                if ($Local:AgentStatus -and $Local:AgentStatus.Status -eq 'Running') {
-                    Invoke-Info "The agent has been installed and running, current status is [$Local:AgentStatus]...";
-                    break;
-                }
-                Start-Sleep -Milliseconds 100;
-            }
         }
         Invoke-Info 'Unable to determine when the agent is fully installed, sleeping for 5 minutes...';
-        $Local:Countdown = 3000;
-        while ($Local:Countdown -gt 0) {
-            Write-Progress `
-                -Activity "Agent Installation" `
-                -Status "Waiting for $([Math]::Floor($Local:Countdown / 10)) seconds..." `
-                -PercentComplete (($Local:Countdown / 150) * 100)
-                -Complete ($Local:Countdown -eq 1);
-            $Local:Countdown -= 1;
-            Start-Sleep -Milliseconds 100;
-        }
+        Invoke-Timeout -Timeout 300 -Activity 'Agent Installation' -StatusMessage 'Waiting for agent to be installed...';
         # TODO - Query if sentinel is configured, if so wait for sentinel and the agent to be running services, then restart the computer
         return $Local:NextPhase;
     }
@@ -1829,52 +1960,42 @@ function Invoke-PhaseFinish {
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['Environment.psm1'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
-    try {
-        Trap {
-            Invoke-FailedExit -ErrorRecord $_ -ExitCode 9999;
-        }
-        Register-ExitHandler -Name 'Running Flag Removal' -ExitHandler {
-            (Get-RunningFlag).Remove();
-        };
-        Register-ExitHandler -Name 'Queued Task Removal' -OnlyFailure -ExitHandler {
-            Remove-QueuedTask;
-        };
-        # Ensure only one process is running at a time.
-        If ((Get-RunningFlag).IsRunning()) {
-            Invoke-Error "The script is already running in another session, exiting...";
-            Exit $Script:ALREADY_RUNNING;
-        } else {
-            (Get-RunningFlag).Set($null);
-            Remove-QueuedTask;
-        }
-        try {
-            Invoke-EnsureLocalScript;
-            Invoke-EnsureNetworkSetup;
-            Invoke-EnsureModulesInstalled;
-            $Local:InstallInfo = Invoke-EnsureSetupInfo;
-            # Queue this phase to run again if a restart is required by one of the environment setups.
-            Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired;
-        } catch {
-            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
-        }
-        Invoke-QuickExit;
-        [String]$Local:NextPhase = $null;
-        switch ($Phase) {
-            'configure' { [String]$Local:NextPhase = Invoke-PhaseConfigure -InstallInfo $Local:InstallInfo; }
-            'cleanup' { [String]$Local:NextPhase = Invoke-PhaseCleanup; }
-            'install' { [String]$Local:NextPhase = Invoke-PhaseInstall -InstallInfo $Local:InstallInfo; }
-            'update' { [String]$Local:NextPhase = Invoke-PhaseUpdate; }
-            'finish' { [String]$Local:NextPhase = Invoke-PhaseFinish; }
-        }
-        # Should only happen when we are done and there is nothing else to queue.
-        if (-not $Local:NextPhase) {
-            Invoke-Info "No next phase was returned, exiting...";
-            Invoke-QuickExit;
-        }
-        Invoke-Info "Queueing next phase [$Local:NextPhase]...";
-        Add-QueuedTask -QueuePhase $Local:NextPhase;
-        Invoke-QuickExit;
-    } finally {
+    Register-ExitHandler -Name 'Running Flag Removal' -ExitHandler {
         (Get-RunningFlag).Remove();
+    };
+    Register-ExitHandler -Name 'Queued Task Removal' -OnlyFailure -ExitHandler {
+        Remove-QueuedTask;
+    };
+    # Ensure only one process is running at a time.
+    If ((Get-RunningFlag).IsRunning()) {
+        Invoke-Error "The script is already running in another session, exiting...";
+        Exit $Script:ALREADY_RUNNING;
+    } else {
+        (Get-RunningFlag).Set($null);
+        Remove-QueuedTask;
     }
+    Invoke-EnsureLocalScript;
+    # There is an issue with the CimInstance LastBootUpTime where it returns the incorrect time on first boot.
+    # To work around this if there was previously no connecting and we have just connected we can assume its a new setup, and force a reboot to ensure the correct time is returned.
+    # TODO - Find a better way to determine if this is a first boot.
+    $Local:PossibleFirstBoot = Invoke-EnsureNetwork -Name $NetworkName -Password ($NetworkPassword | ConvertTo-SecureString -AsPlainText -Force);
+    Invoke-EnsureModules -Modules @('PSWindowsUpdate');
+    $Local:InstallInfo = Invoke-EnsureSetupInfo;
+    # Queue this phase to run again if a restart is required by one of the environment setups.
+    Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired -ForceReboot:$Local:PossibleFirstBoot;
+    [String]$Local:NextPhase = $null;
+    switch ($Phase) {
+        'configure' { [String]$Local:NextPhase = Invoke-PhaseConfigure -InstallInfo $Local:InstallInfo; }
+        'cleanup' { [String]$Local:NextPhase = Invoke-PhaseCleanup; }
+        'install' { [String]$Local:NextPhase = Invoke-PhaseInstall -InstallInfo $Local:InstallInfo; }
+        'update' { [String]$Local:NextPhase = Invoke-PhaseUpdate; }
+        'finish' { [String]$Local:NextPhase = Invoke-PhaseFinish; }
+    }
+    # Should only happen when we are done and there is nothing else to queue.
+    if (-not $Local:NextPhase) {
+        Invoke-Info "No next phase was returned, exiting...";
+        return
+    }
+    Invoke-Info "Queueing next phase [$Local:NextPhase]...";
+    Add-QueuedTask -QueuePhase $Local:NextPhase;
 });

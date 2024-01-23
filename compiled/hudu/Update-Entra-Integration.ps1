@@ -17,25 +17,31 @@ $Global:EmbededModules = [ordered]@{
 		    $True
 		    # $null -ne $env:WT_SESSION;
 		}
-		function Local:Invoke-Write {
-		    [CmdletBinding()]
+		function Invoke-Write {
+		    [CmdletBinding(PositionalBinding)]
 		    param (
-		        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+		        [Parameter(ParameterSetName = 'InputObject', ValueFromPipeline)]
+		        [HashTable]$InputObject,
+		        [Parameter(ParameterSetName = 'Splat', Mandatory, ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
 		        [String]$PSMessage,
-		        [Parameter(ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
 		        [String]$PSPrefix,
-		        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+		        [Parameter(ParameterSetName = 'Splat', Mandatory, ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
 		        [String]$PSColour,
-		        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
-		        [Boolean]$ShouldWrite,
-		        [Parameter(ValueFromPipelineByPropertyName)]
+		        [Boolean]$ShouldWrite = $True,
+		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
 		        [Switch]$NoNewLine
 		    )
 		    process {
+		        if ($InputObject) {
+		            Invoke-Write @InputObject;
+		            return;
+		        }
 		        if (-not $ShouldWrite) {
 		            return;
 		        }
@@ -600,27 +606,47 @@ $Global:EmbededModules = [ordered]@{
 	"45-PackageManager.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        $Local:PackageManager = switch ($env:OS) {
-		    'Windows_NT' {
-		        $Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
-		        if (Test-Path -Path $Local:ChocolateyPath) {
-		            $Local:ChocolateyPath;
-		        } else {
-		            throw "Chocolatey is not installed on this system.";
-		        }
-		        return $Local:ChocolateyPath;
-		    };
+        [String]$Script:PackageManager = switch ($env:OS) {
+		    'Windows_NT' { "choco" };
 		    default {
 		        throw "Unsupported operating system.";
+		    };
+		};
+		[HashTable]$Script:PackageManager = switch ($Script:PackageManager) {
+		    "choco" {
+		        [String]$Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
+		        if (Test-Path -Path $Local:ChocolateyPath) {
+		            # Ensure Chocolatey is usable.
+		            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force;
+		            refreshenv | Out-Null;
+		        } else {
+		            throw 'Chocolatey is not installed on this system.';
+		        }
+		        @{
+		            Executable = $Local:ChocolateyPath;
+		            Commands = @{
+		                List       = 'list';
+		                Uninstall  = 'uninstall';
+		                Install    = 'install';
+		                Update     = 'upgrade';
+		            }
+		            Options = @{
+		                Common = @('--confirm', '--limit-output', '--exact');
+		                Force = '--force';
+		            }
+		        };
+		    };
+		    default {
+		        throw "Unsupported package manager.";
 		    };
 		};
 		function Test-Package(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageName,
-		    [Parameter()]
-		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageVersion
+		    [String]$PackageName
+		    # [Parameter()]
+		    # [ValidateNotNullOrEmpty()]
+		    # [String]$PackageVersion
 		) {
 		    $Local:Params = @{
 		        PSPrefix = '🔍';
@@ -628,40 +654,36 @@ $Global:EmbededModules = [ordered]@{
 		        PSColour = 'Yellow';
 		    };
 		    Invoke-Write @Local:Params;
-		    $Local:PackageArgs = @{
-		        PackageName = $PackageName;
-		        Force = $true;
-		        Confirm = $false;
-		    };
-		    if ($PackageVersion) {
-		        $Local:PackageArgs['Version'] = $PackageVersion;
-		    }
-		    & $Local:PackageManager list --local-only @Local:PackageArgs;
+		    # if ($PackageVersion) {
+		    #     $Local:PackageArgs['Version'] = $PackageVersion;
+		    # }
+		    # TODO :: Actually get the return value.
+		    & $Script:PackageManager.Executable $Script:PackageManager.Commands.List $Script:PackageManager.Options.Common $PackageName;
 		}
-		function Install-Package(
+		function Install-ManagedPackage(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageName,
-		    [Parameter()]
-		    [ValidateNotNullOrEmpty()]
-		    [String]$PackageVersion
+		    [String]$PackageName
+		    # [Parameter()]
+		    # [ValidateNotNullOrEmpty()]
+		    # [String]$PackageVersion
 		) {
-		    $Local:Params = @{
+		    @{
 		        PSPrefix = '📦';
 		        PSMessage = "Installing package '$PackageName'...";
 		        PSColour = 'Green';
-		    };
-		    Invoke-Write @Local:Params;
-		    $Local:PackageArgs = @{
-		        PackageName = $PackageName;
-		        Force = $true;
-		        Confirm = $false;
-		    };
-		    if ($PackageVersion) {
-		        $Local:PackageArgs['Version'] = $PackageVersion;
-		    }
-		    & $Local:PackageManager install @Local:PackageArgs;
-		}
+		    } | Invoke-Write;
+		    # if ($PackageVersion) {
+		    #     $Local:PackageArgs['Version'] = $PackageVersion;
+		    # }
+		    # TODO :: Ensure success.
+		    & $Script:PackageManager.Executable $Script:PackageManager.Commands.Install $Script:PackageManager.Options.Common $PackageName;
+		}
+		function Uninstall-Package() {
+		}
+		function Update-Package() {
+		}
+		Export-ModuleMember -Function Test-Package, Install-ManagedPackage, Uninstall-Package, Update-Package;
     };`
 	"50-Input.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -963,6 +985,54 @@ $Global:EmbededModules = [ordered]@{
 		}
 		Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag;
     };`
+	"99-Registry.psm1" = {
+        [CmdletBinding(SupportsShouldProcess)]
+        Param()
+        function Invoke-EnsureRegistryPath {
+		    [CmdletBinding(SupportsShouldProcess)]
+		    param (
+		        [Parameter(Mandatory)]
+		        [ValidateSet('HKLM', 'HKCU')]
+		        [String]$Root,
+		        [Parameter(Mandatory)]
+		        [ValidateNotNull()]
+		        [String]$Path
+		    )
+		    [String[]]$Local:PathParts = $Path.Split('\') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) };
+		    [String]$Local:CurrentPath = "${Root}:";
+		    foreach ($Local:PathPart in $Local:PathParts) {
+		        [String]$Local:CurrentPath = Join-Path -Path $Local:CurrentPath -ChildPath $Local:PathPart;
+		        if (Test-Path -Path $Local:CurrentPath -PathType Container) {
+		            Invoke-Verbose "Registry key '$Local:CurrentPath' already exists.";
+		            continue;
+		        }
+		        if ($PSCmdlet.ShouldProcess($Local:CurrentPath, 'Create')) {
+		            Invoke-Verbose "Creating registry key '$Local:CurrentPath'...";
+		            New-Item -Path $Local:CurrentPath -Force -ItemType RegistryKey;
+		        }
+		    }
+		}
+		function Set-RegistryKey {
+		    [CmdletBinding(SupportsShouldProcess)]
+		    param (
+		        [Parameter(Mandatory)]
+		        [String]$Path,
+		        [Parameter(Mandatory)]
+		        [String]$Key,
+		        [Parameter(Mandatory)]
+		        [String]$Value,
+		        [Parameter(Mandatory)]
+		        [ValidateSet('Binary', 'DWord', 'ExpandString', 'MultiString', 'None', 'QWord', 'String')]
+		        [Microsoft.Win32.RegistryValueKind]$Kind
+		    )
+		    Invoke-EnsureRegistryPath -Root $Path.Substring(0, 4) -Path $Path.Substring(5);
+		    if ($PSCmdlet.ShouldProcess($Path, 'Set')) {
+		        Invoke-Verbose "Setting registry key '$Path'...";
+		        Set-ItemProperty -Path $Path -Name $Key -Value $Value -Type $Kind;
+		    }
+		}
+		Export-ModuleMember -Function New-RegistryKey, Remove-RegistryKey, Set-RegistryKey, Test-RegistryKey;
+    };`
 	"99-Temp.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
@@ -1011,6 +1081,144 @@ $Global:EmbededModules = [ordered]@{
 		    }
 		}
 		Export-ModuleMember -Function Get-NamedTempFolder, Get-UniqueTempFolder, Invoke-WithinEphemeral;
+    };`
+	"99-UsersAndAccounts.psm1" = {
+        [CmdletBinding(SupportsShouldProcess)]
+        Param()
+        function Local:Get-GroupByInputOrName(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
+		    [Object]$InputObject
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:Group; }
+		    process {
+		        if ($Input -is [String]) {
+		            [ADSI]$Local:Group = Get-Group -Name $InputObject;
+		        } elseif ($Input.SchemaClassName -ne 'Group') {
+		            throw "The supplied object is not a group.";
+		        } else {
+		            [ADSI]$Local:Group = $InputObject;
+		        }
+		    }
+		}
+		function Local:Get-UserByInputOrName(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
+		    [Object]$InputObject
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:User; }
+		    process {
+		        if ($Input -is [String]) {
+		            [ADSI]$Local:User = Get-User -Name $InputObject;
+		        } elseif ($Input.SchemaClassName -ne 'User') {
+		            throw "The supplied object is not a user.";
+		        } else {
+		            [ADSI]$Local:User = $InputObject;
+		        }
+		    }
+		}
+		function Get-FormattedUsers(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ADSI[]]$Users
+		) {
+		    return $Users | ForEach-Object {
+		        $Local:Path = $_.Path.Substring(8); # Remove the WinNT:// prefix
+		        $Local:PathParts = $Local:Path.Split('/');
+		        # The username is always last followed by the domain.
+		        [PSCustomObject]@{
+		            Name = $Local:PathParts[$Local:PathParts.Count - 1]
+		            Domain = $Local:PathParts[$Local:PathParts.Count - 2]
+		        };
+		    };
+		}
+		function Test-MemberOfGroup(
+		    [Parameter(Mandatory)]
+		    [Object]$Group,
+		    [Parameter(Mandatory)]
+		    [Object]$Username
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:User; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+		        return $Local:Group.Invoke("IsMember", $Local:User.Path);
+		    }
+		}
+		function Get-Group(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [String]$Name
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:Group; }
+		    process {
+		        [ADSI]$Local:Group = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
+		        return $Local:Group
+		    }
+		}
+		function Get-GroupMembers(
+		    [Parameter(Mandatory)]
+		    [Object]$Group
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation $Local:Members; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        $Group.Invoke("Members") `
+		            | ForEach-Object { [ADSI]$_ } `
+		            | Where-Object {
+		                $Local:Parent = $_.Parent.Substring(8); # Remove the WinNT:// prefix
+		                $Local:Parent -ne 'NT AUTHORITY'
+		            };
+		    }
+		}
+		function Add-MemberToGroup(
+		    [Parameter(Mandatory)]
+		    [Object]$Group,
+		    [Parameter(Mandatory)]
+		    [Object]$Username
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+		        if (Test-MemberOfGroup -Group $Local:Group -Username $Local:User) {
+		            Invoke-Verbose "User $Username is already a member of group $Group.";
+		            return $False;
+		        }
+		        Invoke-Verbose "Adding user $Name to group $Group...";
+		        $Local:Group.Invoke("Add", $Local:User.Path);
+		        return $True;
+		    }
+		}
+		function Remove-MemberFromGroup(
+		    [Parameter(Mandatory)]
+		    [Object]$Group,
+		    [Parameter(Mandatory)]
+		    [Object]$Username
+		) {
+		    begin { Enter-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope -Invocation $MyInvocation; }
+		    process {
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+		        if (-not (Test-MemberOfGroup -Group $Local:Group -Username $Local:User)) {
+		            Invoke-Verbose "User $Username is not a member of group $Group.";
+		            return $False;
+		        }
+		        Invoke-Verbose "Removing user $Name from group $Group...";
+		        $Local:Group.Invoke("Remove", $Local:User.Path);
+		        return $True;
+		    }
+		}
+		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUsers, Get-Group, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
     };`
 	"Environment.psm1" = {
         [CmdletBinding(SupportsShouldProcess)]
