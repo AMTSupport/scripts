@@ -10,8 +10,6 @@ function Invoke-EnsureRegistryPath {
         [String]$Path
     )
 
-
-
     [String[]]$Local:PathParts = $Path.Split('\') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) };
     [String]$Local:CurrentPath = "${Root}:";
 
@@ -30,29 +28,27 @@ function Invoke-EnsureRegistryPath {
 }
 
 function Set-RegistryKey {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param (
         [Parameter(Mandatory)]
         [String]$Path,
 
         [Parameter(Mandatory)]
-        [String]$Name,
+        [String]$Key,
 
         [Parameter(Mandatory)]
         [String]$Value,
 
         [Parameter(Mandatory)]
         [ValidateSet('Binary', 'DWord', 'ExpandString', 'MultiString', 'None', 'QWord', 'String')]
-        [Microsoft.Win32.RegistryValueKind]$ValueKind
+        [Microsoft.Win32.RegistryValueKind]$Kind
     )
 
-    Invoke-EnsureRegistryPath -Path $Path;
-    [Microsoft.Win32.Registry]::LocalMachine.
-    $key = [Microsoft.Win32.Registry]::LocalMachine.CreateSubKey($Path);
-    if ($Name) {
-        $key.SetValue($Name, $Value, $Type);
+    Invoke-EnsureRegistryPath -Root $Path.Substring(0, 4) -Path $Path.Substring(5);
+    if ($PSCmdlet.ShouldProcess($Path, 'Set')) {
+        Invoke-Verbose "Setting registry key '$Path'...";
+        Set-ItemProperty -Path $Path -Name $Key -Value $Value -Type $Kind;
     }
-    $key.Close();
 }
 
 Export-ModuleMember -Function New-RegistryKey, Remove-RegistryKey, Set-RegistryKey, Test-RegistryKey;
