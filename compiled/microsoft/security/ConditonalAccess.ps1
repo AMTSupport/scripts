@@ -1,5 +1,5 @@
-#Requires -Modules AzureADPreview
 #Requires -Version 5.1
+#Requires -Modules AzureADPreview
 
 
 $Global:CompiledScript = $true;

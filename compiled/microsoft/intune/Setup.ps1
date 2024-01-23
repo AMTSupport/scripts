@@ -1,5 +1,5 @@
-#Requires -Modules Microsoft.Graph.Authentication Microsoft.Graph.Beta.DeviceManagement Microsoft.Graph.Beta.Groups
 #Requires -Version 5.1
+#Requires -Modules Microsoft.Graph.Authentication Microsoft.Graph.Beta.DeviceManagement Microsoft.Graph.Beta.Groups
 
 
 $Global:CompiledScript = $true;

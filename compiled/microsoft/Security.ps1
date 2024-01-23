@@ -1,5 +1,5 @@
-#Requires -Modules AzureADPreview ExchangeOnlineManagement Microsoft.Online.SharePoint.PowerShell MSOnline
 #Requires -Version 5.1
+#Requires -Modules AzureADPreview ExchangeOnlineManagement Microsoft.Online.SharePoint.PowerShell MSOnline
 
 Param(
     [Parameter(Mandatory)]

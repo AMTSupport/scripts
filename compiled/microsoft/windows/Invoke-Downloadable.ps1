@@ -1,7 +1,14 @@
-#Requires -Version 7.1
-#Requires -Modules MCAS
-
-
+#Requires -Version 5.1
+[CmdletBinding(SupportsShouldProcess)]
+Param(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [String]$URL,
+    [Parameter(HelpMessage = 'The pattern to find the executable in the zip file.')]
+    [String]$ExecutablePattern,
+    [Parameter(Position = 0, ValueFromRemainingArguments)]
+    [String[]]$ExecArgs
+)
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Logging.psm1" = {
@@ -1156,80 +1163,51 @@ $Global:EmbededModules = [ordered]@{
 		Export-ModuleMember -Function Invoke-RunMain;
     };
 }
-
-class TemplateFiller {
-    [String]$Template;
-    TemplateFiller([String]$Template) {
-        $this.Template = $Template;
-    }
-    [String]Fill([PSCustomObject]$Object) {
-        $Local:Template = $this.Template;
-        foreach ($Local:Property in $Object.PSObject.Properties) {
-            $Local:Template = $Local:Template.Replace("{{$($Local:Property.Name)}}", $Local:Property.Value);
-        }
-        return $Local:Template;
-    }
-}
-class SecurityReviewReport {
-    [SecurityScoreReport]$SecurityScore;
-    [MailSecurityReport]$MailSecurity;
-    [ImmpersonationReport]$Impersonations;
-    [DeviceChangesReport]$DeviceChanges;
-    [MultiFactorAuthReport]$MultiFactorAuth;
-}
-class SecurityScoreReport {
-    [Int]$Before;
-    [Int]$After;
-    [SecurityScoreChange[]]$Changes;
-}
-class SecurityScoreChange {
-    [String]$Name;
-    [Int]$Increase;
-}
-class MailSecurityReport {
-    [String[]]$Changes;
-}
-class ImmpersonationReport {
-    [Immpersonation[]]$Changes;
-}
-Class Immpersonation {
-    [String]$ImpersonatedUser;
-    [String]$ImpersonatedBy;
-}
-class DeviceChangesReport {
-    [DeviceChange[]]$Changes;
-}
-class DeviceChange {
-    [String]$DeviceName;
-    [ChangeType]$ChangeType;
-    [String]$ChangedBy;
-}
-enum ChangeType {
-    Added;
-    Removed;
-}
-class MultiFactorAuthReport {
-    [MultiFactorUser[]]$Changes;
-}
-class MultiFactorUser {
-    [String]$User;
-    [AuthMethod]$AuthMethod;
-}
-enum AuthMethod {
-    None;
-    Phone;
-    App;
-}
-function Format-Report(
+function Get-Executable(
     [Parameter(Mandatory)]
-    [ValidateNotNull()]
-    [PSCustomObject]$Report
+    [String]$URL,
+    [Parameter()]
+    [String]$ExecutablePattern
 ) {
-    begin { Local:Enter-Scope -Invocation $MyInvocation; }
-    end { Local:Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
     process {
-        # Format the report into a table
+        if (-not $ExecutablePattern) {
+            # If no pattern is specified, assume the executable is the last part of the URL and that it isn't zipped.
+            [String]$Local:Executable = $URL.Split('/')[-1];
+            Invoke-Info "No executable pattern specified, assuming executable is $Local:Executable";
+            Invoke-WebRequest -Uri $URL -OutFile $Local:Executable -UseBasicParsing;
+        } else {
+            [String]$Local:OutFolder = $URL.Split('/')[-1].Split('.')[0];
+            Invoke-Info "Downloading $URL to $Local:OutFolder.zip"
+            Invoke-WebRequest -Uri $URL -OutFile "$Local:OutFolder.zip" -UseBasicParsing;
+            # TODO :: Verify download completed successfully.
+            Invoke-Info "Extracting $Local:OutFolder.zip to $Local:OutFolder";
+            Expand-Archive -Path "$Local:OutFolder.zip" -DestinationPath $Local:OutFolder -Force;
+            Invoke-Info "Looking for executable in $OutFolder\$ExecutablePattern";
+            $Local:Executable = Get-Item -Path "$Local:OutFolder\$ExecutablePattern" | Select-Object -ExpandProperty FullName -First 1;
+            if (-not $Local:Executable) {
+                throw "Could not find executable matching pattern '$ExecutablePattern' in $Local:OutFolder";
+            }
+        }
+        return $Local:Executable;
     }
-}
+}
+function Invoke-Exec(
+    [Parameter(Mandatory)]
+    [String]$Executable,
+    [String[]]$ExecutableArgs
+) {
+    begin { Enter-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope -Invocation $MyInvocation; }
+    process {
+        Start-Process -FilePath "$Executable" -ArgumentList $ExecutableArgs -Wait -NoNewWindow;
+    }
+}
+
 (New-Module -ScriptBlock $Global:EmbededModules['Environment.psm1'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
+    Invoke-WithinEphemeral {
+        [String]$Local:Executable = Get-Executable -URL:$URL -ExecutablePattern:$ExecutablePattern;
+        Invoke-Exec -Executable:$Local:Executable -ExecutableArgs:$ExecArgs;
+    }
 });

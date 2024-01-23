@@ -1,5 +1,5 @@
-#Requires -Modules ExchangeOnlineManagement
 #Requires -Version 5.1
+#Requires -Modules ExchangeOnlineManagement
 
 
 $Global:CompiledScript = $true;
