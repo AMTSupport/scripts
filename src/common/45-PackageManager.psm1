@@ -1,34 +1,35 @@
 #Requires -Version 5.1
 
 # TODO :: Add support for other package managers.
-$Script:PackageManager = switch ($env:OS) {
-    'Windows_NT' {
-        $Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
-
-        if (Test-Path -Path $Local:ChocolateyPath) {
-            # Ensure Chocolatey is usable.
-            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force;
-            refreshenv | Out-Null;
-
-            $Local:ChocolateyPath;
-        } else {
-            throw "Chocolatey is not installed on this system.";
-        }
-
-        return $Local:ChocolateyPath;
-    };
+[String]$Script:PackageManager = switch ($env:OS) {
+    'Windows_NT' { "choco" };
     default {
         throw "Unsupported operating system.";
     };
 };
-[HashTable]$Script:PackageManagerCommands = switch ($Script:PackageManager) {
-    "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe" {
+[HashTable]$Script:PackageManager = switch ($Script:PackageManager) {
+    "choco" {
+        [String]$Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
+        if (Test-Path -Path $Local:ChocolateyPath) {
+            # Ensure Chocolatey is usable.
+            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force;
+            refreshenv | Out-Null;
+        } else {
+            throw 'Chocolatey is not installed on this system.';
+        }
+
         @{
-            Executable = $Script:PackageManager;
-            List       = 'list --local-only';
-            Uninstall  = 'uninstall';
-            Install    = 'install';
-            Update     = 'upgrade';
+            Executable = $Local:ChocolateyPath;
+            Commands = @{
+                List       = 'list';
+                Uninstall  = 'uninstall';
+                Install    = 'install';
+                Update     = 'upgrade';
+            }
+            Options = @{
+                Common = @('--confirm', '--limit-output', '--exact');
+                Force = '--force';
+            }
         };
     };
     default {
@@ -39,11 +40,11 @@ $Script:PackageManager = switch ($env:OS) {
 function Test-Package(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
-    [String]$PackageName,
+    [String]$PackageName
 
-    [Parameter()]
-    [ValidateNotNullOrEmpty()]
-    [String]$PackageVersion
+    # [Parameter()]
+    # [ValidateNotNullOrEmpty()]
+    # [String]$PackageVersion
 ) {
     $Local:Params = @{
         PSPrefix = '🔍';
@@ -52,61 +53,43 @@ function Test-Package(
     };
     Invoke-Write @Local:Params;
 
-    $Local:PackageArgs = @{
-        PackageName = $PackageName;
-        Force = $true;
-        Confirm = $false;
-    };
+    # if ($PackageVersion) {
+    #     $Local:PackageArgs['Version'] = $PackageVersion;
+    # }
 
-    if ($PackageVersion) {
-        $Local:PackageArgs['Version'] = $PackageVersion;
-    }
-
-    & $Script:PackageManager $Script:PackageManagerCommands.List @Local:PackageArgs;
+    # TODO :: Actually get the return value.
+    & $Script:PackageManager.Executable $Script:PackageManager.Commands.List $Script:PackageManager.Options.Common $PackageName;
 }
 
-function Install-Package(
+function Install-ManagedPackage(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
-    [String]$PackageName,
+    [String]$PackageName
 
-    [Parameter()]
-    [ValidateNotNullOrEmpty()]
-    [String]$PackageVersion
+    # [Parameter()]
+    # [ValidateNotNullOrEmpty()]
+    # [String]$PackageVersion
 ) {
-    $Local:Params = @{
+    @{
         PSPrefix = '📦';
         PSMessage = "Installing package '$PackageName'...";
         PSColour = 'Green';
-    };
-    Invoke-Write @Local:Params;
+    } | Invoke-Write;
 
-    $Local:PackageArgs = @{
-        PackageName = $PackageName;
-        Force = $true;
-        Confirm = $false;
-    };
+    # if ($PackageVersion) {
+    #     $Local:PackageArgs['Version'] = $PackageVersion;
+    # }
 
-    if ($PackageVersion) {
-        $Local:PackageArgs['Version'] = $PackageVersion;
-    }
-
-    & $Script:PackageManager $Script:PackageManagerCommands.Install @Local:PackageArgs;
+    # TODO :: Ensure success.
+    & $Script:PackageManager.Executable $Script:PackageManager.Commands.Install $Script:PackageManager.Options.Common $PackageName;
 }
 
-# function Uninstall-Package() {
+function Uninstall-Package() {
 
-# }
+}
 
-# function Update-Package() {
+function Update-Package() {
 
-# }
+}
 
-# switch ($env:OS) {
-#     'Windows_NT' {
-#         Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force
-#         refreshenv | Out-Null
-#     };
-# }
-
-# Export-ModuleMember -Function Install-Package, Test-Package, Uninstall-Package, Update-Package;
+Export-ModuleMember -Function Test-Package, Install-ManagedPackage, Uninstall-Package, Update-Package;
