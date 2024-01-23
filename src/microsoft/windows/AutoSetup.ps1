@@ -579,16 +579,19 @@ function Invoke-PhaseCleanup {
                 # Uninstalling the drivers disables and (on reboot) removes the installed services.
                 # At this stage the only 'HP Inc.' driver we want to keep is HPSFU, used for firmware servicing.
                 Invoke-Progress `
-                    -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' }; }
-                    -GetItemName { Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver) $Driver.OriginalFileName.ToSingle(); }
+                    -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' }; } `
+                    -GetItemName { Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver) $Driver.OriginalFileName.ToString(); } `
                     -ProcessItem {
                         Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver)
+                        [String]$Local:FileName = $Driver.OriginalFileName.ToString();
 
                         try {
-                            pnputil /delete-driver $Driver /uninstall /force;
-                            Invoke-Info "Removed driver: $($Driver.OriginalFileName.ToString())";
+                            $ErrorActionPreference = 'Stop';
+
+                            pnputil /delete-driver $Local:FileName /uninstall /force;
+                            Invoke-Info "Removed driver: $($Local:FileName)";
                         } catch {
-                            Invoke-Warn "Failed to remove driver: $($_.OriginalFileName.toString()): $($_.Exception.Message)";
+                            Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
                         }
                     };
 
@@ -597,17 +600,45 @@ function Invoke-PhaseCleanup {
                 # SWC\HPIC000C = HP Application Enabling Services
                 # SWC\HPTPSH000C = HP Services Scan
                 # ACPI\HPIC000C = HP Application Driver
-                $Local:RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs'
-                If (-not (Test-Path $RegistryPath)) { New-Item -Path $RegistryPath -Force | Out-Null }
+                @{
+                    'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs' = @{
+                        KIND = 'String';
+                        Values = @{
+                            1 = 'SWC\HPA000C'
+                            2 = 'SWC\HPIC000C'
+                            3 = 'SWC\HPTPSH000C'
+                            4 = 'ACPI\HPIC000C'
+                        };
+                    };
+                    'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions' = @{
+                        KIND = 'DWORD';
+                        Values = @{
+                            DenyDeviceIDs = 1;
+                            DenyDeviceIDsRetroactive = 1;
+                        };
+                    };
+                }.GetEnumerator() | ForEach-Object {
+                    [String]$Local:RegistryPath = $_.Key;
+                    [HashTable]$Local:RegistryTable = $_.Value;
 
-                New-ItemProperty -Path $RegistryPath -Name '1' -Value 'SWC\HPA000C' -PropertyType STRING | Out-Null
-                New-ItemProperty -Path $RegistryPath -Name '2' -Value 'SWC\HPIC000C' -PropertyType STRING | Out-Null
-                New-ItemProperty -Path $RegistryPath -Name '3' -Value 'SWC\HPTPSH000C' -PropertyType STRING | Out-Null
-                New-ItemProperty -Path $RegistryPath -Name '4' -Value 'ACPI\HPIC000C' -PropertyType STRING | Out-Null
+                    If (-not (Test-Path $Local:RegistryPath)) {
+                        New-Item -Path $Local:RegistryPath -Force | Out-Null
+                    } else {
+                        Invoke-Info "Registry path [$Local:RegistryPath] already exists, skipping creation...";
+                    }
 
-                $Local:RegistryPath = 'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions'
-                New-ItemProperty -Path $RegistryPath -Name 'DenyDeviceIDs' -Value '1' -PropertyType DWORD | Out-Null
-                New-ItemProperty -Path $RegistryPath -Name 'DenyDeviceIDsRetroactive' -Value '1' -PropertyType DWORD | Out-Null
+                    $Local:RegistryTable.Values.GetEnumerator() | ForEach-Object {
+                        [String]$Local:ValueName = $_.Key;
+                        [String]$Local:ValueData = $_.Value;
+
+                        If (-not (Test-Path "$Local:RegistryPath\$Local:ValueName")) {
+                            New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
+                            Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
+                        } else {
+                            Invoke-Info "Registry value [$Local:ValueName] already exists in path [$Local:RegistryPath], skipping creation...";
+                        }
+                    }
+                }
             }
         }
 
