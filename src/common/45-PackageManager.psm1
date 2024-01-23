@@ -1,11 +1,15 @@
 #Requires -Version 5.1
 
-# TODO: Add support for other package managers.
-$Local:PackageManager = switch ($env:OS) {
+# TODO :: Add support for other package managers.
+$Script:PackageManager = switch ($env:OS) {
     'Windows_NT' {
         $Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
 
         if (Test-Path -Path $Local:ChocolateyPath) {
+            # Ensure Chocolatey is usable.
+            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force;
+            refreshenv | Out-Null;
+
             $Local:ChocolateyPath;
         } else {
             throw "Chocolatey is not installed on this system.";
@@ -15,6 +19,20 @@ $Local:PackageManager = switch ($env:OS) {
     };
     default {
         throw "Unsupported operating system.";
+    };
+};
+[HashTable]$Script:PackageManagerCommands = switch ($Script:PackageManager) {
+    "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe" {
+        @{
+            Executable = $Script:PackageManager;
+            List       = 'list --local-only';
+            Uninstall  = 'uninstall';
+            Install    = 'install';
+            Update     = 'upgrade';
+        };
+    };
+    default {
+        throw "Unsupported package manager.";
     };
 };
 
@@ -44,7 +62,7 @@ function Test-Package(
         $Local:PackageArgs['Version'] = $PackageVersion;
     }
 
-    & $Local:PackageManager list --local-only @Local:PackageArgs;
+    & $Script:PackageManager $Script:PackageManagerCommands.List @Local:PackageArgs;
 }
 
 function Install-Package(
@@ -73,7 +91,7 @@ function Install-Package(
         $Local:PackageArgs['Version'] = $PackageVersion;
     }
 
-    & $Local:PackageManager install @Local:PackageArgs;
+    & $Script:PackageManager $Script:PackageManagerCommands.Install @Local:PackageArgs;
 }
 
 # function Uninstall-Package() {
