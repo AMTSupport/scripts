@@ -2,10 +2,8 @@ name: PowerShell Script Tests
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
+    branches: [ master ]
+    paths: [ 'src/**', 'tests/**', '.github/workflows/test-scripts.yaml' ]
 
 jobs:
   test:
