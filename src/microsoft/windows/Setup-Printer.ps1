@@ -65,7 +65,11 @@ function Install-Driver(
 
             throw "Unable to find driver $DriverName";
         } else {
-            Install-Package -PackageName $ChocolateyPackage;
+            try {
+                Install-ManagedPackage -PackageName $ChocolateyPackage;
+            } catch {
+                throw "Unable to install package $ChocolateyPackage";
+            }
         }
     }
 }
@@ -94,15 +98,10 @@ function Install-PrinterImpl(
             Invoke-Info "Printer port $PrinterIP already exists.";
         }
 
-        if (-not (Get-PrinterPort -Name $PrinterIP -ErrorAction SilentlyContinue)) {
-            Invoke-Info "Adding printer port $PrinterIP";
-            Add-PrinterPort -Name $PrinterIP -PrinterHostAddress $PrinterIP;
-        } else {
-            Invoke-Info "Printer port $PrinterIP already exists";
-        }
-
         if (-not (Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue)) {
             Invoke-Info "Adding printer $PrinterName";
+
+            # TODO :: This can Fail! Need to handle that.
             Add-Printer -Name $PrinterName -DriverName $PrinterDriver -PortName $PrinterIP;
         } else {
             Invoke-Info "Printer $PrinterName already exists";
