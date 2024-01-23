@@ -36,10 +36,10 @@ function Update-SafeAttachmentsPolicy {
 
         try {
             Get-SafeAttachmentPolicy -Identity $Local:Params.Name -ErrorAction Stop | Out-Null;
-            Write-Host -ForegroundColor Cyan -Object 'Default SafeAttachments Policy already exists. Updating...';
+            Invoke-Info 'Default SafeAttachments Policy already exists. Updating...';
             Set-SafeAttachmentPolicy @Local:Params;
         } catch {
-            Write-Host -ForegroundColor Cyan -Object 'Default SafeAttachments Policy does not exist. Creating...';
+            Invoke-Info 'Default SafeAttachments Policy does not exist. Creating...';
             New-SafeAttachmentPolicy @Local:Params | Out-Null;
         }
 
@@ -47,22 +47,22 @@ function Update-SafeAttachmentsPolicy {
             $Local:Rule = Get-SafeAttachmentRule -Identity $Local:Params.Name -ErrorAction Stop;
 
             if ($Local:Rule.SafeAttachmentPolicy -ne $Local:Params.Name) {
-                Write-Host -ForegroundColor Cyan -Object 'Default SafeAttachments Rule exists but is not linked to the policy. Updating...';
+                Invoke-Info 'Default SafeAttachments Rule exists but is not linked to the policy. Updating...';
                 Set-SafeAttachmentRule -Identity $Local:Params.Name -SafeAttachmentPolicy $Local:Params.Name;
             }
 
             $Local:Domain = Get-AcceptedDomain;
             if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count -eq $Local:Domain.Count) {
-                Write-Host -ForegroundColor Cyan -Object 'Default SafeAttachments Rule exists but is not linked to the accepted domain. Updating...';
+                Invoke-Info 'Default SafeAttachments Rule exists but is not linked to the accepted domain. Updating...';
                 Set-SafeAttachmentRule -Identity $Local:Params.Name -RecipientDomainIs $Local:Domain.Name;
             }
 
             if ($Local:Rule.Priority -ne 0) {
-                Write-Host -ForegroundColor Cyan -Object 'Default SafeAttachments Rule exists but is not priority 0. Updating...';
+                Invoke-Info 'Default SafeAttachments Rule exists but is not priority 0. Updating...';
                 Set-SafeAttachmentRule -Identity $Local:Params.Name -Priority 0;
             }
         } catch {
-            Write-Host -ForegroundColor Cyan -Object 'Default SafeAttachments Rule does not exist. Creating...';
+            Invoke-Info 'Default SafeAttachments Rule does not exist. Creating...';
             New-SafeAttachmentRule -Name $Local:Params.Name -SafeAttachmentPolicy $Local:Params.Name -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0 | Out-Null;
         }
     }
@@ -88,10 +88,10 @@ function Update-SafeLinksPolicy {
 
         try {
             Get-SafeLinksPolicy -Identity $Local:Params.Identity -ErrorAction Stop | Out-Null;
-            Info 'Default SafeLinks Policy already exists. Updating...';
+            Invoke-Info 'Default SafeLinks Policy already exists. Updating...';
             Set-SafeLinksPolicy @Local:Params;
         } catch {
-            Info 'Default SafeLinks Policy does not exist. Creating...';
+            Invoke-Info 'Default SafeLinks Policy does not exist. Creating...';
             New-SafeLinksPolicy @Local:Params | Out-Null;
         }
 
@@ -99,22 +99,22 @@ function Update-SafeLinksPolicy {
             $Local:Rule = Get-SafeLinksRule -Identity $Local:Params.Name -ErrorAction Stop;
 
             if ($Local:Rule.SafeLinksPolicy -ne $Local:Params.Name) {
-                Info 'Default SafeLinks Rule exists but is not linked to the policy. Updating...';
+                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the policy. Updating...';
                 Set-SafeLinksRule -Identity $Local:Params.Name -SafeLinksPolicy $Local:Params.Name;
             }
 
             $Local:Domain = Get-AcceptedDomain;
             if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count.Equals($Local:Domain.Count)) {
-                Info 'Default SafeLinks Rule exists but is not linked to the accepted domain. Updating...';
+                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the accepted domain. Updating...';
                 Set-SafeLinksRule -Identity $Local:Params.Name -RecipientDomainIs $Local:Domain.Name;
             }
 
             if ($Local:Rule.Priority -ne 0) {
-                Info 'Default SafeLinks Rule exists but is not priority 0. Updating...';
+                Invoke-Info 'Default SafeLinks Rule exists but is not priority 0. Updating...';
                 Set-SafeLinksRule -Identity $Local:Params.Name -Priority 0;
             }
         } catch {
-            Info 'Default SafeLinks Rule does not exist. Creating...';
+            Invoke-Info 'Default SafeLinks Rule does not exist. Creating...';
             New-SafeLinksRule -Name $Local:Params.Name -SafeLinksPolicy $Local:Params.Name -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0 | Out-Null;
         }
     }
@@ -162,31 +162,31 @@ function Update-AntiPhishPolicy {
         };
 
         if (Get-AntiPhishPolicy -Identity $Local:Params.Identity -ErrorAction SilentlyContinue) {
-            Info 'Default AntiPhish Policy already exists. Updating...';
+            Invoke-Info 'Default AntiPhish Policy already exists. Updating...';
             Set-AntiPhishPolicy @Local:Params;
         } else {
-            Info 'Default AntiPhish Policy does not exist. Creating...';
+            Invoke-Info 'Default AntiPhish Policy does not exist. Creating...';
             New-AntiPhishPolicy @Local:Params;
         }
 
         $Local:Rule = Get-AntiPhishRule -Identity $Local:Params.Identity -ErrorAction Stop;
         if (-not $Local:Rule) {
-            Info 'Default AntiPhish Rule does not exist. Creating...';
+            Invoke-Info 'Default AntiPhish Rule does not exist. Creating...';
             New-AntiPhishRule -Name $Local:Params.Identity -AntiPhishPolicy $Local:Params.Identity -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0;
         } else {
             if ($Local:Rule.AntiPhishPolicy -ne $Local:Params.Identity) {
-                Info 'Default AntiPhish Rule exists but is not linked to the policy. Updating...';
+                Invoke-Info 'Default AntiPhish Rule exists but is not linked to the policy. Updating...';
                 Set-AntiPhishRule -Identity $Local:Params.Identity -AntiPhishPolicy $Local:Params.Identity;
             }
 
             $Local:Domain = Get-AcceptedDomain;
             if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count.Equals($Local:Domain.Count)) {
-                Info 'Default AntiPhish Rule exists but is not linked to the accepted domain. Updating...';
+                Invoke-Info 'Default AntiPhish Rule exists but is not linked to the accepted domain. Updating...';
                 Set-AntiPhishRule -Identity $Local:Params.Identity -RecipientDomainIs $Local:Domain.Identity;
             }
 
             if ($Local:Rule.Priority -ne 0) {
-                Info 'Default AntiPhish Rule exists but is not priority 0. Updating...';
+                Invoke-Info 'Default AntiPhish Rule exists but is not priority 0. Updating...';
                 Set-AntiPhishRule -Identity $Local:Params.Identity -Priority 0;
             }
         }
@@ -243,10 +243,10 @@ function Update-AntiMalwarePolicy {
 
         try {
             Get-SafeLinksPolicy -Identity $Local:Params.Identity -ErrorAction Stop | Out-Null;
-            Info 'Default SafeLinks Policy already exists. Updating...';
+            Invoke-Info 'Default SafeLinks Policy already exists. Updating...';
             Set-SafeLinksPolicy @Local:Params;
         } catch {
-            Info 'Default SafeLinks Policy does not exist. Creating...';
+            Invoke-Info 'Default SafeLinks Policy does not exist. Creating...';
             New-SafeLinksPolicy @Local:Params | Out-Null;
         }
 
@@ -254,22 +254,22 @@ function Update-AntiMalwarePolicy {
             $Local:Rule = Get-SafeLinksRule -Identity $Local:Params.Name -ErrorAction Stop;
 
             if ($Local:Rule.SafeLinksPolicy -ne $Local:Params.Name) {
-                Info 'Default SafeLinks Rule exists but is not linked to the policy. Updating...';
+                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the policy. Updating...';
                 Set-SafeLinksRule -Identity $Local:Params.Name -SafeLinksPolicy $Local:Params.Name;
             }
 
             $Local:Domain = Get-AcceptedDomain;
             if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count.Equals($Local:Domain.Count)) {
-                Info 'Default SafeLinks Rule exists but is not linked to the accepted domain. Updating...';
+                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the accepted domain. Updating...';
                 Set-SafeLinksRule -Identity $Local:Params.Name -RecipientDomainIs $Local:Domain.Name;
             }
 
             if ($Local:Rule.Priority -ne 0) {
-                Info 'Default SafeLinks Rule exists but is not priority 0. Updating...';
+                Invoke-Info 'Default SafeLinks Rule exists but is not priority 0. Updating...';
                 Set-SafeLinksRule -Identity $Local:Params.Name -Priority 0;
             }
         } catch {
-            Info 'Default SafeLinks Rule does not exist. Creating...';
+            Invoke-Info 'Default SafeLinks Rule does not exist. Creating...';
             New-SafeLinksRule -Name $Local:Params.Name -SafeLinksPolicy $Local:Params.Name -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0 | Out-Null;
         }
     }
@@ -282,7 +282,7 @@ Invoke-RunMain $MyInvocation {
     Connect-Service -Service ExchangeOnline;
 
     foreach ($Local:Item in $Update) {
-        Info "Updating $Local:Item settings...";
+        Invoke-Info "Updating $Local:Item settings...";
 
         switch ($Local:Item) {
             'MailBox' {

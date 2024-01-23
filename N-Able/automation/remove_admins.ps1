@@ -217,8 +217,6 @@ function Set-MissingGroup {
 
 function Main {
     $Script:ErrorActionPreference = "Stop"
-    # $Script:VerbosePreference = "Continue"
-    # $Script:DebugPreference = "Continue"
 
     $UserExceptions = $UserExceptions | ForEach-Object {
         Write-Debug "Working on $_"
