@@ -1,0 +1,27 @@
+name: PowerShell Linting
+
+on:
+  pull_request:
+    branches: [ master ]
+    paths: [ 'src/**' ]
+
+jobs:
+  lint:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install PSScriptAnalyzer
+        run: Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck
+
+      - name: Analyze Scripts
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path ./src -Recurse
+          if ($results.Count -gt 0) {
+            $results | Format-Table -AutoSize
+            throw "PSScriptAnalyzer found issues"
+          }
