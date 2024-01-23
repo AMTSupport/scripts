@@ -3,30 +3,38 @@ function Local:Get-SupportsUnicode {
     # $null -ne $env:WT_SESSION;
 }
 
-function Local:Invoke-Write {
-    [CmdletBinding()]
+function Invoke-Write {
+    [CmdletBinding(PositionalBinding)]
     param (
-        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [Parameter(ParameterSetName = 'InputObject', ValueFromPipeline)]
+        [HashTable]$InputObject,
+
+        [Parameter(ParameterSetName = 'Splat', Mandatory, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [String]$PSMessage,
 
-        [Parameter(ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
         [String]$PSPrefix,
 
-        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [Parameter(ParameterSetName = 'Splat', Mandatory, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [String]$PSColour,
 
-        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
-        [Boolean]$ShouldWrite,
+        [Boolean]$ShouldWrite = $True,
 
-        [Parameter(ValueFromPipelineByPropertyName)]
+        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Switch]$NoNewLine
     )
 
     process {
+        if ($InputObject) {
+            Invoke-Write @InputObject;
+            return;
+        }
+
         if (-not $ShouldWrite) {
             return;
         }
