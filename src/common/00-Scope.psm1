@@ -1,49 +1,87 @@
 #Requires -Version 5.1
 
-function Local:Get-ScopeNameFormatted(
-    [Parameter(Mandatory)][ValidateNotNull()]
-    [System.Management.Automation.InvocationInfo]$Invocation
-) {
-    [String]$ScopeName = $Invocation.MyCommand.Name;
-    [String]$ScopeName = if ($null -ne $ScopeName) { "Scope: $ScopeName" } else { 'Scope: Unknown' };
+[System.Collections.Stack]$Script:InvocationStack = [System.Collections.Stack]::new();
+[String]$Script:Tab = "  ";
 
-    return $ScopeName;
+# Used so we can mock in tests.
+function Get-Stack {
+    Get-Variable -Name 'InvocationStack' -ValueOnly;
 }
 
-function Enter-Scope(
-    [Parameter(Mandatory)][ValidateNotNull()]
-    [System.Management.Automation.InvocationInfo]$Invocation
-) {
-    [String]$Local:ScopeName = Get-ScopeNameFormatted -Invocation $Invocation;
-    [System.Collections.IDictionary]$Local:Params = $Invocation.BoundParameters;
-
-    [String]$Local:ParamsFormatted = if ($null -ne $Params -and $Params.Count -gt 0) {
-        [String[]]$ParamsFormatted = $Params.GetEnumerator() | ForEach-Object { "$($_.Key) = $($_.Value)" };
-        [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n`t";
-
-        "Parameters: $Local:ParamsFormatted";
-    } else { 'Parameters: None'; }
-
-    Invoke-Verbose "Entered Scope`n`t$ScopeName`n`t$ParamsFormatted";
+function Get-StackTop {;
+    return (Get-Stack).Peek()
 }
 
-function Exit-Scope(
-    [Parameter(Mandatory)][ValidateNotNull()]
-    [System.Management.Automation.InvocationInfo]$Invocation,
+function Get-ScopeNameFormatted([Parameter(Mandatory)][Switch]$IsExit) {
+    [String]$Local:CurrentScope = (Get-StackTop).MyCommand.Name;
+    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | ForEach-Object { $_.MyCommand } | Sort-Object -Descending -Property Name | Select-Object -SkipLast 1;
 
+    [String]$Local:Scope = "$($Local:PreviousScopes -join ' > ')$(if ($Local:PreviousScopes.Count -gt 0) { if ($IsExit) { ' < ' } else { ' > ' } })$Local:CurrentScope";
+    return $Local:Scope;
+}
+
+function Get-FormattedParameters {
+    [System.Collections.IDictionary]$Local:Params = (Get-StackTop).BoundParameters;
+    if ($null -ne $Local:Params -and $Local:Params.Count -gt 0) {
+        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | ForEach-Object { "$($_.Key) = $($_.Value)" };
+        [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n";
+
+        return "$Local:ParamsFormatted";
+    }
+
+    return $null;
+}
+
+function Get-FormattedReturnValue(
+    [Parameter()]
     [Object]$ReturnValue
 ) {
-    [String]$Local:ScopeName = Get-ScopeNameFormatted -Invocation $Invocation;
     if ($null -ne $ReturnValue) {
         [String]$Local:FormattedValue = switch ($ReturnValue) {
-            { $_ -is [System.Collections.Hashtable] } { "`n`t$(([HashTable]$ReturnValue).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n`t")" }
+            { $_ -is [System.Collections.Hashtable] } { "`n$Script:Tab$(([HashTable]$ReturnValue).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
+            { $_ -is [Object[]] } { "`n$Script:Tab$($ReturnValue -join "`n$Script:Tab")" }
+
             default { $ReturnValue }
         };
 
-        [String]$Local:ReturnValueFormatted = "Return Value: $Local:FormattedValue";
-    } else { [String]$Local:ReturnValueFormatted = 'Return Value: None'; };
+        return "Return Value: $Local:FormattedValue";
+    };
 
-    Invoke-Verbose "Exited Scope`n`t$ScopeName`n`t$ReturnValueFormatted";
+    return $null;
 }
 
-Export-ModuleMember -Function Enter-Scope,Exit-Scope;
+function Enter-Scope(
+    [Parameter()][ValidateNotNull()]
+    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo
+) {
+    (Get-Stack).Push($Invocation);
+
+    [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$False;
+    [String]$Local:ParamsFormatted = Get-FormattedParameters;
+
+    @{
+        PSMessage = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
+        PSColour  = 'Blue';
+        PSPrefix  = '❯❯';
+    } | Invoke-Write;
+}
+
+function Exit-Scope(
+    [Parameter()][ValidateNotNull()]
+    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo,
+    [Parameter()][ValidateNotNull()]
+    [Object]$ReturnValue
+) {
+    [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$True;
+    [String]$Local:ReturnValueFormatted = Get-FormattedReturnValue -ReturnValue $ReturnValue;
+
+    @{
+        PSMessage = "$Local:ScopeName$(if ($Local:ReturnValueFormatted) { "`n$Script:Tab$Local:ReturnValueFormatted" })";
+        PSColour  = 'Blue';
+        PSPrefix  = '❮❮';
+    } | Invoke-Write;
+
+    (Get-Stack).Pop() | Out-Null;
+}
+
+Export-ModuleMember -Function Get-StackTop, Get-FormattedParameters, Get-FormattedReturnValue, Get-ScopeNameFormatted, Enter-Scope,Exit-Scope;
