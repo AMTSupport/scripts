@@ -95,7 +95,7 @@ function Invoke-FailedExit {
 }
 
 function Invoke-QuickExit {
-    Invoke-Handlers;
+    Invoke-Handlers -IsFailure:$False;
 
     [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
         [System.Exception]::new('Quick Exit'),

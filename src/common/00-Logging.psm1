@@ -1,4 +1,11 @@
-function Local:Get-SupportsUnicode {
+# Versions below 7.2 don't have built-in PSStyle, so we need to ensure it's installed.
+if ($PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSVersion.Minor -lt 2) {
+    Install-Module -Name PSStyle -Scope CurrentUser -Force;
+    Import-Module -Name PSStyle -Global;
+}
+
+# FIXME
+function Get-SupportsUnicode {
     $True
     # $null -ne $env:WT_SESSION;
 }
@@ -22,11 +29,7 @@ function Invoke-Write {
 
         [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
-        [Boolean]$ShouldWrite = $True,
-
-        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
-        [ValidateNotNullOrEmpty()]
-        [Switch]$NoNewLine
+        [Boolean]$ShouldWrite = $True
     )
 
     process {
@@ -39,17 +42,21 @@ function Invoke-Write {
             return;
         }
 
-        $Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
-            $PSMessage -replace "`n", "`n + ";
-        } else {
-            $PSMessage;
-        }
+        [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
+            "$(' ' * $($PSPrefix.Length))";
+        } else { ''; }
 
-        if (Get-SupportsUnicode -and $PSPrefix) {
-            Write-Host -ForegroundColor $PSColour -Object "$PSPrefix $Local:FormattedMessage" -NoNewline:$NoNewLine;
-        } else {
-            Write-Host -ForegroundColor $PSColour -Object "$Local:FormattedMessage" -NoNewline:$NoNewLine;
-        }
+        [String]$Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
+            $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
+        } else { $PSMessage; }
+
+        $Local:FormattedMessage = "$($PSStyle.Foreground.FromConsoleColor($PSColour))$Local:FormattedMessage$($PSStyle.Reset)";
+
+        [String]$Local:FormattedMessage = if ($PSPrefix -and (Get-SupportsUnicode)) {
+            "$PSPrefix $Local:FormattedMessage";
+        } else { $Local:FormattedMessage; }
+
+        Write-Information $Local:FormattedMessage;
     }
 }
 
@@ -94,17 +101,13 @@ function Invoke-FormattedError(
         ShouldWrite = $True;
     };
 
-    Invoke-Write @Local:BaseHash -PSMessage "File    | " -PSColour 'Cyan' -NoNewLine;
-    Invoke-Write @Local:BaseHash -PSMessage $Local:Script -PSColour 'Red';
-    Invoke-Write @Local:BaseHash -PSMessage "Line    | " -PSColour 'Cyan' -NoNewline;
-    Invoke-Write @Local:BaseHash -PSMessage $InvocationInfo.ScriptLineNumber -PSColour 'Red';
-    Invoke-Write @Local:BaseHash -PSMessage "Preview | " -PSColour 'Cyan' -NoNewLine;
-    Invoke-Write @Local:BaseHash -PSMessage $Local:TrimmedLine -PSColour 'Red';
+    Invoke-Write @Local:BaseHash -PSMessage "File    | $($PSStyle.Foreground.Red)$Local:Script" -PSColour Cyan;
+    Invoke-Write @Local:BaseHash -PSMessage "Line    | $($PSStyle.Foreground.Red)$($InvocationInfo.ScriptLineNumber)" -PSColour Cyan;
+    Invoke-Write @Local:BaseHash -PSMessage "Preview | $($PSStyle.Foreground.Red)$Local:TrimmedLine" -PSColour Cyan;
     Invoke-Write @Local:BaseHash -PSMessage "$Local:Underline" -PSColour 'Red';
 
     if ($Local:Message) {
-        Invoke-Write @Local:BaseHash -PSMessage "Message | " -PSColour 'Cyan' -NoNewLine;
-        Invoke-Write @Local:BaseHash -PSMessage $Local:Message -PSColour 'Red';
+        Invoke-Write @Local:BaseHash -PSMessage "Message | $($PSStyle.Foreground.Red)$Local:Message" -PSColour Cyan;
     }
 }
 
@@ -273,4 +276,4 @@ function Invoke-Timeout {
     }
 }
 
-Export-ModuleMember -Function Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout;
+Export-ModuleMember -Function Get-SupportsUnicode, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout;
