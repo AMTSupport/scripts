@@ -48,7 +48,7 @@ function New-Database {
     $Local:Matches | ConvertTo-Json | Out-File -FilePath "$Database";
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
+Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Invoke-EnsureModules -Modules "$PSScriptRoot/Common.psm1";
 
