@@ -112,4 +112,8 @@ function Get-RunningFlag {
     [RunningFlag]::new();
 }
 
-Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag;
+function Get-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
+    [Flag]::new($Context);
+}
+
+Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag,Get-Flag;
