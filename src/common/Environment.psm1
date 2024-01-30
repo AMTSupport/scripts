@@ -1,3 +1,5 @@
+[System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
+
 function Get-OrFalse {
     Param(
         [Parameter(Mandatory)]
@@ -15,6 +17,72 @@ function Get-OrFalse {
         } else {
             return $false;
         }
+    }
+}
+
+function Import-CommonModules([HashTable]$CommonParams) {
+    [System.Management.Automation.OrderedHashtable]$Local:ToImport = [Ordered]@{};
+
+    function Get-FilsAsHashTable([String]$Path) {
+        [System.Management.Automation.OrderedHashtable]$Local:HashTable = [Ordered]@{};
+
+        Get-ChildItem -File -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1" | ForEach-Object {
+            [System.IO.FileInfo]$Local:File = $_;
+            $Local:HashTable[$Local:File.BaseName] = $Local:File.FullName;
+        };
+
+        return $Local:HashTable;
+    }
+
+    # Collect a List of the modules to import.
+    if ($Global:CompiledScript) {
+        Write-Verbose -Message '✅ Script has been embeded with required modules.';
+        [System.Management.Automation.OrderedHashtable]$Local:ToImport = $Global:EmbededModules;
+    } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
+        Write-Verbose -Message '✅ Script is in git repository; Using local files.';
+        [System.Management.Automation.OrderedHashtable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
+    } else {
+        [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
+
+        if (-not (Test-Path -Path $Local:RepoPath)) {
+            Write-Verbose -Message '♻️ Cloning repository.';
+            git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
+        } else {
+            Write-Verbose -Message '♻️ Updating repository.';
+            git -C $Local:RepoPath pull;
+        }
+
+        [System.Management.Automation.OrderedHashtable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
+    }
+
+    # Import the modules.
+    Write-Verbose -Message "♻️ Importing $($Local:ToImport.Count) modules.";
+    Write-Verbose -Message "✅ Modules to import: `n`t$($Local:ToImport.Keys -join "`n`t")";
+    foreach ($Local:Module in $Local:ToImport.GetEnumerator()) {
+        $Local:ModuleName = $Local:Module.Key;
+        $Local:ModuleValue = $Local:Module.Value;
+
+        if ($Local:ModuleName -eq 'Environment') {
+            continue;
+        }
+
+        $Local:Module = if ($Local:ModuleValue -is [ScriptBlock]) {
+            New-Module -ScriptBlock $Local:ModuleValue -Name $Local:ModuleName -ArgumentList $Local:CommonParams | Import-Module -Global -Force;
+        } else {
+            Import-Module -Name $Local:ModuleValue -ArgumentList $Local:CommonParams -Global -Force;
+        }
+    }
+
+    $Script:ImportedModules += $Local:ToImport.Keys;
+}
+
+function Remove-CommonModules {
+    Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
+    Invoke-Verbose -Prefix '✅' -Message "Removing modules: `n`t$($Script:ImportedModules -join "`n`t")";
+    $Script:ImportedModules | ForEach-Object { Remove-Module -Name $_ -Force; };
+
+    if ($Global:CompiledScript) {
+        Remove-Variable -Scope Global -Name CompiledScript, EmbededModules;
     }
 }
 
@@ -70,10 +138,13 @@ function Invoke-RunMain {
         )
 
         begin {
-            [HashTable]$Local:CommonParams = @{};
+            # $InformationPreference = 'Continue';
+            [HashTable]$Local:CommonParams = @{ InformationPreference = 'Continue'; };
             [String[]]$Local:CopyParams = @('WhatIf','Verbose','Debug','ErrorAction','WarningAction','InformationAction','ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable');
             foreach ($Local:Param in $Invocation.BoundParameters.Keys) {
+                Write-Host "Ecountered parameter $Local:Param with value $($Invocation.BoundParameters[$Local:Param])"
                 if ($Local:CopyParams -contains $Local:Param) {
+                    Write-Host "Copying parameter $Local:Param with value $($Invocation.BoundParameters[$Local:Param])"
                     $Local:CommonParams[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
                 }
             }
@@ -91,44 +162,7 @@ function Invoke-RunMain {
                 return;
             }
 
-            $Local:ImportedModules = [System.Collections.Generic.List[String]]::new();
-            if ($Global:CompiledScript) {
-                Write-Verbose -Message '✅ Script has been embeded with required modules.';
-                $Local:ToImport = $Global:EmbededModules;
-            } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
-                Write-Verbose -Message '✅ Script is in git repository; Using local files.';
-                $Local:ToImport = Get-ChildItem -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
-            } else {
-                $Local:RepoPath = "$($env:TEMP)/AMTScripts";
-
-                if (-not (Test-Path -Path $Local:RepoPath)) {
-                    Write-Verbose -Message '♻️ Cloning repository.';
-                    git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
-                } else {
-                    Write-Verbose -Message '♻️ Updating repository.';
-                    git -C $Local:RepoPath pull;
-                }
-
-                Write-Verbose -Message '♻️ Collecting common modules.';
-                $Local:ToImport = Get-ChildItem -Path "$Local:RepoPath/src/common/*.psm1";
-            }
-
-            Write-Verbose -Message "♻️ Importing $($Local:ToImport.Count) modules.";
-            if ($Global:CompiledScript) {
-                Write-Verbose -Message "✅ Modules to import: `n`t$($Local:ToImport.Keys -join "`n`t")";
-
-                foreach ($Local:Module in $Local:ToImport.GetEnumerator()) {
-                    $Local:ModuleKey = $Local:Module.Key;
-                    $Local:ModuleDefinition = $Local:Module.Value;
-
-                    $Local:Module = New-Module -ScriptBlock $Local:ModuleDefinition -Name $Local:ModuleKey | Import-Module -Global -Force -ArgumentList $Local:CommonParams;
-                }
-            } else {
-                Write-Verbose -Message "✅ Modules to import: `n`t$($Local:ToImport.Name -join "`n`t")";
-                Import-Module -Name $Local:ToImport.FullName -Global -ArgumentList $Local:CommonParams;
-            }
-
-            $Local:ImportedModules += $Local:ToImport;
+            Import-CommonModules;
         }
 
         process {
@@ -152,29 +186,8 @@ function Invoke-RunMain {
             } finally {
                 Invoke-Handlers;
 
-                ([Int16]$Local:ModuleCount, [String[]]$Local:ModuleNames) = if ($Global:CompiledScript) {
-                    $Local:ImportedModules.GetEnumerator().Count, $Local:ImportedModules.GetEnumerator().Keys
-                } else {
-                    $Local:ImportedModules.Count, $Local:ImportedModules
-                };
-
                 if (-not $Local:DontImport) {
-                    Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Local:ModuleCount) imported modules.";
-                    Invoke-Verbose -Prefix '✅' -Message "Removing modules: `n`t$($Local:ModuleNames -join "`n`t")";
-
-                    if ($Global:CompiledScript) {
-                        $Local:ImportedModules.Keys | ForEach-Object {
-                            Remove-Module -Name $_ -Force;
-                        };
-
-                        $Global:CompiledScript = $null;
-                        $Global:EmbededModules = $null;
-                    }
-                    else {
-                        $Local:ImportedModules | ForEach-Object {
-                            Remove-Module -Name $_.BaseName -Force;
-                        }
-                    }
+                    Remove-CommonModules;
                 }
 
                 [Console]::InputEncoding, [Console]::OutputEncoding = $Local:PreviousEncoding;
@@ -188,4 +201,4 @@ function Invoke-RunMain {
     Invoke-Inner -Invocation $Invocation -Main $Main -DontImport:$DontImport -HideDisclaimer:$HideDisclaimer -Verbose:$Local:Verbose -Debug:$Local:Debug;
 }
 
-Export-ModuleMember -Function Invoke-RunMain;
+Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules;
