@@ -460,15 +460,15 @@ Invoke-RunMain $MyInvocation -DontImport:$InnerInvocation -HideDisclaimer:$Inner
         [String]$Local:CompiledScript = New-CompiledScript -Lines $Local:Lines -ModuleTable $Local:ModuleTable -Requirements $Local:Requirements;
 
         if (-not $Output) {
-            Write-Host -ForegroundColor Cyan -Object $Local:CompiledScript;
+            Invoke-Info $Local:CompiledScript;
         } else {
             [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
             if (Test-Path $Local:OutputFile) {
                 if ($Force -or (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true)) {
-                    Write-Host -ForegroundColor Cyan -Object 'Output file already exists. Deleting...';
+                    Invoke-Info 'Output file already exists. Deleting...';
                     Remove-Item -Path $Local:OutputFile -Force | Out-Null;
                 } else {
-                    Write-Host -ForegroundColor Red "Output file already exists: $($Local:OutputFile)";
+                    Invoke-Error "Output file already exists: $($Local:OutputFile)";
                     continue
                 }
             }

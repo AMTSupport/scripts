@@ -18,7 +18,7 @@
             "request": "launch",
             "script": "${file}",
             "cwd": "${cwd}",
-            "args": [ "-Verbose" ],
+            "args": [ "-Verbose", "-Debug" ],
             "createTemporaryIntegratedConsole": true,
             "attachDotnetDebugger": true,
         },
