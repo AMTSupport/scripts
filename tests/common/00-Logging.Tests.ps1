@@ -4,7 +4,7 @@ BeforeDiscovery {
 
 BeforeAll {
     function Get-ShouldBeString([String]$String) {
-        $String -replace "`n", "`n + ";
+        $String -replace "`n", "`n+ ";
     }
 
     function Get-Stripped([Parameter(ValueFromPipeline)][String]$String) {
