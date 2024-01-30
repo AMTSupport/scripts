@@ -60,9 +60,10 @@ function Enter-Scope(
     [String]$Local:ParamsFormatted = Get-FormattedParameters;
 
     @{
-        PSMessage = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
-        PSColour  = 'Blue';
-        PSPrefix  = '❯❯';
+        PSMessage   = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
+        PSColour    = 'Blue';
+        PSPrefix    = '❯❯';
+        ShouldWrite = $Global:Logging.Verbose;
     } | Invoke-Write;
 }
 
@@ -76,9 +77,10 @@ function Exit-Scope(
     [String]$Local:ReturnValueFormatted = Get-FormattedReturnValue -ReturnValue $ReturnValue;
 
     @{
-        PSMessage = "$Local:ScopeName$(if ($Local:ReturnValueFormatted) { "`n$Script:Tab$Local:ReturnValueFormatted" })";
-        PSColour  = 'Blue';
-        PSPrefix  = '❮❮';
+        PSMessage   = "$Local:ScopeName$(if ($Local:ReturnValueFormatted) { "`n$Script:Tab$Local:ReturnValueFormatted" })";
+        PSColour    = 'Blue';
+        PSPrefix    = '❮❮';
+        ShouldWrite = $Global:Logging.Verbose;
     } | Invoke-Write;
 
     (Get-Stack).Pop() | Out-Null;

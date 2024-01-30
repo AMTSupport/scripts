@@ -1,4 +1,75 @@
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
+[HashTable]$Global:Logging = @{
+    Loaded = $false;
+    Error = $ErrorActionPreference -ne 'SilentlyContinue';
+    Warning = $WarningPreference -ne 'SilentlyContinue';
+    Information = $InformationPreference -ne 'SilentlyContinue';
+    Verbose = $VerbosePreference -ne 'SilentlyContinue';
+    Debug = $DebugPreference -ne 'SilentlyContinue';
+};
+
+function Invoke-WithLogging {
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [String]$Message,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [ScriptBlock]$HasLoggingFunc,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [ScriptBlock]$MissingLoggingFunc
+    )
+
+    process {
+        if ($Global:Logging.Loaded) {
+            $HasLoggingFunc.InvokeReturnAsIs(@($Message));
+        } else {
+            $MissingLoggingFunc.InvokeReturnAsIs(@($Message));
+        }
+    }
+}
+
+function Invoke-EnvInfo {
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [String]$Message
+   )
+
+    Invoke-WithLogging `
+        -Message $Message `
+        -HasLoggingFunc { param($Message) Invoke-Info $Message; } `
+        -MissingLoggingFunc { param($Message) Write-Host -ForegroundColor Cyan -Object $Message; };
+}
+
+function Invoke-EnvVerbose {
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [String]$Message
+    )
+
+    Invoke-WithLogging `
+        -Message $Message `
+        -HasLoggingFunc { param($Message) Invoke-Verbose $Message; } `
+        -MissingLoggingFunc { param($Message) Write-Verbose -Message $Message; };
+}
+
+function Invoke-EnvDebug {
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [String]$Message
+    )
+
+    Invoke-WithLogging `
+        -Message $Message `
+        -HasLoggingFunc { param($Message) Invoke-Debug $Message; } `
+        -MissingLoggingFunc { param($Message) Write-Debug -Message $Message; };
+}
 
 function Get-OrFalse {
     Param(
@@ -36,19 +107,19 @@ function Import-CommonModules([HashTable]$CommonParams) {
 
     # Collect a List of the modules to import.
     if ($Global:CompiledScript) {
-        Write-Verbose -Message '✅ Script has been embeded with required modules.';
+        Invoke-EnvVerbose 'Script has been embeded with required modules.';
         [System.Management.Automation.OrderedHashtable]$Local:ToImport = $Global:EmbededModules;
     } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
-        Write-Verbose -Message '✅ Script is in git repository; Using local files.';
+        Invoke-EnvVerbose -Message 'Script is in git repository; Using local files.';
         [System.Management.Automation.OrderedHashtable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
     } else {
         [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 
         if (-not (Test-Path -Path $Local:RepoPath)) {
-            Write-Verbose -Message '♻️ Cloning repository.';
+            Invoke-EnvVerbose -Message '♻️ Cloning repository.';
             git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
         } else {
-            Write-Verbose -Message '♻️ Updating repository.';
+            Invoke-EnvVerbose -Message '♻️ Updating repository.';
             git -C $Local:RepoPath pull;
         }
 
@@ -56,14 +127,18 @@ function Import-CommonModules([HashTable]$CommonParams) {
     }
 
     # Import the modules.
-    Write-Verbose -Message "♻️ Importing $($Local:ToImport.Count) modules.";
-    Write-Verbose -Message "✅ Modules to import: `n`t$($Local:ToImport.Keys -join "`n`t")";
+    Invoke-EnvVerbose -Message "Importing $($Local:ToImport.Count) modules.";
+    Invoke-EnvVerbose -Message "Modules to import: `n`t$($Local:ToImport.Keys -join "`n`t")";
     foreach ($Local:Module in $Local:ToImport.GetEnumerator()) {
         $Local:ModuleName = $Local:Module.Key;
         $Local:ModuleValue = $Local:Module.Value;
 
         if ($Local:ModuleName -eq 'Environment') {
             continue;
+        }
+
+        if ($Local:ModuleName -eq '00-Logging') {
+            $Global:Logging.Loaded = $true;
         }
 
         $Local:Module = if ($Local:ModuleValue -is [ScriptBlock]) {
@@ -77,9 +152,15 @@ function Import-CommonModules([HashTable]$CommonParams) {
 }
 
 function Remove-CommonModules {
-    Invoke-Verbose -Prefix '♻️' -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
-    Invoke-Verbose -Prefix '✅' -Message "Removing modules: `n`t$($Script:ImportedModules -join "`n`t")";
-    $Script:ImportedModules | ForEach-Object { Remove-Module -Name $_ -Force; };
+    Invoke-EnvVerbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
+    Invoke-EnvVErbose -Message "Removing modules: `n`t$($Script:ImportedModules -join "`n`t")";
+    $Script:ImportedModules | ForEach-Object {
+        if ($_ -eq '00-Logging') {
+            $Global:Logging.Loaded = $false;
+        }
+
+        Remove-Module -Name $_ -Force;
+    };
 
     if ($Global:CompiledScript) {
         Remove-Variable -Scope Global -Name CompiledScript, EmbededModules;
@@ -142,9 +223,9 @@ function Invoke-RunMain {
             [HashTable]$Local:CommonParams = @{ InformationPreference = 'Continue'; };
             [String[]]$Local:CopyParams = @('WhatIf','Verbose','Debug','ErrorAction','WarningAction','InformationAction','ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable');
             foreach ($Local:Param in $Invocation.BoundParameters.Keys) {
-                Write-Host "Ecountered parameter $Local:Param with value $($Invocation.BoundParameters[$Local:Param])"
+                Invoke-EnvDebug "Ecountered parameter $Local:Param with value $($Invocation.BoundParameters[$Local:Param])"
                 if ($Local:CopyParams -contains $Local:Param) {
-                    Write-Host "Copying parameter $Local:Param with value $($Invocation.BoundParameters[$Local:Param])"
+                    Invoke-EnvDebug "Copying parameter $Local:Param with value $($Invocation.BoundParameters[$Local:Param])"
                     $Local:CommonParams[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
                 }
             }
@@ -154,11 +235,11 @@ function Invoke-RunMain {
             $OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding;
 
             if (-not $HideDisclaimer) {
-                Write-Host -ForegroundColor Yellow -Object '⚠️ Disclaimer: This script is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
+                Invoke-EnvInfo -Message '⚠️ Disclaimer: This script is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
             }
 
             if ($Local:DontImport) {
-                Write-Verbose -Message '♻️ Skipping module import.';
+                Invoke-EnvVerbose -Message '♻️ Skipping module import.';
                 return;
             }
 
@@ -190,6 +271,7 @@ function Invoke-RunMain {
                     Remove-CommonModules;
                 }
 
+                Remove-Variable -Scope Global -Name Logging;
                 [Console]::InputEncoding, [Console]::OutputEncoding = $Local:PreviousEncoding;
             }
         }

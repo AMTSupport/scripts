@@ -30,35 +30,36 @@ function Invoke-Write {
         [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Boolean]$ShouldWrite = $True
-    )
+        )
 
-    process {
-        if ($InputObject) {
-            Invoke-Write @InputObject;
-            return;
+        process {
+            if ($InputObject) {
+                Invoke-Write @InputObject;
+                return;
+            }
+
+            if (-not $ShouldWrite) {
+                return;
+            }
+
+            [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
+                "$(' ' * $($PSPrefix.Length))";
+            } else { ''; }
+
+            [String]$Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
+                $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
+            } else { $PSMessage; }
+
+            $Local:FormattedMessage = "$($PSStyle.Foreground.FromConsoleColor($PSColour))$Local:FormattedMessage$($PSStyle.Reset)";
+
+            [String]$Local:FormattedMessage = if ($PSPrefix -and (Get-SupportsUnicode)) {
+                "$PSPrefix $Local:FormattedMessage";
+            } else { $Local:FormattedMessage; }
+
+            $InformationPreference = 'Continue';
+            Write-Information $Local:FormattedMessage;
         }
-
-        if (-not $ShouldWrite) {
-            return;
-        }
-
-        [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
-            "$(' ' * $($PSPrefix.Length))";
-        } else { ''; }
-
-        [String]$Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
-            $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
-        } else { $PSMessage; }
-
-        $Local:FormattedMessage = "$($PSStyle.Foreground.FromConsoleColor($PSColour))$Local:FormattedMessage$($PSStyle.Reset)";
-
-        [String]$Local:FormattedMessage = if ($PSPrefix -and (Get-SupportsUnicode)) {
-            "$PSPrefix $Local:FormattedMessage";
-        } else { $Local:FormattedMessage; }
-
-        Write-Information $Local:FormattedMessage;
     }
-}
 
 function Invoke-FormattedError(
     [Parameter(Mandatory, HelpMessage = 'The error records invocation info.')]
@@ -125,7 +126,7 @@ function Invoke-Verbose(
         PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
         PSMessage = $Message;
         PSColour = 'Yellow';
-        ShouldWrite = $VerbosePreference -ne 'SilentlyContinue';
+        ShouldWrite = $Global:Logging.Verbose;
     };
 
     Invoke-Write @Local:Params;
@@ -145,7 +146,7 @@ function Invoke-Debug(
         PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
         PSMessage = $Message;
         PSColour = 'Magenta';
-        ShouldWrite = $DebugPreference -ne 'SilentlyContinue';
+        ShouldWrite = $Global:Logging.Debug;
     };
 
     Invoke-Write @Local:Params;
@@ -165,7 +166,7 @@ function Invoke-Info(
         PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
         PSMessage = $Message;
         PSColour = 'Cyan';
-        ShouldWrite = $True;
+        ShouldWrite = $Global:Logging.Information;
     };
 
     Invoke-Write @Local:Params;
@@ -185,7 +186,7 @@ function Invoke-Warn(
         PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
         PSMessage = $Message;
         PSColour = 'Yellow';
-        ShouldWrite = $True;
+        ShouldWrite = $Global:Logging.Warning;
     };
 
     Invoke-Write @Local:Params;
@@ -205,7 +206,7 @@ function Invoke-Error(
         PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
         PSMessage = $Message;
         PSColour = 'Red';
-        ShouldWrite = $True;
+        ShouldWrite = $Global:Logging.Error;
     };
 
     Invoke-Write @Local:Params;

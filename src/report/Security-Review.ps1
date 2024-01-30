@@ -1,7 +1,7 @@
 #Requires -Version 7.1
 #Requires -Modules MCAS
 
-Import-Module ../common/Environment.psm1;
+Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 
 #region - Types
 

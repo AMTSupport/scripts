@@ -1,9 +1,10 @@
 BeforeDiscovery {
-    Import-Module $PSScriptRoot/../../src/common/05-Assert.psm1
+    Import-Module $PSScriptRoot/../../src/common/00-Environment.psm1;
+    Import-CommonModules;
 }
 
 AfterAll {
-    Remove-Module 05-Assert
+    Remove-CommonModules;
 }
 
 Describe '05-Assert.psm1 Tests' {

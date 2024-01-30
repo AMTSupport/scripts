@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 
-Import-Module ../common/Environment.psm1;
+Import-Module ../common/00-Environment.psm1;
 
 Invoke-RunMain $MyInvocation {
     Write-Host "Hello, World!"

@@ -354,7 +354,7 @@ function Set-EndpointSecurityEncryptionMacOS {
 #endregion - Disk Encryption
 
 #endregion - Endpoint Security
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
+Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Connect-Service -Services 'Graph'; # Scopes needed, deviceManagementConfiguration.ReadWrite.All,Group.ReadWrite.All,
 
