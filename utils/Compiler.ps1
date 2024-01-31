@@ -413,8 +413,8 @@ function New-CompiledScript(
 
         [String]$Local:ScriptBody = $Local:FilteredLines | Join-String -Separator "`n";
 
-        # Replace the import environment module with the embeded version
-        $Local:ScriptBody = $Local:ScriptBody -replace '(?smi)^Import-Module (\$PSScriptRoot)?([./]*./)common/Environment\.psm1;?\s*$', '';
+        # Replace the import environment with an empty string.
+        $Local:ScriptBody = $Local:ScriptBody -replace '(?smi)^Import-Module\s(?:\$PSScriptRoot)?(?:[/\\\.]*(?:(?:src|common)[/\\])+)00-Environment\.psm1;?\s*$', '';
 
         [String]$Local:CompiledScript = @"
 $Local:RequirmentLines
@@ -423,7 +423,7 @@ $Local:ParamBlock
 `$Global:CompiledScript = `$true;
 `$Global:EmbededModules = [ordered]@{
     $($Local:ModuleTable.GetEnumerator() | Sort-Object Name | ForEach-Object {
-        $Local:Key = $_.Key;
+        $Local:Key = $_.Key | Split-Path -LeafBase;
         $Local:Value = $_.Value;
     "`"$Local:Key`" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -434,7 +434,7 @@ $Local:ParamBlock
 }
 $Local:ScriptBody
 $(if ($Local:InvokeMain) {
-    "(New-Module -ScriptBlock `$Global:EmbededModules['Environment.psm1'] -AsCustomObject -ArgumentList `$MyInvocation.BoundParameters).'Invoke-RunMain'(`$MyInvocation, $Local:InvokeMain);"
+    "(New-Module -ScriptBlock `$Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList `$MyInvocation.BoundParameters).'Invoke-RunMain'(`$MyInvocation, $Local:InvokeMain);"
 })
 "@;
 
