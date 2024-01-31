@@ -92,10 +92,10 @@ function Get-OrFalse {
 }
 
 function Import-CommonModules([HashTable]$CommonParams) {
-    [System.Management.Automation.OrderedHashtable]$Local:ToImport = [Ordered]@{};
+    [HashTable]$Local:ToImport = [Ordered]@{};
 
     function Get-FilsAsHashTable([String]$Path) {
-        [System.Management.Automation.OrderedHashtable]$Local:HashTable = [Ordered]@{};
+        [HashTable]$Local:HashTable = [Ordered]@{};
 
         Get-ChildItem -File -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1" | ForEach-Object {
             [System.IO.FileInfo]$Local:File = $_;
@@ -105,13 +105,25 @@ function Import-CommonModules([HashTable]$CommonParams) {
         return $Local:HashTable;
     }
 
+    function Import-ModuleOrScriptBlock([String]$Name, [Object]$Value) {
+        if ($Value -is [ScriptBlock]) {
+            if (Get-Module -Name $Name) {
+                Remove-Module -Name $Name -Force;
+            }
+
+            New-Module -ScriptBlock $Value -Name $Name -ArgumentList $CommonParams | Import-Module -Global -Force;
+        } else {
+            Import-Module -Name $Value -ArgumentList $CommonParams -Global -Force;
+        }
+    }
+
     # Collect a List of the modules to import.
     if ($Global:CompiledScript) {
         Invoke-EnvVerbose 'Script has been embeded with required modules.';
-        [System.Management.Automation.OrderedHashtable]$Local:ToImport = $Global:EmbededModules;
+        [HashTable]$Local:ToImport = $Global:EmbededModules;
     } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
         Invoke-EnvVerbose -Message 'Script is in git repository; Using local files.';
-        [System.Management.Automation.OrderedHashtable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
+        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
     } else {
         [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 
@@ -123,29 +135,32 @@ function Import-CommonModules([HashTable]$CommonParams) {
             git -C $Local:RepoPath pull;
         }
 
-        [System.Management.Automation.OrderedHashtable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
+        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
     }
+
+    # Import PSStyle Before anything else.
+    Import-ModuleOrScriptBlock -Name:'00-PSStyle' -Value:$Local:ToImport['00-PSStyle'];
 
     # Import the modules.
     Invoke-EnvVerbose -Message "Importing $($Local:ToImport.Count) modules.";
-    Invoke-EnvVerbose -Message "Modules to import: `n`t$($Local:ToImport.Keys -join "`n`t")";
-    foreach ($Local:Module in $Local:ToImport.GetEnumerator()) {
+    Invoke-EnvVerbose -Message "Modules to import: `n`t$(($Local:ToImport.Keys | Sort-Object) -join "`n`t")";
+    foreach ($Local:Module in $Local:ToImport.GetEnumerator() | Sort-Object) {
         $Local:ModuleName = $Local:Module.Key;
         $Local:ModuleValue = $Local:Module.Value;
 
-        if ($Local:ModuleName -eq 'Environment') {
+        if ($Local:ModuleName -eq '00-Environment') {
             continue;
         }
 
-        if ($Local:ModuleName -eq '00-Logging') {
+        if ($Local:ModuleName -eq '00-PSStyle') {
+            continue;
+        }
+
+        if ($Local:ModuleName -eq '01-Logging') {
             $Global:Logging.Loaded = $true;
         }
 
-        $Local:Module = if ($Local:ModuleValue -is [ScriptBlock]) {
-            New-Module -ScriptBlock $Local:ModuleValue -Name $Local:ModuleName -ArgumentList $Local:CommonParams | Import-Module -Global -Force;
-        } else {
-            Import-Module -Name $Local:ModuleValue -ArgumentList $Local:CommonParams -Global -Force;
-        }
+        Import-ModuleOrScriptBlock -Name $Local:ModuleName -Value $Local:ModuleValue;
     }
 
     $Script:ImportedModules += $Local:ToImport.Keys;
@@ -153,9 +168,9 @@ function Import-CommonModules([HashTable]$CommonParams) {
 
 function Remove-CommonModules {
     Invoke-EnvVerbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
-    Invoke-EnvVErbose -Message "Removing modules: `n`t$($Script:ImportedModules -join "`n`t")";
-    $Script:ImportedModules | ForEach-Object {
-        if ($_ -eq '00-Logging') {
+    Invoke-EnvVErbose -Message "Removing modules: `n`t$(($Script:ImportedModules | Sort-Object -Descending) -join "`n`t")";
+    $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
+        if ($_ -eq '01-Logging') {
             $Global:Logging.Loaded = $false;
         }
 
@@ -231,8 +246,8 @@ function Invoke-RunMain {
             }
 
             # Setup UTF8 encoding to ensure that all output is encoded correctly.
-            $Local:PreviousEncoding = [Console]::InputEncoding, [Console]::OutputEncoding;
-            $OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding;
+            # $Local:PreviousEncoding = [Console]::InputEncoding, [Console]::OutputEncoding;
+            # $OutputEncoding = [Console]::InputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding;
 
             if (-not $HideDisclaimer) {
                 Invoke-EnvInfo -Message '⚠️ Disclaimer: This script is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
@@ -250,7 +265,7 @@ function Invoke-RunMain {
             try {
                 # TODO :: Fix this, it's not working as expected
                 # If the script is being run directly, invoke the main function
-                # if ($Invocation.CommandOrigin -eq 'Runspace') {
+                # If ($Invocation.CommandOrigin -eq 'Runspace') {
                 Invoke-Verbose -UnicodePrefix '🚀' -Message 'Running main function.';
                 & $Main;
             } catch {
@@ -272,7 +287,7 @@ function Invoke-RunMain {
                 }
 
                 Remove-Variable -Scope Global -Name Logging;
-                [Console]::InputEncoding, [Console]::OutputEncoding = $Local:PreviousEncoding;
+                # [Console]::InputEncoding, [Console]::OutputEncoding = $Local:PreviousEncoding;
             }
         }
     }
