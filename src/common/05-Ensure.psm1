@@ -36,6 +36,14 @@ function Invoke-EnsureModules {
     end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
+        try {
+            $ErrorActionPreference = 'Stop';
+            Get-PackageProvider -Name NuGet | Out-Null;
+        } catch {
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Confirm:$False;
+            Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+        }
+
         foreach ($Local:Module in $Modules) {
             if (Test-Path -Path $Local:Module) {
                 Invoke-Debug "Module '$Local:Module' is a local path to a module, importing...";

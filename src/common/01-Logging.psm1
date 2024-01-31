@@ -1,13 +1,11 @@
-# Versions below 7.2 don't have built-in PSStyle, so we need to ensure it's installed.
-if ($PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSVersion.Minor -lt 2) {
-    Install-Module -Name PSStyle -Scope CurrentUser -Force;
-    Import-Module -Name PSStyle -Global;
-}
-
 # FIXME
 function Get-SupportsUnicode {
     $True
     # $null -ne $env:WT_SESSION;
+}
+
+function Get-SupportsColour {
+    $Host.UI.SupportsVirtualTerminal;
 }
 
 function Invoke-Write {
@@ -29,37 +27,40 @@ function Invoke-Write {
 
         [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
-        [Boolean]$ShouldWrite = $True
-        )
+        [Boolean]$ShouldWrite
+    )
 
-        process {
-            if ($InputObject) {
-                Invoke-Write @InputObject;
-                return;
-            }
-
-            if (-not $ShouldWrite) {
-                return;
-            }
-
-            [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
-                "$(' ' * $($PSPrefix.Length))";
-            } else { ''; }
-
-            [String]$Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
-                $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
-            } else { $PSMessage; }
-
-            $Local:FormattedMessage = "$($PSStyle.Foreground.FromConsoleColor($PSColour))$Local:FormattedMessage$($PSStyle.Reset)";
-
-            [String]$Local:FormattedMessage = if ($PSPrefix -and (Get-SupportsUnicode)) {
-                "$PSPrefix $Local:FormattedMessage";
-            } else { $Local:FormattedMessage; }
-
-            $InformationPreference = 'Continue';
-            Write-Information $Local:FormattedMessage;
+    process {
+        if ($InputObject) {
+            Invoke-Write @InputObject;
+            return;
         }
+
+        if (-not $ShouldWrite) {
+            # return;
+        }
+
+        [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
+            "$(' ' * $($PSPrefix.Length))";
+        } else { ''; }
+
+        [String]$Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
+            $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
+        } else { $PSMessage; }
+
+        if (Get-SupportsColour) {
+            $Local:FormattedMessage = "$(Get-ConsoleColour $PSColour)$Local:FormattedMessage$($PSStyle.Reset)";
+        }
+
+
+        [String]$Local:FormattedMessage = if ($PSPrefix -and (Get-SupportsUnicode)) {
+            "$PSPrefix $Local:FormattedMessage";
+        } else { $Local:FormattedMessage; }
+
+        $InformationPreference = 'Continue';
+        Write-Information $Local:FormattedMessage;
     }
+}
 
 function Invoke-FormattedError(
     [Parameter(Mandatory, HelpMessage = 'The error records invocation info.')]
