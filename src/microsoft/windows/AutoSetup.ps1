@@ -1,11 +1,21 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
-# Windows Setup screen raw inputs
-# enter,down,enter,enter,tab,tab,tab,enter,tab,tab,tab,tab,tab,tab,enter,tab,tab,tab,tab,enter,localadmin,enter,enter,enter,enter,tab,tab,tab,tab,tab,enter,tab,tab,tab,tab,enter
+# Windows 10 Setup screen raw inputs
+# enter                                             - Language
+# down,enter,enter                                  - Keyboard
+# tab,tab,tab,enter                                 - Skip Network Setup
+# tab,tab,tab,tab,tab,tab,enter                     - Skip Second Network Setup
+# tab,tab,tab,tab,enter                             - Terms and Conditions
+# localadmin,enter,enter                            - Create Local Account
+# enter                                             - Permissions
+# shift+tab,enter                                   - Disable Cortana
+# tab,tab,tab,tab,tab,enter,tab,tab,tab,tab,enter   - Skip HP Bullshit
 
-# After windows setup
-# windows,powershell,right,down,enter,left,enter,Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process,enter,a,enter,D:\win_setup.ps1,enter
+# After Windows Setup
+# windows,powershell,right,down,enter,left,enter                            - Open PowerShell as Admin
+# Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process,enter,a,enter  - Set Execution Policy
+# D:\Other\AutoSetup.ps1,enter                                              - Run the setup Script
 
 [CmdletBinding(SupportsShouldProcess)]
 Param (
@@ -256,8 +266,8 @@ function Add-QueuedTask(
     end { Exit-Scope -Invocation $MyInvocation; }
 
     process {
-        [Boolean]$Local:RequiresReboot = (Get-RebootFlag).Required();
-        if ($OnlyOnRebootRequired -and (-not ($Local:RequiresReboot -or $ForceReboot))) {
+        [Boolean]$Local:RequiresReboot = (Get-RebootFlag).Required() -or $ForceReboot;
+        if ($OnlyOnRebootRequired -and (-not $Local:RequiresReboot)) {
             Invoke-Info "The device does not require a reboot before the $QueuePhase phase can be started, skipping queueing...";
             return;
         }
