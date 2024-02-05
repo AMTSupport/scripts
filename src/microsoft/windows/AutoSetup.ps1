@@ -776,7 +776,7 @@ function Invoke-PhaseFinish {
 
 #endregion - Phase Functions
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
+Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Register-ExitHandler -Name 'Running Flag Removal' -ExitHandler {
         (Get-RunningFlag).Remove();
