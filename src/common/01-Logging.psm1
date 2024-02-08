@@ -1,11 +1,12 @@
+[Boolean]$Script:IsNableEnvironment = (([Console]::Title | Split-Path -Leaf) -eq 'fmplugin.exe');
+
 # FIXME
 function Get-SupportsUnicode {
-    $True
-    # $null -ne $env:WT_SESSION;
+    $null -ne $env:WT_SESSION -and -not $Script:IsNableEnvironment;
 }
 
 function Get-SupportsColour {
-    $Host.UI.SupportsVirtualTerminal;
+    $Host.UI.SupportsVirtualTerminal -and -not $Script:IsNableEnvironment;
 }
 
 function Invoke-Write {
@@ -37,7 +38,7 @@ function Invoke-Write {
         }
 
         if (-not $ShouldWrite) {
-            # return;
+            return;
         }
 
         [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
