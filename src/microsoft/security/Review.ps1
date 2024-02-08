@@ -58,24 +58,22 @@ Mail Security
 [changes]
 
 Impersonation review
-[x] Domain impersonation attempts since past review
-[x] User impersonation attempts since past review - all quarantined
+{1} Domain impersonation attempts since past review
+{2} User impersonation attempts since past review - all quarantined
 
 Newly registered Devices
-[x] changes to devices.
+{3} changes to devices.
 
 Multifactor mobile number changes
-[x] changes in MFA
+{4} changes in MFA
 
 Manual review of alerts
 MCAS:
 All connected apps are [status]
-[x] Open alerts
-[Security Centre Alerts:
-[x]
+{5} Open alerts
 
 Review sign-in activity
-[x] large volume of logins.
+{6} large volume of logins.
 [All accepted from local address]
 [No strange logins noted.]
 

@@ -23,7 +23,6 @@ Invoke-RunMain $MyInvocation {
     if (Get-UserConfirmation -Title 'Add Users' -Question 'Do you want to add any users to Network Configuration Operators?' -Default $True) {
         Invoke-Info 'Preparing to add users to Network Configuration Operators, this may take a while...';
 
-
         [ADSI]$Local:Group = Get-Group 'Network Configuration Operators';
         [ADSI[]]$Local:Users = Get-GroupMembers "Users" | ForEach-Object {
             [PSCustomObject]$Local:Formatted = Get-FormmatedUser $_;
