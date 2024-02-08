@@ -26,7 +26,7 @@ function Connect-Service(
                     Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account;
                 }
                 'Graph' {
-                    Get-MSGraphEnvironment | Select-Object -ExpandProperty Account;
+                    Get-MgDomain | Where-Object { $_.IsDefault -eq $True } | Select-Object -First 1 -ExpandProperty Id;
                 }
                 'Msol' {
                     Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName;
