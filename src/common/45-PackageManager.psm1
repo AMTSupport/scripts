@@ -1,25 +1,20 @@
 #Requires -Version 5.1
 
-# TODO :: Add support for other package managers.
-[String]$Script:PackageManager = switch ($env:OS) {
-    'Windows_NT' { "choco" };
-    default {
-        throw "Unsupported operating system.";
-    };
-};
-[HashTable]$Script:PackageManager = switch ($Script:PackageManager) {
-    "choco" {
-        [String]$Local:ChocolateyPath = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
-        if (Test-Path -Path $Local:ChocolateyPath) {
-            # Ensure Chocolatey is usable.
-            Import-Module "$($env:SystemDrive)\ProgramData\Chocolatey\Helpers\chocolateyProfile.psm1" -Force;
-            refreshenv | Out-Null;
-        } else {
-            throw 'Chocolatey is not installed on this system.';
-        }
+enum PackageManager {
+    Chocolatey
 
+    Unsupported
+}
+
+# TODO :: Add support for other package managers.
+[PackageManager]$Script:PackageManager = switch ($env:OS) {
+    'Windows_NT' { [PackageManager]::Chocolatey };
+    default { [PackageManager]::Unsupported };
+};
+[HashTable]$Script:PackageManagerDetails = switch ($Script:PackageManager) {
+    Chocolatey {
         @{
-            Executable = $Local:ChocolateyPath;
+            Executable = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
             Commands = @{
                 List       = 'list';
                 Uninstall  = 'uninstall';
@@ -32,39 +27,82 @@
             }
         };
     };
-    default {
-        throw "Unsupported package manager.";
-    };
+    Unsupported {
+        Invoke-Error 'Could not find a supported package manager.';
+        $null;
+    }
 };
 
+function Install-Requirements {
+    @{
+        PSPrefix = '📦';
+        PSMessage = "Installing requirements for $Script:PackageManager...";
+        PSColour = 'Green';
+    } | Invoke-Write;
+
+    switch ($Script:PackageManager) {
+        Chocolatey {
+            if (Get-Command -Name 'choco' -ErrorAction SilentlyContinue) {
+                Invoke-Debug 'Chocolatey is already installed. Skipping installation.';
+                return
+            }
+
+            if (Test-Path -Path "$($env:SystemDrive)\ProgramData\chocolatey") {
+                Invoke-Debug 'Chocolatey files found, seeing if we can repair them...';
+                if (Test-Path -Path "$($env:SystemDrive)\ProgramData\chocolatey\bin\choco.exe") {
+                    Invoke-Debug 'Chocolatey bin found, should be able to refreshenv!';
+                    Invoke-Debug 'Refreshing environment variables...';
+                    Import-Module "$($env:SystemDrive)\ProgramData\chocolatey\Helpers\chocolateyProfile.psm1" -Force;
+                    refreshenv | Out-Null;
+
+                    return;
+                } else {
+                    Invoke-Warn 'Chocolatey bin not found, deleting folder and reinstalling...';
+                    Remove-Item -Path "$($env:SystemDrive)\ProgramData\chocolatey" -Recurse -Force;
+                }
+            }
+
+            Invoke-Info 'Installing Chocolatey...';
+            Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'));
+        }
+        Default {}
+    }
+}
+
+<#
+.SYNOPSIS
+    Tests if a package is installed.
+.PARAMETER PackageName
+    The name of the package to test.
+#>
 function Test-Package(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [String]$PackageName
-
-    # [Parameter()]
-    # [ValidateNotNullOrEmpty()]
-    # [String]$PackageVersion
 ) {
-    $Local:Params = @{
+    @{
         PSPrefix = '🔍';
         PSMessage = "Checking if package '$PackageName' is installed...";
         PSColour = 'Yellow';
-    };
-    Invoke-Write @Local:Params;
+    } | Invoke-Write;
 
     # if ($PackageVersion) {
     #     $Local:PackageArgs['Version'] = $PackageVersion;
     # }
 
-    # TODO :: Actually get the return value.
-    & $Script:PackageManager.Executable $Script:PackageManager.Commands.List $Script:PackageManager.Options.Common $PackageName;
+    [Boolean]$Local:Installed = & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.List $Script:PackageManagerDetails.Options.Common $PackageName;
+    Invoke-Verbose "Package '$PackageName' is $(if (-not $Local:Installed) { 'not ' })installed.";
+    return $Local:Installed;
 }
 
 function Install-ManagedPackage(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
-    [String]$PackageName
+    [String]$PackageName,
+
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [String]$Sha256
 
     # [Parameter()]
     # [ValidateNotNullOrEmpty()]
@@ -72,7 +110,7 @@ function Install-ManagedPackage(
 ) {
     @{
         PSPrefix = '📦';
-        PSMessage = "Installing package '$PackageName'...";
+        PSMessage = "Installing package '$Local:PackageName'...";
         PSColour = 'Green';
     } | Invoke-Write;
 
@@ -80,16 +118,36 @@ function Install-ManagedPackage(
     #     $Local:PackageArgs['Version'] = $PackageVersion;
     # }
 
-    # TODO :: Ensure success.
-    & $Script:PackageManager.Executable $Script:PackageManager.Commands.Install $Script:PackageManager.Options.Common $PackageName;
+    try {
+        & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Install $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+    } catch {
+        Invoke-Error "There was an issue while installing $Local:PackageName.";
+        Invoke-Error $_.Exception.Message;
+    }
 }
 
-function Uninstall-Package() {
+function Uninstall-ManagedPackage() {
 
 }
 
-function Update-Package() {
+function Update-ManagedPackage(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [String]$PackageName
+) {
+    @{
+        PSPrefix = '🔄';
+        PSMessage = "Updating package '$Local:PackageName'...";
+        PSColour = 'Blue';
+    } | Invoke-Write;
 
+    try {
+        & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+    } catch {
+        Invoke-Error "There was an issue while updating $Local:PackageName.";
+        Invoke-Error $_.Exception.Message;
+    }
 }
 
+Install-Requirements;
 Export-ModuleMember -Function Test-Package, Install-ManagedPackage, Uninstall-Package, Update-Package;
