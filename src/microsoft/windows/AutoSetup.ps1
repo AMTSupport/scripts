@@ -36,6 +36,7 @@ Param (
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
+    [SecureString]$NetworkPassword,
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
@@ -48,11 +49,7 @@ Param (
 
 #region - Error Codes
 
-$Script:NULL_ARGUMENT = 1000;
-$Script:FAILED_TO_LOG = 1001;
-$Script:FAILED_TO_CONNECT = 1002;
 $Script:ALREADY_RUNNING = 1003;
-$Script:FAILED_EXPECTED_VALUE = 1004;
 $Script:FAILED_SETUP_ENVIRONMENT = 1005;
 
 $Script:AGENT_FAILED_DOWNLOAD = 1011;
@@ -308,7 +305,7 @@ function Add-QueuedTask(
         if ($Local:RequiresReboot) {
             Invoke-Info "The device requires a reboot before the $QueuePhase phase can be started, rebooting in 15 seconds...";
 
-            Invoke-Timeout
+            Invoke-Timeout `
                 -Timeout 15 `
                 -AllowCancel `
                 -Activity 'Reboot' `
@@ -656,6 +653,7 @@ function Invoke-PhaseCleanup {
         Remove-ProvisionedPackages_HP;
         Remove-AppxPackages_HP;
         Remove-Programs_HP;
+        Remove-Drivers_HP;
 
         [String]$Local:NextPhase = "Install";
         return $Local:NextPhase;
@@ -799,7 +797,7 @@ Invoke-RunMain $MyInvocation {
     # There is an issue with the CimInstance LastBootUpTime where it returns the incorrect time on first boot.
     # To work around this if there was previously no connecting and we have just connected we can assume its a new setup, and force a reboot to ensure the correct time is returned.
     # TODO - Find a better way to determine if this is a first boot.
-    $Local:PossibleFirstBoot = Invoke-EnsureNetwork -Name $NetworkName -Password ($NetworkPassword | ConvertTo-SecureString -AsPlainText -Force);
+    $Local:PossibleFirstBoot = Invoke-EnsureNetwork -Name $NetworkName -Password $NetworkPassword;
     Invoke-EnsureModules -Modules @('PSWindowsUpdate');
     $Local:InstallInfo = Invoke-EnsureSetupInfo;
 
