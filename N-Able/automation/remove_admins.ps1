@@ -42,32 +42,10 @@ function Get-Groups {
     end { Exit-Scope $MyInvocation $Groups }
 }
 
-function Get-Group([String]$Name) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $Group = ([ADSI]"WinNT://$env:COMPUTERNAME/$Name,group").PSBase
-        return $Group
-    }
-
-    end { Exit-Scope $MyInvocation $Group }
-}
-
 function Get-Group {
     $Groups = Get-WmiObject -ComputerName $env:COMPUTERNAME -Class Win32_Group
     $Group = $Groups | Where-Object { $_.Name -eq "Administrators" } | Select-Object -First 1
     return $Group
-}
-
-function Get-GroupMembers([ADSI]$Group) {
-    begin { Enter-Scope $MyInvocation }
-
-    process {
-        $Members = $Group.Invoke("Members") | ForEach-Object { $_.GetType().InvokeMember("Name", 'GetProperty', $null, $_, $null) }
-        return $Members
-    }
-
-    end { Exit-Scope $MyInvocation $Members }
 }
 
 function Is-AzureADUser([ADSI]$User) {
