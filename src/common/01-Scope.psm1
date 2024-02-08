@@ -20,10 +20,13 @@ function Get-ScopeNameFormatted([Parameter(Mandatory)][Switch]$IsExit) {
     return $Local:Scope;
 }
 
-function Get-FormattedParameters {
+function Get-FormattedParameters(
+    [Parameter()]
+    [String[]]$IgnoreParams = @()
+) {
     [System.Collections.IDictionary]$Local:Params = (Get-StackTop).BoundParameters;
     if ($null -ne $Local:Params -and $Local:Params.Count -gt 0) {
-        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | ForEach-Object { "$($_.Key) = $($_.Value)" };
+        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $($_.Value)" };
         [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n";
 
         return "$Local:ParamsFormatted";
@@ -52,12 +55,15 @@ function Get-FormattedReturnValue(
 
 function Enter-Scope(
     [Parameter()][ValidateNotNull()]
+    [String[]]$IgnoreParams = @(),
+
+    [Parameter()][ValidateNotNull()]
     [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo
 ) {
     (Get-Stack).Push($Invocation);
 
     [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$False;
-    [String]$Local:ParamsFormatted = Get-FormattedParameters;
+    [String]$Local:ParamsFormatted = Get-FormattedParameters -IgnoreParams:$IgnoreParams;
 
     @{
         PSMessage   = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
