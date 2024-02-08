@@ -75,6 +75,7 @@ function Invoke-EnsureModules {
     }
 }
 
+# FIXME: NOT WORKING
 $Script:WifiXmlTemplate = "<?xml version=""1.0""?>
 <WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
   <name>{0}</name>
