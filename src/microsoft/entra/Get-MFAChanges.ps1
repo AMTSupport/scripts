@@ -784,7 +784,7 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
             }
         }
 
-        Close-ExcelPackage $ExcelData -Show; #-SaveAs "$ExcelFile.new.xlsx";
+        Close-ExcelPackage $ExcelData -Show;
     }
 
     end { Exit-Scope $MyInvocation }
@@ -793,14 +793,14 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     if (-not $ClientsFolder) {
-        $Local:PossiblePaths = @(
+        [String[]]$Local:PossiblePaths = @(
             "$env:USERPROFILE\AMT\Clients - Documents",
             "$env:USERPROFILE\OneDrive - AMT\Documents - Clients"
         );
 
         foreach ($Local:Path in $Local:PossiblePaths) {
             if (Test-Path $Local:Path) {
-                $Local:ClientsFolder = $Local:Path;
+                [String]$Local:ClientsFolder = $Local:Path;
                 break;
             }
         }

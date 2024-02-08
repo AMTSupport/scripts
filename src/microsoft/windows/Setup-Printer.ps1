@@ -1,16 +1,18 @@
 #Requires -Version 5.1
 
 Param(
-    [Parameter(Mandatory)]
+    [Parameter(Mandatory, Position = 0, ParameterSetName = 'Default')]
+    [Alias('Name')]
     [String]$PrinterName,
 
-    [Parameter(Mandatory)]
+    [Parameter(Mandatory, Position = 1, ParameterSetName = 'Default')]
+    [Alias('IP')]
     [String]$PrinterIP,
 
-    [Parameter(Mandatory)]
+    [Parameter(Mandatory, ParameterSetName = 'ChocoDriver')]
     [String]$PrinterDriver,
 
-    [Parameter(HelpMessage = "
+    [Parameter(ParameterSetName = 'ChocoDriver', HelpMessage = "
         The name of the package to install from Chocolatey.
         If not specified, the driver will not be installed.
 
@@ -20,27 +22,107 @@ Param(
     [String]$ChocoDriver,
 
     [Parameter(HelpMessage = "
+        If specified, the manufacturer of the printer will be used to determine the driver to install.
+        If not specified, the driver will be installed from the Chocolatey package.
+    ")]
+    [ValidateSet("Ricoh")]
+    [String]$Manufacturer,
+
+    [Parameter(HelpMessage = "
         If specified, printer will be added even if the computer cannot contact the printer.
         If not specified, if the computer cannot contact the printer, the script will silently exit.
     ")]
     [Switch]$Force
 )
 
-function Install-Driver(
+function Install-Driver_Ricoh() {
+    [String]$DriverName = 'PCL6 V4 Driver for Universal Print';
+
+    if (Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue) {
+        Invoke-Info "Driver $DriverName already installed, skipping...";
+        return $DriverName;
+    }
+
+    Invoke-WithinEphemeral {
+        [String]$Local:URL = 'https://support.ricoh.com/bb/pub_e/dr_ut_e/0001336/0001336407/V42400/r99322L1a.exe';
+        [String]$Local:FileName = $Local:URL.Split('/')[-1];
+        [String]$Local:ExpandedPath = $Local:FileName.Split('.')[0];
+
+        Invoke-Info "Downloading Ricoh driver from $Local:URL...";
+        Invoke-WebRequest -Uri $Local:URL -OutFile $Local:FileName;
+
+        Invoke-Info 'Extracting Ricoh driver...';
+        Expand-Archive -Path $Local:FileName -DestinationPath $Local:ExpandedPath;
+
+        Invoke-Info 'Entering Ricoh driver directory...';
+        Push-Location -Path $Local:ExpandedPath;
+
+        Invoke-Info 'Finding Ricoh driver inf file...';
+        [System.IO.FileInfo]$Local:InfPath = Get-ChildItem -Path .\disk1\*.inf -Recurse | Select-Object -First 1;
+        [String]$Local:InfName = $Local:InfPath | Split-Path -Leaf;
+        Invoke-Info "Inf file found: $($Local:InfPath.FullName)";
+        Invoke-Info "Inf name: $Local:InfName";
+
+        Invoke-Info "Installing Ricoh driver...";
+        pnputil.exe /add-driver $Local:InfPath.FullName /install | Out-Null;
+
+        [String]$Local:WindowsDriverPath = 'C:\Windows\System32\DriverStore\FileRepository';
+        [System.IO.DirectoryInfo]$Local:DriverPath = Get-ChildItem -Path $Local:WindowsDriverPath -Filter "${Local:InfName}_*" -Recurse | Select-Object -First 1;
+        [System.IO.FileInfo]$Local:DriverInfPath = Get-ChildItem -Path $Local:DriverPath.FullName -Filter $Local:InfName -Recurse | Select-Object -First 1;
+
+        Invoke-Info "Adding Ricoh driver to printer drivers...";
+        Invoke-Info "Driver name: $DriverName";
+        Invoke-Info "Driver path: $($Local:DriverPath.FullName)";
+        Invoke-Info "Driver inf path: $($Local:DriverInfPath.FullName)";
+
+        Add-PrinterDriver -Name $DriverName -InfPath $Local:DriverInfPath.FullName;
+    }
+
+    return $DriverName;
+}
+
+function Install-Driver_Choco(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [String]$DriverName,
 
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [String]$ChocolateyPackage
+) {
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        try {
+            Install-ManagedPackage -PackageName $ChocolateyPackage;
+        } catch {
+            throw "Unable to install package $ChocolateyPackage";
+        }
+    }
+}
+
+function Install-Driver(
+    [String]$DriverName,
     [String]$ChocolateyPackage
 
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
-        if (-not $ChocolateyPackage) {
-            Invoke-Info 'No chocolatey package specified, trying to find driver already installed.';
-
+        if (Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue) {
+            Invoke-Info "Driver $DriverName already installed, skipping...";
+            return $DriverName;
+        } elseif ($ChocolateyPackage) {
+            Install-Driver_Choco -DriverName $DriverName -ChocolateyPackage $ChocolateyPackage;
+            return $DriverName;
+        } elseif ($Manufacturer) {
+            switch ($Manufacturer) {
+                "Ricoh" { Install-Driver_Ricoh; }
+            }
+        } else {
+            Invoke-Info 'No chocolatey package or manufacturer specified, trying to find driver already installed.';
             [TimeSpan]$Local:WaitTimeout = New-TimeSpan -Minutes 5;
             do {
                 Invoke-Info "Waiting for driver $DriverName to be installed; $($Local:WaitTimeout.TotalSeconds) seconds remaining...";
@@ -64,12 +146,6 @@ function Install-Driver(
             } while ($Local:WaitTimeout.TotalSeconds -gt 0)
 
             throw "Unable to find driver $DriverName";
-        } else {
-            try {
-                Install-ManagedPackage -PackageName $ChocolateyPackage;
-            } catch {
-                throw "Unable to install package $ChocolateyPackage";
-            }
         }
     }
 }
@@ -87,8 +163,8 @@ function Install-PrinterImpl(
     [ValidateNotNullOrEmpty()]
     [String]$PrinterDriver
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         if (-not (Get-PrinterPort -Name $PrinterIP -ErrorAction SilentlyContinue)) {
@@ -98,13 +174,26 @@ function Install-PrinterImpl(
             Invoke-Info "Printer port $PrinterIP already exists.";
         }
 
-        if (-not (Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue)) {
+        if ($Printer = Get-Printer -Name $PrinterName -ErrorAction SilentlyContinue) {
+            if ($Printer.DriverName -ne $PrinterDriver) {
+                Invoke-Info "Removing existing printer $PrinterName due to mismatching driver $($Printer.DriverName)";
+                Remove-Printer -InputObject $Printer;
+            }
+
+            if ($Printer.PortName -ne $PrinterIP) {
+                Invoke-Info "Removing existing printer $PrinterName due to mismatching port $($Printer.PortName)";
+                Remove-Printer -InputObject $Printer;
+            }
+
+            if ($Printer.PortName -eq $PrinterIP -and $Printer.DriverName -eq $PrinterDriver) {
+                Invoke-Info "Printer $PrinterName already exists";
+                return;
+            }
+
             Invoke-Info "Adding printer $PrinterName";
 
             # TODO :: This can Fail! Need to handle that.
             Add-Printer -Name $PrinterName -DriverName $PrinterDriver -PortName $PrinterIP;
-        } else {
-            Invoke-Info "Printer $PrinterName already exists";
         }
     }
 }
@@ -121,6 +210,6 @@ Invoke-RunMain $MyInvocation {
         return;
     }
 
-    Install-Driver -DriverName $Local:PrinterDriver -ChocolateyPackage $Local:ChocoDriver;
+    [String]$Local:PrinterDriver = Install-Driver -DriverName $Local:PrinterDriver -ChocolateyPackage $Local:ChocoDriver;
     Install-PrinterImpl -PrinterName $Local:PrinterName -PrinterIP $Local:PrinterIP -PrinterDriver $Local:PrinterDriver;
 }
