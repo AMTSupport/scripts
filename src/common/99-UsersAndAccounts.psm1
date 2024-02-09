@@ -4,17 +4,19 @@ function Local:Get-GroupByInputOrName(
     [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
     [Object]$InputObject
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation $Local:Group; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Group; }
 
     process {
-        if ($Input -is [String]) {
+        if ($InputObject -is [String]) {
             [ADSI]$Local:Group = Get-Group -Name $InputObject;
-        } elseif ($Input.SchemaClassName -ne 'Group') {
-            throw "The supplied object is not a group.";
+        } elseif ($InputObject.SchemaClassName -ne 'Group') {
+            Write-Error 'The supplied object is not a group.' -TargetObject $InputObject -Category InvalidArgument;
         } else {
             [ADSI]$Local:Group = $InputObject;
         }
+
+        return $Local:Group;
     }
 }
 
@@ -24,17 +26,19 @@ function Local:Get-UserByInputOrName(
     [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
     [Object]$InputObject
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation $Local:User; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:User; }
 
     process {
-        if ($Input -is [String]) {
+        if ($InputObject -is [String]) {
             [ADSI]$Local:User = Get-User -Name $InputObject;
-        } elseif ($Input.SchemaClassName -ne 'User') {
-            throw "The supplied object is not a user.";
+        } elseif ($InputObject.SchemaClassName -ne 'User') {
+            Write-Error 'The supplied object is not a user.' -TargetObject $InputObject -Category InvalidArgument;
         } else {
             [ADSI]$Local:User = $InputObject;
         }
+
+        return $Local:User;
     }
 }
 
@@ -62,8 +66,8 @@ function Test-MemberOfGroup(
     [Parameter(Mandatory)]
     [Object]$Username
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation $Local:User; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:User; }
 
     process {
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
@@ -78,8 +82,8 @@ function Get-Group(
     [ValidateNotNullOrEmpty()]
     [String]$Name
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation $Local:Group; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Group; }
 
     process {
         [ADSI]$Local:Group = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
@@ -93,10 +97,11 @@ function Get-Group(
 #>
 function Get-GroupMembers(
     [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
     [Object]$Group
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation $Local:Members; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Members; }
 
     process {
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
@@ -112,13 +117,15 @@ function Get-GroupMembers(
 
 function Add-MemberToGroup(
     [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
     [Object]$Group,
 
     [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
     [Object]$Username
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
@@ -138,13 +145,15 @@ function Add-MemberToGroup(
 
 function Remove-MemberFromGroup(
     [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
     [Object]$Group,
 
     [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
     [Object]$Username
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
