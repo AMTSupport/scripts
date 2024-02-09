@@ -85,6 +85,11 @@ function Invoke-FormattedError(
 
         # Find where the statement matches in the line, and underline it, indent the statement to where it matches in the line.
         [Int]$Local:StatementIndex = $Local:TrimmedLine.IndexOf($Local:Statement);
+
+        # FIXME: This is a hack to fix the issue where the statement index is -1, this shouldn't happen!
+        if ($Local:StatementIndex -lt 0) {
+            [Int]$Local:StatementIndex = 0;
+        }
     } else {
         [Int]$Local:StatementIndex = 0;
         [String]$Local:Statement = $TrimmedLine;
