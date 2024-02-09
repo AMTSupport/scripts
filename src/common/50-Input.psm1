@@ -174,13 +174,9 @@ function Get-UserSelection {
 
         $Local:FirstRun = $true;
         $Host.UI.RawUI.FlushInputBuffer();
-        [Microsoft.PowerShell.PSConsoleReadLine]::DeletePreviousLines($null, 1);
-        [Microsoft.PowerShell.PSConsoleReadLine]::AddLine($null, 2);
         Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
         Invoke-Write @Local:BaseFormat -PSMessage "Enter one of the following: $($Choices -join ', ')";
-        [Microsoft.PowerShell.PSConsoleReadLine]::DeleteLine(); # Remove the empty newline.
-        [Microsoft.PowerShell.PSConsoleReadLine]::AddLine();
-        Write-Host "$($Choices[$DefaultChoice])" -NoNewline;
+        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($Choices[$DefaultChoice])" -NoNewline;
         Write-Host "`r>> " -NoNewline;
 
         do {
