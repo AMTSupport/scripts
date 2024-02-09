@@ -76,7 +76,7 @@ function Enter-Scope(
 function Exit-Scope(
     [Parameter()][ValidateNotNull()]
     [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo,
-    [Parameter()][ValidateNotNull()]
+    [Parameter()]
     [Object]$ReturnValue
 ) {
     [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$True;
