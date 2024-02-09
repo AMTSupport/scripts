@@ -39,6 +39,11 @@ Invoke-RunMain $MyInvocation {
             $null = Add-MemberToGroup -Group $Local:Group -Username $Local:User.ADSI;
             $Local:Users = $Local:Users | Where-Object { $_ -ne $Local:User };
 
+            if ($Local:Users.Count -eq 0) {
+                Invoke-Debug 'No more users to add to Network Configuration Operators.';
+                break;
+            }
+
             if (Get-UserConfirmation -Title 'Add another user?' -Question 'Do you want to add another user to Network Configuration Operators?' -Default $True) {
                 continue;
             } else {
