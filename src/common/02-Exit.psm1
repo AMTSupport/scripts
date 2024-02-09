@@ -53,6 +53,11 @@ function Invoke-FailedExit {
         while ($Local:DeepestException.InnerException) {
             Invoke-Debug "Getting inner exception... (Current: $Local:DeepestException)";
             Invoke-Debug "Inner exception: $($Local:DeepestException.InnerException)";
+            if (-not $Local:DeepestException.InnerException.ErrorRecord) {
+                Invoke-Debug "Inner exception has no error record, breaking to keep the current exceptions information...";
+                break;
+            }
+
             $Local:DeepestException = $Local:DeepestException.InnerException;
 
             if ($Local:DeepestException.Message) {
