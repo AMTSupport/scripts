@@ -11,9 +11,10 @@ Invoke-RunMain $MyInvocation {
     Invoke-EnsureAdministrator;
 
     # Install Package if not already installed.
-    # if (-not (Test-Package -PackageName $WireGuardPackage)) {
-        Install-ManagedPackage -PackageName wireguard;
-    # }
+    Invoke-Info 'Installing WireGuard...';
+    if (-not (Test-ManagedPackage 'WireGuard')) {
+        Install-ManagedPackage -PackageName 'WireGuard';
+    }
 
     Invoke-Info 'Setting up LimitedUI Registry Key...';
     Set-RegistryKey -Path HKLM:\SOFTWARE\WireGuard -Key 'LimitedUserUI' -Value 1 -Kind DWord;

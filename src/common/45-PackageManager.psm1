@@ -22,7 +22,7 @@ enum PackageManager {
                 Update     = 'upgrade';
             }
             Options = @{
-                Common = @('--confirm', '--limit-output', '--exact');
+                Common = @('--confirm', '--limit-output', '--no-progress', '--exact');
                 Force = '--force';
             }
         };
@@ -75,7 +75,7 @@ function Install-Requirements {
 .PARAMETER PackageName
     The name of the package to test.
 #>
-function Test-Package(
+function Test-ManagedPackage(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [String]$PackageName
@@ -102,7 +102,11 @@ function Install-ManagedPackage(
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
-    [String]$Sha256
+    [String]$Sha256,
+
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [Switch]$NoFail
 
     # [Parameter()]
     # [ValidateNotNullOrEmpty()]
@@ -118,11 +122,10 @@ function Install-ManagedPackage(
     #     $Local:PackageArgs['Version'] = $PackageVersion;
     # }
 
-    try {
-        & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Install $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
-    } catch {
+    [System.Diagnostics.Process]$Local:Process = Start-Process -FilePath $Script:PackageManagerDetails.Executable -ArgumentList (@($Script:PackageManagerDetails.Commands.Install) + $Script:PackageManagerDetails.Options.Common + @($PackageName)) -NoNewWindow -PassThru -Wait;
+    if ($Local:Process.ExitCode -ne 0) {
         Invoke-Error "There was an issue while installing $Local:PackageName.";
-        Invoke-Error $_.Exception.Message;
+        Invoke-FailedExit -ExitCode $Local:Process.ExitCode -DontExit:$NoFail;
     }
 }
 
@@ -150,4 +153,4 @@ function Update-ManagedPackage(
 }
 
 Install-Requirements;
-Export-ModuleMember -Function Test-Package, Install-ManagedPackage, Uninstall-Package, Update-Package;
+Export-ModuleMember -Function Test-ManagedPackage, Install-ManagedPackage, Uninstall-Package, Update-ManagedPackage;
