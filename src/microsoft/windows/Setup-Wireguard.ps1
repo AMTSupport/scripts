@@ -11,9 +11,9 @@ Invoke-RunMain $MyInvocation {
     Invoke-EnsureAdministrator;
 
     # Install Package if not already installed.
-    if (-not (Test-Package -PackageName $WireGuardPackage)) {
+    # if (-not (Test-Package -PackageName $WireGuardPackage)) {
         Install-ManagedPackage -PackageName wireguard;
-    }
+    # }
 
     Invoke-Info 'Setting up LimitedUI Registry Key...';
     Set-RegistryKey -Path HKLM:\SOFTWARE\WireGuard -Key 'LimitedUserUI' -Value 1 -Kind DWord;
@@ -24,8 +24,9 @@ Invoke-RunMain $MyInvocation {
         Invoke-Info 'Preparing to add users to Network Configuration Operators, this may take a while...';
 
         [ADSI]$Local:Group = Get-Group 'Network Configuration Operators';
-        [ADSI[]]$Local:Users = Get-GroupMembers "Users" | ForEach-Object {
-            [PSCustomObject]$Local:Formatted = Get-FormmatedUser $_;
+        [ADSI]$Local:UserGroup = Get-Group 'Users';
+        [HashTable[]]$Local:Users = Get-GroupMembers $Local:UserGroup | ForEach-Object {
+            [PSCustomObject]$Local:Formatted = Get-FormattedUsers $_;
             @{
                 ADSI = $_;
                 Formatted = "$($Local:Formatted.Domain)\$($Local:Formatted.Name)";
@@ -33,10 +34,10 @@ Invoke-RunMain $MyInvocation {
         };
         while ($True) {
             [Int16]$Local:SelectedIndex = Get-UserSelection -Title 'Select User' 'Select the user you want to add to Network Configuration Operators:' -Choices $Local:Users.Formatted;
-            [ADSI]$Local:User = $Local:Users[$Local:SelectedIndex];
+            [HashTable]$Local:User = $Local:Users[$Local:SelectedIndex];
 
-            Add-MemberToGroup -Group $Local:Group -Username $Local:User.ADSI;
-            $Local:Users.RemoveAt($Local:SelectedIndex);
+            $null = Add-MemberToGroup -Group $Local:Group -Username $Local:User.ADSI;
+            $Local:Users = $Local:Users | Where-Object { $_ -ne $Local:User };
 
             if (Get-UserConfirmation -Title 'Add another user?' -Question 'Do you want to add another user to Network Configuration Operators?' -Default $True) {
                 continue;
