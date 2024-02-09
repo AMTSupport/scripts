@@ -45,7 +45,7 @@ function Install-Driver_Ricoh() {
 
     Invoke-WithinEphemeral {
         [String]$Local:URL = 'https://support.ricoh.com/bb/pub_e/dr_ut_e/0001336/0001336407/V42400/r99322L1a.exe';
-        [String]$Local:FileName = $Local:URL.Split('/')[-1];
+        [String]$Local:FileName = $Local:URL.Split('/')[-1] -replace '.exe', '.zip';
         [String]$Local:ExpandedPath = $Local:FileName.Split('.')[0];
 
         Invoke-Info "Downloading Ricoh driver from $Local:URL...";
