@@ -186,14 +186,18 @@ function Install-PrinterImpl(
             }
 
             if ($Printer.PortName -eq $PrinterIP -and $Printer.DriverName -eq $PrinterDriver) {
-                Invoke-Info "Printer $PrinterName already exists";
+                Invoke-Info "Printer $PrinterName already exists with matching driver and port, skipping...";
                 return;
             }
+        }
 
-            Invoke-Info "Adding printer $PrinterName";
-
-            # TODO :: This can Fail! Need to handle that.
+        Invoke-Info "Adding printer $PrinterName";
+        # TODO :: This can Fail! Need to handle that.
+        try {
             Add-Printer -Name $PrinterName -DriverName $PrinterDriver -PortName $PrinterIP;
+        } catch {
+            Invoke-Error "There was an error adding the printer $PrinterName";
+            Invoke-FailedExit -ExitCode 1001 -ErrorRecord $_;
         }
     }
 }
