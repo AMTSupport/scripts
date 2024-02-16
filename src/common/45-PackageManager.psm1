@@ -146,6 +146,10 @@ function Update-ManagedPackage(
 
     try {
         & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Error Code: $LASTEXITCODE";
+        }
     } catch {
         Invoke-Error "There was an issue while updating $Local:PackageName.";
         Invoke-Error $_.Exception.Message;
