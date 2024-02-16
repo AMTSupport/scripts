@@ -39,13 +39,20 @@ function Get-FormattedReturnValue(
     [Parameter()]
     [Object]$ReturnValue
 ) {
-    if ($null -ne $ReturnValue) {
-        [String]$Local:FormattedValue = switch ($ReturnValue) {
-            { $_ -is [System.Collections.Hashtable] } { "`n$Script:Tab$(([HashTable]$ReturnValue).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
-            { $_ -is [Object[]] } { "`n$Script:Tab$($ReturnValue -join "`n$Script:Tab")" }
+    function Format([Object]$Value) {
+        switch ($ReturnValue) {
+            { $_ -is [System.Collections.HashTable] } { "`n$Script:Tab$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
 
             default { $ReturnValue }
         };
+    }
+
+    if ($null -ne $ReturnValue) {
+        [String]$Local:FormattedValue = if ($ReturnValue -is [Array]) {
+            "$(($ReturnValue | ForEach-Object { Format $_ }) -join "`n$Script:Tab")"
+        } else {
+            Format -Value $ReturnValue;
+        }
 
         return "Return Value: $Local:FormattedValue";
     };
