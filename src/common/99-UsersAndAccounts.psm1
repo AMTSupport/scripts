@@ -42,21 +42,44 @@ function Local:Get-UserByInputOrName(
     }
 }
 
+function Get-FormattedUser(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [ValidateScript({ $_.SchemaClassName -eq 'User' })]
+    [ADSI]$User
+) {
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:FormattedUser; }
+
+    process {
+        [String]$Local:Path = $User.Path.Substring(8); # Remove the WinNT:// prefix
+        [String[]]$Local:PathParts = $Local:Path.Split('/');
+
+        # The username is always last followed by the domain.
+        [HashTable]$Local:FormattedUser = @{
+            Name = $Local:PathParts[$Local:PathParts.Count - 1]
+            Domain = $Local:PathParts[$Local:PathParts.Count - 2]
+        };
+
+        return $Local:FormattedUser;
+    }
+}
+
 function Get-FormattedUsers(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [ADSI[]]$Users
 ) {
-    return $Users | ForEach-Object {
-        $Local:Path = $_.Path.Substring(8); # Remove the WinNT:// prefix
-        $Local:PathParts = $Local:Path.Split('/');
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:FormattedUsers; }
 
-        # The username is always last followed by the domain.
-        [PSCustomObject]@{
-            Name = $Local:PathParts[$Local:PathParts.Count - 1]
-            Domain = $Local:PathParts[$Local:PathParts.Count - 2]
+    process {
+        $Local:FormattedUsers = $Users | ForEach-Object {
+            Get-FormattedUser -User $_;
         };
-    };
+
+        return $Local:FormattedUsers;
+    }
 }
 
 function Test-MemberOfGroup(
@@ -91,6 +114,16 @@ function Get-Group(
     }
 }
 
+function Get-Groups {
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Groups; }
+
+    process {
+        $Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
+        $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' };
+    }
+}
+
 <#
 .SYNOPSIS
     Gets the members of a group, returning a list of psobjects with their name and domain.
@@ -109,8 +142,12 @@ function Get-GroupMembers(
         $Group.Invoke("Members") `
             | ForEach-Object { [ADSI]$_ } `
             | Where-Object {
-                $Local:Parent = $_.Parent.Substring(8); # Remove the WinNT:// prefix
-                $Local:Parent -ne 'NT AUTHORITY'
+                if ($_.Parent.Length -gt 8) {
+                    $_.Parent.Substring(8) -ne 'NT AUTHORITY'
+                } else {
+                    # This is a in-built user, skip it.
+                    $False
+                }
             };
     }
 }
@@ -150,17 +187,17 @@ function Remove-MemberFromGroup(
 
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
-    [Object]$Username
+    [Object]$Member
 ) {
     begin { Enter-Scope; }
     end { Exit-Scope; }
 
     process {
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
-        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Member;
 
         if (-not (Test-MemberOfGroup -Group $Local:Group -Username $Local:User)) {
-            Invoke-Verbose "User $Username is not a member of group $Group.";
+            Invoke-Verbose "User $Member is not a member of group $Group.";
             return $False;
         }
 
@@ -171,4 +208,4 @@ function Remove-MemberFromGroup(
     }
 }
 
-Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUsers, Get-Group, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
+Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUser, Get-FormattedUsers, Get-Group, Get-Groups, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
