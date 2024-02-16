@@ -37,7 +37,7 @@ Invoke-RunMain $MyInvocation {
         $Local:Package = $_.Value;
 
         [Boolean]$Local:NoUpdate = $False;
-        if (-not (Test-Package -PackageName $Local:PackageName)) {
+        if (-not (Test-ManagedPackage -PackageName $Local:PackageName)) {
             try {
                 $ErrorActionPreference = 'Stop';
 
