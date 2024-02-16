@@ -32,7 +32,7 @@ Invoke-RunMain $MyInvocation {
     }
 
     $Script:DefaultPackages.GetEnumerator() | ForEach-Object {
-        Invoke-Info "Installing package '$($_.Key)'...";
+        Invoke-Debug "Processing package '$($_.Key)'...";
         [String]$Local:PackageName = $_.Key;
         $Local:Package = $_.Value;
 
