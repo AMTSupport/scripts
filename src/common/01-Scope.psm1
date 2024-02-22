@@ -40,7 +40,7 @@ function Get-FormattedReturnValue(
     [Object]$ReturnValue
 ) {
     function Format([Object]$Value) {
-        switch ($ReturnValue) {
+        switch ($Value) {
             { $_ -is [System.Collections.HashTable] } { "`n$Script:Tab$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
 
             default { $ReturnValue }
