@@ -1,5 +1,30 @@
-#Requires -Version 7.1
+<#
+. SYNOPSIS
+    Compiles a PowerShell script file and merges all the modules it uses into the script.
 
+. DESCRIPTION
+    This script can take any number of local PowerShell module files, merge and compile them into a single script file.
+
+    All #Requires statements are merged into the final script file.
+    Currently this only supports the current #Requires statement types: 'Version'
+
+    The modules that are merged into the final script are ordered by the module name,
+    using numbers to prefix the module is the current solution to import the modules in the correct order.
+.NOTES
+    TODO: Add support for secret insertion into the compiled script using a .secrets file, or maybe sops.
+          This would work by adding these secrets only into the parameters of the main function.
+    TODO: Scan the script for all functions being used, only merge the modules that are required for the script to run.
+          Alternatively, we could also do a semi-merge where remove the unused functions from modules before merging them.
+    TODO: Use AST to parse the script instead of the current method of regex and string manipulation.
+          This would allow us to do a more accurate merge and also remove the need for the current method of removing comments.
+    TODO: Instead of ordering scripts by their names, we could scan the script for its used functions and then order the modules by the functions they export.
+          This would allow us to remove the need for the current method of ordering the modules by their names.
+    TODO: Add support for using statements in the script, im not sure how to handle this yet.
+    TODO: While compiling the script check it with PSScriptAnalyzer to make sure it is valid.
+          In the same vain we could also check for any functions or variables that could be undefined and cause errors.
+#>
+
+#Requires -Version 7.1
 Using namespace System.Management.Automation.Language;
 
 [CmdletBinding(SupportsShouldProcess)]
