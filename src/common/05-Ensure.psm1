@@ -145,7 +145,7 @@ function Invoke-EnsureNetwork(
                 $Local:XmlContent.WLANProfile.MSM.security.RemoveChild($Local:XmlContent.WLANProfile.MSM.security.sharedKey) | Out-Null;
             }
 
-            $Local:XmlContent | Out-File -FilePath $Local:ProfileFile -Encoding UTF8;
+            $Local:XmlContent.InnerXml | Out-File -FilePath $Local:ProfileFile -Encoding UTF8;
 
             if ($WhatIfPreference) {
                 Invoke-Info -Message 'WhatIf is set, skipping network setup...';
