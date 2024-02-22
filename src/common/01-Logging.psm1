@@ -252,21 +252,32 @@ function Invoke-Timeout {
             Invoke-Info -Message "$Activity is cancellable, press any key to cancel." -UnicodePrefix $Local:Prefix;
         }
 
-        [Int16]$Local:TimeLeft = $Timeout;
-        while ($Local:TimeLeft -gt 0) {
+        [TimeSpan]$Local:TimeInterval = [TimeSpan]::FromMilliseconds(50);
+        [TimeSpan]$Local:TimeLeft = [TimeSpan]::FromSeconds($Timeout);
+        do {
+            [DateTime]$Local:StartAt = Get-Date;
+
             if ($AllowCancel -and [Console]::KeyAvailable) {
+                Invoke-Debug -Message 'Timeout cancelled by user.';
                 break;
             }
 
             Write-Progress `
                 -Activity $Activity `
-                -Status ($StatusMessage -f ([Math]::Floor($Local:TimeLeft) / 10)) `
-                -PercentComplete ($Local:TimeLeft / $Timeout * 100) `
-                -Completed:($Local:TimeLeft -eq 1)
+                -Status ($StatusMessage -f ([Math]::Floor($Local:TimeLeft.TotalSeconds))) `
+                -PercentComplete ($Local:TimeLeft.TotalMilliseconds / ($Timeout * 10)) `
+                -Completed:($Local:TimeLeft.TotalMilliseconds -eq 0)
 
-            $Local:TimeLeft -= 1;
-            Start-Sleep -Milliseconds 1000;
-        }
+            [TimeSpan]$Local:ElaspedTime = (Get-Date) - $Local:StartAt;
+            [TimeSpan]$Local:IntervalMinusElasped = ($Local:TimeInterval - $Local:ElaspedTime);
+
+            if ($Local:IntervalMinusElasped.TotalMilliseconds -gt 0) {
+                $Local:TimeLeft -= $Local:IntervalMinusElasped;
+                Start-Sleep -Duration $Local:IntervalMinusElasped;
+            } else {
+                $Local:TimeLeft -= $Local:ElaspedTime;
+            }
+        } while ($Local:TimeLeft.TotalMilliseconds -gt 0)
 
         if ($Local:TimeLeft -eq 0) {
             Invoke-Verbose -Message 'Timeout reached, invoking timeout script if one is present.' -UnicodePrefix $Local:Prefix;
