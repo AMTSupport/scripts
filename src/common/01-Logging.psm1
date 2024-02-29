@@ -273,7 +273,9 @@ function Invoke-Timeout {
 
             if ($Local:IntervalMinusElasped.TotalMilliseconds -gt 0) {
                 $Local:TimeLeft -= $Local:IntervalMinusElasped;
-                Start-Sleep -Duration $Local:IntervalMinusElasped;
+
+                # Can't use -duration because it isn't available in PS 5.1
+                Start-Sleep -Milliseconds $Local:IntervalMinusElasped.TotalMilliseconds;
             } else {
                 $Local:TimeLeft -= $Local:ElaspedTime;
             }
