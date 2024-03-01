@@ -297,4 +297,126 @@ function Invoke-Timeout {
     }
 }
 
-Export-ModuleMember -Function Get-SupportsUnicode, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout;
+function Invoke-Progress {
+    Param(
+        [Parameter(HelpMessage = 'The ID of the progress bar, used to display multiple progress bars at once.')]
+        [Int]$Id = 0,
+
+        [Parameter(HelpMessage = 'The activity to display in the progress bar.')]
+        [String]$Activity,
+
+        [Parameter(HelpMessage = '
+        The status message to display in the progress bar.
+        This is formatted with three placeholders:
+            The current completion percentage.
+            The index of the item being processed.
+            The total number of items being processed.
+        ')]
+        [String]$Status,
+
+        [Parameter(Mandatory, HelpMessage = 'The ScriptBlock which returns the items to process.')]
+        [ValidateNotNull()]
+        [ScriptBlock]$Get,
+
+        [Parameter(Mandatory, HelpMessage = 'The ScriptBlock to process each item.')]
+        [ValidateNotNull()]
+        [ScriptBlock]$Process,
+
+        [Parameter(HelpMessage = 'The ScriptBlock that formats the items name for the progress bar.')]
+        [ValidateNotNull()]
+        [ScriptBlock]$Format,
+
+        [Parameter(HelpMessage = 'The ScriptBlock to invoke when an item fails to process.')]
+        [ScriptBlock]$FailedProcessItem
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        if (-not $Activity) {
+            $Local:FuncName = (Get-PSCallStack)[1].InvocationInfo.MyCommand.Name;
+            $Activity = if (-not $Local:FuncName) {
+                'Main';
+            } else { $Local:FuncName; }
+        }
+
+        Write-Progress -Id:$Id -Activity:$Activity -CurrentOperation 'Getting items...' -PercentComplete 0;
+        [Object[]]$Local:InputItems = $Get.InvokeReturnAsIs();
+        Write-Progress -Id:$Id -Activity:$Activity -PercentComplete 1;
+
+        if ($null -eq $Local:InputItems -or $Local:InputItems.Count -eq 0) {
+            Write-Progress -Id:$Id -Activity:$Activity -Status "No items found." -PercentComplete 100 -Completed;
+            return;
+        } else {
+            Write-Progress -Id:$Id -Activity:$Activity -Status "Processing $($Local:InputItems.Count) items...";
+        }
+
+        [System.Collections.IList]$Local:FailedItems = New-Object System.Collections.Generic.List[System.Object];
+
+        [Double]$Local:PercentPerItem = 99 / $Local:InputItems.Count;
+        [Double]$Local:PercentComplete = 0;
+
+        [TimeSpan]$Local:TotalTime = [TimeSpan]::FromSeconds(0);
+        [Int]$Local:ItemsProcessed = 0;
+
+        foreach ($Item in $Local:InputItems) {
+            [String]$ItemName;
+            [TimeSpan]$Local:TimeTaken = (Measure-ElaspedTime {
+                $ItemName = if ($Format) { $Format.InvokeReturnAsIs($Item) } else { $Item; };
+            });
+            $Local:TotalTime += $Local:TimeTaken;
+            $Local:ItemsProcessed++;
+
+            # Calculate the estimated time remaining
+            $Local:AverageTimePerItem = $Local:TotalTime / $Local:ItemsProcessed;
+            $Local:ItemsRemaining = $Local:InputItems.Count - $Local:ItemsProcessed;
+            $Local:EstimatedTimeRemaining = $Local:AverageTimePerItem * $Local:ItemsRemaining
+
+            Invoke-Debug "Items remaining: $Local:ItemsRemaining";
+            Invoke-Debug "Average time per item: $Local:AverageTimePerItem";
+            Invoke-Debug "Estimated time remaining: $Local:EstimatedTimeRemaining";
+
+            $Local:Params = @{
+                Id = $Id;
+                Activity = $Activity;
+                CurrentOperation = "Processing [$ItemName]...";
+                SecondsRemaining = $Local:EstimatedTimeRemaining.TotalSeconds;
+                PercentComplete = [Math]::Ceiling($Local:PercentComplete);
+            };
+
+            if ($Status) {
+                $Local:Params.Status = ($Status -f @($Local:PercentComplete, ($Local:InputItems.IndexOf($Item) + 1), $Local:InputItems.Count));
+            }
+
+            Write-Progress @Local:Params;
+
+            try {
+                $ErrorActionPreference = "Stop";
+                $Process.InvokeReturnAsIs($Item);
+            } catch {
+                Invoke-Warn "Failed to process item [$ItemName]";
+                Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
+                try {
+                    $ErrorActionPreference = "Stop";
+
+                    if ($null -eq $FailedProcessItem) {
+                        $Local:FailedItems.Add($Item);
+                    } else { $FailedProcessItem.InvokeReturnAsIs($Item); }
+                } catch {
+                    Invoke-Warn "Failed to process item [$ItemName] in failed process item block";
+                }
+            }
+
+            $Local:PercentComplete += $Local:PercentPerItem;
+        }
+        Write-Progress -Id:$Id -Activity:$Activity -PercentComplete 100 -Completed;
+
+        if ($Local:FailedItems.Count -gt 0) {
+            Invoke-Warn "Failed to process $($Local:FailedItems.Count) items";
+            Invoke-Warn "Failed items: `n`t$($Local:FailedItems -join "`n`t")";
+        }
+    }
+}
+
+Export-ModuleMember -Function Get-SupportsUnicode, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout, Invoke-Progress;
