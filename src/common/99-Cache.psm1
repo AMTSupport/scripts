@@ -64,7 +64,9 @@ function Get-CachedContent {
             }
         }
 
-        $Local:CacheContent = Get-Content -Path $Local:CachePath | & $ParseBlock;
+        $Local:RawContent = Get-Content -Path $Local:CachePath -Raw;
+
+        $Local:CacheContent = $ParseBlock.InvokeReturnAsIs(@($Local:RawContent));
         return $Local:CacheContent;
     }
 }
