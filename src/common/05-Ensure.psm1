@@ -1,17 +1,15 @@
-$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description 'Not running as administrator.';
+$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description "Not running as administrator!`nPlease re-run your terminal session as Administrator, and try again.";
 function Invoke-EnsureAdministrator {
     if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Invoke-Error 'Not running as administrator!  Please re-run your terminal session as Administrator, and try again.'
         Invoke-FailedExit -ExitCode $Script:NOT_ADMINISTRATOR;
     }
 
     Invoke-Verbose -Message 'Running as administrator.';
 }
 
-$Script:NOT_USER = Register-ExitCode -Description 'Not running as user.';
+$Script:NOT_USER = Register-ExitCode -Description "Not running as user!`nPlease re-run your terminal session as your normal User, and try again.";
 function Invoke-EnsureUser {
     if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Invoke-Error 'Not running as user!  Please re-run your terminal session as your normal User, and try again.'
         Invoke-FailedExit -ExitCode $Script:NOT_USER;
     }
 
@@ -103,8 +101,7 @@ $Script:WifiXmlTemplate = "<?xml version=""1.0""?>
   </MSM>
 </WLANProfile>
 ";
-$Private:UNABLE_TO_SETUP_NETWORK = Register-ExitCode -Description 'Unable to setup network.';
-$Private:NETWORK_NOT_SETUP = Register-ExitCode -Description 'Network not setup, and no details provided.';
+$Private:NO_CONNECTION_AFTER_SETUP = Register-ExitCode -Description 'Failed to connect to the internet after network setup.';
 function Invoke-EnsureNetwork(
     [Parameter(HelpMessage = 'The name of the network to connect to.')]
     [ValidateNotNullOrEmpty()]
@@ -161,7 +158,7 @@ function Invoke-EnsureNetwork(
                 while (-not (Test-Connection -Destination google.com -Count 1 -Quiet)) {
                     If ($Local:RetryCount -ge 60) {
                         Invoke-Error "Failed to connect to $NetworkName after 10 retries";
-                        Invoke-FailedExit -ExitCode $Script:FAILED_TO_CONNECT;
+                        Invoke-FailedExit -ExitCode $Private:NO_CONNECTION_AFTER_SETUP;
                     }
 
                     Start-Sleep -Seconds 1
@@ -169,12 +166,11 @@ function Invoke-EnsureNetwork(
                 }
 
                 Invoke-Info -Message 'Network setup successfully.';
-                return $true;
+                return $True;
             }
         }
     }
 }
-
 
 Register-ExitHandler -Name 'Remove Imported Modules' -ExitHandler {
     if ($Script:ImportedModules.Count -lt 1) {
