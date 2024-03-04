@@ -445,7 +445,19 @@ function Set-CustomPolicies {
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    Connect-Service -Services 'Graph' -Scopes deviceManagementConfiguration.ReadWrite.All, Group.ReadWrite.All;
+    Connect-Service -Services 'Graph' -Scopes DeviceManagementServiceConfig.ReadWrite.All,deviceManagementConfiguration.ReadWrite.All, Group.ReadWrite.All;
+
+    # Set the MDM Authority
+    Invoke-Info 'Ensuring the MDM Authority is set to Intune...';
+    Update-MgOrganization -OrganizationId (Get-MgOrganization | Select-Object -ExpandProperty Id) -BodyParameter (@{ mobileDeviceManagementAuthority = 1; } | ConvertTo-Json);
+
+    # Set the Connectors
+    Invoke-Info 'Setting up the Intune Connectors...';
+    Invoke-MgGraphRequest -Method POST -Uri 'beta/deviceManagement/dataProcessorServiceForWindowsFeaturesOnboarding' -Body (@{
+        "@odata.type" = "#microsoft.graph.dataProcessorServiceForWindowsFeaturesOnboarding";
+        hasValidWindowsLicense = $True;
+        areDataProcessorServiceForWindowsFeaturesEnabled = $True;
+    })
 
     # Setup the Intune Group
     [MicrosoftGraphGroup]$Local:IntuneGroup = Get-IntuneGroup
