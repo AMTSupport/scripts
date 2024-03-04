@@ -12,10 +12,6 @@ function Invoke-WithLogging {
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNull()]
-        [String]$Message,
-
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
         [ScriptBlock]$HasLoggingFunc,
 
         [Parameter(Mandatory)]
@@ -25,9 +21,9 @@ function Invoke-WithLogging {
 
     process {
         if ($Global:Logging.Loaded) {
-            $HasLoggingFunc.InvokeReturnAsIs(@($Message));
+            $HasLoggingFunc.InvokeReturnAsIs();
         } else {
-            $MissingLoggingFunc.InvokeReturnAsIs(@($Message));
+            $MissingLoggingFunc.InvokeReturnAsIs();
         }
     }
 }
@@ -44,9 +40,8 @@ function Invoke-EnvInfo {
    )
 
     Invoke-WithLogging `
-        -Message $Message `
-        -HasLoggingFunc { param($Message) if ($UnicodePrefix) { Invoke-Info $Message $UnicodePrefix; } else { Invoke-Info $Message; } } `
-        -MissingLoggingFunc { param($Message) Write-Host -ForegroundColor Cyan -Object $Message; };
+        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Info $Message $UnicodePrefix; } else { Invoke-Info $Message; } } `
+        -MissingLoggingFunc { Write-Host -ForegroundColor Cyan -Object $Message; };
 }
 
 function Invoke-EnvVerbose {
@@ -61,9 +56,8 @@ function Invoke-EnvVerbose {
     )
 
     Invoke-WithLogging `
-        -Message $Message `
-        -HasLoggingFunc { param($Message) if ($UnicodePrefix) { Invoke-Verbose $Message $UnicodePrefix; } else { Invoke-Verbose $Message; } } `
-        -MissingLoggingFunc { param($Message) Write-Verbose -Message $Message; };
+        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Verbose $Message $UnicodePrefix; } else { Invoke-Verbose $Message; } } `
+        -MissingLoggingFunc { Write-Verbose -Message $Message; };
 }
 
 function Invoke-EnvDebug {
@@ -78,9 +72,8 @@ function Invoke-EnvDebug {
     )
 
     Invoke-WithLogging `
-        -Message $Message `
-        -HasLoggingFunc { param($Message) if ($UnicodePrefix) { Invoke-Debug $Message $UnicodePrefix } else { Invoke-Debug $Message; }; } `
-        -MissingLoggingFunc { param($Message) Write-Debug -Message $Message; };
+        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Debug $Message $UnicodePrefix } else { Invoke-Debug $Message; }; } `
+        -MissingLoggingFunc { Write-Debug -Message $Message; };
 }
 
 function Get-OrFalse {
@@ -124,14 +117,14 @@ function Import-CommonModules {
             Invoke-EnvDebug -Message "Module $Name is a script block.";
 
             if (Get-Module -Name $Name) {
-                Remove-Module -Name $Name -Force -Verbose:$False;
+                Remove-Module -Name $Name -Force -Verbose;
             }
 
-            New-Module -ScriptBlock $Value -Name $Name -Verbose:$False | Import-Module -Global -Force -Verbose:$False;
+            New-Module -ScriptBlock $Value -Name $Name -Verbose | Import-Module -Global -Force -Verbose;
         } else {
             Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
 
-            Import-Module -Name $Value -Global -Force -Verbose:$False;
+            Import-Module -Name $Value -Global -Force -Verbose;
         }
     }
 
