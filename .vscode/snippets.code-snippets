@@ -34,7 +34,7 @@
         "scope": "powershell",
         "prefix": "run",
         "body": [
-            "Import-Module \\$PSScriptRoot/${1:Path/To/src}/common/Environment.psm1;",
+            "Import-Module \\$PSScriptRoot/${1:Path/To/src}/common/00-Environment.psm1;",
             "",
             "Invoke-RunMain \\$MyInvocation {",
             "",
