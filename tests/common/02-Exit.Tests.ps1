@@ -1,6 +1,5 @@
 BeforeDiscovery {
-    Import-Module $PSScriptRoot/../../src/common/00-Environment.psm1;
-    Import-CommonModules;
+    $ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
 AfterAll {
@@ -12,7 +11,7 @@ Describe '01-Exit.psm1 Tests' {
         It 'Should throw with a FailedExit ErrorRecord with the ExitCode as the TargetObject' {
             $Local:ThrownError;
             try {
-                Invoke-FailedExit -ExitCode 1;
+                Invoke-FailedExit -ExitCode 1 -DontExit;
             } catch {
                 $Local:ThrownError = $_;
             }
