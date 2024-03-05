@@ -22,6 +22,7 @@
     TODO: Add support for using statements in the script, im not sure how to handle this yet.
     TODO: While compiling the script check it with PSScriptAnalyzer to make sure it is valid.
           In the same vain we could also check for any functions or variables that could be undefined and cause errors.
+    TODO: Fix indentation for multiline strings, there become broken after the merge.
 #>
 
 #Requires -Version 7.1
