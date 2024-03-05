@@ -1,6 +1,5 @@
 BeforeDiscovery {
-    Import-Module $PSScriptRoot/../../src/common/00-Environment.psm1;
-    Import-CommonModules;
+    $ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
 AfterAll {
