@@ -40,7 +40,7 @@ function Invoke-EnvInfo {
    )
 
     Invoke-WithLogging `
-        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Info $Message $UnicodePrefix; } else { Invoke-Info $Message; } } `
+        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Info $Message $UnicodePrefix; } else { Invoke-Info -Message:$Message; } } `
         -MissingLoggingFunc { Write-Host -ForegroundColor Cyan -Object $Message; };
 }
 
@@ -56,7 +56,7 @@ function Invoke-EnvVerbose {
     )
 
     Invoke-WithLogging `
-        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Verbose $Message $UnicodePrefix; } else { Invoke-Verbose $Message; } } `
+        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Verbose $Message $UnicodePrefix; } else { Invoke-Verbose -Message:$Message; } } `
         -MissingLoggingFunc { Write-Verbose -Message $Message; };
 }
 
@@ -72,7 +72,7 @@ function Invoke-EnvDebug {
     )
 
     Invoke-WithLogging `
-        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Debug $Message $UnicodePrefix } else { Invoke-Debug $Message; }; } `
+        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Debug $Message $UnicodePrefix } else { Invoke-Debug -Message:$Message; }; } `
         -MissingLoggingFunc { Write-Debug -Message $Message; };
 }
 
@@ -117,14 +117,14 @@ function Import-CommonModules {
             Invoke-EnvDebug -Message "Module $Name is a script block.";
 
             if (Get-Module -Name $Name) {
-                Remove-Module -Name $Name -Force -Verbose;
+                Remove-Module -Name $Name -Force;
             }
 
-            New-Module -ScriptBlock $Value -Name $Name -Verbose | Import-Module -Global -Force -Verbose;
+            New-Module -ScriptBlock $Value -Name $Name | Import-Module -Global -Force;
         } else {
             Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
 
-            Import-Module -Name $Value -Global -Force -Verbose;
+            Import-Module -Name $Value -Global -Force;
         }
     }
 
@@ -133,20 +133,25 @@ function Import-CommonModules {
         Invoke-EnvVerbose 'Script has been embeded with required modules.';
         [HashTable]$Local:ToImport = $Global:EmbededModules;
     } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
-        Invoke-EnvVerbose -Message 'Script is in git repository; Using local files.';
+        Invoke-EnvVerbose 'Script is in git repository; Using local files.';
         [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
     } else {
         [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 
-        if (-not (Test-Path -Path $Local:RepoPath)) {
-            Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
-            git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
+        if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
+            if (-not (Test-Path -Path $Local:RepoPath)) {
+                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
+                git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
+            } else {
+                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Updating repository.';
+                git -C $Local:RepoPath pull;
+            }
         } else {
-            Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Updating repository.';
-            git -C $Local:RepoPath pull;
+            Invoke-EnvInfo -Message 'Git is not installed, unable to update the repository or clone if required.';
         }
 
         [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
+
     }
 
     # Import PSStyle Before anything else.
@@ -186,7 +191,7 @@ function Remove-CommonModules {
             $Global:Logging.Loaded = $false;
         }
 
-        Remove-Module -Name $_ -Force -Verbose:$False;
+        Remove-Module -Name $_ -Force;
     };
 
     if ($Global:CompiledScript) {
@@ -224,7 +229,7 @@ function Invoke-RunMain {
         [Switch]$DontImport,
 
         [Parameter(DontShow)]
-        [Switch]$HideDisclaimer = (([Console]::Title | Split-Path -Leaf) -eq 'fmplugin.exe')
+        [Switch]$HideDisclaimer = (($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
     )
 
     # Workaround for embedding modules in a script, can't use Invoke if a scriptblock contains begin/process/clean blocks
@@ -288,17 +293,17 @@ function Invoke-RunMain {
                 if (-not $Local:DontImport) {
                     Remove-CommonModules;
                 }
-
-                # Remove-Variable -Scope Global -Name Logging;
-                # [Console]::InputEncoding, [Console]::OutputEncoding = $Local:PreviousEncoding;
             }
         }
     }
 
-    [Boolean]$Local:Verbose = Get-OrFalse $Invocation.BoundParameters 'Verbose';
-    [Boolean]$Local:Debug = Get-OrFalse $Invocation.BoundParameters 'Debug';
-
-    Invoke-Inner -Invocation $Invocation -Main $Main -DontImport:$DontImport -HideDisclaimer:$HideDisclaimer -Verbose:$Local:Verbose -Debug:$Local:Debug;
+    Invoke-Inner `
+        -Invocation $Invocation `
+        -Main $Main `
+        -DontImport:$DontImport `
+        -HideDisclaimer:($HideDisclaimer -or $False) `
+        -Verbose:(Get-OrFalse $Invocation.BoundParameters 'Verbose') `
+        -Debug:(Get-OrFalse $Invocation.BoundParameters 'Debug');
 }
 
 Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules;
