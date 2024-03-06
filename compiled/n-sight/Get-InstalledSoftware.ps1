@@ -1,15 +1,6 @@
 #Requires -Version 5.1
-[CmdletBinding(SupportsShouldProcess)]
-Param(
-    [Parameter(Mandatory)]
-    [String]$Client,
-    [Parameter()]
-    [ValidateNotNullOrEmpty()]
-    [String]$ClientsFolder,
-    [Parameter()]
-    [ValidateNotNullOrEmpty()]
-    [String]$ExcelFileName = "MFA Numbers.xlsx"
-)
+
+
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -2355,666 +2346,309 @@ $Global:EmbededModules = [ordered]@{
 		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUser, Get-FormattedUsers, Get-Group, Get-Groups, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
     };
 }
-$Script:Columns = @{
-    DisplayName = 1;
-    Email = 2;
-    Phone = 3;
-};
-function Invoke-SetupEnvironment(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$Client,
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$ClientsFolder,
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$ExcelFileName
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        Invoke-EnsureUser;
-        Invoke-EnsureModules -Modules @('AzureAD', 'MSOnline', 'ImportExcel');
-        Connect-Service -Services 'Msol', 'AzureAD';
-        # Get the first client folder that exists
-        $Local:ReportFolder = "$ClientFolder/Monthly Report"
-        $Script:ExcelFile = "$Local:ReportFolder/$ExcelFileName"
-        if ((Test-Path $Local:ReportFolder) -eq $false) {
-            Invoke-Info -ForegroundColor Cyan "Report folder not found; creating $Local:ReportFolder";
-            New-Item -Path $Local:ReportFolder -ItemType Directory | Out-Null;
-        }
-        if (Test-Path $Script:ExcelFile) {
-            Invoke-Info "Excel file found; creating backup $Script:ExcelFile.bak";
-            Copy-Item -Path $Script:ExcelFile -Destination "$Script:ExcelFile.bak" -Force;
-        }
-    }
-}
-function Get-CurrentData {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:ExpandedUsers; }
-    process {
-        [Object[]]$Local:LicensedUsers = Get-MsolUser -All | Where-Object { $_.isLicensed -eq $true } | Sort-Object DisplayName;
-        [PSCustomObject[]]$Local:ExpandedUsers = $Local:LicensedUsers `
-            | Select-Object `
-                DisplayName, `
-                @{ N = 'Email'; E = { $_.UserPrincipalName } }, `
-                MobilePhone, `
-                @{ N = 'MFA_App'; E = { $_.StringAuthenticationPhoneAppDetails }  }, `
-                @{ N = 'MFA_Email'; E = { $_.StrongAuthenticationUserDetails.Email } }, `
-                @{ N = 'MFA_Phone'; E = { $_.StrongAuthenticationUserDetails.PhoneNumber } };
-        return $Local:ExpandedUsers;
-    }
-}
-function Get-Excel {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        $import = if (Test-Path $script:ExcelFile) {
-            Write-Host -ForegroundColor Cyan "Excel file found; importing data"
-            try {
-                Import-Excel $script:ExcelFile
-            } catch {
-                Invoke-Error "Failed to import Excel file.";
-                $Message = $_.Exception.Message
-                $WriteMessage = switch -Regex ($Message) {
-                    "Duplicate column headers" {
-                        $Match = Select-String "Duplicate column headers found on row '(?<row>[0-9]+)' in columns '(?:(?<column>[0-9]+)(?:[ ]?))+'." -InputObject $_
-                        $Row = $Match.Matches.Groups[1].Captures
-                        $Columns = $Match.Matches.Groups[2].Captures
-                        "There were duplicate columns found on row $Row in columns $($Columns -join ", "); Please remove any duplicate columns and try again"
-                    }
-                    default { "Unknown error; Please examine the error message and try again" }
-                }
-                Invoke-Error $WriteMessage
-                exit 1004
-            }
-        } else {
-            Write-Host -ForegroundColor Cyan "Excel file not found; creating new file"
-            New-Object -TypeName System.Collections.ArrayList
-        }
-        $import | Export-Excel "$script:ExcelFile" -PassThru -AutoSize -FreezeTopRowFirstColumn
-    }
-}
-function Get-EmailToCell([Parameter(Mandatory)][ValidateNotNullOrEmpty()][OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:EmailTable; }
-    process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while getting email to cell mapping";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
-        [Int]$Local:SheetRows = $WorkSheet.Dimension.Rows;
-        # If null or less than 2 rows, there is no pre-existing data.
-        If ($null -eq $Local:SheetRows -or $Local:SheetRows -lt 2) {
-            Invoke-Info "No data found in worksheet $($WorkSheet.Name)";
-            return @{};
-        }
-        [HashTable]$Local:EmailTable = @{};
-        [Int]$Local:ColumnIndex = 2;
-        foreach ($Local:Row in 2..$Local:SheetRows) {
-            [String]$Local:Email = $WorkSheet.Cells[$Local:Row, $Local:ColumnIndex].Value;
-            $Local:Email | Assert-NotNull -Message "Email was null";
-            $Local:EmailTable.Add($Local:Email, $Local:Row);
-        }
-        return $Local:EmailTable;
-    }
-}
-function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeOpenXml.ExcelWorksheet]$HistoryWorkSheet, [int]$KeepHistory = 4) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        # This is a new worksheet, no history to update
-        if ($ActiveWorkSheet.Dimension.Columns -lt 4) {
-            Write-Host -ForegroundColor Cyan "No data found in worksheet $($ActiveWorkSheet.Name), skipping history update."
-            return
-        }
-        $TotalColumns = $ActiveWorkSheet.Dimension.Columns
-        $RemovedColumns = 0
-        $KeptRange = ($TotalColumns - $KeepHistory)..$TotalColumns
-        foreach ($ColumnIndex in 4..$ActiveWorkSheet.Dimension.Columns) {
-            $WillKeep = $KeptRange -contains $ColumnIndex
-            $ColumnIndex = $ColumnIndex - $RemovedColumns
-            $DateValue = $ActiveWorkSheet.Cells[1, $ColumnIndex].Value
-            Write-Host -ForegroundColor Cyan "Processing Column $ColumnIndex which is dated $DateValue, moving to history: $(!$WillKeep)"
-            # Empty column, remove and continue;
-            if ($null -eq $DateValue -or $DateValue -eq '') {
-                $ActiveWorkSheet.DeleteColumn($ColumnIndex)
-                $RemovedColumns++
-                continue
-            }
-            # This is absolutely fucking revolting
-            $Date = try {
-                Get-Date -Date ($DateValue)
-            } catch {
-                try {
-                    Get-Date -Date "$($DateValue)-$(Get-Date -Format 'yyyy')"
-                } catch {
-                    try {
-                        [DateTime]::FromOADate($DateValue)
-                    } catch {
-                        Write-Host -ForegroundColor Cyan "Deleting what is thought to be invalid or check column at $ColumnIndex"
-                        # Probably the check column, remove and continue;
-                        $ActiveWorkSheet.DeleteColumn($ColumnIndex)
-                        $RemovedColumns++
-                        continue
-                    }
-                }
-            }
-            Write-Host -ForegroundColor Cyan "Processing Column $ColumnIndex which is dated $Date, moving to history: $(!$WillKeep)"
-            if ($WillKeep -eq $true) {
-                continue
-            }
-            if ($null -ne $HistoryWorkSheet) {
-                $HistoryColumnIndex = $HistoryWorkSheet.Dimension.Columns + 1
-                Write-Host -ForegroundColor Cyan "Moving column $ColumnIndex from working page into history page at $HistoryColumnIndex"
-                $HistoryWorkSheet.InsertColumn($HistoryColumnIndex, 1)
-                $HistoryWorkSheet.Cells[1, $HistoryColumnIndex].Value = $Date.ToString('MMM-yy')
-                $HistoryEmails = Get-EmailToCell -WorkSheet $HistoryWorkSheet
-                foreach ($RowIndex in 2..$ActiveWorkSheet.Dimension.Rows) {
-                    Write-Host -ForegroundColor Cyan "Processing row $RowIndex"
-                    $Email = $ActiveWorkSheet.Cells[$RowIndex, 2].Value
-                    $HistoryIndex = $HistoryEmails[$Email]
-                    if ($null -eq $HistoryIndex) {
-                        $HistoryIndex = $HistoryWorkSheet.Dimension.Rows + 1
-                        $HistoryWorkSheet.InsertRow($HistoryIndex, 1)
-                        $HistoryWorkSheet.Cells[$HistoryIndex, 2].Value = $Email
-                    } else {
-                        # Update the name and phone number
-                        $HistoryWorkSheet.Cells[$HistoryIndex, 1].Value = $ActiveWorkSheet.Cells[$RowIndex, 1].Value
-                        $HistoryWorkSheet.Cells[$HistoryIndex, 3].Value = $ActiveWorkSheet.Cells[$RowIndex, 3].Value
-                    }
-                    $HistoryWorkSheet.Cells[$HistoryIndex, $HistoryColumnIndex].Value = $ActiveWorkSheet.Cells[$RowIndex, $ColumnIndex].Value
-                }
-            }
-            $ActiveWorkSheet.DeleteColumn($ColumnIndex)
-            $RemovedColumns++
-        }
-    }
-}
-function Get-ColumnDate {
-    Param(
+[CmdletBinding()]
+param (
+    [String]$Endpoint = 'system-monitor.com',
+    [ValidateLength(32, 32)]
+    [String]$ApiKey = '',
+    [ValidateSet('Workstation', 'Server')]
+    [String[]]$DeviceTypes = @('Workstation', 'Server')
+);
+function Invoke-NableApi {
+    param (
         [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [OfficeOpenXml.ExcelWorksheet]$WorkSheet,
+        [String]$Service,
+        [String[]]$ExtraPath
+    );
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:ParsedResponse; }
+    process {
+        [String]$Local:URL = "https://${Endpoint}/api/?apikey=${ApiKey}&service=$Service$(if ($ExtraPath) { "&$($ExtraPath -join '&')"})";
+        [String]$Local:ContentType = 'text/xml;charset="utf-8"';
+        [String]$Local:Method = 'GET';
+        Invoke-Debug "Invoking N-Able API with URL: $Local:URL";
+        $Local:Response = Invoke-RestMethod `
+            -Uri $Local:URL `
+            -Method $Local:Method `
+            -ContentType $Local:ContentType;
+        # TODO :: Add error handling for the response
+        [System.Xml.XmlElement]$Local:ParsedResponse = $Local:Response.result;
+        return $Local:ParsedResponse;
+    }
+}
+function Get-NableClients {
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Sites; }
+    process {
+        $Local:Clients = (Invoke-NableApi -Service 'list_clients' -ExtraPath 'devicetype=workstation');
+        return $Local:Clients;
+    }
+}
+function Get-NableSites {
+    param (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [String[]]$ClientIds
+    );
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Sites; }
+    process {
+        $Sites = @();
+        $ClientIds | ForEach-Object {
+            $Local:Site = (Invoke-NableApi -Service 'list_sites' -ExtraPath "clientid=$_").items.site;
+            $Sites += $Local:Site;
+        }
+        return $Local:Sites;
+    }
+}
+function Get-NableDevices {
+    param (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [String[]]$SiteIds,
         [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [Int32]$ColumnIndex
-    )
-    $DateValue = $WorkSheet.Cells[1, $ColumnIndex].Value
-    try {
-        Get-Date -Date ($DateValue)
-    } catch {
-        $Date = [DateTime]::FromOADate($DateValue)
-        if ($Date.Year -eq 1899 -and $Date.Month -eq 12 -and $Date.Day -eq 30) {
-            $null
-        } else {
-            $Date
+        [ValidateSet('Workstation', 'Server')]
+        [String]$DeviceType
+    );
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Devices; }
+    process {
+        [String]$Local:CallService = "list_$($DeviceType.ToLower())s";
+        $Local:Devices = @();
+        $SiteIds | ForEach-Object {
+            $Local:Device = (Invoke-NableApi -Service $Local:CallService -ExtraPath "siteid=$_").items.${DeviceType};
+            $Devices += $Local:Device;
         }
+        return $Local:Devices;
     }
 }
-function Invoke-CleanupWorksheet(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [OfficeOpenXml.ExcelWorksheet]$WorkSheet,
-    [switch]$DuplicateCheck
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+function Get-NableDeviceSoftware {
+    param (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [String[]]$DeviceIds
+    );
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Software; }
     process {
-        [Int]$Local:Rows = $WorkSheet.Dimension.Rows
-        if ($null -ne $Local:Rows -and $Local:Rows -ge 2) {
-            # Start from 2 because the first row is the header
-            [Int]$Local:RemovedRows = 0;
-            [System.Collections.Generic.List[String]]$Local:VisitiedEmails = New-Object System.Collections.Generic.List[String];
-            foreach ($Local:RowIndex in 2..$Local:Rows) {
-                [Int]$Local:RowIndex = $Local:RowIndex - $Local:RemovedRows;
-                [String]$Local:Email = $WorkSheet.Cells[$Local:RowIndex, $Script:Columns.Email].Value;
-                # Remove any empty rows between actual data
-                if ($null -eq $Local:Email) {
-                    Invoke-Info "Removing row $Local:RowIndex because email is empty.";
-                    $WorkSheet.DeleteRow($RowIndex);
-                    $Local:RemovedRows++;
-                    continue;
-                }
-                if ($DuplicateCheck) {
-                    Invoke-Info "Checking for duplicate email '$Local:Email'";
-                    if (!$Local:VisitiedEmails.Contains($Local:Email)) {
-                        Invoke-Info "Adding email '$Local:Email' to the list of visited emails";
-                        $Local:VisitiedEmails.Add($Local:Email);
-                        continue;
-                    }
-                    Invoke-Info "Duplicate email '$Local:Email' found at virtual row $Local:RowIndex (Offset by $($Local:RemovedRows + 2))";
-                    [Int]$Local:AdditionalRealIndex = $Local:RowIndex + $Local:RemovedRows;
-                    [Int]$Local:ExistingRealIndex = $Local:VisitiedEmails.IndexOf($Local:Email) + 2 + $Local:RemovedRows;
-                    # TODO :: FIXME
-                    if ($False) {
-                        function Get-RowColumns([Int]$RowIndex) {
-                            $Local:ColumnRange = 1..$WorkSheet.Dimension.Columns;
-                            [String[]]$Local:Row = $Local:ColumnRange | ForEach-Object { $WorkSheet.Cells[$RowIndex, $_].Text };
-                            $Local:Row;
-                        }
-                        function Invoke-FormattedRows([Int[]]$RowIndexes) {
-                            [String[]]$Local:Rows = $RowIndexes | ForEach-Object { Get-RowColumns $_ };
-                            Invoke-Info "Formatting rows: $($Local:Rows -join ', ')";
-                            [HashTable]$Local:LongestColumns = @{};
-                            $Rows | ForEach-Object {
-                                [String[]]$Local:Row = $_;
-                                [Int]$Local:Index = -1;
-                                $Local:Row | ForEach-Object {
-                                    [Int]$Local:Index++;
-                                    [String]$Local:Value = $_;
-                                    [Int]$Local:ValueLength = $Local:Value.Length;
-                                    [Int]$Local:CurrentLongest = $Local:LongestColumns[$Local:Index];
-                                    If ($null -eq $Local:CurrentLongest -or $Local:CurrentLongest -lt $Local:ValueLength) {
-                                        $Local:LongestColumns[$Local:Index] = $Local:ValueLength;
-                                    }
-                                }
-                            }
-                            Invoke-Info "Longest columns: $($Local:LongestColumns.Values | ForEach-Object { $_ })";
-                            [Int]$Local:TerminalWidth = $Host.UI.RawUI.BufferSize.Width;
-                            [Int]$Local:MustIncludeLength = $Local:LongestColumns[0] + $Local:LongestColumns[1] + $Local:LongestColumns[2];
-                            [Int]$Local:MaxColumnLength = $Local:TerminalWidth - $Local:MustIncludeLength;
-                            Invoke-Info "Terminal width: $Local:TerminalWidth";
-                            Invoke-Info "Must include length: $Local:MustIncludeLength";
-                            Invoke-Info "Max column length: $Local:MaxColumnLength";
-                            # Starting collecting the columns from the end of the array, if the combined length of the columns is greater than our max length, stop collecting.
-                            [Int]$Local:CollectingColumns = $Local:LongestColumns.Count - 1;
-                            [Int]$Local:CurrentLength = 0;
-                            while ($Local:CollectingColumns -ge 0) {
-                                [Int]$Local:CurrentLength += $Local:LongestColumns[$Local:CollectingColumns];
-                                If ($Local:CurrentLength -gt $Local:MaxColumnLength) {
-                                    break;
-                                }
-                                $Local:CollectingColumns--;
-                            }
-                            # With the columns we want to display, we can now format the rows.
-                            [String[]]$Local:Lines = "";
-                            $Rows | ForEach-Object {
-                                [String[]]$Local:Row = $_;
-                                for ($Local:Index = $Local:CurrentLongest - 1; $Local:Index -le ($Local:LongestColumns.Count - 1); $Local:Index++) {
-                                    [String]$Local:Value = $Local:Row[$Local:Index];
-                                    [Int]$Local:ValueLength = $Local:Value.Length;
-                                    [Int]$Local:Padding = $Local:LongestColumns[$Local:Index] - $Local:ValueLength;
-                                    [String]$Local:PaddingString = ' ' * $Local:Padding;
-                                    "$Local:Value$Local:PaddingString";
-                                }
-                                $Local:Lines += ($Local:Columns -join ' | ');
-                            }
-                            $Local:Lines -join "`n";
-                        }
-                        # $(Invoke-FormattedRows 1,$Local:VisitiedEmails.IndexOf($Local:Email),$Local:RowIndex);
-                    }
-                    [Int]$Local:Selection = Get-UserSelection `
-                        -Title "Duplicate email found at row $Local:AdditionalRealIndex." `
-                        -Question @"
-The email '$Local:Email' was first seen at row $Local:ExistingRealIndex.
-Please select which row you would like to keep, or enter 'b' to exit and manually review the file.
-"@ `
-                        -Choices @('&Existing', '&New', '&Break') -DefaultChoice 0;
-                    $Local:RemovingRow = switch ($Local:Selection) {
-                        0 { $RowIndex }
-                        1 {
-                            $Local:ExistingIndex = $Local:VisitiedEmails.IndexOf($Local:Email);
-                            $Local:VisitiedEmails.Remove($Local:Email);
-                            $Local:VisitiedEmails.Add($Local:Email);
-                            $Local:ExistingIndex;
-                        }
-                        default {
-                            Invoke-Error "Please manually review and remove the duplicate email that exists at rows $Local:ExistingRealIndex and $Local:AdditionalRealIndex"
-                            Exit 1010
-                        }
-                    }
-                    Invoke-Info "Removing row $Local:RemovingRow";
-                    $WorkSheet.DeleteRow($RemovingRow);
-                    $Local:RemovedRows++;
-                }
+        $Local:AllSoftware = @();
+        $DeviceIds | ForEach-Object {
+            $Local:Software = (Invoke-NableApi -Service 'list_all_software' -ExtraPath "assetid=$_").items.software;
+            $AllSoftware += $Local:Software;
+        }
+        return $Local:Software;
+    }
+}
+function Out-ToExcel {
+    param(
+        [Parameter(Mandatory)]
+        [String]$File,
+        [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [PSCustomObject]$Data
+    );
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+    process {
+        $Local:Headers = $Data.Headers;
+        $Local:Matrix = $Data.Matrix;
+        #region Validate Data Structure
+        # Ensure we have valid data structure in the object.
+        # This should have an array called headers which defines the column names.
+        # We should also have a matrix called data which is indexed by the row then by the column,
+        # We should not have any rows longer than the header length.
+        if (-not $Local:Headers -or -not $Local:Matrix) {
+            throw "Invalid data structure. Please ensure the object has headers and rows properties.";
+        }
+        if (-not $Local:Headers -is [Array] -or -not $Local:Matrix -is [System.Collections.Generic.List[System.Object]]) {
+            throw "Invalid data structure. Please ensure the headers and rows properties are arrays.";
+        }
+        #endregion
+        #region Create Excel File
+        [OfficeOpenXml.ExcelPackage]$Local:Excel = [OfficeOpenXml.ExcelPackage]::new();
+        [OfficeOpenXml.ExcelWorksheet]$Local:Sheet = $Local:Excel.Workbook.Worksheets.Add('Data');
+        #endregion
+        #region Insert Data
+        for ($i = 0; $i -lt $Local:Headers.Length; $i++) {
+            Invoke-Debug "Writing header: $($Local:Headers[$i]) to cell [1, $($i + 1)]";
+            $Local:Sheet.Cells[1, ($i + 1)].Value = $Local:Headers[$i];
+        }
+        for ($i = 0; $i -lt $Local:Matrix.Count; $i++) {
+            Invoke-Debug "Row: $($i + 1) - $($Local:Matrix[$i])";
+            for ($j = 0; $j -lt $Local:Headers.Length; $j++) {
+                [Int]$Local:SheetRow = $i + 2;
+                [Int]$Local:SheetColumn = $j + 1;
+                # if ($Local:Matrix[$i].Length -le $j) {
+                #     continue;
+                # }
+                Invoke-Debug "Writing value: $($Local:Matrix[$i][$j]) to cell [$Local:SheetRow, $Local:SheetColumn]"
+                $Local:Sheet.Cells[$Local:SheetRow, $Local:SheetColumn].Value = $Local:Matrix[$i][$j];
             }
         }
-        $Columns = $WorkSheet.Dimension.Columns
-        if ($null -ne $Columns -and $Columns -ge 4) {
-            # Start from 4 because the first three columns are name,email,phone
-            $RemovedColumns = 0
-            foreach ($ColumnIndex in 4..$WorkSheet.Dimension.Columns) {
-                $ColumnIndex = $ColumnIndex - $RemovedColumns
-                # Remove any empty columns, or invalid date columns between actual data
-                # TODO -> Use Get-ColumnDate
-                $Value = $WorkSheet.Cells[1, $ColumnIndex].Value
-                if ($null -eq $Value -or $Value -eq 'Check') {
-                    Write-Host -ForegroundColor Cyan "Removing column $ColumnIndex because date is empty or invalid."
-                    $WorkSheet.DeleteColumn($ColumnIndex)
-                    $RemovedColumns++
-                    continue
-                }
-            }
-        }
+        #endregion
+        #region Format Excel File
+        [String]$Local:LastColumn = $Local:Sheet.Dimension.Address -split ':' | Select-Object -Last 1;
+        [String]$Local:LastColumn = $lastColumn -replace '[0-9]', '';
+        Set-ExcelRange -Worksheet $Local:Sheet -Range "A1:$($Local:LastColumn)1" -Bold -HorizontalAlignment Center
+        Set-ExcelRange -Worksheet $Local:Sheet -Range "A2:$($Local:LastColumn)$(($Local:Sheet.Dimension.Rows))" -AutoSize -ResetFont -BackgroundPattern Solid
+        #endregion
+        Close-ExcelPackage -ExcelPackage:$Local:Excel -SaveAs:$File -Show;
     }
-}
-function Remove-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while removing users from worksheet";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
-        [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
-        $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
-        # Sort decenting by value, so that we can remove from the bottom up without affecting the index.
-        [HashTable]$Local:EmailTable = $Local:EmailTable | Sort-Object -Property Values -Descending;
-        $Local:EmailTable | ForEach-Object {
-            [String]$Local:ExistingEmail = $_.Name;
-            [Int]$Local:ExistingRow = $_.Value;
-            # Find the object in the new data which matches the existing email.
-            [String]$Local:NewData = $NewData | Where-Object { $_.Email -eq $Local:ExistingEmail } | Select-Object -First 1;
-            If ($null -eq $Local:NewData) {
-                Write-Host -ForegroundColor Cyan -Object "$Local:ExistingEmail is not longer present in the new data, removing from row $Local:ExistingRow";
-                $WorkSheet.DeleteRow($Local:ExistingRow);
-            }
-        }
-    }
-}
-function Add-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while adding users to worksheet";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
-        [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
-        $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
-        [PSCustomObject]$Local:NewUsers = $NewData | Where-Object { -not $Local:EmailTable.ContainsKey($_.Email) };
-        If ($null -eq $Local:NewUsers) {
-            Write-Host -ForegroundColor Cyan -Object "No new users found, skipping add users.";
-            return;
-        }
-        # Create a new Email table, but this time with the insertions of users
-        # Each value is a boolean which is only true if they are a new user.
-        # This should be sorted by displayName, so that we can insert them in the correct order.
-        [HashTable]$Local:TableWithInsertions = @{};
-        $Local:EmailTable.GetEnumerator().ForEach({$Local:TableWithInsertions.Add($_.Key, $false); });
-        $Local:NewUsers | ForEach-Object { $Local:TableWithInsertions.Add($_.Email, $true); };
-        [Object[]]$Local:TableWithInsertions = $Local:TableWithInsertions.GetEnumerator() | Sort-Object -Property Key;
-        [Int]$Local:LastRow = 1;
-        $Local:TableWithInsertions | ForEach-Object {
-            $Local:LastRow++;
-            [String]$Local:Email = $_.Key;
-            [Boolean]$Local:IsNewUser = $_.Value;
-            If ($Local:IsNewUser) {
-                Write-Host -ForegroundColor Cyan -Object "$Local:Email is a new user, inserting into row $($Local:LastRow + 1)";
-                [PSCustomObject]$Local:NewUserData = $NewData | Where-Object { $_.Email -eq $Local:Email } | Select-Object -First 1;
-                # $Local:NewUserData | Assert-NotNull -Message 'New user data was null';
-                $WorkSheet.InsertRow($Local:LastRow, 1);
-                $WorkSheet.Cells[$Local:LastRow, 1].Value = $Local:NewUserData.DisplayName;
-                $WorkSheet.Cells[$Local:LastRow, 2].Value = $Local:NewUserData.Email;
-                $WorkSheet.Cells[$Local:LastRow, 3].Value = $Local:NewUserData.MobilePhone;
-            }
-        }
-    }
-}
-function Invoke-OrderUsers(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [OfficeOpenXml.ExcelWorksheet]$WorkSheet
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while re-ordering users";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
-        return
-        [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
-        [HashTable]$Local:RequiresSorting = @{};
-        foreach ($Local:Index in $Local:EmailTable.Values) {
-            [String]$Local:DisplayName = $WorkSheet.Cells[$Local:Index, 1].Value;
-            $Local:RequiresSorting.Add($Local:DisplayName, $Local:Index);
-        }
-        $Local:RequiresSorting | Assert-NotNull -Message 'Requires sorting was null';
-        [Int]$Local:SortedRows = 0;
-        while ($Local:RequiresSorting.Count -gt 0) {
-            [String]$Local:SmallestKey = $Local:RequiresSorting.Keys[0];
-            foreach ($Local:Key in $Local:RequiresSorting.Keys) {
-                If ($Local:Key -lt $Local:SmallestKey) {
-                    $Local:SmallestKey = $Local:Key;
-                }
-            }
-            Write-Host -ForegroundColor Cyan -Object "Smallest key is $Local:SmallestKey";
-            [Int]$Local:CurrentIndex = $Local:RequiresSorting[$Local:SmallestKey];
-            [Int]$Local:ShouldBeAt = $Local:SortedRows++ + 2;
-            If ($Local:CurrentIndex -ne $Local:ShouldBeAt) {
-                Write-Host -ForegroundColor Cyan -Object "Moving row $Local:CurrentIndex to row $Local:ShouldBeAt";
-                $WorkSheet.InsertRow($Local:ShouldBeAt, 1);
-                foreach ($Local:Column in (1..$WorkSheet.Dimension.Columns)) {
-                    $Local:Value = $WorkSheet.Cells[$Local:CurrentIndex, $Local:Column].Text;
-                    $WorkSheet.Cells[$Local:ShouldBeAt, $Local:Column].Value = $Local:Value;
-                }
-                $WorkSheet.DeleteRow($Local:CurrentIndex);
-                foreach ($Local:Key in $Local:RequiresSorting.Clone().Keys) {
-                    [Int]$Local:Value = $Local:RequiresSorting[$Local:Key];
-                    If ($Local:Value -lt $Local:CurrentIndex) {
-                        $Local:RequiresSorting[$Local:Key] = $Local:Value + 1;
-                    }
-                }
-            }
-            $Local:RequiresSorting.Remove($Local:SmallestKey);
-        }
-    }
-}
-function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$AddNewData) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while updating data";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
-        # We have already re-ordered, and inserted new users, so now we just need to add a new column for the current month.
-        [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
-        $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
-        # Only insert new column if required.
-        If ($AddNewData) {
-            [String]$Local:NewColumnName = Get-Date -Format "MMM-yy";
-            [Int]$Local:NewColumnIndex = [Math]::Max(3, $WorkSheet.Dimension.Columns + 1);
-            $WorkSheet.Cells[1, $Local:NewColumnIndex].Value = $Local:NewColumnName;
-        }
-        foreach ($Local:User in $NewData) {
-            [String]$Local:Email = $Local:User.Email;
-            [Int]$Local:Row = $Local:EmailTable[$Local:Email];
-            if ($null -eq $Local:Row -or $Local:Row -eq 0) {
-                Write-Host -ForegroundColor Cyan -Object "$Local:Email doesn't exist in this sheet yet, skipping.";
-                continue;
-            }
-            Write-Host -ForegroundColor Cyan -Object "Updating row $Local:Row with new data";
-            $WorkSheet.Cells[$Local:Row, 1].Value = $Local:User.DisplayName;
-            $WorkSheet.Cells[$Local:Row, 2].Value = $Local:User.Email;
-            $WorkSheet.Cells[$Local:Row, 3].Value = $Local:User.MobilePhone;
-            If ($AddNewData) {
-                $Local:Cell = $WorkSheet.Cells[$Local:Row, $Local:NewColumnIndex];
-                $Local:Cell.Value = $Local:User.MFA_Phone;
-                $Local:Cell.Style.Numberformat.Format = "@";
-                $Local:Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::None;
-            }
-        }
-    }
-}
-function Set-Check(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [OfficeOpenXml.ExcelWorksheet]$WorkSheet
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        $Cells = $WorkSheet.Cells
-        $lastColumn = $WorkSheet.Dimension.Columns
-        $prevColumn = $lastColumn - 1
-        $currColumn = $lastColumn
-        $checkColumn = $lastColumn + 1
-        if ($WorkSheet.Dimension.Columns -eq 4) {
-            $prevColumn = $lastColumn + 2
-        }
-        foreach ($row in 2..$WorkSheet.Dimension.Rows) {
-            $prevNumber = $Cells[$row, $prevColumn].Value
-            $currNumber = $Cells[$row, $currColumn].Value
-            $Cell = $Cells[$row, $checkColumn]
-            ($Result, $Colour) = if ([String]::IsNullOrWhitespace($prevNumber) -and [String]::IsNullOrWhitespace($currNumber)) {
-                'Missing',[System.Drawing.Color]::Turquoise
-            } elseif ([String]::IsNullOrWhitespace($prevNumber)) {
-                'No Previous',[System.Drawing.Color]::Yellow
-            } elseif ($prevNumber -eq $currNumber) {
-                'Match',[System.Drawing.Color]::Green
-            } else {
-                'Miss-match',[System.Drawing.Color]::Red
-            }
-            Write-Host -ForegroundColor Cyan "Setting cell $row,$checkColumn to $colour"
-            $Cell.Value = $Result
-            $Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-            $Cell.Style.Fill.BackgroundColor.SetColor(($Colour))
-        }
-        $Cells[1, $checkColumn].Value = 'Check'
-    }
-}
-function Set-Styles(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [OfficeOpenXml.ExcelWorksheet]$WorkSheet
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        $lastColumn = $WorkSheet.Dimension.Address -split ':' | Select-Object -Last 1
-        $lastColumn = $lastColumn -replace '[0-9]', ''
-        Set-ExcelRange -Worksheet $WorkSheet -Range "A1:$($lastColumn)1" -Bold -HorizontalAlignment Center
-        if ($WorkSheet.Dimension.Columns -ge 4) { Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($lastColumn)1" -NumberFormat "MMM-yy" }
-        Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($lastColumn)$(($WorkSheet.Dimension.Rows))" -AutoSize -ResetFont -BackgroundPattern Solid
-        # Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($lastColumn)$($WorkSheet.Dimension.Rows)"  # [System.Drawing.Color]::LightSlateGray
-        # Set-ExcelRange -Worksheet $WorkSheet -Range "D2:$($lastColumn)$($WorkSheet.Dimension.Rows)" -NumberFormat "[<=9999999999]####-###-###;+(##) ###-###-###"
-    }
-}
-function New-BaseWorkSheet([Parameter(Mandatory)][ValidateNotNullOrEmpty()][OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
-    # Test if the worksheet has data by checking the dimension
-    # If the dimension is null then there is no data
-    if ($null -ne $WorkSheet.Dimension) {
-        return
-    }
-    $WorkSheet.InsertColumn(1, 3)
-    $WorkSheet.InsertRow(1, 1)
-    $Local:Cells = $WorkSheet.Cells
-    $Local:Cells[1, 1].Value = "Name"
-    $Local:Cells[1, 2].Value = "Email"
-    $Local:Cells[1, 3].Value = "Phone"
-}
-function Get-ActiveWorkSheet(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [OfficeOpenXml.ExcelPackage]$ExcelData
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:ActiveWorkSheet; }
-    process {
-        [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = $ExcelData.Workbook.Worksheets | Where-Object { $_.Name -eq 'Working' };
-        if ($null -eq $Local:ActiveWorkSheet) {
-            [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = $ExcelData.Workbook.Worksheets.Add('Working')
-        } else { $Local:ActiveWorkSheet.Name = "Working" }
-        # Move the worksheets to the correct position
-        $ExcelData.Workbook.Worksheets.MoveToStart("Working")
-        New-BaseWorkSheet -WorkSheet $Local:ActiveWorkSheet;
-        return $Local:ActiveWorkSheet;
-    }
-}
-function Get-HistoryWorkSheet(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [OfficeOpenXml.ExcelPackage]$ExcelData
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:HistoryWorkSheet; }
-    process {
-        [OfficeOpenXml.ExcelWorksheet]$Local:HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
-        if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne "History") {
-            Write-Host -ForegroundColor Cyan "Creating new worksheet for history"
-            $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Add("History")
-        }
-        # Move the worksheets to the correct position
-        $ExcelData.Workbook.Worksheets.MoveAfter("History", "Working")
-        New-BaseWorkSheet -WorkSheet $Local:HistoryWorkSheet;
-        return $Local:HistoryWorkSheet;
-    }
-}
-function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
-    begin { Enter-Scope $MyInvocation }
-    process {
-        if ($ExcelData.Workbook.Worksheets.Count -gt 2) {
-            Invoke-Info "Removing $($ExcelData.Workbook.Worksheets.Count - 2) worksheets";
-            foreach ($Index in 3..$ExcelData.Workbook.Worksheets.Count) {
-                $ExcelData.Workbook.Worksheets.Delete(3)
-            }
-        }
-        Close-ExcelPackage $ExcelData -Show;
-    }
-    end { Exit-Scope $MyInvocation }
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
-    if (-not $ClientsFolder) {
-        [String[]]$Local:PossiblePaths = @(
-            "$env:USERPROFILE\AMT\Clients - Documents",
-            "$env:USERPROFILE\OneDrive - AMT\Documents - Clients"
-        );
-        foreach ($Local:Path in $Local:PossiblePaths) {
-            if (Test-Path $Local:Path) {
-                [String]$Local:ClientsFolder = $Local:Path;
-                break;
+    Invoke-EnsureModules -Modules 'ImportExcel';
+    if (-not (Get-Variable Clients -Scope Global)) {
+        Invoke-Debug 'Creating global clients variable.';
+        # $Global:Clients = @{ };
+    }
+    $Local:RawClients = (Get-NableClients);
+    [Int]$Local:PercentPerItem = 100 / $Local:RawClients.items.client.Count;
+    [Int]$Local:PercentComplete = 0;
+    Invoke-Debug "Processing clients: $($Local:RawClients.items.client.Count)";
+    for ($i = 0; $i -lt $Local:RawClients.items.client.Count; $i++) {
+        $Local:Client = $Local:RawClients.items.client[$i];
+        $ClientId = $Local:Client.clientid;
+        Invoke-Debug "Processing client: $($Local:Client.name.'#cdata-section')";
+        Write-Progress -Activity 'Calling API' -Status "$Local:PercentComplete% Complete" -CurrentOperation "Processing client [$($Local:Client.name)]..." -PercentComplete $Local:PercentComplete;
+        if ($Global:Clients[$ClientId] -and $Global:Clients[$ClientId].completed) {
+            Invoke-Debug "Client already processed: $ClientId";
+            continue;
+        }
+        $Global:Clients[$ClientId] = @{ name = $Local:Client.name.'#cdata-section'; completed = $false; };
+        $Global:Clients[$ClientId].sites = @{ };
+        $Local:Sites = (Get-NableSites -ClientIds $ClientId);
+        if ($Local:Sites -eq $null -or $Local:Sites.Count -eq 0) {
+            continue;
+        }
+        $Local:Sites | ForEach-Object {
+            $SiteId = $_.siteid;
+            Invoke-Debug "Processing site: $SiteId";
+            if ($Global:Clients[$ClientId].sites[$SiteId] -and $Global:Clients[$ClientId].sites[$SiteId].completed) {
+                Invoke-Debug "Site already processed: $SiteId";
+                return;
             }
-        }
-        if (-not $Local:ClientsFolder) {
-            Invoke-Error 'Unable to find shared folder; please specify the full path to the shared folder.';
-            return
-        } else {
-            Invoke-Info "Clients folder found at $Local:ClientsFolder";
-        }
-    }
-    $Local:PossiblePaths = $Local:ClientsFolder | Get-ChildItem -Directory | Select-Object -ExpandProperty Name
-    Invoke-Debug "Possible paths: $($Local:PossiblePaths -join ', ')"
-    if (-not ($Local:PossiblePaths -contains $Client)) {
-        $Local:PossibleMatches = $Local:PossiblePaths | Where-Object { $_ -like "$Client" }
-        Invoke-Debug "Possible matches: $($Local:PossibleMatches -join ', ')"
-        if ($Local:PossibleMatches -is [String]) {
-            $Local:Client = $Local:PossibleMatches;
-        } elseif ($Local:PossibleMatches.Count -eq 1) {
-            $Local:Client = $Local:PossibleMatches[0]
-        } elseif ($Local:PossibleMatches.Count -gt 1) {
-            $Local:ClientIndex = Get-UserSelection -Title 'Multiple client folders found' -Question 'Please select the client you would like to run the script for' -Choices $Local:PossibleMatches;
-            $Local:Client = $Local:PossibleMatches[$Local:ClientIndex];
-        } else {
-            Invoke-Error "Client $Client not found; please check the spelling and try again."
-            return
-        }
-    } else {
-        $Local:Client = $Client;
-    }
-    [String]$Local:ClientFolder = "$ClientsFolder\$Local:Client";
-    Invoke-Info "Client $Local:Client found at $Local:ClientFolder";
-    Invoke-SetupEnvironment -Client $Local:Client -ClientsFolder $Local:ClientsFolder -ExcelFileName $ExcelFileName;
-    [PSCustomObject[]]$Local:NewData = Get-CurrentData;
-    [OfficeOpenXml.ExcelPackage]$Local:ExcelData = Get-Excel;
-    [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = Get-ActiveWorkSheet -ExcelData $Local:ExcelData;
-    [OfficeOpenXml.ExcelWorksheet]$Local:HistoryWorkSheet = Get-HistoryWorkSheet -ExcelData $Local:ExcelData;
-    $Local:ActiveWorkSheet | Assert-NotNull -Message 'ActiveWorkSheet was null';
-    $Local:HistoryWorkSheet | Assert-NotNull -Message 'HistoryWorkSheet was null';
-    Invoke-CleanupWorksheet -WorkSheet $Local:ActiveWorkSheet -DuplicateCheck;
-    Invoke-CleanupWorksheet -WorkSheet $Local:HistoryWorkSheet -DuplicateCheck; # Dont check for duplicates in history, we want to preserve it.
-    Update-History -HistoryWorkSheet $Local:HistoryWorkSheet -ActiveWorkSheet $Local:ActiveWorkSheet;
-    Remove-Users -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet;
-    Add-Users -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet;
-    Update-Data -NewData $Local:NewData -WorkSheet $Local:ActiveWorkSheet -AddNewData;
-    Update-Data -NewData $Local:NewData -WorkSheet $Local:HistoryWorkSheet;
-    Invoke-OrderUsers -WorkSheet $Local:ActiveWorkSheet;
-    Invoke-OrderUsers -WorkSheet $Local:HistoryWorkSheet;
-    Set-Check -WorkSheet $Local:ActiveWorkSheet
-    @($Local:ActiveWorkSheet, $Local:HistoryWorkSheet) | ForEach-Object { Set-Styles -WorkSheet $_ }
-    Save-Excel -ExcelData $Local:ExcelData
+            $Global:Clients[$ClientId].sites[$SiteId] = @{ name = $_.name.'#cdata-section'; completed = $false };
+            #region Workstations
+            function Set-DeviceSoftware {
+                param(
+                    [Parameter(Mandatory)]
+                    [ValidateSet('Workstation', 'Server')]
+                    [String]$DeviceType,
+                    [Parameter(Mandatory)]
+                    [String]$SiteId,
+                    [Parameter(Mandatory)]
+                    [String]$ClientId,
+                    [Parameter(Mandatory)]
+                    [Object]$Clients
+                )
+                Get-CachedContent -Name "NSIGHT_${ClientId}_${SiteId}_${DeviceType}" -CreateBlock {
+                    $Clients[$ClientId].sites[$SiteId].${DeviceType} = @{ };
+                    $Local:Table = $Clients[$ClientId].sites[$SiteId].${DeviceType};
+                    $Local:Devices = (Get-NableDevices -SiteIds $SiteId -DeviceType $DeviceType);
+                    if ($null -eq $Local:Devices -or $Local:Devices.Count -eq 0) {
+                        return $null;
+                    }
+                    $Local:Devices | ForEach-Object {
+                        $AssetId = $_.assetid;
+                        Invoke-Debug "Processing ${DeviceType}: $AssetId";
+                        if ($Local:Table[$AssetId] -and $Local:Table[$AssetId].completed) {
+                            Invoke-Debug "${DeviceType} already processed: $AssetId";
+                            return;
+                        }
+                        $Local:Table[$AssetId] = @{ type = $DeviceType; name = $_.name.'#cdata-section'; user = $_.user.'#cdata-section'; completed = $false };
+                        $Local:Table[$AssetId].software = @{ };
+                        $Local:Software = (Get-NableDeviceSoftware -DeviceIds $AssetId);
+                        if ($null -eq $Local:Software -or $Local:Software.Count -eq 0) {
+                            return;
+                        }
+                        $Local:Software | ForEach-Object {
+                            $SoftwareId = $_.softwareid;
+                            Invoke-Debug "Processing software: $SoftwareId";
+                            $Local:Table[$AssetId].software[$SoftwareId] = @{ name = $_.name.'#cdata-section'; version = $_.version.'#cdata-section'; };
+                        };
+                        $Local:Table[$AssetId].completed = $true;
+                    };
+                    return $Local:Table | ConvertTo-Json;
+                } -ParseBlock {
+                    param($RawContent)
+                    return ConvertFrom-Json $RawContent;
+                }
+            }
+            Set-DeviceSoftware -DeviceType Workstation -SiteId $SiteId -ClientId $ClientId -Clients $Global:Clients;
+            Set-DeviceSoftware -DeviceType Server -SiteId $SiteId -ClientId $ClientId -Clients $Global:Clients;
+            $Global:Clients[$ClientId].sites[$SiteId].completed = $true;
+        };
+        $Global:Clients[$ClientId].completed = $true;
+        $Local:PercentComplete += $Local:PercentPerItem;
+    };
+    Write-Progress -Activity 'Calling API' -PercentComplete 100 -Completed;
+    # $Local:Clients = Get-CachedContent -Name 'NSIGHT_CLIENTS' -CreateBlock {
+    #     $Local:RawClients = Get-NableClients;
+    #     $Local:RawClients.items.client | ForEach-Object {
+    #         []$Local:Client = $_;
+    #         [String]$Local:ClientId = $Local:Client.clientid;
+    #     }
+    # }
+    $Local:Data = @{
+        Headers = @('Client', 'Site', 'DeviceType', 'Device', 'User', 'Software', 'Version');
+        Matrix  = New-Object 'System.Collections.Generic.List[System.Object]';
+    };
+    $Global:Clients.GetEnumerator() | ForEach-Object {
+        $Client = $_.Value;
+        $Client.sites.GetEnumerator() | ForEach-Object {
+            $Site = $_.Value;
+            function Add-ToMatrix {
+                param(
+                    [Parameter(Mandatory)]
+                    $Data,
+                    [Parameter(Mandatory)]
+                    $Client,
+                    [Parameter(Mandatory)]
+                    $Site,
+                    [Parameter(Mandatory)]
+                    [ValidateSet('Workstation', 'Server')]
+                    [String]$DeviceType
+                );
+                $Site.${DeviceType}.GetEnumerator() | ForEach-Object {
+                    $Device = $_.Value;
+                    $Device.software.GetEnumerator() | ForEach-Object {
+                        $Software = $_.Value;
+                        $Local:Row = New-Object 'System.Collections.Generic.List[System.Object]';
+                        $Local:Row.Add($Client.name);
+                        $Local:Row.Add($Site.name);
+                        $Local:Row.Add($Device.type);
+                        $Local:Row.Add($Device.name);
+                        $Local:Row.Add($Device.user);
+                        $Local:Row.Add($Software.name);
+                        $Local:Row.Add($Software.version);
+                        $Data.Matrix.Add($Local:Row);
+                    };
+                };
+            }
+            Add-ToMatrix -Data:$Local:Data -Client $Client -Site $Site -DeviceType Workstation;
+            Add-ToMatrix -Data:$Local:Data -Client $Client -Site $Site -DeviceType Server;
+        };
+    };
+    Out-ToExcel -File:($env:TEMP | Join-Path -ChildPath 'N-Sight_All-Software.xlsx') -Data:$Local:Data;
+    # $Sites = Get-CachedContent -Name 'NSIGHT_SITES' -MaxAge (New-TimeSpan -Days 1) -CreateBlock {
+    #     $Local:Clients = Get-NableClients;
+    #     $Local:Sites = Get-NableSites -ClientIds $Clients.items.client.clientid;
+    #     $Local:Sites | ConvertTo-Json;
+    #     # [Newtonsoft.Json.JsonConvert]::SerializeXmlNode($Sites, 'indent')
+    # } -ParseBlock {
+    #     param($RawContent)
+    #     # [Newtonsoft.Json.JsonConvert]::DeserializeXmlNode($_);
+    #     ConvertFrom-Json $RawContent;
+    # };
+    # $Devices = Get-CachedContent -Name 'NSIGHT_DEVICES' -MaxAge (New-TimeSpan -Days 1) -CreateBlock {
+    #     $Local:Devices = Get-NableDevices -SiteIds $Sites;
+    #     $Local:Devices | ConvertTo-Json;
+    #     # [Newtonsoft.Json.JsonConvert]::SerializeXmlNode($Devices, 'indent');
+    # } -ParseBlock {
+    #     ConvertFrom-Json $_;
+    #     # [Newtonsoft.Json.JsonConvert]::DeserializeXmlNode($_);
+    # };
+    # $Software = Get-CachedContent -Name 'NSIGHT_SOFTWARE' -MaxAge (New-TimeSpan -Days 1) -CreateBlock {
+    #     $Local:Software = Get-NableSoftware -DeviceIds $Devices.items.device.deviceid;
+    #     [Newtonsoft.Json.JsonConvert]::SerializeXmlNode($Software, 'indent');
+    # } -ParseBlock {
+    #     [Newtonsoft.Json.JsonConvert]::DeserializeXmlNode($_);
+    # };
 });
