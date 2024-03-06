@@ -151,7 +151,7 @@ function Get-CachedLocation {
             }
 
             if ($MaxAge) {
-                [TimeSpan]$Local:CacheAge = (Get-Date) - (Get-Item -Path $Local:CachePath).CreationTime;
+                [TimeSpan]$Local:CacheAge = (Get-Date) - (Get-Item -Path $Local:CachePath).LastWriteTime;
                 Invoke-Debug "Cache has a maximum age of $($MaxAge.TotalMinutes) minutes, currently $($Local:CacheAge.TotalMinutes) minutes old.";
 
                 if ($NoCache -or $Local:CacheAge -gt $MaxAge) {
