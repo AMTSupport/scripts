@@ -1,4 +1,18 @@
 $Script:NOT_ADMINISTRATOR = Register-ExitCode -Description "Not running as administrator!`nPlease re-run your terminal session as Administrator, and try again.";
+<#
+.SYNOPSIS
+    Ensures the current session is running as an Administrator.
+
+.DESCRIPTION
+    This function will check if the current session is running as an Administrator.
+    If it is not, it will exit with an error code.
+
+.EXAMPLE
+    Invoke-EnsureAdministrator
+
+.OUTPUTS
+    None
+#>
 function Invoke-EnsureAdministrator {
     if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Invoke-FailedExit -ExitCode $Script:NOT_ADMINISTRATOR;
