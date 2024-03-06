@@ -39,6 +39,24 @@ function Get-CachableResponse {
     end { Exit-Scope; }
 
     process {
+        [PSCustomObject[]]$Local:Releases = Get-CachedContent -Name:'GitHubReleases' -MaxAge ([TimeSpan]::FromMinutes(5)) -CreateBlock {
+            [String]$Local:Url = 'https://api.github.com/repos/AMTSupport/tools/releases';
+            try {
+                $ErrorActionPreference = 'Stop';
+
+                [Object]$Local:ResponseObject = Invoke-RestMethod -Uri $Local:Url;
+                return $Local:ResponseObject | ConvertTo-Json -Depth 5;
+            } catch {
+                Invoke-FailedExit -ExitCode $Script:FAILED_RESPONSE -ErrorRecord $_;
+            }
+        } -ParseBlock {
+            param([String]$RawContent)
+
+            return $RawContent | ConvertFrom-Json -Depth 5;
+        }
+
+        return $Local:Releases;
+
         [String]$Local:Folder = Get-RunnerFolder;
         [String]$Local:CachePath = $Local:Folder | Join-Path -ChildPath 'cached.json';
 
@@ -107,7 +125,7 @@ function Get-LatestRelease(
     end { Exit-Scope -ReturnValue $Local:LatestRelease; }
 
     process {
-        [HashTable[]]$Local:Releases = Get-CachableResponse;
+        [PSCustomObject[]]$Local:Releases = Get-CachableResponse;
         $Local:ProgramReleases = $Local:Releases | Where-Object { $_.tag_name -like "$Program-v*" };
 
         if ($null -eq $Local:ProgramReleases -or $Local:ProgramReleases.Count -eq 0) {
@@ -115,10 +133,10 @@ function Get-LatestRelease(
         }
 
         if ($Local:ProgramReleases.Count -eq 1) {
-            [HashTable]$Local:LatestRelease = $Local:ProgramReleases[0];
+            [PSCustomObject]$Local:LatestRelease = $Local:ProgramReleases[0];
         } else {
-            [HashTable[]]$Local:SortedReleases = $Local:ProgramReleases | Sort-Object { Get-VersionComparable -Version $_.tag_name } -Descending;
-            [HashTable]$Local:LatestRelease = $Local:SortedReleases | Select-Object -First 1;
+            [PSCustomObject[]]$Local:SortedReleases = $Local:ProgramReleases | Sort-Object { Get-VersionComparable -Version $_.tag_name } -Descending;
+            [PSCustomObject]$Local:LatestRelease = $Local:SortedReleases | Select-Object -First 1;
 
             Invoke-Debug "Sorted Releases: $($Local:SortedReleases | ForEach-Object { $_.tag_name })";
             Invoke-Debug "Latest Release: $($Local:LatestRelease.tag_name)";
@@ -134,13 +152,13 @@ function Get-ExecutableArtifact(
     [String]$Program,
 
     [Parameter(Mandatory)]
-    [HashTable]$Release
+    [PSCustomObject]$Release
 ) {
     begin { Enter-Scope; }
     end { Exit-Scope -ReturnValue $Local:ExecutableArtifact; }
 
     process {
-        #region - Setup Variables for finding the correct artifact
+        #region Setup Variables for finding the correct artifact
         # Get the Executable Suffix for the current system
         [String]$Local:Architecture = switch ($Env:PROCESSOR_ARCHITECTURE) {
             "AMD64" { "x86_64" }
@@ -180,13 +198,52 @@ function Get-ExecutableArtifact(
 # TODO :: Caching
 function Get-DownloadedExecutable(
     [Parameter(Mandatory)]
-    [ValidateScript({ $_.ContainsKey('name') -and $_.ContainsKey('browser_download_url') })]
-    [HashTable]$Artifact
+    [PSCustomObject]$Artifact
 ) {
     begin { Enter-Scope; }
     end { Exit-Scope -ReturnValue $Local:ExecutablePath; }
 
     process {
+        [String]$Local:ExecutablePath = Get-CachedLocation -Name:"REMOTE_RUNNER_$($Artifact.name)" -IsValidBlock {
+            param([String]$Location)
+
+            [DateTime]$Local:LastWrite = (Get-Item -Path $Location).LastWriteTime;
+            [Int]$Local:Size = (Get-Item -Path $Location).Length;
+
+            if ($Local:Size -ne $Artifact.size) {
+                Invoke-Verbose 'Size of the file has changed, removing the cache.';
+                return $False;
+            }
+
+            if ($Local:LastWrite -lt [DateTime]::Parse($Artifact.updated_at)) {
+                Invoke-Verbose 'File has been updated, removing the cache.';
+                return $False;
+            }
+
+            return $True;
+        } -CreateBlock {
+            [String]$Local:DownloadUrl = $Artifact.browser_download_url;
+
+            try {
+                $ErrorActionPreference = 'Stop';
+
+                [Byte[]]$Local:ByteArray = (Invoke-WebRequest -Uri $Local:DownloadUrl).Content;
+                return $Local:ByteArray;
+            } catch {
+                Invoke-FailedExit -ExitCode $Script:FAILED_DOWNLOAD -ErrorRecord $_;
+            }
+        } -WriteBlock {
+            param([String]$Location, [Byte[]]$Content)
+
+            try {
+                [System.IO.File]::WriteAllBytes($Location, $Content);
+            } catch {
+                Invoke-FailedExit -ExitCode $Script:FAILED_WRITE -ErrorRecord $_;
+            }
+        };
+
+        return $Local:ExecutablePath;
+
         [String]$Local:Parent = Get-RunnerFolder;
         [String]$Local:ExecutablePath = $Local:Parent | Join-Path -ChildPath $Artifact.name;
         [String]$Local:DownloadUrl = $Artifact.browser_download_url;
@@ -248,7 +305,7 @@ Invoke-RunMain $MyInvocation {
 
     #endregion - Error Codes
 
-    [HashTable]$Local:LatestRelease = Get-LatestRelease -Program $ProgramName;
+    [PSCustomObject]$Local:LatestRelease = Get-LatestRelease -Program $ProgramName;
     $Local:Artifact = Get-ExecutableArtifact -Program $ProgramName -Release $Local:LatestRelease;
     $Local:ExecutablePath = Get-DownloadedExecutable -Artifact $Local:Artifact;
 
