@@ -1,18 +1,21 @@
-[Boolean]$Script:IsNableEnvironment = (([Console]::Title | Split-Path -Leaf) -eq 'fmplugin.exe');
+function Test-NAbleEnvironment {
+    [String]$Local:ConsoleTitle = [Console]::Title | Split-Path -Leaf;
+    $Local:ConsoleTitle -eq 'fmplugin.exe';
+}
 
 # FIXME
 function Get-SupportsUnicode {
-    $null -ne $env:WT_SESSION -and -not $Script:IsNableEnvironment;
+    $null -ne $env:WT_SESSION -and -not (Test-NAbleEnvironment);
 }
 
 function Get-SupportsColour {
-    $Host.UI.SupportsVirtualTerminal -and -not $Script:IsNableEnvironment;
+    $Host.UI.SupportsVirtualTerminal -and -not (Test-NAbleEnvironment);
 }
 
 function Invoke-Write {
-    [CmdletBinding(PositionalBinding)]
+    [CmdletBinding(PositionalBinding, DefaultParameterSetName = 'Splat')]
     param (
-        [Parameter(ParameterSetName = 'InputObject', ValueFromPipeline)]
+        [Parameter(ParameterSetName = 'InputObject', Position = 0, ValueFromPipeline)]
         [HashTable]$InputObject,
 
         [Parameter(ParameterSetName = 'Splat', Mandatory, ValueFromPipelineByPropertyName)]
@@ -119,104 +122,169 @@ function Invoke-FormattedError(
     }
 }
 
-function Invoke-Verbose(
-    [Parameter(Mandatory, HelpMessage = 'The message to write to the console.')]
-    [ValidateNotNullOrEmpty()]
-    [String]$Message,
+function Invoke-Verbose {
+    [CmdletBinding(PositionalBinding, DefaultParameterSetName = 'Splat')]
+    param(
+        [Parameter(ParameterSetName = 'InputObject', Position = 0, ValueFromPipeline)]
+        [HashTable]$InputObject,
 
-    [Parameter(HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
-    [ValidateNotNullOrEmpty()]
-    [Alias('Prefix')]
-    [String]$UnicodePrefix
-) {
-    $Local:Params = @{
-        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
-        PSMessage = $Message;
-        PSColour = 'Yellow';
-        ShouldWrite = $Global:Logging.Verbose;
-    };
+        [Parameter(ParameterSetName = 'Splat', Position = 0, ValueFromPipelineByPropertyName, Mandatory, HelpMessage = 'The message to write to the console.')]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message,
 
-    Invoke-Write @Local:Params;
+        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Prefix')]
+        [String]$UnicodePrefix
+    )
+
+    process {
+        if ($InputObject) {
+            Invoke-Verbose @InputObject;
+            return;
+        }
+
+        $Local:Params = @{
+            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
+            PSMessage = $Message;
+            PSColour = 'Yellow';
+            ShouldWrite = $Global:Logging.Verbose;
+        };
+
+        Invoke-Write @Local:Params;
+    }
 }
 
-function Invoke-Debug(
-    [Parameter(Mandatory, HelpMessage = 'The message to write to the console.')]
-    [ValidateNotNullOrEmpty()]
-    [String]$Message,
+function Invoke-Debug {
+    [CmdletBinding(PositionalBinding, DefaultParameterSetName = 'Splat')]
+    param(
+        [Parameter(ParameterSetName = 'InputObject', Position = 0, ValueFromPipeline)]
+        [HashTable]$InputObject,
 
-    [Parameter(HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
-    [ValidateNotNullOrEmpty()]
-    [Alias('Prefix')]
-    [String]$UnicodePrefix
-) {
-    $Local:Params = @{
-        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
-        PSMessage = $Message;
-        PSColour = 'Magenta';
-        ShouldWrite = $Global:Logging.Debug;
-    };
+        [Parameter(ParameterSetName = 'Splat', Position = 0, ValueFromPipelineByPropertyName, Mandatory, HelpMessage = 'The message to write to the console.')]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message,
 
-    Invoke-Write @Local:Params;
+        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Prefix')]
+        [String]$UnicodePrefix
+    )
+
+    process {
+        if ($InputObject) {
+            Invoke-Debug @InputObject;
+            return;
+        }
+
+        $Local:Params = @{
+            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
+            PSMessage = $Message;
+            PSColour = 'Magenta';
+            ShouldWrite = $Global:Logging.Debug;
+        };
+
+        Invoke-Write @Local:Params;
+    }
 }
 
-function Invoke-Info(
-    [Parameter(Mandatory, HelpMessage = 'The message to write to the console.')]
-    [ValidateNotNullOrEmpty()]
-    [String]$Message,
+function Invoke-Info {
+    [CmdletBinding(PositionalBinding, DefaultParameterSetName = 'Splat')]
+    param(
+        [Parameter(ParameterSetName = 'InputObject', Position = 0, ValueFromPipeline)]
+        [HashTable]$InputObject,
 
-    [Parameter(HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
-    [ValidateNotNullOrEmpty()]
-    [Alias('Prefix')]
-    [String]$UnicodePrefix
-) {
-    $Local:Params = @{
-        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
-        PSMessage = $Message;
-        PSColour = 'Cyan';
-        ShouldWrite = $Global:Logging.Information;
-    };
+        [Parameter(ParameterSetName = 'Splat', Position = 0, ValueFromPipelineByPropertyName, Mandatory, HelpMessage = 'The message to write to the console.')]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message,
 
-    Invoke-Write @Local:Params;
+        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Prefix')]
+        [String]$UnicodePrefix
+    )
+
+    process {
+        if ($InputObject) {
+            Invoke-Info @InputObject;
+            return;
+        }
+
+        $Local:Params = @{
+            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
+            PSMessage = $Message;
+            PSColour = 'Cyan';
+            ShouldWrite = $Global:Logging.Information;
+        };
+
+        Invoke-Write @Local:Params;
+    }
 }
 
-function Invoke-Warn(
-    [Parameter(Mandatory, HelpMessage = 'The message to write to the console.')]
-    [ValidateNotNullOrEmpty()]
-    [String]$Message,
+function Invoke-Warn {
+    [CmdletBinding(PositionalBinding, DefaultParameterSetName = 'Splat')]
+    param(
+        [Parameter(ParameterSetName = 'InputObject', Position = 0, ValueFromPipeline)]
+        [HashTable]$InputObject,
 
-    [Parameter(HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
-    [ValidateNotNullOrEmpty()]
-    [Alias('Prefix')]
-    [String]$UnicodePrefix
-) {
-    $Local:Params = @{
-        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
-        PSMessage = $Message;
-        PSColour = 'Yellow';
-        ShouldWrite = $Global:Logging.Warning;
-    };
+        [Parameter(ParameterSetName = 'Splat', Position = 0, ValueFromPipelineByPropertyName, Mandatory, HelpMessage = 'The message to write to the console.')]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message,
 
-    Invoke-Write @Local:Params;
+        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Prefix')]
+        [String]$UnicodePrefix
+    )
+
+    process {
+        if ($InputObject) {
+            Invoke-Warn @InputObject;
+            return;
+        }
+
+        $Local:Params = @{
+            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
+            PSMessage = $Message;
+            PSColour = 'Yellow';
+            ShouldWrite = $Global:Logging.Warning;
+        };
+
+        Invoke-Write @Local:Params;
+    }
 }
 
-function Invoke-Error(
-    [Parameter(Mandatory, HelpMessage = 'The message to write to the console.')]
-    [ValidateNotNullOrEmpty()]
-    [String]$Message,
+function Invoke-Error {
+    [CmdletBinding(PositionalBinding, DefaultParameterSetName = 'Splat')]
+    param(
+        [Parameter(ParameterSetName = 'InputObject', Position = 0, ValueFromPipeline)]
+        [HashTable]$InputObject,
 
-    [Parameter(HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
-    [ValidateNotNullOrEmpty()]
-    [Alias('Prefix')]
-    [String]$UnicodePrefix
-) {
-    $Local:Params = @{
-        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
-        PSMessage = $Message;
-        PSColour = 'Red';
-        ShouldWrite = $Global:Logging.Error;
-    };
+        [Parameter(ParameterSetName = 'Splat', Position = 0, ValueFromPipelineByPropertyName, Mandatory, HelpMessage = 'The message to write to the console.')]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message,
 
-    Invoke-Write @Local:Params;
+        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
+        [ValidateNotNullOrEmpty()]
+        [Alias('Prefix')]
+        [String]$UnicodePrefix
+    )
+
+    process {
+        if ($InputObject) {
+            Invoke-Error @InputObject;
+            return;
+        }
+
+        $Local:Params = @{
+            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
+            PSMessage = $Message;
+            PSColour = 'Red';
+            ShouldWrite = $Global:Logging.Error;
+        };
+
+        Invoke-Write @Local:Params;
+    }
 }
 
 function Invoke-Timeout {
