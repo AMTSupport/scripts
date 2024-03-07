@@ -14,7 +14,8 @@ function Get-StackTop {;
 
 function Get-ScopeNameFormatted([Parameter(Mandatory)][Switch]$IsExit) {
     [String]$Local:CurrentScope = (Get-StackTop).MyCommand.Name;
-    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | ForEach-Object { $_.MyCommand } | Sort-Object -Descending -Property Name | Select-Object -SkipLast 1;
+    # Skip the first scope as it's the current scope, then sort in descending order so we can get the correct order for printing.
+    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.MyCommand.Name } | Sort-Object -Descending;
 
     [String]$Local:Scope = "$($Local:PreviousScopes -join ' > ')$(if ($Local:PreviousScopes.Count -gt 0) { if ($IsExit) { ' < ' } else { ' > ' } })$Local:CurrentScope";
     return $Local:Scope;

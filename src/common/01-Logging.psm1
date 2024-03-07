@@ -3,12 +3,17 @@ function Test-NAbleEnvironment {
     $Local:ConsoleTitle -eq 'fmplugin.exe';
 }
 
-# FIXME
-function Get-SupportsUnicode {
+<#
+.SYNOPSIS
+    Gets whether the current terminal supports Unicode characters.
+.NOTES
+    FIXME: Still displays Unicode characters in the powershell console.
+#>
+function Test-SupportsUnicode {
     $null -ne $env:WT_SESSION -and -not (Test-NAbleEnvironment);
 }
 
-function Get-SupportsColour {
+function Test-SupportsColour {
     $Host.UI.SupportsVirtualTerminal -and -not (Test-NAbleEnvironment);
 }
 
@@ -44,7 +49,7 @@ function Invoke-Write {
             return;
         }
 
-        [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
+        [String]$Local:NewLineTab = if ($PSPrefix -and (Test-SupportsUnicode)) {
             "$(' ' * $($PSPrefix.Length))";
         } else { ''; }
 
@@ -52,12 +57,12 @@ function Invoke-Write {
             $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
         } else { $PSMessage; }
 
-        if (Get-SupportsColour) {
+        if (Test-SupportsColour) {
             $Local:FormattedMessage = "$(Get-ConsoleColour $PSColour)$Local:FormattedMessage$($PSStyle.Reset)";
         }
 
 
-        [String]$Local:FormattedMessage = if ($PSPrefix -and (Get-SupportsUnicode)) {
+        [String]$Local:FormattedMessage = if ($PSPrefix -and (Test-SupportsUnicode)) {
             "$PSPrefix $Local:FormattedMessage";
         } else { $Local:FormattedMessage; }
 
@@ -487,4 +492,4 @@ function Invoke-Progress {
     }
 }
 
-Export-ModuleMember -Function Get-SupportsUnicode, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout, Invoke-Progress;
+Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout, Invoke-Progress;
