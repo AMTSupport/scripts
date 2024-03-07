@@ -499,6 +499,63 @@ $Global:EmbededModules = [ordered]@{
 		        return $Local:ElapsedTime * 10000; # Why does this make it more accurate?
 		    }
 		}
+		function Get-VarOrSave {
+		    param (
+		        [Parameter(Mandatory)]
+		        [ValidateNotNullorEmpty()]
+		        [String]$VariableName,
+		        [Parameter(Mandatory)]
+		        [ScriptBlock]$LazyValue,
+		        [Parameter()]
+		        [ScriptBlock]$Validate
+		    )
+		    begin { Enter-Scope; }
+		    end { Exit-Scope -ReturnValue $Local:Value; }
+		    process {
+		        $Local:EnvValue = [Environment]::GetEnvironmentVariable($VariableName);
+		        if ($Local:EnvValue) {
+		            if ($Validate) {
+		                try {
+		                    if ($Validate.InvokeReturnAsIs($Local:EnvValue)) {
+		                        Invoke-Debug "Validated environment variable ${VariableName}: $Local:EnvValue";
+		                        return $Local:EnvValue;
+		                    } else {
+		                        Invoke-Error "Failed to validate environment variable ${VariableName}: $Local:EnvValue";
+		                        [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
+		                    };
+		                } catch {
+		                    Invoke-Error "
+		                    Failed to validate environment variable ${VariableName}: $Local:EnvValue.
+		                    Due to reason ${$_.Exception.Message}".Trim();
+		                    [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
+		                }
+		            } else {
+		                Invoke-Debug "Found environment variable $VariableName with value $Local:EnvValue";
+		                return $Local:EnvValue;
+		            }
+		        }
+		        while ($True) {
+		            try {
+		                $Local:Value = $LazyValue.InvokeReturnAsIs();
+		                if ($Validate) {
+		                    if ($Validate.InvokeReturnAsIs($Local:Value)) {
+		                        Invoke-Debug "Validated lazy value for environment variable ${VariableName}: $Local:Value";
+		                        break;
+		                    } else {
+		                        Invoke-Error "Failed to validate lazy value for environment variable ${VariableName}: $Local:Value";
+		                    }
+		                } else {
+		                    break;
+		                }
+		            } catch {
+		                Invoke-Error "Encountered an error while trying to get value for ${VariableName}.";
+		                return $null;
+		            }
+		        };
+		        [Environment]::SetEnvironmentVariable($VariableName, $Local:Value, 'Process');
+		        return $Local:Value;
+		    }
+		}
 		function Get-Ast {
 		    [CmdletBinding()]
 		    param(
