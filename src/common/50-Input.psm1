@@ -1,4 +1,10 @@
-Function Clear-HostLight (
+[HashTable]$Script:WriteStyle = @{
+    PSColour    = 'DarkCyan';
+    PSPrefix    = '▶';
+    ShouldWrite = $true;
+};
+
+function Clear-HostLight (
     [Parameter(Position = 1)]
     [int32]$Count = 1
 ) {
@@ -14,28 +20,29 @@ Function Clear-HostLight (
     [Console]::SetCursorPosition(0, ($CurrentLine - $Count))
 }
 
-function Invoke-WithColour {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [ScriptBlock]$ScriptBlock
-    )
+function Register-ReadLineKeyHandlers {
+    [Object]$Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
+    [Boolean]$Script:PressedEnter = $False;
+    Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
+        Param([System.ConsoleKeyInfo]$Key, $Arg)
 
-    try {
-        $Local:UI = $Host.UI.RawUI;
-        $Local:PrevForegroundColour = $Local:UI.ForegroundColor;
-        $Local:PrevBackgroundColour = $Local:UI.BackgroundColor;
+        $Script:PressedEnter = $True;
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
+    };
 
-        $Local:UI.ForegroundColor = 'Yellow';
-        $Local:UI.BackgroundColor = 'Black';
+    [Object]$Local:PreviousCtrlCFunction = (Get-PSReadLineKeyHandler -Chord Ctrl+c).Function;
+    [Boolean]$Script:ShouldAbort = $False;
+    Set-PSReadLineKeyHandler -Chord Ctrl+c -ScriptBlock {
+        Param([System.ConsoleKeyInfo]$Key, $Arg)
 
-        $Local:Return = & $ScriptBlock
-    } finally {
-        $Local:UI.ForegroundColor = $Local:PrevForegroundColour;
-        $Local:UI.BackgroundColor = $Local:PrevBackgroundColour;
+        $Script:ShouldAbort = $True;
+        [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
+    };
+
+    return @{
+        Enter = $Local:PreviousEnterFunction;
+        CtrlC = $Local:PreviousCtrlCFunction;
     }
-
-    return $Local:Return;
 }
 
 function Get-UserInput {
@@ -46,16 +53,57 @@ function Get-UserInput {
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
-        [String]$Question
+        [String]$Question,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [ScriptBlock]$Validate
     )
 
-    return Invoke-WithColour {
-        Write-Host -ForegroundColor DarkCyan $Title;
-        Write-Host -ForegroundColor DarkCyan "$($Question): " -NoNewline;
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:UserInput; }
 
-        # Clear line buffer to not get old input.
+    process {
+        Invoke-Write @Script:WriteStyle -PSMessage $Title;
+        Invoke-Write @Script:WriteStyle -PSMessage $Question;
+
+        [HashTable]$Local:PreviousFunctions = Register-ReadLineKeyHandlers;
+
         $Host.UI.RawUI.FlushInputBuffer();
-        return $Host.UI.ReadLine();
+        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
+        Write-Host "`r>> " -NoNewline;
+
+        do {
+            [String]$Local:UserInput = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeReturnAsIs($Local:UserInput)))) {
+                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
+                Clear-HostLight -Count $Local:ClearLines;
+
+                Invoke-Write @Script:WriteStyle -PSMessage 'Invalid input, please try again...';
+                $Host.UI.Write('>> ');
+
+                $Local:FailedAtLeastOnce = $true;
+                $Script:PressedEnter = $false;
+            } else {
+                Clear-HostLight -Count 1;
+                break;
+            }
+        } while (-not $Script:ShouldAbort);
+
+        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousFunctions.Enter;
+        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousFunctions.CtrlC;
+
+        $Local:HistoryFile = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt";
+        if (Test-Path -Path $Local:HistoryFile) {
+            $Local:History = Get-Content -Path $Local:HistoryFile;
+            $Local:History | Select-Object -First ($Local:History.Count - 1) | Set-Content -Path $Local:HistoryFile;
+        }
+
+        if ($Script:ShouldAbort) {
+            throw [System.Management.Automation.PipelineStoppedException]::new();
+        }
+
+        return $Local:UserInput;
     }
 }
 
@@ -101,16 +149,14 @@ function Get-UserSelection {
         [Int]$DefaultChoice = 0
     )
 
-    return Invoke-WithColour {
-        [HashTable]$Local:BaseFormat = @{
-            PSColour    = 'DarkCyan';
-            PSPrefix    = '▶';
-            ShouldWrite = $true;
-        };
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Selection; }
 
-        Invoke-Write @Local:BaseFormat -PSMessage $Title;
-        Invoke-Write @Local:BaseFormat -PSMessage $Question;
+    process {
+        Invoke-Write @Script:WriteStyle -PSMessage $Title;
+        Invoke-Write @Script:WriteStyle -PSMessage $Question;
 
+        #region Setup PSReadLine Key Handlers
         $Local:PreviousTabFunction = (Get-PSReadLineKeyHandler -Chord Tab).Function;
         if (-not $Local:PreviousTabFunction) {
             $Local:PreviousTabFunction = 'TabCompleteNext';
@@ -171,11 +217,12 @@ function Get-UserSelection {
             [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
             [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
         };
+        #endregion
 
-        $Local:FirstRun = $true;
+        [Boolean]$Local:FirstRun = $true;
         $Host.UI.RawUI.FlushInputBuffer();
         Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
-        Invoke-Write @Local:BaseFormat -PSMessage "Enter one of the following: $($Choices -join ', ')";
+        Invoke-Write @Script:WriteStyle -PSMessage "Enter one of the following: $($Choices -join ', ')";
         Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($Choices[$DefaultChoice])" -NoNewline;
         Write-Host "`r>> " -NoNewline;
 
@@ -189,7 +236,7 @@ function Get-UserSelection {
                 $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
                 Clear-HostLight -Count $Local:ClearLines;
 
-                Invoke-Write @Local:BaseFormat -PSMessage "Invalid selection, please try again...";
+                Invoke-Write @Script:WriteStyle -PSMessage 'Invalid selection, please try again...';
                 $Host.UI.Write('>> ');
 
                 $Local:FailedAtLeastOnce = $true;
@@ -208,7 +255,6 @@ function Get-UserSelection {
         }
 
         return $Choices.IndexOf($Local:Selection);
-
     }
 }
 
