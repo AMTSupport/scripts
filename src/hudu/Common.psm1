@@ -1,22 +1,41 @@
+function Get-HuduApiKey {
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        [String]$Local:HuduKey = Get-VarOrSave -VariableName 'HUDU_API_KEY' -LazyValue {
+            $Local:Input = Get-UserInput -Title 'Hudu API Key' -Question 'Please enter your Hudu API Key';
+            if (-not $Local:Input) {
+                throw 'Hudu Key cannot be empty';
+            }
+
+            return $Local:Input;
+        } -Validate {
+            param([String]$Key)
+
+            $Key.Length -eq 24;
+        };
+
+        return $Local:HuduKey;
+    }
+}
+
 function Get-HuduCompanies {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [String]$Endpoint,
 
-        [Parameter(Mandatory)]
-        [String]$ApiKey,
-
         [Parameter()]
-        [switch]$OnlyParents
+        [Switch]$OnlyParents
     )
 
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation $Local:Companies; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Companies; }
 
     process {
         [String]$Local:Uri = "https://$Endpoint/api/v1/companies?page_size=1000";
-        [PSCustomObject]$Local:Headers = @{'x-api-key' = $ApiKey };
+        [PSCustomObject]$Local:Headers = @{'x-api-key' = Get-HuduApiKey };
 
         try {
             $Local:Response = (Invoke-WebRequest -Headers $Local:Headers -Uri $Local:Uri -UseBasicParsing);
@@ -24,7 +43,7 @@ function Get-HuduCompanies {
 
             Invoke-Debug "Got $($Local:Companies.Count) companies from hudu.";
         } catch {
-            Invoke-Error -Message 'Failed to get companies from hudu; Check your API Key.';
+            Invoke-Error 'Failed to get companies from hudu; Check your API Key.';
             Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
         }
 
