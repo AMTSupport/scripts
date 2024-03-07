@@ -190,7 +190,19 @@ function Test-ReturnType {
     process {
         $Local:Ast = Get-Ast -InputObject $InputObject;
         $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
+
+        if ($Local:AllReturnStatements.Count -eq 0) {
+            Invoke-Debug -Message "No return statements found in the script block.";
+            return $False;
+        }
+
         foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
+            # Check if the return statement has any values or just an empty return statement.
+            if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
+                Invoke-Debug -Message "No pipeline elements found in the return statement.";
+                return $False;
+            }
+
             [System.Management.Automation.Language.ExpressionAst]$Local:Expression = $Local:ReturnStatement.Pipeline.PipelineElements[0].expression;
 
             # TODO - Better handling of the variable path.
