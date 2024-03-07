@@ -3,10 +3,10 @@ name: PowerShell Linting
 on:
   push:
     branches: [ master ]
-    paths: [ 'src/**', '.github/workflows/code-linting.yaml' ]
+    paths: [ 'src/**', tests/**, utils/**, '.github/workflows/code-linting.yaml' ]
   pull_request:
     branches: [ master ]
-    paths: [ 'src/**', '.github/workflows/code-linting.yaml' ]
+    paths: [ 'src/**', tests/**, utils/**, '.github/workflows/code-linting.yaml' ]
 
 jobs:
   lint:
@@ -18,13 +18,5 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install PSScriptAnalyzer
-        run: Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck
-
-      - name: Analyze Scripts
-        run: |
-          $results = Invoke-ScriptAnalyzer -Path ./src -Recurse
-          if ($results.Count -gt 0) {
-            $results | Format-Table -AutoSize
-            throw "PSScriptAnalyzer found issues"
-          }
+      - name: Run Linter
+        run: .\utils\Invoke-Linter.ps1
