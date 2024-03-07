@@ -29,6 +29,98 @@ function Measure-ElaspedTime {
 }
 
 <#
+.SYNOPSIS
+    Get the value of an environment variable or save it if it does not exist.
+.DESCRIPTION
+    This function will get the value of an environment variable or save it if it does not exist.
+    It will also validate the value if a test script block is provided.
+    If the value does not exist, it will prompt the user for the value and save it as an environment variable,
+    The value will be saved as a process environment variable.
+.PARAMETER VariableName
+    The name of the environment variable to get or save.
+.PARAMETER LazyValue
+    The script block to execute if the environment variable does not exist.
+.PARAMETER Validate
+    The script block to test the value of the environment variable or the lazy value.
+.EXAMPLE
+    Get-VarOrSave `
+        -VariableName 'HUDU_KEY' `
+        -LazyValue { Get-UserInput -Title 'Hudu API Key' -Question 'Please enter your Hudu API Key' };
+.OUTPUTS
+    System.String if the environment variable exists or the lazy value if it does not.
+    null if the value didn't pass the validation.
+#>
+function Get-VarOrSave {
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullorEmpty()]
+        [String]$VariableName,
+
+        [Parameter(Mandatory)]
+        [ScriptBlock]$LazyValue,
+
+        [Parameter()]
+        [ScriptBlock]$Validate
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Value; }
+
+    process {
+        $Local:EnvValue = [Environment]::GetEnvironmentVariable($VariableName);
+
+        if ($Local:EnvValue) {
+            if ($Validate) {
+                try {
+                    if ($Validate.InvokeReturnAsIs($Local:EnvValue)) {
+                        Invoke-Debug "Validated environment variable ${VariableName}: $Local:EnvValue";
+                        return $Local:EnvValue;
+                    } else {
+                        Invoke-Error "Failed to validate environment variable ${VariableName}: $Local:EnvValue";
+                        [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
+                    };
+                } catch {
+                    Invoke-Error "
+                    Failed to validate environment variable ${VariableName}: $Local:EnvValue.
+                    Due to reason ${$_.Exception.Message}".Trim();
+
+                    [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
+                }
+            } else {
+                Invoke-Debug "Found environment variable $VariableName with value $Local:EnvValue";
+                return $Local:EnvValue;
+            }
+        }
+
+        while ($True) {
+            try {
+                $Local:Value = $LazyValue.InvokeReturnAsIs();
+
+                if ($Validate) {
+                    if ($Validate.InvokeReturnAsIs($Local:Value)) {
+                        Invoke-Debug "Validated lazy value for environment variable ${VariableName}: $Local:Value";
+                        break;
+                    } else {
+                        Invoke-Error "Failed to validate lazy value for environment variable ${VariableName}: $Local:Value";
+                    }
+                } else {
+                    break;
+                }
+            } catch {
+                Invoke-Error "Encountered an error while trying to get value for ${VariableName}.";
+                return $null;
+            }
+        };
+
+
+        [Environment]::SetEnvironmentVariable($VariableName, $Local:Value, 'Process');
+        return $Local:Value;
+    }
+}
+
+#region AST Helpers
+
+<#
 .DESCRIPTION
     Try to transform the input object into an AST Object.
 #>
@@ -178,3 +270,6 @@ function Test-Parameters {
         return $True;
     }
 }
+
+#endregion
+
