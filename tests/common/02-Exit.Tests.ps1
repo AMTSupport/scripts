@@ -1,17 +1,17 @@
 BeforeDiscovery {
-    $ModuleName = & $PSScriptRoot/Base.ps1;
+    $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
 AfterAll {
     Remove-CommonModules;
 }
 
-Describe '01-Exit.psm1 Tests' {
+Describe 'Exit Tests' {
     Context 'Invoke-Exit' {
         It 'Should throw with a FailedExit ErrorRecord with the ExitCode as the TargetObject' {
             $Local:ThrownError;
             try {
-                Invoke-FailedExit -ExitCode 1 -DontExit;
+                Invoke-FailedExit -ExitCode 1;
             } catch {
                 $Local:ThrownError = $_;
             }
@@ -25,19 +25,21 @@ Describe '01-Exit.psm1 Tests' {
         }
 
         It 'Should call Invoke-Handlers with IsFailure $true if ExitCode is not 0' {
-            Mock -Verifiable -ModuleName '01-Exit' -CommandName Invoke-Handlers -MockWith { } -ParameterFilter { $IsFailure -eq $True; };
+            Mock -Verifiable -ModuleName:$ModuleName -CommandName Invoke-Handlers -MockWith { } -ParameterFilter { $IsFailure -eq $True; };
 
             Invoke-FailedExit -ExitCode 1 -DontExit;
 
             Should -InvokeVerifiable;
+            Should -Invoke -CommandName Invoke-Handlers -ModuleName:$ModuleName -Times 1;
         }
 
         It 'Should call Invoke-Handlers with IsFailure $false if ExitCode is 0' {
-            Mock -Verifiable -ModuleName '01-Exit' -CommandName Invoke-Handlers -MockWith { } -ParameterFilter { $IsFailure -eq $False; };
+            Mock -Verifiable -ModuleName:$ModuleName -CommandName Invoke-Handlers -MockWith { } -ParameterFilter { $IsFailure -eq $False; };
 
             try { Invoke-QuickExit } catch { };
 
             Should -InvokeVerifiable;
+            Should -Invoke -CommandName Invoke-Handlers -ModuleName:$ModuleName -Times 1;
         }
     }
 }
