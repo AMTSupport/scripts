@@ -39,6 +39,7 @@ Describe 'Logging Tests' {
             $Params = @{
                 PSMessage   = 'Test message'
                 PSColour    = 'Green'
+                ShouldWrite = $true
             };
 
             $Params | Invoke-Write -InformationVariable Output;
@@ -49,6 +50,7 @@ Describe 'Logging Tests' {
             $Params = @{
                 PSMessage   = "Test message`nSecond line"
                 PSColour    = 'Green'
+                ShouldWrite = $true
             };
 
             $Params | Invoke-Write -InformationVariable Output;
