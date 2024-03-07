@@ -239,7 +239,7 @@ function Test-ReturnType {
             The return type of the script block is not valid. Expected: $($ValidTypes -join ', '); Actual: $Local:TypeName.
             At: $($Local:Region.StartLineNumber):$($Local:Region.StartColumnNumber) - $($Local:Region.EndLineNumber):$($Local:Region.EndColumnNumber)
             Text: $($Local:Region.Text)
-            ";
+            ".Trim();
 
             return $False;
         }
