@@ -27,7 +27,7 @@ $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
+		[System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 		[HashTable]$Global:Logging = @{
 		    Loaded      = $false;
 		    Error       = $True;
@@ -132,7 +132,6 @@ $Global:EmbededModules = [ordered]@{
 		            Import-Module -Name $Value -Global -Force;
 		        }
 		    }
-		    # Collect a List of the modules to import.
 		    if ($Global:CompiledScript) {
 		        Invoke-EnvVerbose 'Script has been embeded with required modules.';
 		        [HashTable]$Local:ToImport = $Global:EmbededModules;
@@ -154,9 +153,7 @@ $Global:EmbededModules = [ordered]@{
 		        }
 		        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
 		    }
-		    # Import PSStyle Before anything else.
 		    Import-ModuleOrScriptBlock -Name:'00-PSStyle' -Value:$Local:ToImport['00-PSStyle'];
-		    # Import the modules.
 		    Invoke-EnvVerbose -Message "Importing $($Local:ToImport.Count) modules.";
 		    Invoke-EnvVerbose -Message "Modules to import: `n$(($Local:ToImport.Keys | Sort-Object) -join "`n")";
 		    foreach ($Local:ModuleName in $Local:ToImport.Keys | Sort-Object) {
@@ -202,7 +199,6 @@ $Global:EmbededModules = [ordered]@{
 		        [Parameter(DontShow)]
 		        [Switch]$HideDisclaimer = (($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
 		    )
-		    # Workaround for embedding modules in a script, can't use Invoke if a scriptblock contains begin/process/clean blocks
 		    function Invoke-Inner {
 		        Param(
 		            [Parameter(Mandatory)]
@@ -233,9 +229,6 @@ $Global:EmbededModules = [ordered]@{
 		        }
 		        process {
 		            try {
-		                # TODO :: Fix this, it's not working as expected
-		                # If the script is being run directly, invoke the main function
-		                # If ($Invocation.CommandOrigin -eq 'Runspace') {
 		                Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
 		                & $Main;
 		            } catch {
@@ -270,7 +263,7 @@ $Global:EmbededModules = [ordered]@{
 	"00-PSStyle" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        $Script:Below7_2 = $PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSVersion.Minor -lt 2;
+		$Script:Below7_2 = $PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSVersion.Minor -lt 2;
 		$ESC = [char]0x1b
 		enum OutputRendering {
 		    Host
@@ -487,7 +480,7 @@ $Global:EmbededModules = [ordered]@{
 	"00-Utils" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Measure-ElaspedTime {
+		function Measure-ElaspedTime {
 		    param(
 		        [Parameter(Mandatory, ValueFromPipeline)]
 		        [ScriptBlock]$ScriptBlock
@@ -593,6 +586,49 @@ $Global:EmbededModules = [ordered]@{
 		        return $Local:Ast;
 		    }
 		}
+		function Get-ReturnType {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory, HelpMessage = 'The AST object to test.')]
+		        [ValidateNotNullOrEmpty()]
+		        [Object]$InputObject
+		    )
+		    process {
+		        $Local:Ast = Get-Ast -InputObject $InputObject;
+		        $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
+		        if ($Local:AllReturnStatements.Count -eq 0) {
+		            Invoke-Debug -Message 'No return statements found in the AST Object.';
+		            return $null;
+		        }
+		        [System.Reflection.TypeInfo[]]$Local:ReturnTypes = @();
+		        foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
+		            if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
+		                Invoke-Debug -Message 'No pipeline elements found in the return statement.';
+		                return $null;
+		            }
+		            [System.Management.Automation.Language.ExpressionAst]$Local:Expression = $Local:ReturnStatement.Pipeline.PipelineElements[0].expression;
+		            if ($Local:Expression.VariablePath) {
+		                [String]$Local:VariableName = $Local:Expression.VariablePath.UserPath;
+		                if ($Local:VariableName -eq 'null') {
+		                    $Local:ReturnTypes += [Void];
+		                    continue;
+		                }
+		                $Local:Variable = Get-Variable -Name:$Local:VariableName -ValueOnly -ErrorAction SilentlyContinue;
+		                if ($Local:Variable) {
+		                    [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Variable.GetType();
+		                    $Local:ReturnTypes += $Local:ReturnType;
+		                } else {
+		                    Invoke-Warn -Message "Could not resolve the variable: $Local:VariableName.";
+		                    continue
+		                }
+		            } else {
+		                [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Expression.StaticType;
+		                $Local:ReturnTypes += $Local:ReturnType;
+		            }
+		        }
+		        return $Local:ReturnTypes | Sort-Object -Unique;
+		    }
+		}
 		function Test-ReturnType {
 		    [CmdletBinding()]
 		    param(
@@ -601,24 +637,45 @@ $Global:EmbededModules = [ordered]@{
 		        [Object]$InputObject,
 		        [Parameter(Mandatory, HelpMessage = 'The Valid Types to test against.')]
 		        [ValidateNotNullOrEmpty()]
-		        [String[]]$ValidTypes,
+		        [System.Reflection.TypeInfo[]]$ValidTypes,
 		        [Parameter(HelpMessage = 'Allow the return type to be null.')]
 		        [Switch]$AllowNull
 		    )
 		    process {
 		        $Local:Ast = Get-Ast -InputObject $InputObject;
+		        $Local:ReturnTypes = Get-ReturnType -InputObject $InputObject;
+		        if ($null -eq $Local:ReturnTypes) {
+		            Invoke-Debug -Message 'No return types found in the AST Object.';
+		            return $False;
+		        }
+		        foreach ($Local:ReturnType in $Local:ReturnTypes) {
+		            if ($ValidTypes -contains $Local:ReturnType) {
+		                continue;
+		            } elseif ($AllowNull -and $Local:ReturnType -eq [Void]) {
+		                continue;
+		            } else {
+		                Invoke-Warn -Message "The return type of the AST object is not valid. Expected: $($ValidTypes -join ', '); Actual: $($Local:ReturnType.Name)";
+		                return $False;
+		            }
+		        }
+		        return $True;
 		        $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
+		        if ($Local:AllReturnStatements.Count -eq 0) {
+		            Invoke-Debug -Message "No return statements found in the script block.";
+		            return $False;
+		        }
 		        foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
+		            if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
+		                Invoke-Debug -Message "No pipeline elements found in the return statement.";
+		                return $False;
+		            }
 		            [System.Management.Automation.Language.ExpressionAst]$Local:Expression = $Local:ReturnStatement.Pipeline.PipelineElements[0].expression;
-		            # TODO - Better handling of the variable path.
 		            if ($Local:Expression.VariablePath) {
 		                [String]$Local:VariableName = $Local:Expression.VariablePath.UserPath;
-		                # Try to resolve the variable and check its type.
 		                $Local:Variable = Get-Variable -Name:$Local:VariableName -ValueOnly -ErrorAction SilentlyContinue;
 		                if ($Local:Variable) {
 		                    [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Variable.GetType();
-		                    [String]$Local:TypeName = $Local:ReturnType.Name;
-		                    if ($ValidTypes -contains $Local:TypeName) {
+		                    if ($ValidTypes -contains $Local:ReturnType) {
 		                        continue;
 		                    }
 		                } else {
@@ -634,11 +691,11 @@ $Global:EmbededModules = [ordered]@{
 		                }
 		            }
 		            $Local:Region = $Local:Expression.Extent;
-		            Invoke-Warn -Message "
-		            The return type of the script block is not valid. Expected: $($ValidTypes -join ', '); Actual: $Local:TypeName.
-		            At: $($Local:Region.StartLineNumber):$($Local:Region.StartColumnNumber) - $($Local:Region.EndLineNumber):$($Local:Region.EndColumnNumber)
-		            Text: $($Local:Region.Text)
-		            ";
+		            Invoke-Warn -Message @"
+The return type of the script block is not valid. Expected: $($ValidTypes -join ', '); Actual: $Local:TypeName.
+At: $($Local:Region.StartLineNumber):$($Local:Region.StartColumnNumber) - $($Local:Region.EndLineNumber):$($Local:Region.EndColumnNumber)
+Text: $($Local:Region.Text)
+"@;
 		            return $False;
 		        }
 		        return $True;
@@ -668,19 +725,20 @@ $Global:EmbededModules = [ordered]@{
 		        }
 		        return $True;
 		    }
-		}
+		}
+		Export-ModuleMember -Function *;
     };`
 	"01-Logging" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Test-NAbleEnvironment {
+		function Test-NAbleEnvironment {
 		    [String]$Local:ConsoleTitle = [Console]::Title | Split-Path -Leaf;
 		    $Local:ConsoleTitle -eq 'fmplugin.exe';
 		}
-		function Get-SupportsUnicode {
+		function Test-SupportsUnicode {
 		    $null -ne $env:WT_SESSION -and -not (Test-NAbleEnvironment);
 		}
-		function Get-SupportsColour {
+		function Test-SupportsColour {
 		    $Host.UI.SupportsVirtualTerminal -and -not (Test-NAbleEnvironment);
 		}
 		function Invoke-Write {
@@ -708,16 +766,16 @@ $Global:EmbededModules = [ordered]@{
 		        if (-not $ShouldWrite) {
 		            return;
 		        }
-		        [String]$Local:NewLineTab = if ($PSPrefix -and (Get-SupportsUnicode)) {
+		        [String]$Local:NewLineTab = if ($PSPrefix -and (Test-SupportsUnicode)) {
 		            "$(' ' * $($PSPrefix.Length))";
 		        } else { ''; }
 		        [String]$Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
 		            $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
 		        } else { $PSMessage; }
-		        if (Get-SupportsColour) {
+		        if (Test-SupportsColour) {
 		            $Local:FormattedMessage = "$(Get-ConsoleColour $PSColour)$Local:FormattedMessage$($PSStyle.Reset)";
 		        }
-		        [String]$Local:FormattedMessage = if ($PSPrefix -and (Get-SupportsUnicode)) {
+		        [String]$Local:FormattedMessage = if ($PSPrefix -and (Test-SupportsUnicode)) {
 		            "$PSPrefix $Local:FormattedMessage";
 		        } else { $Local:FormattedMessage; }
 		        $InformationPreference = 'Continue';
@@ -740,9 +798,7 @@ $Global:EmbededModules = [ordered]@{
 		    [String]$Local:Script = $InvocationInfo.ScriptName.Trim();
 		    if ($InvocationInfo.Statement) {
 		        [String]$Local:Statement = $InvocationInfo.Statement.Trim();
-		        # Find where the statement matches in the line, and underline it, indent the statement to where it matches in the line.
 		        [Int]$Local:StatementIndex = $Local:TrimmedLine.IndexOf($Local:Statement);
-		        # FIXME: This is a hack to fix the issue where the statement index is -1, this shouldn't happen!
 		        if ($Local:StatementIndex -lt 0) {
 		            [Int]$Local:StatementIndex = 0;
 		        }
@@ -751,11 +807,9 @@ $Global:EmbededModules = [ordered]@{
 		        [String]$Local:Statement = $TrimmedLine;
 		    }
 		    [String]$Local:Underline = (' ' * ($Local:StatementIndex + 10)) + ('^' * $Local:Statement.Length);
-		    # Position the message to the same indent as the statement.
 		    [String]$Local:Message = if ($null -ne $Message) {
 		        (' ' * $Local:StatementIndex) + $Message;
 		    } else { $null };
-		    # Fucking PS 5 doesn't allow variable overrides so i have to add the colour to all of them. :<(
 		    [HashTable]$Local:BaseHash = @{
 		        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { $null };
 		        ShouldWrite = $True;
@@ -923,7 +977,6 @@ $Global:EmbededModules = [ordered]@{
 		        [Switch]$AllowCancel
 		    )
 		    process {
-		        # Ensure that the input buffer is flushed, otherwise the user can press escape before the loop starts and it would cancel it.
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        [String]$Local:Prefix = if ($AllowCancel) { '⏳' } else { '⏲️' };
 		        if ($AllowCancel) {
@@ -946,7 +999,6 @@ $Global:EmbededModules = [ordered]@{
 		            [TimeSpan]$Local:IntervalMinusElasped = ($Local:TimeInterval - $Local:ElaspedTime);
 		            if ($Local:IntervalMinusElasped.TotalMilliseconds -gt 0) {
 		                $Local:TimeLeft -= $Local:IntervalMinusElasped;
-		                # Can't use -duration because it isn't available in PS 5.1
 		                Start-Sleep -Milliseconds $Local:IntervalMinusElasped.TotalMilliseconds;
 		            } else {
 		                $Local:TimeLeft -= $Local:ElaspedTime;
@@ -1022,7 +1074,6 @@ $Global:EmbededModules = [ordered]@{
 		            });
 		            $Local:TotalTime += $Local:TimeTaken;
 		            $Local:ItemsProcessed++;
-		            # Calculate the estimated time remaining
 		            $Local:AverageTimePerItem = $Local:TotalTime / $Local:ItemsProcessed;
 		            $Local:ItemsRemaining = $Local:InputItems.Count - $Local:ItemsProcessed;
 		            $Local:EstimatedTimeRemaining = $Local:AverageTimePerItem * $Local:ItemsRemaining
@@ -1064,12 +1115,12 @@ $Global:EmbededModules = [ordered]@{
 		        }
 		    }
 		}
-		Export-ModuleMember -Function Get-SupportsUnicode, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout, Invoke-Progress;
+		Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout, Invoke-Progress;
     };`
 	"01-Scope" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        [System.Collections.Stack]$Script:InvocationStack = [System.Collections.Stack]::new();
+		[System.Collections.Stack]$Script:InvocationStack = [System.Collections.Stack]::new();
 		[String]$Script:Tab = "  ";
 		function Get-Stack {
 		    Get-Variable -Name 'InvocationStack' -ValueOnly;
@@ -1079,7 +1130,7 @@ $Global:EmbededModules = [ordered]@{
 		}
 		function Get-ScopeNameFormatted([Parameter(Mandatory)][Switch]$IsExit) {
 		    [String]$Local:CurrentScope = (Get-StackTop).MyCommand.Name;
-		    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | ForEach-Object { $_.MyCommand } | Sort-Object -Descending -Property Name | Select-Object -SkipLast 1;
+		    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.MyCommand.Name } | Sort-Object -Descending;
 		    [String]$Local:Scope = "$($Local:PreviousScopes -join ' > ')$(if ($Local:PreviousScopes.Count -gt 0) { if ($IsExit) { ' < ' } else { ' > ' } })$Local:CurrentScope";
 		    return $Local:Scope;
 		}
@@ -1152,7 +1203,7 @@ $Global:EmbededModules = [ordered]@{
 	"02-Exit" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        [HashTable]$Global:ExitHandlers = @{};
+		[HashTable]$Global:ExitHandlers = @{};
 		[HashTable]$Global:ExitCodes = @{};
 		[Boolean]$Global:ExitHandlersRun = $false;
 		function Invoke-Handlers([switch]$IsFailure) {
@@ -1286,7 +1337,7 @@ $Global:EmbededModules = [ordered]@{
 	"05-Assert" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Assert-NotNull(
+		function Assert-NotNull(
 		    [Parameter(Mandatory, ValueFromPipeline)]
 		    [Object]$Object,
 		    [Parameter()]
@@ -1319,7 +1370,7 @@ $Global:EmbededModules = [ordered]@{
 	"05-Ensure" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        $Script:NOT_ADMINISTRATOR = Register-ExitCode -Description "Not running as administrator!`nPlease re-run your terminal session as Administrator, and try again.";
+		$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description "Not running as administrator!`nPlease re-run your terminal session as Administrator, and try again.";
 		function Invoke-EnsureAdministrator {
 		    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 		        Invoke-FailedExit -ExitCode $Script:NOT_ADMINISTRATOR;
@@ -1438,7 +1489,6 @@ $Global:EmbededModules = [ordered]@{
 		                $Local:PlainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($Local:SecureBSTR);
 		            }
 		            [Xml]$Local:XmlContent = [String]::Format($Script:WifiXmlTemplate, $Name, $SSIDHex, 'WPA2PSK', 'AES', $PlainPassword);
-		            # Remove the password if it is not provided.
 		            if (-not $PlainPassword) {
 		                $Local:XmlContent.WLANProfile.MSM.security.RemoveChild($Local:XmlContent.WLANProfile.MSM.security.sharedKey) | Out-Null;
 		            }
@@ -1481,7 +1531,7 @@ $Global:EmbededModules = [ordered]@{
 	"40-Temp" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Get-NamedTempFolder {
+		function Get-NamedTempFolder {
 		    Param(
 		        [Parameter(Mandatory)]
 		        [ValidateNotNullOrEmpty()]
@@ -1530,7 +1580,7 @@ $Global:EmbededModules = [ordered]@{
 	"45-PackageManager" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        enum PackageManager {
+		enum PackageManager {
 		    Chocolatey
 		    Unsupported
 		}
@@ -1600,9 +1650,6 @@ $Global:EmbededModules = [ordered]@{
 		        PSMessage = "Checking if package '$PackageName' is installed...";
 		        PSColour = 'Yellow';
 		    } | Invoke-Write;
-		    # if ($PackageVersion) {
-		    #     $Local:PackageArgs['Version'] = $PackageVersion;
-		    # }
 		    [Boolean]$Local:Installed = & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.List $Script:PackageManagerDetails.Options.Common $PackageName;
 		    Invoke-Verbose "Package '$PackageName' is $(if (-not $Local:Installed) { 'not ' })installed.";
 		    return $Local:Installed;
@@ -1617,18 +1664,12 @@ $Global:EmbededModules = [ordered]@{
 		    [Parameter()]
 		    [ValidateNotNullOrEmpty()]
 		    [Switch]$NoFail
-		    # [Parameter()]
-		    # [ValidateNotNullOrEmpty()]
-		    # [String]$PackageVersion
 		) {
 		    @{
 		        PSPrefix = '📦';
 		        PSMessage = "Installing package '$Local:PackageName'...";
 		        PSColour = 'Green';
 		    } | Invoke-Write;
-		    # if ($PackageVersion) {
-		    #     $Local:PackageArgs['Version'] = $PackageVersion;
-		    # }
 		    [System.Diagnostics.Process]$Local:Process = Start-Process -FilePath $Script:PackageManagerDetails.Executable -ArgumentList (@($Script:PackageManagerDetails.Commands.Install) + $Script:PackageManagerDetails.Options.Common + @($PackageName)) -NoNewWindow -PassThru -Wait;
 		    if ($Local:Process.ExitCode -ne 0) {
 		        Invoke-Error "There was an issue while installing $Local:PackageName.";
@@ -1663,7 +1704,7 @@ $Global:EmbededModules = [ordered]@{
 	"50-Input" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        [HashTable]$Script:WriteStyle = @{
+		[HashTable]$Script:WriteStyle = @{
 		    PSColour    = 'DarkCyan';
 		    PSPrefix    = '▶';
 		    ShouldWrite = $true;
@@ -1788,7 +1829,6 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
-		        #region Setup PSReadLine Key Handlers
 		        $Local:PreviousTabFunction = (Get-PSReadLineKeyHandler -Chord Tab).Function;
 		        if (-not $Local:PreviousTabFunction) {
 		            $Local:PreviousTabFunction = 'TabCompleteNext';
@@ -1837,7 +1877,6 @@ $Global:EmbededModules = [ordered]@{
 		            [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
 		            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
 		        };
-		        #endregion
 		        [Boolean]$Local:FirstRun = $true;
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
@@ -1894,7 +1933,7 @@ $Global:EmbededModules = [ordered]@{
 	"50-Module" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Import-DownloadableModule {
+		function Import-DownloadableModule {
 		    Param(
 		        [Parameter(Mandatory)]
 		        [ValidateNotNullOrEmpty()]
@@ -1918,7 +1957,7 @@ $Global:EmbededModules = [ordered]@{
 	"99-Cache" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        [Int]$Script:FAILED_FOLDER_CREATION = Register-ExitCode 'Failed to create the cache folder.';
+		[Int]$Script:FAILED_FOLDER_CREATION = Register-ExitCode 'Failed to create the cache folder.';
 		[Int]$Script:FAILED_FILE_CREATION = Register-ExitCode 'Failed to create the cache file.';
 		[Int]$Script:FAILED_FILE_REMOVAL = Register-ExitCode 'Failed to remove the cache file.';
 		[String]$Script:Folder = $env:TEMP | Join-Path -ChildPath 'PSCache';
@@ -1945,7 +1984,6 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        [HashTable]$Local:Params = $PSBoundParameters;
 		        $Local:Params.Remove('ParseBlock');
-		        # $Local:FilteredParams = $Local:Params.GetEnumerator() | Where-Object { $null -ne $_.Value };
 		        Invoke-Debug "Cache parameters: $($PSBoundParameters | Out-String)"
 		        [String]$Local:CachePath = Get-CachedLocation @Local:Params;
 		        $Local:RawContent = Get-Content -Path $Local:CachePath -Raw;
@@ -1969,7 +2007,7 @@ $Global:EmbededModules = [ordered]@{
 		                Invoke-Error 'The script block should have one parameter.';
 		                return $False;
 		            }
-		            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes:@('Boolean'))) {
+		            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes [Boolean])) {
 		                Invoke-Error 'The script block should return a boolean value.';
 		                return $False;
 		            }
@@ -2068,13 +2106,12 @@ $Global:EmbededModules = [ordered]@{
 	"99-Connection" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Connect-Service(
+		function Connect-Service(
 		    [Parameter(Mandatory)]
 		    [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
 		    [String[]]$Services,
 		    [Parameter()]
 		    [String[]]$Scopes,
-		    # If true prompt for confirmation if already connected.
 		    [Switch]$DontConfirm
 		) {
 		    foreach ($Local:Service in $Services) {
@@ -2142,7 +2179,7 @@ $Global:EmbededModules = [ordered]@{
 	"99-Flag" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        class Flag {
+		class Flag {
 		    [String][ValidateNotNull()]$Context;
 		    [String][ValidateNotNull()]$FlagPath;
 		    Flag([String]$Context) {
@@ -2187,7 +2224,6 @@ $Global:EmbededModules = [ordered]@{
 		        if (-not $this.Exists()) {
 		            return $false;
 		        }
-		        # Check if the PID in the running flag is still running, if not, remove the flag and return false;
 		        [Int]$Local:RunningPID = $this.GetData();
 		        if (-not (Get-Process -Id $Local:RunningPID -ErrorAction SilentlyContinue)) {
 		            $this.Remove();
@@ -2202,9 +2238,7 @@ $Global:EmbededModules = [ordered]@{
 		        if (-not $this.Exists()) {
 		            return $false;
 		        }
-		        # Get the write time for the reboot flag file; if it was written before the computer started, we have reboot, return false;
 		        [DateTime]$Local:RebootFlagTime = (Get-Item $this.FlagPath).LastWriteTime;
-		        # Broken on first boot!
 		        [DateTime]$Local:StartTime = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty LastBootUpTime;
 		        return $Local:RebootFlagTime -gt $Local:StartTime;
 		    }
@@ -2215,7 +2249,6 @@ $Global:EmbededModules = [ordered]@{
 		    [String]$Context
 		) {
 		    process {
-		        # TODO - Make this dynamic based on the calling script's name
 		        [String]$Local:FlagFolder = "$($env:TEMP)\Flags";
 		        if (-not (Test-Path $Local:FlagFolder)) {
 		            Invoke-Verbose "Creating flag folder $Local:FlagFolder...";
@@ -2239,7 +2272,7 @@ $Global:EmbededModules = [ordered]@{
 	"99-Registry" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Invoke-EnsureRegistryPath {
+		function Invoke-EnsureRegistryPath {
 		    [CmdletBinding(SupportsShouldProcess)]
 		    param (
 		        [Parameter(Mandatory)]
@@ -2287,7 +2320,7 @@ $Global:EmbededModules = [ordered]@{
 	"99-UsersAndAccounts" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        function Local:Get-GroupByInputOrName(
+		function Local:Get-GroupByInputOrName(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
 		    [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
@@ -2336,7 +2369,6 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        [String]$Local:Path = $User.Path.Substring(8); # Remove the WinNT:// prefix
 		        [String[]]$Local:PathParts = $Local:Path.Split('/');
-		        # The username is always last followed by the domain.
 		        [HashTable]$Local:FormattedUser = @{
 		            Name = $Local:PathParts[$Local:PathParts.Count - 1]
 		            Domain = $Local:PathParts[$Local:PathParts.Count - 2]
@@ -2407,7 +2439,6 @@ $Global:EmbededModules = [ordered]@{
 		                if ($_.Parent.Length -gt 8) {
 		                    $_.Parent.Substring(8) -ne 'NT AUTHORITY'
 		                } else {
-		                    # This is a in-built user, skip it.
 		                    $False
 		                }
 		            };
@@ -2555,21 +2586,16 @@ function Invoke-EnsureSetupInfo {
             }
         }
         Invoke-Info 'No install info found, creating new install info...';
-        #region - Get Client Selection
         $Local:Clients = (Get-SoapResponse -Uri (Get-BaseUrl "list_clients")).items.client;
         $Local:Clients | Assert-NotNull -Message "Failed to get clients from N-Able";
         $Local:FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
         $Local:FormattedClients | Assert-NotNull -Message "Failed to format clients";
         $Local:SelectedClient = Get-PopupSelection -Items $Local:FormattedClients -Title "Please select a Client";
-        #endregion - Get Client Selection
-        #region - Get Site Selection
         $Local:Sites = (Get-SoapResponse -Uri "$(Get-BaseUrl "list_sites")&clientid=$($SelectedClient.Id)").items.site;
         $Local:Sites | Assert-NotNull -Message "Failed to get sites from N-Able";
         $Local:FormattedSites = Get-FormattedName2Id -InputArr $Sites -IdExpr { $_.siteid };
         $Local:FormattedSites | Assert-NotNull -Message "Failed to format sites";
         $Local:SelectedSite = Get-PopupSelection -Items $Local:FormattedSites -Title "Please select a Site";
-        #endregion - Get Site Selection
-        # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
         [String]$Local:DeviceName = Get-UserInput -Title "Device Name" -Question "Enter a name for this device"
         [PSCustomObject]$Local:InstallInfo = @{
             "DeviceName" = $Local:DeviceName
@@ -2618,7 +2644,6 @@ function Add-QueuedTask(
             Invoke-Info "The device does not require a reboot before the $QueuePhase phase can be started, skipping queueing...";
             return;
         }
-        # Schedule the task before possibly rebooting.
         $Local:Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -WakeToRun;
         [String]$Local:RunningUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name;
         $Local:RunningUser | Assert-NotNull -Message "Running user was null, this really shouldn't happen.";
@@ -2668,7 +2693,6 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
     process {
         $InstallInfo | Assert-NotNull -Message "Install info was null";
-        #region - Device Name
         [String]$Local:DeviceName = $InstallInfo.DeviceName;
         $Local:DeviceName | Assert-NotNull -Message "Device name was null";
         [String]$Local:ExistingName = $env:COMPUTERNAME;
@@ -2680,8 +2704,6 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
             Rename-Computer -NewName $Local:DeviceName;
             (Get-RebootFlag).Set($null);
         }
-        #endregion - Device Name
-        #region - Auto-Login
         [String]$Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
         try {
             $ErrorActionPreference = "Stop";
@@ -2693,7 +2715,6 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
             Invoke-Error "Failed to set auto-login registry keys";
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_REGISTRY;
         }
-        #endregion - Auto-Login
         [String]$Local:NextPhase = "Cleanup";
         return $Local:NextPhase;
     }
@@ -2877,8 +2898,6 @@ function Invoke-PhaseCleanup {
             begin { Enter-Scope -Invocation $MyInvocation; }
             end { Exit-Scope -Invocation $MyInvocation; }
             process {
-                # Uninstalling the drivers disables and (on reboot) removes the installed services.
-                # At this stage the only 'HP Inc.' driver we want to keep is HPSFU, used for firmware servicing.
                 Invoke-Progress `
                     -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' }; } `
                     -GetItemName { Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver) $Driver.OriginalFileName.ToString(); } `
@@ -2893,11 +2912,6 @@ function Invoke-PhaseCleanup {
                             Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
                         }
                     };
-                # Once the drivers are gone lets disable installation of 'drivers' for these HP 'devices' (typically automatic via Windows Update)
-                # SWC\HPA000C = HP Device Health Service
-                # SWC\HPIC000C = HP Application Enabling Services
-                # SWC\HPTPSH000C = HP Services Scan
-                # ACPI\HPIC000C = HP Application Driver
                 @{
                     'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs' = @{
                         KIND = 'String';
@@ -2951,7 +2965,6 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
     process {
         [String]$Local:AgentServiceName = "Advanced Monitoring Agent";
         [String]$Local:NextPhase = "Update";
-        # Check if the agent is already installed and running.
         if (Get-Service -Name $Local:AgentServiceName -ErrorAction SilentlyContinue) {
             Invoke-Info "Agent is already installed, skipping installation...";
             return $Local:NextPhase;
@@ -2998,7 +3011,6 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
         }
         Invoke-Info 'Unable to determine when the agent is fully installed, sleeping for 5 minutes...';
         Invoke-Timeout -Timeout 300 -Activity 'Agent Installation' -StatusMessage 'Waiting for agent to be installed...';
-        # TODO - Query if sentinel is configured, if so wait for sentinel and the agent to be running services, then restart the computer
         return $Local:NextPhase;
     }
 }
@@ -3017,7 +3029,6 @@ function Invoke-PhaseFinish {
     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
     process {
         [String]$Local:NextPhase = $null;
-        #region - Remove localadmin Auto-Login
         $Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
         try {
             $ErrorActionPreference = "Stop";
@@ -3028,7 +3039,6 @@ function Invoke-PhaseFinish {
             Invoke-Error "Failed to remove auto-login registry keys";
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_REGISTRY;
         }
-        #endregion - Remove localadmin Auto-Login
         return $Local:NextPhase;
     }
 }
@@ -3040,7 +3050,6 @@ function Invoke-PhaseFinish {
     Register-ExitHandler -Name 'Queued Task Removal' -OnlyFailure -ExitHandler {
         Remove-QueuedTask;
     };
-    # Ensure only one process is running at a time.
     If ((Get-RunningFlag).IsRunning()) {
         Invoke-Error "The script is already running in another session, exiting...";
         Exit $Script:ALREADY_RUNNING;
@@ -3049,13 +3058,9 @@ function Invoke-PhaseFinish {
         Remove-QueuedTask;
     }
     Invoke-EnsureLocalScript;
-    # There is an issue with the CimInstance LastBootUpTime where it returns the incorrect time on first boot.
-    # To work around this if there was previously no connecting and we have just connected we can assume its a new setup, and force a reboot to ensure the correct time is returned.
-    # TODO - Find a better way to determine if this is a first boot.
     $Local:PossibleFirstBoot = Invoke-EnsureNetwork -Name $NetworkName -Password $NetworkPassword;
     Invoke-EnsureModules -Modules @('PSWindowsUpdate');
     $Local:InstallInfo = Invoke-EnsureSetupInfo;
-    # Queue this phase to run again if a restart is required by one of the environment setups.
     Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired -ForceReboot:$Local:PossibleFirstBoot;
     [String]$Local:NextPhase = $null;
     switch ($Phase) {
@@ -3065,7 +3070,6 @@ function Invoke-PhaseFinish {
         'update' { [String]$Local:NextPhase = Invoke-PhaseUpdate; }
         'finish' { [String]$Local:NextPhase = Invoke-PhaseFinish; }
     }
-    # Should only happen when we are done and there is nothing else to queue.
     if (-not $Local:NextPhase) {
         Invoke-Info "No next phase was returned, exiting...";
         return

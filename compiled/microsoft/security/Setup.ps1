@@ -1,10 +1,10 @@
 #Requires -Version 5.1
-#Requires -Modules ExchangeOnlineManagement
+#Requires -Modules AzureADPreview ExchangeOnlineManagement Microsoft.Online.SharePoint.PowerShell MSOnline
 
 Param(
-    [Parameter()]
-    [ValidateSet('MailBox', 'Policies')]
-    [String[]]$Update = @('MailBox', 'Policies')
+    [Parameter(Mandatory)]
+    [ValidateSet("SecurityAlerts", "ConditionalAccess", "Sharepoint", "Exchange")]
+    [String]$Action
 )
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
@@ -2475,244 +2475,112 @@ Text: $($Local:Region.Text)
 		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUser, Get-FormattedUsers, Get-Group, Get-Groups, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
     };
 }
-function Enable-MailboxAuditing {
-    Set-OrganizationConfig -AuditDisabled $false
-    Get-Mailbox | ForEach-Object { Set-Mailbox -AuditEnabled $true -Identity $_.WindowsEmailAddress }
+function Set-Sharepoint_SharingDomains {
+    Connect-Service -Service AzureAD;
+    Set-SPOTenant -SharingDomainRestrictionMode AllowList -SharingAllowedDomainList ((Get-AzureADDomain | Select-Object -ExpandProperty Name) -join ' ')
 }
-function Enable-MailTips {
-    Set-OrganizationConfig -MailTipsAllTipsEnabled $true -MailTipsExternalRecipientsTipsEnabled $true -MailTipsGroupMetricsEnabled $true -MailTipsLargeAudienceThreshold '25'
+function Disable-Outlook_StorageProviders {
+    Connect-Service -Service ExchangeOnline;
+    Set-OwaMailboxPolicy -Identity OwaMailboxPolicy-Default -AdditionalStorageProvidersAvailable $false
 }
-function Update-SafeAttachmentsPolicy {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        $Local:Params = @{
-            Name            = 'AMT - Default safe attachments'
-            Enable          = $true
-            Action          = 'DynamicDelivery'
-            QuarantineTag   = 'AdminOnlyAccessPolicy'
-        };
-        try {
-            Get-SafeAttachmentPolicy -Identity $Local:Params.Name -ErrorAction Stop | Out-Null;
-            Invoke-Info 'Default SafeAttachments Policy already exists. Updating...';
-            Set-SafeAttachmentPolicy @Local:Params;
-        } catch {
-            Invoke-Info 'Default SafeAttachments Policy does not exist. Creating...';
-            New-SafeAttachmentPolicy @Local:Params | Out-Null;
-        }
-        try {
-            $Local:Rule = Get-SafeAttachmentRule -Identity $Local:Params.Name -ErrorAction Stop;
-            if ($Local:Rule.SafeAttachmentPolicy -ne $Local:Params.Name) {
-                Invoke-Info 'Default SafeAttachments Rule exists but is not linked to the policy. Updating...';
-                Set-SafeAttachmentRule -Identity $Local:Params.Name -SafeAttachmentPolicy $Local:Params.Name;
-            }
-            $Local:Domain = Get-AcceptedDomain;
-            if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count -eq $Local:Domain.Count) {
-                Invoke-Info 'Default SafeAttachments Rule exists but is not linked to the accepted domain. Updating...';
-                Set-SafeAttachmentRule -Identity $Local:Params.Name -RecipientDomainIs $Local:Domain.Name;
-            }
-            if ($Local:Rule.Priority -ne 0) {
-                Invoke-Info 'Default SafeAttachments Rule exists but is not priority 0. Updating...';
-                Set-SafeAttachmentRule -Identity $Local:Params.Name -Priority 0;
-            }
-        } catch {
-            Invoke-Info 'Default SafeAttachments Rule does not exist. Creating...';
-            New-SafeAttachmentRule -Name $Local:Params.Name -SafeAttachmentPolicy $Local:Params.Name -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0 | Out-Null;
-        }
+function Get-AlertsUser {
+    $User = (Get-User | Where-Object { $_.Name -like 'Alerts*' } | Select-Object -First 1)
+    if ($User) {
+        return $User
+    } else {
+        Write-Warning "No Alerts user found. Please create one manually."
+        return $null
     }
 }
-function Update-SafeLinksPolicy {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        $Local:Params = @{
-            Name                     = 'AMT - Default safe links'
-            AllowClickThrough        = $false
-            DeliverMessageAfterScan  = $true
-            DisableUrlRewrite        = $false
-            EnableForInternalSenders = $true
-            EnableSafeLinksForEmail  = $true
-            EnableSafeLinksForOffice = $true
-            EnableSafeLinksForTeams  = $true
-            ScanUrls                 = $true
-            TrackClicks              = $true
-        };
-        try {
-            Get-SafeLinksPolicy -Identity $Local:Params.Identity -ErrorAction Stop | Out-Null;
-            Invoke-Info 'Default SafeLinks Policy already exists. Updating...';
-            Set-SafeLinksPolicy @Local:Params;
-        } catch {
-            Invoke-Info 'Default SafeLinks Policy does not exist. Creating...';
-            New-SafeLinksPolicy @Local:Params | Out-Null;
+function Set-SecurityAndCompilenceAlerts([PSObject]$AlertsUser) {
+    $Alerts = Get-ProtectionAlert
+    $AlertNames = $Alerts | Select-Object -ExpandProperty Name
+    $Alerts = $Alerts | Where-Object { ($_.NotifyUser -ne $AlertsUser.WindowsLiveID) -and !$_.Disabled }
+    if ($null -eq $Alerts -or $Alerts.Count -eq 0) {
+        Write-Host "All Security and Complience alerts are already configured to notify the Alerts user."
+        return
+    }
+    $UnableToCreate = @()
+    foreach ($Alert in $Alerts) {
+        if ($Alert.IsSystemRule) {
+            if ($AlertNames -contains "AMT $($Alert.Name)") {
+                Write-Host "Custom alert already exists for $($Alert.Name). Skipping..."
+                continue
+            }
+            $NewAlert = $Alert | Select-Object -Property * | ForEach-Object {
+                $_.Name = "AMT $($_.Name)"
+                $_.NotifyUser = $AlertsUser.WindowsLiveID
+                $_
+            }
+            try {
+                New-ProtectionAlert -AggregationType $NewAlert.AggregationType -AlertBy $NewAlert.AlertBy -AlertFor $NewAlert.AlertFor -Category $NewAlert.Category -Comment $NewAlert.Comment -CorrelationPolicyId $NewAlert.CorrelationPolicyId -CustomProperties $NewAlert.CustomProperties -Description $NewAlert.Description -Disabled $NewAlert.Disabled -Filter $NewAlert.Filter -LogicalOperationName $NewAlert.LogicalOperationName -Name $NewAlert.Name -NotificationCulture $NewAlert.NotificationCulture -NotificationEnabled $NewAlert.NotificationEnabled -NotifyUser $NewAlert.NotifyUser -NotifyUserOnFilterMatch $NewAlert.NotifyUserOnFilterMatch -NotifyUserSuppressionExpiryDate $NewAlert.NotifyUserSuppressionExpiryDate -NotifyUserThrottleThreshold $NewAlert.NotifyUserThrottleThreshold -NotifyUserThrottleWindow $NewAlert.NotifyUserThrottleWindow -Operation $NewAlert.Operation -PrivacyManagementScopedSensitiveInformationTypes $NewAlert.PrivacyManagementScopedSensitiveInformationTypes -PrivacyManagementScopedSensitiveInformationTypesForCounting $NewAlert.PrivacyManagementScopedSensitiveInformationTypesForCounting -PrivacyManagementScopedSensitiveInformationTypesThreshold $NewAlert.PrivacyManagementScopedSensitiveInformationTypesThreshold -Severity $NewAlert.Severity -ThreatType $NewAlert.ThreatType -Threshold $NewAlert.Threshold -TimeWindow $NewAlert.TimeWindow -UseCreatedDateTime $NewAlert.UseCreatedDateTime -VolumeThreshold $NewAlert.VolumeThreshold -ErrorAction Stop | Out-Null
+                $AlertNames += $NewAlert.Name
+            } catch {
+                Write-Warning "Unable to create custom alert for $($Alert.Name)."
+                $UnableToCreate += $Alert.Name
+            }
         }
-        try {
-            $Local:Rule = Get-SafeLinksRule -Identity $Local:Params.Name -ErrorAction Stop;
-            if ($Local:Rule.SafeLinksPolicy -ne $Local:Params.Name) {
-                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the policy. Updating...';
-                Set-SafeLinksRule -Identity $Local:Params.Name -SafeLinksPolicy $Local:Params.Name;
-            }
-            $Local:Domain = Get-AcceptedDomain;
-            if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count.Equals($Local:Domain.Count)) {
-                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the accepted domain. Updating...';
-                Set-SafeLinksRule -Identity $Local:Params.Name -RecipientDomainIs $Local:Domain.Name;
-            }
-            if ($Local:Rule.Priority -ne 0) {
-                Invoke-Info 'Default SafeLinks Rule exists but is not priority 0. Updating...';
-                Set-SafeLinksRule -Identity $Local:Params.Name -Priority 0;
-            }
-        } catch {
-            Invoke-Info 'Default SafeLinks Rule does not exist. Creating...';
-            New-SafeLinksRule -Name $Local:Params.Name -SafeLinksPolicy $Local:Params.Name -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0 | Out-Null;
+        else {
+            Set-ProtectionAlert -Identity $Alert.Name -NotifyUser $AlertsUser.WindowsLiveID | Out-Null
         }
+    }
+    if ($UnableToCreate.Count -gt 0) {
+        Write-Warning "Unable to create custom alerts for the following alerts: $($UnableToCreate -join ', ')"
+        Write-Warning "Please update these alerts manually at ``https://security.microsoft.com/alertpoliciesv2`` for alerts user ``$($AlertsUser.UserPrincipalName)``."
     }
 }
-function Update-AntiPhishPolicy {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        $Local:Params = @{
-            Identity                            = 'AMT - Default phishing filter policy'
-            DmarcQuarantineAction               = 'Quarantine'
-            DmarcRejectAction                   = 'Reject'
-            EnableSpoofIntelligence             = $true
-            SpoofQuarantineTag                  = 'AdminOnlyAccessPolicy'
-            EnableMailboxIntelligenceProtection = $true
-            MailboxIntelligenceProtectionAction = 'Quarantine'
-            MailboxIntelligenceQuarantineTag    = 'AdminOnlyAccessPolicy'
-            EnableTargetedDomainsProtection     = $true
-            EnableOrganizationDomainsProtection = $true
-            TargetedDomainProtectionAction      = 'Quarantine'
-            TargetedDomainQuarantineTag         = 'AdminOnlyAccessPolicy'
-            EnableTargetedUserProtection        = $true
-            TargetedUserProtectionAction        = 'Quarantine'
-            TargetedUsersToProtect              = (Get-Mailbox | ForEach-Object { "$($_.Name);$($_.WindowsEmailAddress)" })
-            TargetedUserQuarantineTag           = 'AdminOnlyAccessPolicy'
-            EnableFirstContactSafetyTips        = $true
-            EnableMailboxIntelligence           = $true
-            EnableSimilarDomainsSafetyTips      = $true
-            EnableSimilarUsersSafetyTips        = $true
-            EnableUnauthenticatedSender         = $true
-            EnableUnusualCharactersSafetyTips   = $true
-            EnableViaTag                        = $true
-            HonorDmarcPolicy                    = $true
-            PhishThresholdLevel                 = 3
-        };
-        if (Get-AntiPhishPolicy -Identity $Local:Params.Identity -ErrorAction SilentlyContinue) {
-            Invoke-Info 'Default AntiPhish Policy already exists. Updating...';
-            Set-AntiPhishPolicy @Local:Params;
-        } else {
-            Invoke-Info 'Default AntiPhish Policy does not exist. Creating...';
-            New-AntiPhishPolicy @Local:Params;
-        }
-        $Local:Rule = Get-AntiPhishRule -Identity $Local:Params.Identity -ErrorAction Stop;
-        if (-not $Local:Rule) {
-            Invoke-Info 'Default AntiPhish Rule does not exist. Creating...';
-            New-AntiPhishRule -Name $Local:Params.Identity -AntiPhishPolicy $Local:Params.Identity -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0;
-        } else {
-            if ($Local:Rule.AntiPhishPolicy -ne $Local:Params.Identity) {
-                Invoke-Info 'Default AntiPhish Rule exists but is not linked to the policy. Updating...';
-                Set-AntiPhishRule -Identity $Local:Params.Identity -AntiPhishPolicy $Local:Params.Identity;
-            }
-            $Local:Domain = Get-AcceptedDomain;
-            if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count.Equals($Local:Domain.Count)) {
-                Invoke-Info 'Default AntiPhish Rule exists but is not linked to the accepted domain. Updating...';
-                Set-AntiPhishRule -Identity $Local:Params.Identity -RecipientDomainIs $Local:Domain.Identity;
-            }
-            if ($Local:Rule.Priority -ne 0) {
-                Invoke-Info 'Default AntiPhish Rule exists but is not priority 0. Updating...';
-                Set-AntiPhishRule -Identity $Local:Params.Identity -Priority 0;
-            }
-        }
+function New-ConditionalAccessPrivilegedIdentityManagementPolicy {
+    Connect-Service AzureAD;
+    $Local:PolicyName = "Privileged Identity Managementt"
+    $Local:DirectoryRoles = @("Application administrator", "Authentication administrator", "Billing administrator", "Cloud application administrator", "Conditional Access administrator", "Exchange administrator", "Global administrator", "Global reader", "Helpdesk administrator", "Password administrator", "Privileged authentication administrator", "Privileged role administrator", "Security administrator", "SharePoint administrator", "User administrator")
+    $Local:ExistingPolicy = Get-AzureADMSConditionalAccessPolicy | Where-Object { $_.DisplayName -eq $Local:PolicyName }
+    if ($Local:ExistingPolicy) {
+        Write-Host "Privileged Identity Management policy already exists. Skipping..."
+        return
     }
-}
-function Update-AntiMalwarePolicy {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        $Local:Params = @{
-            Name = 'AMT - Default malware filter policy'
-            Enable = $true
-            Action = 'Quarantine'
-            HighConfidenceSpamAction = 'Quarantine'
-            HighConfidenceMalwareAction = 'Quarantine'
-            BulkSpamAction = 'Quarantine'
-            BulkMalwareAction = 'Quarantine'
-            SpamAction = 'Quarantine'
-            PhishAction = 'Quarantine'
-            ZAPEnabled = $true
-            BypassInboundMessages = $false
-            BypassOutboundMessages = $false
-            BypassUnauthenticatedSenders = $false
-            BypassAuthenticatedUsers = $false
-            BypassMessagesSentToAndFromFollowedUsers = $false
-            BypassMessagesSentToFollowedUsers = $false
-            BypassMalwareDetection = $false
-            BypassSpamDetection = $false
-            BypassInboxRules = $false
-            BypassSecurityGroupManagerModeration = $false
-            BypassModerationFromRecipient = $false
-            BypassSenderAdminCheck = $false
-            BypassSenderInRecipientBlockedCondition = $false
-            BypassSenderInRecipientBlockedConditionExceptions = @()
-            BypassSenderInRecipientBlockedConditionAction = 'Quarantine'
-            BypassMalwareFiltering = $false
-            BypassSpamFiltering = $false
-            BypassRBLCheck = $false
-            BypassZeroHourExploits = $false
-            BypassSpoofDetection = $false
-            BypassPhishingDetection = $false
-            BypassDirectoryBasedEdgeBlocking = $false
-            BypassSenderReputationCheck = $false
-            BypassSenderInRecipientBlockedConditionFallbackAction = 'Quarantine'
-            BypassMaliciousFileDetection = $false
-            BypassDomainSecureEnabledCheck = $false
-            BypassDomainSecureOverrideCheck = $false
-            BypassDomainSecureOverrideAction = 'Quarantine'
-            BypassDomainSecureOverrideBulkAction = 'Quarantine'
-            BypassDomainSecureOverrideHighConfidenceAction = 'Quarantine'
-        }
-        try {
-            Get-SafeLinksPolicy -Identity $Local:Params.Identity -ErrorAction Stop | Out-Null;
-            Invoke-Info 'Default SafeLinks Policy already exists. Updating...';
-            Set-SafeLinksPolicy @Local:Params;
-        } catch {
-            Invoke-Info 'Default SafeLinks Policy does not exist. Creating...';
-            New-SafeLinksPolicy @Local:Params | Out-Null;
-        }
-        try {
-            $Local:Rule = Get-SafeLinksRule -Identity $Local:Params.Name -ErrorAction Stop;
-            if ($Local:Rule.SafeLinksPolicy -ne $Local:Params.Name) {
-                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the policy. Updating...';
-                Set-SafeLinksRule -Identity $Local:Params.Name -SafeLinksPolicy $Local:Params.Name;
-            }
-            $Local:Domain = Get-AcceptedDomain;
-            if (-not ($Local:Domain | Where-Object { $Local:Rule.RecipientDomainIs -contains $_ }).Count.Equals($Local:Domain.Count)) {
-                Invoke-Info 'Default SafeLinks Rule exists but is not linked to the accepted domain. Updating...';
-                Set-SafeLinksRule -Identity $Local:Params.Name -RecipientDomainIs $Local:Domain.Name;
-            }
-            if ($Local:Rule.Priority -ne 0) {
-                Invoke-Info 'Default SafeLinks Rule exists but is not priority 0. Updating...';
-                Set-SafeLinksRule -Identity $Local:Params.Name -Priority 0;
-            }
-        } catch {
-            Invoke-Info 'Default SafeLinks Rule does not exist. Creating...';
-            New-SafeLinksRule -Name $Local:Params.Name -SafeLinksPolicy $Local:Params.Name -RecipientDomainIs (Get-AcceptedDomain).Name -Priority 0 | Out-Null;
-        }
-    }
+    [Microsoft.Open.MSGraph.Model.ConditionalAccessConditionSet]$Local:Conditions = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessConditionSet
+    $Local:Conditions.Applications = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessApplicationCondition
+    $Local:Conditions.Applications.IncludeApplications = "All"
+    $Local:Conditions.Users = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessUserCondition
+    $Local:Conditions.Users.IncludeRoles = Get-AzureADMSRoleDefinition | Where-Object { $Local:DirectoryRoles -contains $_.DisplayName } | Select-Object -ExpandProperty Id
+    [Microsoft.Open.MSGraph.Model.ConditionalAccessGrantControls]$Local:GrantControls = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessGrantControls
+    $Local:GrantControls._Operator = "OR"
+    $Local:GrantControls.BuiltInControls = @("mfa")
+    [Microsoft.Open.MSGraph.Model.ConditionalAccessSessionControls]$Local:SessionControls = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessSessionControls
+    $Local:SessionControls.PersistentBrowser = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessPersistentBrowser
+    $Local:SessionControls.PersistentBrowser.IsEnabled = $true
+    $Local:SessionControls.PersistentBrowser.Mode = "Never"
+    $Local:SessionControls.SignInFrequency = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessSignInFrequency
+    $Local:SessionControls.SignInFrequency.IsEnabled = $true
+    $Local:SessionControls.SignInFrequency.Value = "4"
+    $Local:SessionControls.SignInFrequency.Type = "hours"
+    New-AzureADMSConditionalAccessPolicy -DisplayName $Local:PolicyName -State "Enabled" -Conditions $Local:Conditions -GrantControls $Local:GrantControls -SessionControls $Local:SessionControls -ErrorAction Stop | Out-Null
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
-    Connect-Service -Service ExchangeOnline;
-    foreach ($Local:Item in $Update) {
-        Invoke-Info "Updating $Local:Item settings...";
-        switch ($Local:Item) {
-            'MailBox' {
-                Enable-MailboxAuditing;
-                Enable-MailTips;
+    switch ($Action) {
+        'SecurityAlerts' {
+            $AlertsUser = Get-AlertsUser
+            if ($AlertsUser) {
+                $Continue = $Host.UI.PromptForChoice("Alerts User: $($AlertsUser.WindowsLiveID)", 'Is this the correct alerts user?', @('&Yes', '&No'), 0)
+                if ($Continue -eq 1) {
+                    Write-Host "Please update the alerts user manually at ``https://admin.microsoft.com/Adminportal/Home#/users``."
+                    exit 1003
+                }
+                Set-SecurityAndCompilenceAlerts -AlertsUser $AlertsUser
             }
-            'Policies' {
-                Update-AntiPhishPolicy;
-            }
+        }
+        'ConditionalAccess' {
+            New-ConditionalAccessPrivilegedIdentityManagementPolicy;
+        }
+        'Sharepoint' {
+        }
+        'Exchange' {
+            Disable-Outlook_StorageProviders
+            Set-Exchange_SafeAttachmentsPolicy
+            Set-Exchange_SafeLinksPolicy
+            Enable-Exchange_MailboxAuditing
+            Enable-Exchange_MailTips
         }
     }
 });
