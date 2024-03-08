@@ -1,3 +1,5 @@
+$VerbosePreference = 'Continue';
+$DebugPreference = 'Continue';
 Import-Module -Name $PSScriptRoot/../../src/common/00-Environment.psm1;
 Import-CommonModules;
 
