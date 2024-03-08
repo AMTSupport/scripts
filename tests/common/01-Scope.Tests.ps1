@@ -2,11 +2,6 @@ BeforeDiscovery {
     $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
-AfterAll {
-    Remove-CommonModules;
-}
-
-
 Describe '01-Scope.psm1 Tests' {
     Context 'Formatting Tests' {
         It 'Should format a single scope correctly' {

@@ -1,9 +1,5 @@
 BeforeDiscovery {
-    $ModuleName = & $PSScriptRoot/Base.ps1;
-}
-
-AfterAll {
-    Remove-CommonModules;
+    $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
 
@@ -11,7 +7,7 @@ Describe "99-Flag.psm1 Tests" {
     AfterEach { $Flag.Remove(); }
 
     Context 'Base Flag Class' {
-        BeforeAll { $Flag = Get-Flag 'TestFlag'; }
+        BeforeAll { $Script:Flag = Get-Flag 'TestFlag'; }
         Context 'Set' {
             It 'Should create the flag if it does not exist' {
                 $Flag.Exists() | Should -Be $false;
@@ -75,11 +71,11 @@ Describe "99-Flag.psm1 Tests" {
 
     # TODO
     Context 'Reboot' {
-        BeforeAll { $Flag = Get-RebootFlag; }
+        BeforeAll { $Script:Flag = Get-RebootFlag; }
     }
 
     # TODO
     Context 'Running' {
-        BeforeAll { $Flag = Get-RunningFlag; }
+        BeforeAll { $Script:Flag = Get-RunningFlag; }
     }
 }

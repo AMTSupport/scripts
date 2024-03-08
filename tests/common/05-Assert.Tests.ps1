@@ -1,9 +1,5 @@
 BeforeDiscovery {
-    $ModuleName = & $PSScriptRoot/Base.ps1;
-}
-
-AfterAll {
-    Remove-CommonModules;
+    $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
 Describe '05-Assert.psm1 Tests' {
