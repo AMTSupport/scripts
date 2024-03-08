@@ -1,3 +1,29 @@
+<#
+.SYNOPSIS
+    Determines if a reboot is required and sends a message to the user if it is.
+.DESCRIPTION
+    This script checks for a few conditions with their own reasons to determine if a reboot is required.
+    If a reboot is required the user is sent a message with the reason and a request to reboot.
+
+    The script will only send the message once per day at maximum, this is to avoid spamming the user with messages.
+
+    The script will exit with an exit code of 5100 if a reboot is required,
+    and with an exit code of 0 if no reboot is required.
+.PARAMETER MaxUpTime
+    The maximum amount of time the computer can be up before a reboot is required.
+    The default is 7 days.
+.INPUTS
+    None
+.OUTPUTS
+    None
+.EXAMPLE
+    .\Invoke-RebootNotice.ps1
+    This will check if a reboot is required and send a message to the user if it is.
+
+    .\Invoke-RebootNotice.ps1 -MaxUpTime [TimeSpan]::FromDays(1)
+    Runs the script with a maximum uptime of 1 day instead of the default 7.
+#>
+
 param(
     [TimeSpan]$MaxUpTime = [TimeSpan]::FromDays(7)
 )
@@ -31,6 +57,13 @@ function Get-ShouldRestart {
     end { Exit-Scope -ReturnValue $Local:Restart; }
 
     process {
+        if ((Get-CimInstance -Class Win32_OperatingSystem).LastBootUpTime -lt (Get-Date).Add(-$MaxUpTime)) {
+            return [PSCustomObject]@{
+                required = $true
+                reason = "This computer hasn't been restarted for more than $(Format-Time $MaxUpTime)"
+            }
+        }
+
         if ($null -ne (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired' -ErrorAction SilentlyContinue)) {
             return [PSCustomObject]@{
                 required = $true
@@ -38,12 +71,6 @@ function Get-ShouldRestart {
             }
         }
 
-        if ((Get-CimInstance -Class Win32_OperatingSystem).LastBootUpTime -lt (Get-Date).Add(-$MaxUpTime)) {
-            return [PSCustomObject]@{
-                required = $true
-                reason = "This computer hasn't been restarted for more than $(Format-Time $MaxUpTime)"
-            }
-        }
 
         return [PSCustomObject]@{
             required = $false
@@ -87,10 +114,7 @@ Invoke-RunMain $MyInvocation {
 Message from AMT
 
 $($Local:RequiresRestart.reason)
-At your earliest convenience can you please perform a restart.
-Using the Start Menu, click Power and choose restart (or Restart with updates if available).
-
-Please contact us if you have any queries.
+At your earliest convenience, please perform a restart.
 "@;
 
             $Local:Message | . msg * /TIME:3600;
@@ -106,7 +130,6 @@ Please contact us if you have any queries.
         }
     }
 
-
     Invoke-Error $Local:RequiresRestart.Reason;
-    Invoke-FailedExit -ExitCode 9999;
+    Invoke-FailedExit -ExitCode 5100;
 };
