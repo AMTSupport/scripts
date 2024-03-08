@@ -20,9 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: CD into docs
-        run: cd ./docs
-
       - uses: pnpm/action-setup@v3
         with:
           version: 8
@@ -36,9 +33,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        working-directory: ./docs
 
       - name: Build website
         run: pnpm build
+        working-directory: ./docs
 
       # Popular action to deploy to GitHub Pages:
       # Docs: https://github.com/peaceiris/actions-gh-pages#%EF%B8%8F-docusaurus
