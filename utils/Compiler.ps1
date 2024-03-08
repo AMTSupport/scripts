@@ -22,7 +22,6 @@
     TODO: Add support for using statements in the script, im not sure how to handle this yet.
     TODO: While compiling the script check it with PSScriptAnalyzer to make sure it is valid.
           In the same vain we could also check for any functions or variables that could be undefined and cause errors.
-    TODO: Fix indentation for multiline strings, there become broken after the merge.
 #>
 
 #Requires -Version 7.1
@@ -62,10 +61,14 @@ function Find-StartToEndBlock(
     [Parameter(Mandatory)][String]$OpenPattern,
     [Parameter(Mandatory)][String]$ClosePattern
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:StartIndex,$Local:EndIndex; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:StartIndex,$Local:EndIndex; }
 
     process {
+        if (-not $Lines -or $Lines.Count -eq 0) {
+            return -1,-1;
+        }
+
         [Int32]$Local:StartIndex = -1;
         [Int32]$Local:EndIndex = -1;
         [Int32]$Local:OpenLevel = 0;
@@ -168,212 +171,150 @@ function Get-Requirements([Parameter(Mandatory)][String[]]$Lines, [HashTable]$Re
     }
 }
 
-function Get-Modules {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:Modules; }
+# function Get-FilteredContent([Parameter(Mandatory)][String[]]$Content) {
+#     begin { Enter-Scope -Invocation $MyInvocation; }
+#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CleanedLines; }
 
-    process {
-        # Get all the modules in the root/common folder
-        # Then also decend into any subfolders and look for a mod.json file.
-        # The mod.json file is used to define the exported functions and aliases for modules in the folder.
+#     process {
+#         $Local:CleanedLines = $Content;
 
-        [System.Management.Automation.OrderedHashtable]$Local:ModuleDictionary = [Ordered]@{};
-        Get-ChildItem -Path $ModuleRoot -Filter 'mod.json' -Recurse | ForEach-Object {
-            Invoke-Debug "Found module description file: $($_.FullName)";
+#         while ($true) {
+#             ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:CleanedLines -OpenPattern '<#' -ClosePattern '#>';
 
-            [String]$Local:ModuleDescription = Get-Content -Raw -Path $_.FullName;
-            if (-not $Local:ModuleDescription) {
-                Invoke-Warn -Message "Module description file is empty: $($_.FullName). Skipping...";
-                continue;
-            }
+#             if ($Local:StartIndex -ge 0 -and $Local:EndIndex -ge 0) {
+#                 Invoke-Debug -Message "Found comment block at lines $Local:StartIndex to $Local:EndIndex";
+#                 Invoke-Debug -Message "Comment block content: $($Local:CleanedLines[$Local:StartIndex..$Local:EndIndex] | Join-String -Separator "`n")";
 
-            [PSCustomObject]$Local:ModuleDescription = ConvertFrom-Json -InputObject $Local:ModuleDescription;
-            if (-not $Local:ModuleDescription) {
-                Invoke-Warn -Message "Module description file is not valid JSON: $($_.FullName). Skipping...";
-                continue;
-            }
+#                 if ($Local:StartIndex -gt 0) {
+#                     $Local:CleanedLines = $Local:CleanedLines[0..($Local:StartIndex - 1)] + $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
+#                 } else {
+#                     $Local:CleanedLines = $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
+#                 }
 
-            $Local:FullNamePrefix = $_.DirectoryName.Replace($ModuleRoot, '').TrimStart('\');
-            $Local:ModuleDescription | ForEach-Object {
-                [String]$Local:ModuleName = $_.Name;
-                [String]$Local:ModulePath = Join-Path -Path $ModuleRoot -ChildPath $Local:FullNamePrefix -AdditionalChildPath $Local:ModuleName;
-                [String]$Local:ExportedFunctions = $_.Functions;
-                Invoke-Debug "Found module: $Local:ModuleName, path: $Local:ModulePath, functions: $Local:ExportedFunctions";
+#                 continue;
+#             }
 
-                if ($Local:ModuleDictionary[$Local:ModulePath]) {
-                    Invoke-Warn -Message "Duplicate module: $Local:ModuleName.";
-                    continue;
-                }
+#             break;
+#         }
 
-                $Local:ModuleDictionary.Add($Local:ModuleName, $Local:ModuleDescription);
-            }
-        };
-    }
-}
+#         # Remove any comments from the content
+#         $Local:CleanedLines = $Local:CleanedLines | Where-Object { $_ -notmatch '^#' };
 
-function Get-CompliledContent(
-    [Parameter(Mandatory)]
-    [String[]]$Lines
+#         return $Local:CleanedLines;
+#     }
+# }
+
+function Invoke-FixLines(
+    [Parameter(Mandatory)][ValidateNotNull()][String[]]$Lines
 ) {
-    [Tokens[]]$Local:Tokens = $null;
-    [ParseError[]]$Local:Errors = $null;
-    [Parser]::ParseInput(($Lines | Join-String -Separator "`n"), [ref]$Local:Tokens, [ref]$Local:Errors);
-
-    [Tokens]$Local:Tokens = $Local:Tokens | Where-Object { $_.Kind -ne 'Comment' -and $_.Kind -ne 'NewLine' };
-
-    $Local:Tokens, $Local:Errors;
-}
-
-function Get-FilteredContent([Parameter(Mandatory)][String[]]$Content) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CleanedLines; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:FixedLines; }
 
     process {
-        $Local:CleanedLines = $Content;
-
-        while ($true) {
-            ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:CleanedLines -OpenPattern '<#' -ClosePattern '#>';
-
-            if ($Local:StartIndex -ge 0 -and $Local:EndIndex -ge 0) {
-                Invoke-Debug -Message "Found comment block at lines $Local:StartIndex to $Local:EndIndex";
-                Invoke-Debug -Message "Comment block content: $($Local:CleanedLines[$Local:StartIndex..$Local:EndIndex] | Join-String -Separator "`n")";
-
-                if ($Local:StartIndex -gt 0) {
-                    $Local:CleanedLines = $Local:CleanedLines[0..($Local:StartIndex - 1)] + $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
-                } else {
-                    $Local:CleanedLines = $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
-                }
-
-                continue;
+        function Remove-Index(
+            [Parameter(Mandatory)][String[]]$Lines,
+            [Parameter(Mandatory)][Int32]$StartIndex,
+            [Parameter(Mandatory)][Int32]$EndIndex
+        ) {
+            if ($StartIndex -gt 0) {
+                $Lines = $Lines[0..($StartIndex - 1)] + $Lines[($EndIndex + 1)..($Lines.Count - 1)];
+            } else {
+                $Lines = $Lines[($EndIndex + 1)..($Lines.Count - 1)];
             }
 
-            break;
+            return $Lines;
         }
 
-        # Remove any comments from the content
-        $Local:CleanedLines = $Local:CleanedLines | Where-Object { $_ -notmatch '^#' };
+        function Update-Range(
+            [Parameter(Mandatory)][String[]]$Lines,
+            [Parameter(Mandatory)][Int32]$StartIndex,
+            [Parameter(Mandatory)][Int32]$EndIndex,
+            [Parameter(Mandatory)][String[]]$UpdatedLines
+        ) {
+            if ($StartIndex -gt 0) {
+                $Lines = $Lines[0..($StartIndex - 1)] + $UpdatedLines + $Lines[($EndIndex + 1)..($Lines.Count - 1)];
+            } else {
+                $Lines = $UpdatedLines + $Lines[($EndIndex + 1)..($Lines.Count - 1)];
+            }
 
-        return $Local:CleanedLines;
+            return $Lines;
+        }
+
+        function Invoke-DebugIndex(
+            [Parameter(Mandatory)][String]$Type,
+            [Parameter(Mandatory)][String[]]$Lines,
+            [Parameter(Mandatory)][Int32]$StartIndex,
+            [Parameter(Mandatory)][Int32]$EndIndex
+        ) {
+            Invoke-Debug -Message @"
+Found ${Type} at lines $StartIndex..$EndIndex
+$($Lines[$StartIndex..$EndIndex] | Join-String -Separator "`n")
+"@;
+        }
+
+        [String[]]$Local:FixedLines = $Lines;
+
+        # Look for any mulitline strings, capture them and trim the whitespace from the start to ensure they are correctly merged.
+        while ($True) {
+            ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:FixedLines -OpenPattern '^\s*.*@"' -ClosePattern '^\s+.*"@';
+            if ($Local:StartIndex -eq -1 -or $Local:EndIndex -eq -1) {
+                Invoke-Debug 'No more multiline strings found';
+                break
+            }
+
+            Invoke-DebugIndex -Type 'multiline string' -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex;
+
+            # If the multiline is not at the start of the content it does not need to be trimmed, so we skip it.
+            if (-not $Local:FixedLines[$Local:StartIndex].StartsWith('@"')) {
+                $Local:StartIndex++;
+            }
+
+            # Get the multiline indent level from the last line of the string.
+            # This is used so we don't remove any whitespace that is part of the actual string formatting.
+            $Local:IndentLevel = $Local:FixedLines[$Local:EndIndex].IndexOf('"@');
+
+            # Trim the leading whitespace from the multiline string.
+            [String[]]$Local:UpdatedLines = $Local:FixedLines[$Local:StartIndex..$Local:EndIndex] | ForEach-Object { $_.Substring($Local:IndentLevel) };
+
+            Invoke-Debug "Updated multiline string: `n$($Local:UpdatedLines | Join-String -Separator "`n")";
+            $Local:FixedLines = Update-Range -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex -UpdatedLines $Local:UpdatedLines;
+        };
+
+        # Remove any Document Blocks from the content
+        while ($True) {
+            ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:FixedLines -OpenPattern '<#' -ClosePattern '#>';
+
+            if ($Local:StartIndex -eq -1 -or $Local:EndIndex -eq -1) {
+                Invoke-Debug 'No more comment blocks found';
+                break
+            }
+
+            Invoke-DebugIndex -Type 'comment block' -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex;
+
+            $Local:FixedLines = Remove-Index -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex;
+        }
+
+        # Must be done after the comment blocks are removed, as it would remove the closing comment block.
+        # Remove any empty lines and comments from the content
+        # TODO :: Remove comments from the end of statements too? eg. $Var = 'Value' # This is a comment
+        $Local:FixedLines = $Local:FixedLines | Where-Object { $_ -ne '' -and $_ -notmatch '^\s*#' };
+
+        Invoke-Debug 'Finished fixing lines';
+        Invoke-Debug "Fixed lines: `n$($Local:FixedLines | Join-String -Separator "`n")";
+        return $Local:FixedLines;
     }
 }
 
-# function Invoke-ParseBody {
-#     [CmdletBinding()]
-#     param (
-#         [Parameter(Mandatory)]
-#         [String]$Body
-#     )
-
-#     begin { Enter-Scope -Invocation $MyInvocation; }
-#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CompiledBody; }
-
-#     process {
-#         [System.Management.Automation.Language.Token[]]$Local:Tokens = $null;
-#         [System.Management.Automation.Language.ParseError[]]$Local:Errors = $null;
-#         [System.Management.Automation.Language.Parser]::ParseInput($Body, [ref]$Local:Tokens, [ref]$Local:Errors);
-
-#         if ($Local:Errors) {
-#             $Local:Errors | ForEach-Object {
-#                 Write-Host -Object "Error parsing body: $($_.Message)";
-#             }
-
-#             Invoke-FailedExit -ExitCode $Script:UNABLE_TO_PARSE_BODY;
-#         }
-
-#         [Int16]$Local:Offset = 0;
-#         [String]$Local:CompiledBody = $Local:Tokens | ForEach-Object -Parallel {
-#             $Local:Kind = $_.Kind;
-#             $Local:Text = $_.Text;
-#             $Local:Start = $_.Start;
-#             $Local:Length = $_.Length;
-
-#             # if ($Local:Kind -eq 'Variable') {
-#             #     $Local:VariableName = $Local:Text.Substring(1);
-#             #     $Local:VariableValue = Get-Variable -Name $Local:VariableName -ValueOnly -ErrorAction SilentlyContinue;
-#             #     if (-not $Local:VariableValue) {
-#             #         Invoke-Error -Message "Unable to find variable: $Local:VariableName";
-#             #         Invoke-FailedExit -ExitCode $Script:UNABLE_TO_PARSE_BODY;
-#             #     }
-
-#             #     $Local:VariableValue = $Local:VariableValue.ToString();
-#             #     $Local:Text = $Local:Text.Replace($Local:VariableName, $Local:VariableValue);
-#             # }
-
-#             $Local:Text;
-#         } | Join-String -Separator '';
-
-#         return $Local:CompiledBody;
-#     }
-# }
-
-# function Get-UsingStatements(
-#     [Parameter(Mandatory)][Token[]]$Tokens,
-#     [Parameter(Mandatory)][Int,Int]$Range
-# ) {
-#     begin { Enter-Scope -Invocation $MyInvocation; }
-#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue [ref]$Local:UsingStatements,[ref]$Local:NewRange; }
-
-#     process {
-#         [Token[]]$Local:UsingStatements = $Tokens | Where-Object { $_.Kind -eq 'Using' };
-#         if ($Local:UsingStatements.Count -eq 0) {
-#             return $null,$Range;
-#         }
-
-
-
-
-#         return $Local:UsingStatements;
-#     }
-# }
-
-# function Remove-UsingStatements {
-#     param (
-#         [System.Management.Automation.Language.Ast]$Ast,
-#         [System.Collections.ObjectModel.Collection[System.Management.Automation.Language.Token]]$Tokens
-#     )
-
-#     try {
-#         # Find 'using' statements in the AST
-#         $usingStatements = $Ast.FindAll({ param($ast) $ast -is [System.Management.Automation.Language.UsingStatementAst] }, $true)
-
-#         # Collect the start and end positions of 'using' statements
-#         $usingRanges = $usingStatements | ForEach-Object { $_.Extent.StartOffset, $_.Extent.EndOffset }
-
-#         # Filter out tokens that are part of 'using' statements
-#         $filteredTokens = $Tokens | Where-Object {
-#             $TokenRange = $_.Extent.StartOffset..$_.Extent.EndOffset
-
-#             # Check if the token is outside all 'using' statement ranges
-#             $Count = ($usingRanges | Where-Object { ($TokenRange -contains $_) });
-#             if ($Count -ne 0) {
-#                 Write-Host -Object "Token is part of a using statement: $($_.Extent.Text)"
-
-#                 return $false
-#             } else {
-#                 return $true
-#             }
-#         }
-
-#         # Reconstruct the script from filtered tokens
-#         $newScript = $filteredTokens | ForEach-Object { $_.Extent.Text } | Out-String -NoNewline
-
-#         return $newScript
-#     }
-#     catch {
-#         Write-Error "Error processing AST: $_"
-#     }
-# }
-
 function New-CompiledScript(
-    [Parameter(Mandatory)][ValidateNotNull()][String[]]$Lines,
+    [Parameter(Mandatory)][ValidateNotNullOrEmpty()][String[]]$Lines,
     [Parameter(Mandatory)][ValidateNotNull()][HashTable]$ModuleTable,
     [Parameter(Mandatory)][ValidateNotNull()][HashTable]$Requirements
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CompiledScript; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:CompiledScript; }
 
     process {
-        [String[]]$Local:FilteredLines = Get-FilteredContent -Content $Lines;
+        [String[]]$Local:FilteredLines = Invoke-FixLines -Lines $Lines;
 
         [String]$Local:RequirmentLines = $Requirements.GetEnumerator() | ForEach-Object {
             $Local:Type = $_.Key;
@@ -454,7 +395,11 @@ $Local:ParamBlock
     "`"$Local:Key`" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-        $(Get-FilteredContent -Content $Local:Value | Join-String -Separator "`n`t`t")
+$(
+    # We indent lines before running the fix lines function so multiline strings are correctly indented.
+    [String[]]$Local:IndentedLines = $Local:Value | ForEach-Object { "`t`t$_" };
+    Invoke-FixLines $Local:IndentedLines | Join-String -Separator "`n";
+)
     };"
     } | Join-String -Separator "```n`t")
 }

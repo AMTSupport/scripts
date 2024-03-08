@@ -21,24 +21,3 @@ jobs:
           echo "Manual changes to 'compiled' directory are not allowed."
           exit 1
         fi
-    #     git fetch --depth=1 origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
-    #     git diff --name-only ${{ github.base_ref }} -- compiled/
-    #     if [ $? -eq 0 ]; then
-    #       echo "Compiled directory has changed."
-    #       exit 1
-    #     else
-    #       echo "Compiled directory has not changed."
-    #       exit 0
-    #     fi
-
-    # - name: Check that the 'compiled' Directory only contains commits from Github Actions
-    #   run: |
-    #     git fetch --depth=1 origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
-    #     git log --pretty=format:"%an" ${{ github.base_ref }} -- compiled/
-    #     if [ $? -eq 0 ]; then
-    #       echo "Compiled directory contains commits from Github Actions."
-    #       exit 0
-    #     else
-    #       echo "Compiled directory contains commits from other sources."
-    #       exit 1
-    #     fi
