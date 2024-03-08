@@ -166,6 +166,72 @@ function Get-Ast {
 }
 
 <#
+.SYNOPSIS
+    Get the return type of an AST Object.
+.OUTPUTS
+    System.Reflection.TypeInfo[]
+    The return types of the AST object.
+
+    null
+    If the AST object does not have any return statements.
+#>
+function Get-ReturnType {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, HelpMessage = 'The AST object to test.')]
+        [ValidateNotNullOrEmpty()]
+        [Object]$InputObject
+    )
+
+    process {
+        $Local:Ast = Get-Ast -InputObject $InputObject;
+        $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
+
+        if ($Local:AllReturnStatements.Count -eq 0) {
+            Invoke-Debug -Message 'No return statements found in the AST Object.';
+            return $null;
+        }
+
+        [System.Reflection.TypeInfo[]]$Local:ReturnTypes = @();
+        foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
+            # Check if the return statement has any values or just an empty return statement.
+            if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
+                Invoke-Debug -Message 'No pipeline elements found in the return statement.';
+                return $null;
+            }
+
+            [System.Management.Automation.Language.ExpressionAst]$Local:Expression = $Local:ReturnStatement.Pipeline.PipelineElements[0].expression;
+
+            # TODO - Better handling of the variable path.
+            if ($Local:Expression.VariablePath) {
+                [String]$Local:VariableName = $Local:Expression.VariablePath.UserPath;
+
+                if ($Local:VariableName -eq 'null') {
+                    $Local:ReturnTypes += [Void];
+                    continue;
+                }
+
+                # Try to resolve the variable and check its type.
+                $Local:Variable = Get-Variable -Name:$Local:VariableName -ValueOnly -ErrorAction SilentlyContinue;
+
+                if ($Local:Variable) {
+                    [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Variable.GetType();
+                    $Local:ReturnTypes += $Local:ReturnType;
+                } else {
+                    Invoke-Warn -Message "Could not resolve the variable: $Local:VariableName.";
+                    continue
+                }
+            } else {
+                [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Expression.StaticType;
+                $Local:ReturnTypes += $Local:ReturnType;
+            }
+        }
+
+        return $Local:ReturnTypes | Sort-Object -Unique;
+    }
+}
+
+<#
 .DESCRIPTION
     Validate that this ast object has a return type that matches teh expected type.
 
@@ -181,7 +247,7 @@ function Test-ReturnType {
 
         [Parameter(Mandatory, HelpMessage = 'The Valid Types to test against.')]
         [ValidateNotNullOrEmpty()]
-        [String[]]$ValidTypes,
+        [System.Reflection.TypeInfo[]]$ValidTypes,
 
         [Parameter(HelpMessage = 'Allow the return type to be null.')]
         [Switch]$AllowNull
@@ -189,6 +255,26 @@ function Test-ReturnType {
 
     process {
         $Local:Ast = Get-Ast -InputObject $InputObject;
+        $Local:ReturnTypes = Get-ReturnType -InputObject $InputObject;
+
+        if ($null -eq $Local:ReturnTypes) {
+            Invoke-Debug -Message 'No return types found in the AST Object.';
+            return $False;
+        }
+
+        foreach ($Local:ReturnType in $Local:ReturnTypes) {
+            if ($ValidTypes -contains $Local:ReturnType) {
+                continue;
+            } elseif ($AllowNull -and $Local:ReturnType -eq [Void]) {
+                continue;
+            } else {
+                Invoke-Warn -Message "The return type of the AST object is not valid. Expected: $($ValidTypes -join ', '); Actual: $($Local:ReturnType.Name)";
+                return $False;
+            }
+        }
+
+        return $True;
+
         $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
 
         if ($Local:AllReturnStatements.Count -eq 0) {
@@ -214,9 +300,7 @@ function Test-ReturnType {
 
                 if ($Local:Variable) {
                     [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Variable.GetType();
-                    [String]$Local:TypeName = $Local:ReturnType.Name;
-
-                    if ($ValidTypes -contains $Local:TypeName) {
+                    if ($ValidTypes -contains $Local:ReturnType) {
                         continue;
                     }
                 } else {
@@ -285,3 +369,4 @@ function Test-Parameters {
 
 #endregion
 
+Export-ModuleMember -Function *;
