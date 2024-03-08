@@ -66,7 +66,7 @@ function Get-CachedLocation {
                 return $False;
             }
 
-            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes:@('Boolean'))) {
+            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes [Boolean])) {
                 Invoke-Error 'The script block should return a boolean value.';
                 return $False;
             }
