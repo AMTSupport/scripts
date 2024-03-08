@@ -1,0 +1,133 @@
+---
+id: Invoke-RunMain
+title: Invoke-RunMain
+description: Help page for the "Invoke-RunMain" command
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+---
+
+## SYNOPSIS
+
+Runs the main function of a script while ensuring that all common modules have been imported.
+
+## SYNTAX
+
+```powershell
+Invoke-RunMain [-Invocation] <InvocationInfo> [-Main] <ScriptBlock> [-DontImport] [-HideDisclaimer]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+
+This function is intended to be used as the entry point for all scripts.
+It will ensure that all common modules have been imported, and then invoke the main function of the script.
+This function will automatically clone the repo if required, otherwise try and find the repo on the local machine.
+
+## EXAMPLES
+
+### Example 1
+
+```powershell
+PS C:\> {{ Add example code here }}
+```
+
+\{\{ Add example description here \}\}
+
+## PARAMETERS
+
+### -Invocation
+
+The InvocationInfo object of the script.
+
+```yaml
+Type: InvocationInfo
+Parameter Sets: (All)
+Aliases:
+
+Required: True
+Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Main
+
+The main function of the script, which will be invoked only if the script is being run directly.
+If the script is being imported, this function will not be invoked.
+
+```yaml
+Type: ScriptBlock
+Parameter Sets: (All)
+Aliases:
+
+Required: True
+Position: 2
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -DontImport
+
+\{\{ Fill DontImport Description \}\}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -HideDisclaimer
+
+\{\{ Fill HideDisclaimer Description \}\}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: (($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ProgressAction
+
+\{\{ Fill ProgressAction Description \}\}
+
+```yaml
+Type: ActionPreference
+Parameter Sets: (All)
+Aliases: proga
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable, -InformationAction, -InformationVariable, -OutVariable, -OutBuffer, -PipelineVariable, -Verbose, -WarningAction, and -WarningVariable. For more information, see [about_CommonParameters](http://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS
