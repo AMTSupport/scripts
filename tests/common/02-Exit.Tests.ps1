@@ -2,10 +2,6 @@ BeforeDiscovery {
     $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
-AfterAll {
-    Remove-CommonModules;
-}
-
 Describe 'Exit Tests' {
     Context 'Invoke-Exit' {
         It 'Should throw with a FailedExit ErrorRecord with the ExitCode as the TargetObject' {

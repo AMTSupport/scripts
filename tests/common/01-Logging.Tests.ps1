@@ -1,20 +1,23 @@
 BeforeDiscovery {
-    $ModuleName = & $PSScriptRoot/Base.ps1;
-}
-
-AfterAll {
-    Remove-CommonModules;
+    $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
 BeforeAll {
     function Get-ShouldBeString([String]$String) {
-        $String -replace "`n", "`n+ ";
+        $Local:FixedString = $String -replace "`n", "`n+ ";
+
+        if (Test-SupportsUnicode) {
+            # There is an extra space at the end of the string
+            $Local:FixedString = " $Local:FixedString"
+        }
+
+        return $Local:FixedString;
     }
 
     function Get-Stripped([Parameter(ValueFromPipeline)][String]$String) {
         # Replace all non-ASCII characters with a nothing string
         # Replace all ANSI escape sequences with a nothing string
-        $String -replace '[^\u0000-\u007F]', '' -replace '\x1B\[[0-9;]*m', ''
+        $String -replace '[^\u0000-\u007F]', '' -replace '\x1B\[[0-9;]*m', '';
     }
 }
 
@@ -27,6 +30,7 @@ Describe 'Logging Tests' {
     Context 'Invoke-Write' {
         It 'Should not write anything if $ShouldWrite is $false' {
             @{
+                PSPrefix    = '🌟'
                 PSMessage   = 'Test message'
                 PSColour    = 'Green'
                 ShouldWrite = $false
@@ -37,6 +41,7 @@ Describe 'Logging Tests' {
 
         It 'Should write the message if $ShouldWrite is $true' {
             $Params = @{
+                PSPrefix    = '🌟'
                 PSMessage   = 'Test message'
                 PSColour    = 'Green'
                 ShouldWrite = $true
@@ -48,6 +53,7 @@ Describe 'Logging Tests' {
 
         It 'Should replace newline characters in the message' {
             $Params = @{
+                PSPrefix    = '🌟'
                 PSMessage   = "Test message`nSecond line"
                 PSColour    = 'Green'
                 ShouldWrite = $true
