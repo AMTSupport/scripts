@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ master ]
-    paths: [ 'src/**', 'utils/Generate-Documentation.ps1', '.github/workflows/deploy-docs.yaml' ]
+    paths: [ 'src/**', 'docs/**', 'utils/Generate-Documentation.ps1', '.github/workflows/deploy-docs.yaml' ]
 
 permissions:
   contents: write
