@@ -25,7 +25,6 @@ jobs:
           version: 8
           run_install: false
           standalone: true
-          dest: ./docs
 
       - uses: actions/setup-node@v4
         with:
@@ -39,6 +38,7 @@ jobs:
 
       - name: Build website
         run: pnpm build
+        working-directory: ./docs
 
       # Popular action to deploy to GitHub Pages:
       # Docs: https://github.com/peaceiris/actions-gh-pages#%EF%B8%8F-docusaurus
