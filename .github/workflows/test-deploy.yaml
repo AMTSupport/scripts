@@ -3,7 +3,7 @@ name: Test deployment
 on:
   pull_request:
     branches: [ master ]
-    paths: [ 'src/**', 'utils/Generate-Documentation.ps1', '.github/workflows/test-deploy.yaml' ]
+    paths: [ 'src/**', 'docs/**', 'utils/Generate-Documentation.ps1', '.github/workflows/test-deploy.yaml' ]
 
 jobs:
   test-deploy:
