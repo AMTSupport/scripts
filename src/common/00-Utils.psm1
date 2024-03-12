@@ -278,14 +278,14 @@ function Test-ReturnType {
         $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
 
         if ($Local:AllReturnStatements.Count -eq 0) {
-            Invoke-Debug -Message "No return statements found in the script block.";
+            Invoke-Debug -Message 'No return statements found in the script block.';
             return $False;
         }
 
         foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
             # Check if the return statement has any values or just an empty return statement.
             if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
-                Invoke-Debug -Message "No pipeline elements found in the return statement.";
+                Invoke-Debug -Message 'No pipeline elements found in the return statement.';
                 return $False;
             }
 
@@ -366,7 +366,109 @@ function Test-Parameters {
         return $True;
     }
 }
-
 #endregion
+
+function Install-ModuleFromGitHub {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [String]$GitHubRepo,
+
+        [Parameter(Mandatory)]
+        [String]$Branch,
+
+        [ValidateSet('CurrentUser', 'AllUsers')]
+        [String]$Scope = 'CurrentUser'
+    )
+
+    process {
+        Invoke-Verbose ("[$(Get-Date)] Retrieving {0} {1}" -f $GitHubRepo, $Branch);
+
+        [String]$Local:ZipballUrl = "https://api.github.com/repos/$GithubRepo/zipball/$Branch";
+        [String]$Local:ModuleName = $GitHubRepo.split('/')[-1]
+
+        [String]$Local:TempDir = [System.IO.Path]::GetTempPath();
+        [String]$Local:OutFile = Join-Path -Path $Local:TempDir -ChildPath "$($ModuleName).zip";
+
+        if (-not ($IsLinux -or $IsMacOS)) {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;
+        }
+
+        Invoke-Verbose "Downloading $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+        try {
+            $ErrorActionPreference = 'Stop';
+
+            Invoke-RestMethod $Local:ZipballUrl -OutFile $Local:OutFile;
+        } catch {
+            Invoke-Error "Failed to download $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+        }
+
+        if (-not ([System.Environment]::OSVersion.Platform -eq 'Unix')) {
+            Unblock-File $Local:OutFile;
+        }
+
+        [String]$Local:FileHash = (Get-FileHash -Path $Local:OutFile).hash;
+        [String]$Local:ExtractDir = Join-Path -Path $Local:TempDir -ChildPath $Local:FileHash;
+
+        Invoke-Verbose "Extracting $Local:OutFile to $Local:ExtractDir";
+        try {
+            Expand-Archive -Path $Local:OutFile -DestinationPath $Local:ExtractDir -Force;
+        } catch {
+            Invoke-Error "Failed to extract $Local:OutFile to $Local:ExtractDir";
+            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+        }
+
+        [System.IO.DirectoryInfo]$Local:UnzippedArchive = Get-ChildItem -Path $Local:ExtractDir -Directory | Select-Object -First 1;
+
+        switch ($Scope) {
+            'CurrentUser' {
+                [String]$Local:PSModulePath = ($PSGetPath).CurrentUserModules;
+                break;
+            }
+            'AllUsers' {
+                [String]$Local:PSModulePath = ($PSGetPath).AllUsersModules;
+                break;
+            }
+        }
+
+        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem (Join-Path -Path $Local:UnzippedArchive -ChildPath *) -File | Where-Object { $_.Name -like '*.psd1' };
+        } else {
+            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem -Path $Local:UnzippedArchive.FullName -File | Where-Object { $_.Name -like '*.psd1' };
+        }
+
+        if ($Local:ManifestFiles.Count -eq 0) {
+            Invoke-Error "No manifest file found in $($Local:UnzippedArchive.FullName)";
+            Invoke-FailedExit -ExitCode 9999;
+        } elseif ($Local:ManifestFiles.Count -gt 1) {
+            Invoke-Debug "Multiple manifest files found in $($Local:UnzippedArchive.FullName)";
+            Invoke-Debug "Manifest files: $($Local:ManifestFiles.FullName -join ', ')";
+
+            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Where-Object { $_.Name -like "$Local:ModuleName*.psd1" } | Select-Object -First 1;
+        } else {
+            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Select-Object -First 1;
+            Invoke-Debug "Manifest file: $($Local:ManifestFile.FullName)";
+        }
+
+        $Local:Manifest = Test-ModuleManifest -Path $Local:ManifestFile.FullName;
+        [String]$Local:ModuleName = $Local:Manifest.Name;
+        [String]$Local:ModuleVersion = $Local:Manifest.Version;
+
+        [String]$Local:SourcePath = $Local:ManifestFile.DirectoryName;
+        [String]$Local:TargetPath = (Join-Path -Path $Local:PSModulePath -ChildPath (Join-Path -Path $Local:ModuleName -ChildPath $Local:ModuleVersion));
+        New-Item -ItemType directory -Path $Local:TargetPath -Force | Out-Null;
+
+        Invoke-Debug "Copying $Local:SourcePath to $Local:TargetPath";
+
+        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+            Copy-Item "$(Join-Path -Path $Local:UnzippedArchive -ChildPath *)" $Local:TargetPath -Force -Recurse | Out-Null;
+        } else {
+            Copy-Item "$Local:SourcePath\*" $Local:TargetPath -Force -Recurse | Out-Null;
+        }
+
+        return $Local:ModuleName;
+    }
+}
 
 Export-ModuleMember -Function *;

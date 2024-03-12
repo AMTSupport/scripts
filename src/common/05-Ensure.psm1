@@ -32,6 +32,7 @@ function Invoke-EnsureUser {
 
 $Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module.';
 $Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
+$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
 $Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 function Invoke-EnsureModules {
     [CmdletBinding()]
@@ -60,19 +61,65 @@ function Invoke-EnsureModules {
             if (Test-Path -Path $Local:Module) {
                 Invoke-Debug "Module '$Local:Module' is a local path to a module, importing...";
                 $Script:ImportedModules.Add(($Local:Module | Split-Path -LeafBase));
-            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module)) {
+            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module -ErrorAction SilentlyContinue)) {
                 if ($NoInstall) {
                     Invoke-Error -Message "Module '$Local:Module' is not installed, and no-install is set.";
                     Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
                 }
 
-                Invoke-Info "Module '$Local:Module' is not installed, installing...";
-                try {
-                    Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
-                    $Script:ImportedModules.Add($Local:Module);
-                } catch {
-                    Invoke-Error -Message "Unable to install module '$Local:Module'.";
-                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+                if (Find-Module -Name $Local:Module -ErrorAction SilentlyContinue) {
+                    Invoke-Info "Module '$Local:Module' is not installed, installing...";
+                    try {
+                        Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
+                        $Script:ImportedModules.Add($Local:Module);
+                    } catch {
+                        Invoke-Error -Message "Unable to install module '$Local:Module'.";
+                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+                    }
+                } elseif ($Local:Module -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$'){
+                    # Try to install the module from a git repository.
+                    # Parse the input string into <owner>/<repo>/<ref>
+                    [String]$Local:Owner = $Matches.owner;
+                    [String]$Local:Repo = $Matches.repo;
+                    [String]$Local:Ref = $Matches.ref;
+                    [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
+
+                    Invoke-Info "Module '$Local:Module' not found in PSGallery, trying to install from git...";
+                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
+
+                    try {
+                        $ErrorActionPreference = 'Stop';
+
+                        [String]$Local:Module = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+                    } catch {
+                        Invoke-Error -Message "Unable to install module '$Local:Module' from git.";
+                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+                    }
+
+                    # try {
+                    #     $ErrorActionPreference = 'Stop';
+
+                    #     [PSCustomObject]$Local:GitModule = Get-GitModule -ProjectUri $Local:ProjectUri -Branch $Local:Ref;
+                    #     [String]$Local:Module = $Local:GitModule.ManifestName;
+                    # } catch {
+                    #     Invoke-Error -Message "Unable to find module '$Local:Module' in git.";
+                    #     Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -ErrorRecord $_;
+                    # }
+
+                    # if (Get-Module -ListAvailable -Name $Local:GitModule.ManifestName) {
+                    #     Invoke-Debug "Module '$Local:Module' is installed.";
+
+                    #     if ($Local:GitModule.Version -gt (Get-Module -ListAvailable -Name $Local:GitModule.ManifestName).Version) {
+                    #         Invoke-Info "Module '$($Local:GitModule.ManifestName)' is outdated, updating...";
+                    #         Update-GitModule -Name $Local:GitModule.ManifestName -Force;
+                    #     }
+                    # } else {
+                    #     Invoke-Info "Module '$Local:Module' is not installed, installing...";
+                    #     Install-GitModule -ProjectUri $Local:ProjectUri -Branch $Local:Ref;
+                    # }
+                } else {
+                    Invoke-Error -Message "Module '$Local:Module' could not be found using Find-Module, and was not a git repoistory.";
+                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
                 }
             } else {
                 Invoke-Debug "Module '$Local:Module' is installed.";
@@ -87,7 +134,6 @@ function Invoke-EnsureModules {
     }
 }
 
-# FIXME: NOT WORKING
 $Script:WifiXmlTemplate = "<?xml version=""1.0""?>
 <WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
   <name>{0}</name>

@@ -1,3 +1,7 @@
+$Script:Validations = @{
+    Email = '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
+}
+
 [HashTable]$Script:WriteStyle = @{
     PSColour    = 'DarkCyan';
     PSPrefix    = '▶';
@@ -20,7 +24,7 @@ function Clear-HostLight (
     [Console]::SetCursorPosition(0, ($CurrentLine - $Count))
 }
 
-function Register-ReadLineKeyHandlers {
+function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
     [Object]$Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
     [Boolean]$Script:PressedEnter = $False;
     Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
@@ -39,12 +43,29 @@ function Register-ReadLineKeyHandlers {
         [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
     };
 
+    [System.Func[String,Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
+    if ($DontSaveInputs) {
+        Set-PSReadLineOption -AddToHistoryHandler {
+            Param([String]$Line)
+
+            $False;
+        }
+    }
+
     return @{
-        Enter = $Local:PreviousEnterFunction;
-        CtrlC = $Local:PreviousCtrlCFunction;
+        Enter           = $Local:PreviousEnterFunction;
+        CtrlC           = $Local:PreviousCtrlCFunction;
+        HistoryHandler  = $Local:HistoryHandler;
     }
 }
 
+function Unregister-CustomReadLineHandlers([HashTable]$PreviousHandlers) {
+    Set-PSReadLineKeyHandler -Chord Enter -Function $PreviousHandlers.Enter;
+    Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $PreviousHandlers.CtrlC;
+    Set-PSReadLineOption -AddToHistoryHandler $PreviousHandlers.HistoryHandler;
+}
+
+# TODO - Better SecureString handling.
 function Get-UserInput {
     Param(
         [Parameter(Mandatory)]
@@ -57,7 +78,13 @@ function Get-UserInput {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [ScriptBlock]$Validate
+        [ScriptBlock]$Validate,
+
+        [Parameter()]
+        [Switch]$AsSecureString,
+
+        [Parameter()]
+        [Switch]$DontSaveInputs
     )
 
     begin { Enter-Scope; }
@@ -67,14 +94,14 @@ function Get-UserInput {
         Invoke-Write @Script:WriteStyle -PSMessage $Title;
         Invoke-Write @Script:WriteStyle -PSMessage $Question;
 
-        [HashTable]$Local:PreviousFunctions = Register-ReadLineKeyHandlers;
+        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:($DontSaveInputs -or $AsSecureString);
 
         $Host.UI.RawUI.FlushInputBuffer();
         Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
         Write-Host "`r>> " -NoNewline;
 
         do {
-            [String]$Local:UserInput = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+            [String]$Local:UserInput = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
             if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeReturnAsIs($Local:UserInput)))) {
                 $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
                 Clear-HostLight -Count $Local:ClearLines;
@@ -90,17 +117,14 @@ function Get-UserInput {
             }
         } while (-not $Script:ShouldAbort);
 
-        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousFunctions.Enter;
-        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousFunctions.CtrlC;
-
-        $Local:HistoryFile = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt";
-        if (Test-Path -Path $Local:HistoryFile) {
-            $Local:History = Get-Content -Path $Local:HistoryFile;
-            $Local:History | Select-Object -First ($Local:History.Count - 1) | Set-Content -Path $Local:HistoryFile;
-        }
+        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 
         if ($Script:ShouldAbort) {
             throw [System.Management.Automation.PipelineStoppedException]::new();
+        }
+
+        if ($AsSecureString) {
+            [SecureString]$Local:UserInput = ConvertTo-SecureString -String $Local:UserInput -AsPlainText -Force;
         }
 
         return $Local:UserInput;
@@ -157,6 +181,8 @@ function Get-UserSelection {
         Invoke-Write @Script:WriteStyle -PSMessage $Question;
 
         #region Setup PSReadLine Key Handlers
+        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs;
+
         $Local:PreviousTabFunction = (Get-PSReadLineKeyHandler -Chord Tab).Function;
         if (-not $Local:PreviousTabFunction) {
             $Local:PreviousTabFunction = 'TabCompleteNext';
@@ -198,25 +224,6 @@ function Get-UserSelection {
                 [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
             }
         }
-
-        $Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
-        $Script:PressedEnter = $false;
-        Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
-            Param([System.ConsoleKeyInfo]$Key, $Arg)
-
-            $Script:PressedEnter = $true;
-            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-        };
-
-        $Local:PreviousCtrlCFunction = (Get-PSReadLineKeyHandler -Chord Ctrl+c).Function;
-        $Script:ShouldAbort = $false;
-        Set-PSReadLineKeyHandler -Chord Ctrl+c -ScriptBlock {
-            Param([System.ConsoleKeyInfo]$Key, $Arg)
-
-            $Script:ShouldAbort = $true;
-            [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
-            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-        };
         #endregion
 
         [Boolean]$Local:FirstRun = $true;
@@ -227,7 +234,7 @@ function Get-UserSelection {
         Write-Host "`r>> " -NoNewline;
 
         do {
-            $Local:Selection = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+            $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 
             if (-not $Local:Selection -and $Local:FirstRun) {
                 $Local:Selection = $Choices[$DefaultChoice];
@@ -247,8 +254,7 @@ function Get-UserSelection {
         } while ($Local:Selection -notin $Choices -and -not $Script:ShouldAbort);
 
         Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
-        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousEnterFunction;
-        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousCtrlCFunction;
+        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 
         if ($Script:ShouldAbort) {
             throw [System.Management.Automation.PipelineStoppedException]::new();
@@ -284,4 +290,4 @@ function Get-PopupSelection {
     return $Local:Selection;
 }
 
-Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection;
+Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
