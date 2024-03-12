@@ -661,12 +661,12 @@ $Global:EmbededModules = [ordered]@{
 		        return $True;
 		        $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
 		        if ($Local:AllReturnStatements.Count -eq 0) {
-		            Invoke-Debug -Message "No return statements found in the script block.";
+		            Invoke-Debug -Message 'No return statements found in the script block.';
 		            return $False;
 		        }
 		        foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
 		            if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
-		                Invoke-Debug -Message "No pipeline elements found in the return statement.";
+		                Invoke-Debug -Message 'No pipeline elements found in the return statement.';
 		                return $False;
 		            }
 		            [System.Management.Automation.Language.ExpressionAst]$Local:Expression = $Local:ReturnStatement.Pipeline.PipelineElements[0].expression;
@@ -724,6 +724,87 @@ Text: $($Local:Region.Text)
 		            return $False;
 		        }
 		        return $True;
+		    }
+		}
+		function Install-ModuleFromGitHub {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [String]$GitHubRepo,
+		        [Parameter(Mandatory)]
+		        [String]$Branch,
+		        [ValidateSet('CurrentUser', 'AllUsers')]
+		        [String]$Scope = 'CurrentUser'
+		    )
+		    process {
+		        Invoke-Verbose ("[$(Get-Date)] Retrieving {0} {1}" -f $GitHubRepo, $Branch);
+		        [String]$Local:ZipballUrl = "https://api.github.com/repos/$GithubRepo/zipball/$Branch";
+		        [String]$Local:ModuleName = $GitHubRepo.split('/')[-1]
+		        [String]$Local:TempDir = [System.IO.Path]::GetTempPath();
+		        [String]$Local:OutFile = Join-Path -Path $Local:TempDir -ChildPath "$($ModuleName).zip";
+		        if (-not ($IsLinux -or $IsMacOS)) {
+		            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;
+		        }
+		        Invoke-Verbose "Downloading $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+		        try {
+		            $ErrorActionPreference = 'Stop';
+		            Invoke-RestMethod $Local:ZipballUrl -OutFile $Local:OutFile;
+		        } catch {
+		            Invoke-Error "Failed to download $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+		        }
+		        if (-not ([System.Environment]::OSVersion.Platform -eq 'Unix')) {
+		            Unblock-File $Local:OutFile;
+		        }
+		        [String]$Local:FileHash = (Get-FileHash -Path $Local:OutFile).hash;
+		        [String]$Local:ExtractDir = Join-Path -Path $Local:TempDir -ChildPath $Local:FileHash;
+		        Invoke-Verbose "Extracting $Local:OutFile to $Local:ExtractDir";
+		        try {
+		            Expand-Archive -Path $Local:OutFile -DestinationPath $Local:ExtractDir -Force;
+		        } catch {
+		            Invoke-Error "Failed to extract $Local:OutFile to $Local:ExtractDir";
+		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+		        }
+		        [System.IO.DirectoryInfo]$Local:UnzippedArchive = Get-ChildItem -Path $Local:ExtractDir -Directory | Select-Object -First 1;
+		        switch ($Scope) {
+		            'CurrentUser' {
+		                [String]$Local:PSModulePath = ($PSGetPath).CurrentUserModules;
+		                break;
+		            }
+		            'AllUsers' {
+		                [String]$Local:PSModulePath = ($PSGetPath).AllUsersModules;
+		                break;
+		            }
+		        }
+		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem (Join-Path -Path $Local:UnzippedArchive -ChildPath *) -File | Where-Object { $_.Name -like '*.psd1' };
+		        } else {
+		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem -Path $Local:UnzippedArchive.FullName -File | Where-Object { $_.Name -like '*.psd1' };
+		        }
+		        if ($Local:ManifestFiles.Count -eq 0) {
+		            Invoke-Error "No manifest file found in $($Local:UnzippedArchive.FullName)";
+		            Invoke-FailedExit -ExitCode 9999;
+		        } elseif ($Local:ManifestFiles.Count -gt 1) {
+		            Invoke-Debug "Multiple manifest files found in $($Local:UnzippedArchive.FullName)";
+		            Invoke-Debug "Manifest files: $($Local:ManifestFiles.FullName -join ', ')";
+		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Where-Object { $_.Name -like "$Local:ModuleName*.psd1" } | Select-Object -First 1;
+		        } else {
+		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Select-Object -First 1;
+		            Invoke-Debug "Manifest file: $($Local:ManifestFile.FullName)";
+		        }
+		        $Local:Manifest = Test-ModuleManifest -Path $Local:ManifestFile.FullName;
+		        [String]$Local:ModuleName = $Local:Manifest.Name;
+		        [String]$Local:ModuleVersion = $Local:Manifest.Version;
+		        [String]$Local:SourcePath = $Local:ManifestFile.DirectoryName;
+		        [String]$Local:TargetPath = (Join-Path -Path $Local:PSModulePath -ChildPath (Join-Path -Path $Local:ModuleName -ChildPath $Local:ModuleVersion));
+		        New-Item -ItemType directory -Path $Local:TargetPath -Force | Out-Null;
+		        Invoke-Debug "Copying $Local:SourcePath to $Local:TargetPath";
+		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+		            Copy-Item "$(Join-Path -Path $Local:UnzippedArchive -ChildPath *)" $Local:TargetPath -Force -Recurse | Out-Null;
+		        } else {
+		            Copy-Item "$Local:SourcePath\*" $Local:TargetPath -Force -Recurse | Out-Null;
+		        }
+		        return $Local:ModuleName;
 		    }
 		}
 		Export-ModuleMember -Function *;
@@ -1386,6 +1467,7 @@ Text: $($Local:Region.Text)
 		}
 		$Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module.';
 		$Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
+		$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
 		$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 		function Invoke-EnsureModules {
 		    [CmdletBinding()]
@@ -1410,18 +1492,37 @@ Text: $($Local:Region.Text)
 		            if (Test-Path -Path $Local:Module) {
 		                Invoke-Debug "Module '$Local:Module' is a local path to a module, importing...";
 		                $Script:ImportedModules.Add(($Local:Module | Split-Path -LeafBase));
-		            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module)) {
+		            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module -ErrorAction SilentlyContinue)) {
 		                if ($NoInstall) {
 		                    Invoke-Error -Message "Module '$Local:Module' is not installed, and no-install is set.";
 		                    Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
 		                }
-		                Invoke-Info "Module '$Local:Module' is not installed, installing...";
-		                try {
-		                    Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
-		                    $Script:ImportedModules.Add($Local:Module);
-		                } catch {
-		                    Invoke-Error -Message "Unable to install module '$Local:Module'.";
-		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                if (Find-Module -Name $Local:Module -ErrorAction SilentlyContinue) {
+		                    Invoke-Info "Module '$Local:Module' is not installed, installing...";
+		                    try {
+		                        Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
+		                        $Script:ImportedModules.Add($Local:Module);
+		                    } catch {
+		                        Invoke-Error -Message "Unable to install module '$Local:Module'.";
+		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                    }
+		                } elseif ($Local:Module -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$'){
+		                    [String]$Local:Owner = $Matches.owner;
+		                    [String]$Local:Repo = $Matches.repo;
+		                    [String]$Local:Ref = $Matches.ref;
+		                    [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
+		                    Invoke-Info "Module '$Local:Module' not found in PSGallery, trying to install from git...";
+		                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
+		                    try {
+		                        $ErrorActionPreference = 'Stop';
+		                        [String]$Local:Module = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+		                    } catch {
+		                        Invoke-Error -Message "Unable to install module '$Local:Module' from git.";
+		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                    }
+		                } else {
+		                    Invoke-Error -Message "Module '$Local:Module' could not be found using Find-Module, and was not a git repoistory.";
+		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
 		                }
 		            } else {
 		                Invoke-Debug "Module '$Local:Module' is installed.";
@@ -1704,6 +1805,9 @@ Text: $($Local:Region.Text)
 	"50-Input" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		$Script:Validations = @{
+		    Email = '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
+		}
 		[HashTable]$Script:WriteStyle = @{
 		    PSColour    = 'DarkCyan';
 		    PSPrefix    = '▶';
@@ -1722,7 +1826,7 @@ Text: $($Local:Region.Text)
 		    }
 		    [Console]::SetCursorPosition(0, ($CurrentLine - $Count))
 		}
-		function Register-ReadLineKeyHandlers {
+		function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
 		    [Object]$Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
 		    [Boolean]$Script:PressedEnter = $False;
 		    Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
@@ -1737,10 +1841,23 @@ Text: $($Local:Region.Text)
 		        $Script:ShouldAbort = $True;
 		        [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
 		    };
-		    return @{
-		        Enter = $Local:PreviousEnterFunction;
-		        CtrlC = $Local:PreviousCtrlCFunction;
+		    [System.Func[String,Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
+		    if ($DontSaveInputs) {
+		        Set-PSReadLineOption -AddToHistoryHandler {
+		            Param([String]$Line)
+		            $False;
+		        }
 		    }
+		    return @{
+		        Enter           = $Local:PreviousEnterFunction;
+		        CtrlC           = $Local:PreviousCtrlCFunction;
+		        HistoryHandler  = $Local:HistoryHandler;
+		    }
+		}
+		function Unregister-CustomReadLineHandlers([HashTable]$PreviousHandlers) {
+		    Set-PSReadLineKeyHandler -Chord Enter -Function $PreviousHandlers.Enter;
+		    Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $PreviousHandlers.CtrlC;
+		    Set-PSReadLineOption -AddToHistoryHandler $PreviousHandlers.HistoryHandler;
 		}
 		function Get-UserInput {
 		    Param(
@@ -1752,19 +1869,23 @@ Text: $($Local:Region.Text)
 		        [String]$Question,
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
-		        [ScriptBlock]$Validate
+		        [ScriptBlock]$Validate,
+		        [Parameter()]
+		        [Switch]$AsSecureString,
+		        [Parameter()]
+		        [Switch]$DontSaveInputs
 		    )
 		    begin { Enter-Scope; }
 		    end { Exit-Scope -ReturnValue $Local:UserInput; }
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
-		        [HashTable]$Local:PreviousFunctions = Register-ReadLineKeyHandlers;
+		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:($DontSaveInputs -or $AsSecureString);
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
 		        Write-Host "`r>> " -NoNewline;
 		        do {
-		            [String]$Local:UserInput = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+		            [String]$Local:UserInput = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 		            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeReturnAsIs($Local:UserInput)))) {
 		                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
 		                Clear-HostLight -Count $Local:ClearLines;
@@ -1777,15 +1898,12 @@ Text: $($Local:Region.Text)
 		                break;
 		            }
 		        } while (-not $Script:ShouldAbort);
-		        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousFunctions.Enter;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousFunctions.CtrlC;
-		        $Local:HistoryFile = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt";
-		        if (Test-Path -Path $Local:HistoryFile) {
-		            $Local:History = Get-Content -Path $Local:HistoryFile;
-		            $Local:History | Select-Object -First ($Local:History.Count - 1) | Set-Content -Path $Local:HistoryFile;
-		        }
+		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
+		        }
+		        if ($AsSecureString) {
+		            [SecureString]$Local:UserInput = ConvertTo-SecureString -String $Local:UserInput -AsPlainText -Force;
 		        }
 		        return $Local:UserInput;
 		    }
@@ -1829,6 +1947,7 @@ Text: $($Local:Region.Text)
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
+		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs;
 		        $Local:PreviousTabFunction = (Get-PSReadLineKeyHandler -Chord Tab).Function;
 		        if (-not $Local:PreviousTabFunction) {
 		            $Local:PreviousTabFunction = 'TabCompleteNext';
@@ -1862,21 +1981,6 @@ Text: $($Local:Region.Text)
 		                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
 		            }
 		        }
-		        $Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
-		        $Script:PressedEnter = $false;
-		        Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
-		            Param([System.ConsoleKeyInfo]$Key, $Arg)
-		            $Script:PressedEnter = $true;
-		            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-		        };
-		        $Local:PreviousCtrlCFunction = (Get-PSReadLineKeyHandler -Chord Ctrl+c).Function;
-		        $Script:ShouldAbort = $false;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -ScriptBlock {
-		            Param([System.ConsoleKeyInfo]$Key, $Arg)
-		            $Script:ShouldAbort = $true;
-		            [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
-		            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-		        };
 		        [Boolean]$Local:FirstRun = $true;
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
@@ -1884,7 +1988,7 @@ Text: $($Local:Region.Text)
 		        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($Choices[$DefaultChoice])" -NoNewline;
 		        Write-Host "`r>> " -NoNewline;
 		        do {
-		            $Local:Selection = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+		            $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 		            if (-not $Local:Selection -and $Local:FirstRun) {
 		                $Local:Selection = $Choices[$DefaultChoice];
 		                Clear-HostLight -Count 1;
@@ -1899,8 +2003,7 @@ Text: $($Local:Region.Text)
 		            $Local:FirstRun = $false;
 		        } while ($Local:Selection -notin $Choices -and -not $Script:ShouldAbort);
 		        Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
-		        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousEnterFunction;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousCtrlCFunction;
+		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
 		        }
@@ -1928,7 +2031,7 @@ Text: $($Local:Region.Text)
 		    $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
 		    return $Local:Selection;
 		}
-		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection;
+		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
     };`
 	"50-Module" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -2503,8 +2606,8 @@ function Get-SoapResponse(
     [ValidateNotNullOrEmpty()]
     [String]$Uri
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:ParsedResponse; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:ParsedResponse; }
     process {
         [String]$Local:ContentType = "text/xml;charset=`"utf-8`"";
         [String]$Local:Method = "GET"
@@ -2518,8 +2621,8 @@ function Get-BaseUrl(
     [ValidateNotNullOrEmpty()]
     [String]$Service
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         "https://${Endpoint}/api/?apikey=$ApiKey&service=$Service"
     }
@@ -2532,15 +2635,15 @@ function Get-FormattedName2Id(
     [ValidateNotNullOrEmpty()]
     [ScriptBlock]$IdExpr
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         $InputArr | Select-Object -Property @{Name = 'Name'; Expression = { $_.name.'#cdata-section' } }, @{Name = 'Id'; Expression = $IdExpr }
     }
-    end { Exit-Scope -Invocation $MyInvocation; }
 }
 function Invoke-EnsureLocalScript {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         [String]$Local:ScriptPath = $MyInvocation.PSScriptRoot;
         [String]$Local:TempPath = (Get-Item $env:TEMP).FullName;
@@ -2562,8 +2665,8 @@ function Invoke-EnsureLocalScript {
     }
 }
 function Invoke-EnsureSetupInfo {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         [String]$Local:File = "$($env:TEMP)\InstallInfo.json";
         If (Test-Path $Local:File) {
@@ -2614,16 +2717,20 @@ function Invoke-EnsureSetupInfo {
     }
 }
 function Remove-QueuedTask {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         [CimInstance]$Local:Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue;
         if (-not $Local:Task) {
             Invoke-Verbose -Message "Scheduled task [$TaskName] does not exist, skipping removal...";
             return;
         }
-        Invoke-Verbose -Message "Removing scheduled task [$TaskName]...";
-        $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
+        if ($PSCmdlet.ShouldProcess("Removing scheduled task [$TaskName]")) {
+            $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
+            Invoke-Verbose -Message "Removed scheduled task [$TaskName]...";
+        }
     }
 }
 function Add-QueuedTask(
@@ -2636,8 +2743,8 @@ function Add-QueuedTask(
     [switch]$OnlyOnRebootRequired = $false,
     [switch]$ForceReboot = $false
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         [Boolean]$Local:RequiresReboot = (Get-RebootFlag).Required() -or $ForceReboot;
         if ($OnlyOnRebootRequired -and (-not $Local:RequiresReboot)) {
@@ -2689,8 +2796,8 @@ function Add-QueuedTask(
     }
 }
 function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
     process {
         $InstallInfo | Assert-NotNull -Message "Install info was null";
         [String]$Local:DeviceName = $InstallInfo.DeviceName;
@@ -2720,8 +2827,8 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
     }
 }
 function Invoke-PhaseCleanup {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
     process {
         function Invoke-Progress {
             Param(
@@ -2777,8 +2884,10 @@ function Invoke-PhaseCleanup {
             }
         }
         function Stop-Services_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
             process {
                 [String[]]$Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
                 Invoke-Info "Disabling $($Services.Count) services...";
@@ -2794,16 +2903,20 @@ function Invoke-PhaseCleanup {
                         Invoke-Info "Stopping service $Local:Instance...";
                         try {
                             $ErrorActionPreference = 'Stop';
-                            $Local:Instance | Stop-Service -Force -Confirm:$false;
-                            Invoke-Info "Stopped service $Local:Instance";
+                            if ($PSCmdlet.ShouldProcess("Stopping service [$($Local:Instance.Name)]")) {
+                                $Local:Instance | Stop-Service -Force -Confirm:$false;
+                                Invoke-Info "Stopped service $Local:Instance";
+                            }
                         } catch {
                             Invoke-Info -Message "Failed to stop $Local:Instance";
                         }
                         Invoke-Info "Disabling service $ServiceName...";
                         try {
                             $ErrorActionPreference = 'Stop';
-                            $Local:Instance | Set-Service -StartupType Disabled -Confirm:$false;
-                            Invoke-Info "Disabled service $ServiceName";
+                            if ($PSCmdlet.ShouldProcess("Disabling service [$($Local:Instance.Name)]")) {
+                                $Local:Instance | Set-Service -StartupType Disabled -Confirm:$false;
+                                Invoke-Info "Disabled service $ServiceName";
+                            }
                         } catch {
                             Invoke-Warn "Failed to disable $ServiceName";
                             Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
@@ -2813,8 +2926,10 @@ function Invoke-PhaseCleanup {
             }
         }
         function Remove-Programs_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
             process {
                 [String[]]$Programs = @(
                     'HPJumpStarts'
@@ -2860,43 +2975,55 @@ function Invoke-PhaseCleanup {
                     -GetItemName { Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program) $Program.Name; } `
                     -ProcessItem {
                         Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program)
-                        $Local:Product = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq $Program.Name };
+                        $Local:Product = Get-CimInstance -Query "SELECT * FROM Win32_Product WHERE Name = '$($Program.Name)'";
                         if (-not $Local:Product) {
                             throw "Can't find MSI Package for program [$($Program.Name)]";
                         } else {
-                            msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
-                            Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
+                            if ($PSCmdlet.ShouldProcess("Removing MSI program [$($Local:Product.Name)]")) {
+                                msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
+                                Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
+                            }
                         }
                     };
             }
         }
         function Remove-ProvisionedPackages_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
             process {
                 [String]$HPIdentifier = "AD2F1837";
                 Invoke-Progress -GetItems { Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
-                    Remove-AppxProvisionedPackage -PackageName $Package.PackageName -Online -AllUsers | Out-Null;
-                    Invoke-Info "Sucessfully removed provisioned package [$($Package.DisplayName)]";
+                    if ($PSCmdlet.ShouldProcess("Removing provisioned package [$($Package.DisplayName)]")) {
+                        Remove-AppxProvisionedPackage -PackageName $Package.PackageName -Online -AllUsers | Out-Null;
+                        Invoke-Info "Sucessfully removed provisioned package [$($Package.DisplayName)]";
+                    }
                 }
             }
         }
         function Remove-AppxPackages_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
             process {
                 [String]$HPIdentifier = "AD2F1837";
                 Invoke-Progress -GetItems { Get-AppxPackage -AllUsers | Where-Object { $_.Name -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
-                    Remove-AppxPackage -Package $Package.PackageFullName -AllUsers;
-                    Invoke-Info "Sucessfully removed appx-package [$($Package.Name)]";
+                    if ($PSCmdlet.ShouldProcess("Removing appx-package [$($Package.Name)]")) {
+                        Remove-AppxPackage -Package $Package.PackageFullName -AllUsers;
+                        Invoke-Info "Sucessfully removed appx-package [$($Package.Name)]";
+                    }
                 };
             }
         }
         function Remove-Drivers_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
             process {
                 Invoke-Progress `
                     -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' }; } `
@@ -2906,8 +3033,10 @@ function Invoke-PhaseCleanup {
                         [String]$Local:FileName = $Driver.OriginalFileName.ToString();
                         try {
                             $ErrorActionPreference = 'Stop';
-                            pnputil /delete-driver $Local:FileName /uninstall /force;
-                            Invoke-Info "Removed driver: $($Local:FileName)";
+                            if ($PSCmdlet.ShouldProcess("Uninstalling driver [$Local:FileName]")) {
+                                pnputil /delete-driver $Local:FileName /uninstall /force | Out-Null;
+                                Invoke-Info "Removed driver: [$Local:FileName]";
+                            }
                         } catch {
                             Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
                         }
@@ -2933,7 +3062,9 @@ function Invoke-PhaseCleanup {
                     [String]$Local:RegistryPath = $_.Key;
                     [HashTable]$Local:RegistryTable = $_.Value;
                     If (-not (Test-Path $Local:RegistryPath)) {
-                        New-Item -Path $Local:RegistryPath -Force | Out-Null
+                        if ($PSCmdlet.ShouldProcess("Creating registry path [$Local:RegistryPath]")) {
+                            New-Item -Path $Local:RegistryPath -Force | Out-Null;
+                        }
                     } else {
                         Invoke-Info "Registry path [$Local:RegistryPath] already exists, skipping creation...";
                     }
@@ -2941,8 +3072,10 @@ function Invoke-PhaseCleanup {
                         [String]$Local:ValueName = $_.Key;
                         [String]$Local:ValueData = $_.Value;
                         If (-not (Test-Path "$Local:RegistryPath\$Local:ValueName")) {
-                            New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
-                            Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
+                            if ($PSCmdlet.ShouldProcess("Creating registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]")) {
+                                New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
+                                Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
+                            }
                         } else {
                             Invoke-Info "Registry value [$Local:ValueName] already exists in path [$Local:RegistryPath], skipping creation...";
                         }
@@ -2960,8 +3093,8 @@ function Invoke-PhaseCleanup {
     }
 }
 function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
     process {
         [String]$Local:AgentServiceName = "Advanced Monitoring Agent";
         [String]$Local:NextPhase = "Update";
@@ -3015,18 +3148,18 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
     }
 }
 function Invoke-PhaseUpdate {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
     process {
         [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { "Finish" } else { "Update" };
-        Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false;
+        Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false | Out-Null;
         (Get-RebootFlag).Set($null);
         return $Local:NextPhase;
     }
 }
 function Invoke-PhaseFinish {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
     process {
         [String]$Local:NextPhase = $null;
         $Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";

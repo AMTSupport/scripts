@@ -641,12 +641,12 @@ $Global:EmbededModules = [ordered]@{
 		        return $True;
 		        $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
 		        if ($Local:AllReturnStatements.Count -eq 0) {
-		            Invoke-Debug -Message "No return statements found in the script block.";
+		            Invoke-Debug -Message 'No return statements found in the script block.';
 		            return $False;
 		        }
 		        foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
 		            if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
-		                Invoke-Debug -Message "No pipeline elements found in the return statement.";
+		                Invoke-Debug -Message 'No pipeline elements found in the return statement.';
 		                return $False;
 		            }
 		            [System.Management.Automation.Language.ExpressionAst]$Local:Expression = $Local:ReturnStatement.Pipeline.PipelineElements[0].expression;
@@ -704,6 +704,87 @@ Text: $($Local:Region.Text)
 		            return $False;
 		        }
 		        return $True;
+		    }
+		}
+		function Install-ModuleFromGitHub {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [String]$GitHubRepo,
+		        [Parameter(Mandatory)]
+		        [String]$Branch,
+		        [ValidateSet('CurrentUser', 'AllUsers')]
+		        [String]$Scope = 'CurrentUser'
+		    )
+		    process {
+		        Invoke-Verbose ("[$(Get-Date)] Retrieving {0} {1}" -f $GitHubRepo, $Branch);
+		        [String]$Local:ZipballUrl = "https://api.github.com/repos/$GithubRepo/zipball/$Branch";
+		        [String]$Local:ModuleName = $GitHubRepo.split('/')[-1]
+		        [String]$Local:TempDir = [System.IO.Path]::GetTempPath();
+		        [String]$Local:OutFile = Join-Path -Path $Local:TempDir -ChildPath "$($ModuleName).zip";
+		        if (-not ($IsLinux -or $IsMacOS)) {
+		            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;
+		        }
+		        Invoke-Verbose "Downloading $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+		        try {
+		            $ErrorActionPreference = 'Stop';
+		            Invoke-RestMethod $Local:ZipballUrl -OutFile $Local:OutFile;
+		        } catch {
+		            Invoke-Error "Failed to download $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+		        }
+		        if (-not ([System.Environment]::OSVersion.Platform -eq 'Unix')) {
+		            Unblock-File $Local:OutFile;
+		        }
+		        [String]$Local:FileHash = (Get-FileHash -Path $Local:OutFile).hash;
+		        [String]$Local:ExtractDir = Join-Path -Path $Local:TempDir -ChildPath $Local:FileHash;
+		        Invoke-Verbose "Extracting $Local:OutFile to $Local:ExtractDir";
+		        try {
+		            Expand-Archive -Path $Local:OutFile -DestinationPath $Local:ExtractDir -Force;
+		        } catch {
+		            Invoke-Error "Failed to extract $Local:OutFile to $Local:ExtractDir";
+		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+		        }
+		        [System.IO.DirectoryInfo]$Local:UnzippedArchive = Get-ChildItem -Path $Local:ExtractDir -Directory | Select-Object -First 1;
+		        switch ($Scope) {
+		            'CurrentUser' {
+		                [String]$Local:PSModulePath = ($PSGetPath).CurrentUserModules;
+		                break;
+		            }
+		            'AllUsers' {
+		                [String]$Local:PSModulePath = ($PSGetPath).AllUsersModules;
+		                break;
+		            }
+		        }
+		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem (Join-Path -Path $Local:UnzippedArchive -ChildPath *) -File | Where-Object { $_.Name -like '*.psd1' };
+		        } else {
+		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem -Path $Local:UnzippedArchive.FullName -File | Where-Object { $_.Name -like '*.psd1' };
+		        }
+		        if ($Local:ManifestFiles.Count -eq 0) {
+		            Invoke-Error "No manifest file found in $($Local:UnzippedArchive.FullName)";
+		            Invoke-FailedExit -ExitCode 9999;
+		        } elseif ($Local:ManifestFiles.Count -gt 1) {
+		            Invoke-Debug "Multiple manifest files found in $($Local:UnzippedArchive.FullName)";
+		            Invoke-Debug "Manifest files: $($Local:ManifestFiles.FullName -join ', ')";
+		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Where-Object { $_.Name -like "$Local:ModuleName*.psd1" } | Select-Object -First 1;
+		        } else {
+		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Select-Object -First 1;
+		            Invoke-Debug "Manifest file: $($Local:ManifestFile.FullName)";
+		        }
+		        $Local:Manifest = Test-ModuleManifest -Path $Local:ManifestFile.FullName;
+		        [String]$Local:ModuleName = $Local:Manifest.Name;
+		        [String]$Local:ModuleVersion = $Local:Manifest.Version;
+		        [String]$Local:SourcePath = $Local:ManifestFile.DirectoryName;
+		        [String]$Local:TargetPath = (Join-Path -Path $Local:PSModulePath -ChildPath (Join-Path -Path $Local:ModuleName -ChildPath $Local:ModuleVersion));
+		        New-Item -ItemType directory -Path $Local:TargetPath -Force | Out-Null;
+		        Invoke-Debug "Copying $Local:SourcePath to $Local:TargetPath";
+		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+		            Copy-Item "$(Join-Path -Path $Local:UnzippedArchive -ChildPath *)" $Local:TargetPath -Force -Recurse | Out-Null;
+		        } else {
+		            Copy-Item "$Local:SourcePath\*" $Local:TargetPath -Force -Recurse | Out-Null;
+		        }
+		        return $Local:ModuleName;
 		    }
 		}
 		Export-ModuleMember -Function *;
@@ -1366,6 +1447,7 @@ Text: $($Local:Region.Text)
 		}
 		$Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module.';
 		$Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
+		$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
 		$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 		function Invoke-EnsureModules {
 		    [CmdletBinding()]
@@ -1390,18 +1472,37 @@ Text: $($Local:Region.Text)
 		            if (Test-Path -Path $Local:Module) {
 		                Invoke-Debug "Module '$Local:Module' is a local path to a module, importing...";
 		                $Script:ImportedModules.Add(($Local:Module | Split-Path -LeafBase));
-		            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module)) {
+		            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module -ErrorAction SilentlyContinue)) {
 		                if ($NoInstall) {
 		                    Invoke-Error -Message "Module '$Local:Module' is not installed, and no-install is set.";
 		                    Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
 		                }
-		                Invoke-Info "Module '$Local:Module' is not installed, installing...";
-		                try {
-		                    Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
-		                    $Script:ImportedModules.Add($Local:Module);
-		                } catch {
-		                    Invoke-Error -Message "Unable to install module '$Local:Module'.";
-		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                if (Find-Module -Name $Local:Module -ErrorAction SilentlyContinue) {
+		                    Invoke-Info "Module '$Local:Module' is not installed, installing...";
+		                    try {
+		                        Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
+		                        $Script:ImportedModules.Add($Local:Module);
+		                    } catch {
+		                        Invoke-Error -Message "Unable to install module '$Local:Module'.";
+		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                    }
+		                } elseif ($Local:Module -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$'){
+		                    [String]$Local:Owner = $Matches.owner;
+		                    [String]$Local:Repo = $Matches.repo;
+		                    [String]$Local:Ref = $Matches.ref;
+		                    [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
+		                    Invoke-Info "Module '$Local:Module' not found in PSGallery, trying to install from git...";
+		                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
+		                    try {
+		                        $ErrorActionPreference = 'Stop';
+		                        [String]$Local:Module = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+		                    } catch {
+		                        Invoke-Error -Message "Unable to install module '$Local:Module' from git.";
+		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                    }
+		                } else {
+		                    Invoke-Error -Message "Module '$Local:Module' could not be found using Find-Module, and was not a git repoistory.";
+		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
 		                }
 		            } else {
 		                Invoke-Debug "Module '$Local:Module' is installed.";
@@ -1684,6 +1785,9 @@ Text: $($Local:Region.Text)
 	"50-Input" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		$Script:Validations = @{
+		    Email = '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
+		}
 		[HashTable]$Script:WriteStyle = @{
 		    PSColour    = 'DarkCyan';
 		    PSPrefix    = '▶';
@@ -1702,7 +1806,7 @@ Text: $($Local:Region.Text)
 		    }
 		    [Console]::SetCursorPosition(0, ($CurrentLine - $Count))
 		}
-		function Register-ReadLineKeyHandlers {
+		function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
 		    [Object]$Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
 		    [Boolean]$Script:PressedEnter = $False;
 		    Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
@@ -1717,10 +1821,23 @@ Text: $($Local:Region.Text)
 		        $Script:ShouldAbort = $True;
 		        [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
 		    };
-		    return @{
-		        Enter = $Local:PreviousEnterFunction;
-		        CtrlC = $Local:PreviousCtrlCFunction;
+		    [System.Func[String,Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
+		    if ($DontSaveInputs) {
+		        Set-PSReadLineOption -AddToHistoryHandler {
+		            Param([String]$Line)
+		            $False;
+		        }
 		    }
+		    return @{
+		        Enter           = $Local:PreviousEnterFunction;
+		        CtrlC           = $Local:PreviousCtrlCFunction;
+		        HistoryHandler  = $Local:HistoryHandler;
+		    }
+		}
+		function Unregister-CustomReadLineHandlers([HashTable]$PreviousHandlers) {
+		    Set-PSReadLineKeyHandler -Chord Enter -Function $PreviousHandlers.Enter;
+		    Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $PreviousHandlers.CtrlC;
+		    Set-PSReadLineOption -AddToHistoryHandler $PreviousHandlers.HistoryHandler;
 		}
 		function Get-UserInput {
 		    Param(
@@ -1732,19 +1849,23 @@ Text: $($Local:Region.Text)
 		        [String]$Question,
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
-		        [ScriptBlock]$Validate
+		        [ScriptBlock]$Validate,
+		        [Parameter()]
+		        [Switch]$AsSecureString,
+		        [Parameter()]
+		        [Switch]$DontSaveInputs
 		    )
 		    begin { Enter-Scope; }
 		    end { Exit-Scope -ReturnValue $Local:UserInput; }
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
-		        [HashTable]$Local:PreviousFunctions = Register-ReadLineKeyHandlers;
+		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:($DontSaveInputs -or $AsSecureString);
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
 		        Write-Host "`r>> " -NoNewline;
 		        do {
-		            [String]$Local:UserInput = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+		            [String]$Local:UserInput = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 		            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeReturnAsIs($Local:UserInput)))) {
 		                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
 		                Clear-HostLight -Count $Local:ClearLines;
@@ -1757,15 +1878,12 @@ Text: $($Local:Region.Text)
 		                break;
 		            }
 		        } while (-not $Script:ShouldAbort);
-		        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousFunctions.Enter;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousFunctions.CtrlC;
-		        $Local:HistoryFile = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt";
-		        if (Test-Path -Path $Local:HistoryFile) {
-		            $Local:History = Get-Content -Path $Local:HistoryFile;
-		            $Local:History | Select-Object -First ($Local:History.Count - 1) | Set-Content -Path $Local:HistoryFile;
-		        }
+		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
+		        }
+		        if ($AsSecureString) {
+		            [SecureString]$Local:UserInput = ConvertTo-SecureString -String $Local:UserInput -AsPlainText -Force;
 		        }
 		        return $Local:UserInput;
 		    }
@@ -1809,6 +1927,7 @@ Text: $($Local:Region.Text)
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
+		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs;
 		        $Local:PreviousTabFunction = (Get-PSReadLineKeyHandler -Chord Tab).Function;
 		        if (-not $Local:PreviousTabFunction) {
 		            $Local:PreviousTabFunction = 'TabCompleteNext';
@@ -1842,21 +1961,6 @@ Text: $($Local:Region.Text)
 		                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
 		            }
 		        }
-		        $Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
-		        $Script:PressedEnter = $false;
-		        Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
-		            Param([System.ConsoleKeyInfo]$Key, $Arg)
-		            $Script:PressedEnter = $true;
-		            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-		        };
-		        $Local:PreviousCtrlCFunction = (Get-PSReadLineKeyHandler -Chord Ctrl+c).Function;
-		        $Script:ShouldAbort = $false;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -ScriptBlock {
-		            Param([System.ConsoleKeyInfo]$Key, $Arg)
-		            $Script:ShouldAbort = $true;
-		            [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
-		            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-		        };
 		        [Boolean]$Local:FirstRun = $true;
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
@@ -1864,7 +1968,7 @@ Text: $($Local:Region.Text)
 		        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($Choices[$DefaultChoice])" -NoNewline;
 		        Write-Host "`r>> " -NoNewline;
 		        do {
-		            $Local:Selection = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+		            $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 		            if (-not $Local:Selection -and $Local:FirstRun) {
 		                $Local:Selection = $Choices[$DefaultChoice];
 		                Clear-HostLight -Count 1;
@@ -1879,8 +1983,7 @@ Text: $($Local:Region.Text)
 		            $Local:FirstRun = $false;
 		        } while ($Local:Selection -notin $Choices -and -not $Script:ShouldAbort);
 		        Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
-		        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousEnterFunction;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousCtrlCFunction;
+		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
 		        }
@@ -1908,7 +2011,7 @@ Text: $($Local:Region.Text)
 		    $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
 		    return $Local:Selection;
 		}
-		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection;
+		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
     };`
 	"50-Module" = {
         [CmdletBinding(SupportsShouldProcess)]

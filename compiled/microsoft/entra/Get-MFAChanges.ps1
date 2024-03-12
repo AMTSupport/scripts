@@ -649,12 +649,12 @@ $Global:EmbededModules = [ordered]@{
 		        return $True;
 		        $Local:AllReturnStatements = $Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $true);
 		        if ($Local:AllReturnStatements.Count -eq 0) {
-		            Invoke-Debug -Message "No return statements found in the script block.";
+		            Invoke-Debug -Message 'No return statements found in the script block.';
 		            return $False;
 		        }
 		        foreach ($Local:ReturnStatement in $Local:AllReturnStatements) {
 		            if ($Local:ReturnStatement.Pipeline.PipelineElements.Count -eq 0) {
-		                Invoke-Debug -Message "No pipeline elements found in the return statement.";
+		                Invoke-Debug -Message 'No pipeline elements found in the return statement.';
 		                return $False;
 		            }
 		            [System.Management.Automation.Language.ExpressionAst]$Local:Expression = $Local:ReturnStatement.Pipeline.PipelineElements[0].expression;
@@ -712,6 +712,87 @@ Text: $($Local:Region.Text)
 		            return $False;
 		        }
 		        return $True;
+		    }
+		}
+		function Install-ModuleFromGitHub {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [String]$GitHubRepo,
+		        [Parameter(Mandatory)]
+		        [String]$Branch,
+		        [ValidateSet('CurrentUser', 'AllUsers')]
+		        [String]$Scope = 'CurrentUser'
+		    )
+		    process {
+		        Invoke-Verbose ("[$(Get-Date)] Retrieving {0} {1}" -f $GitHubRepo, $Branch);
+		        [String]$Local:ZipballUrl = "https://api.github.com/repos/$GithubRepo/zipball/$Branch";
+		        [String]$Local:ModuleName = $GitHubRepo.split('/')[-1]
+		        [String]$Local:TempDir = [System.IO.Path]::GetTempPath();
+		        [String]$Local:OutFile = Join-Path -Path $Local:TempDir -ChildPath "$($ModuleName).zip";
+		        if (-not ($IsLinux -or $IsMacOS)) {
+		            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;
+		        }
+		        Invoke-Verbose "Downloading $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+		        try {
+		            $ErrorActionPreference = 'Stop';
+		            Invoke-RestMethod $Local:ZipballUrl -OutFile $Local:OutFile;
+		        } catch {
+		            Invoke-Error "Failed to download $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
+		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+		        }
+		        if (-not ([System.Environment]::OSVersion.Platform -eq 'Unix')) {
+		            Unblock-File $Local:OutFile;
+		        }
+		        [String]$Local:FileHash = (Get-FileHash -Path $Local:OutFile).hash;
+		        [String]$Local:ExtractDir = Join-Path -Path $Local:TempDir -ChildPath $Local:FileHash;
+		        Invoke-Verbose "Extracting $Local:OutFile to $Local:ExtractDir";
+		        try {
+		            Expand-Archive -Path $Local:OutFile -DestinationPath $Local:ExtractDir -Force;
+		        } catch {
+		            Invoke-Error "Failed to extract $Local:OutFile to $Local:ExtractDir";
+		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+		        }
+		        [System.IO.DirectoryInfo]$Local:UnzippedArchive = Get-ChildItem -Path $Local:ExtractDir -Directory | Select-Object -First 1;
+		        switch ($Scope) {
+		            'CurrentUser' {
+		                [String]$Local:PSModulePath = ($PSGetPath).CurrentUserModules;
+		                break;
+		            }
+		            'AllUsers' {
+		                [String]$Local:PSModulePath = ($PSGetPath).AllUsersModules;
+		                break;
+		            }
+		        }
+		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem (Join-Path -Path $Local:UnzippedArchive -ChildPath *) -File | Where-Object { $_.Name -like '*.psd1' };
+		        } else {
+		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem -Path $Local:UnzippedArchive.FullName -File | Where-Object { $_.Name -like '*.psd1' };
+		        }
+		        if ($Local:ManifestFiles.Count -eq 0) {
+		            Invoke-Error "No manifest file found in $($Local:UnzippedArchive.FullName)";
+		            Invoke-FailedExit -ExitCode 9999;
+		        } elseif ($Local:ManifestFiles.Count -gt 1) {
+		            Invoke-Debug "Multiple manifest files found in $($Local:UnzippedArchive.FullName)";
+		            Invoke-Debug "Manifest files: $($Local:ManifestFiles.FullName -join ', ')";
+		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Where-Object { $_.Name -like "$Local:ModuleName*.psd1" } | Select-Object -First 1;
+		        } else {
+		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Select-Object -First 1;
+		            Invoke-Debug "Manifest file: $($Local:ManifestFile.FullName)";
+		        }
+		        $Local:Manifest = Test-ModuleManifest -Path $Local:ManifestFile.FullName;
+		        [String]$Local:ModuleName = $Local:Manifest.Name;
+		        [String]$Local:ModuleVersion = $Local:Manifest.Version;
+		        [String]$Local:SourcePath = $Local:ManifestFile.DirectoryName;
+		        [String]$Local:TargetPath = (Join-Path -Path $Local:PSModulePath -ChildPath (Join-Path -Path $Local:ModuleName -ChildPath $Local:ModuleVersion));
+		        New-Item -ItemType directory -Path $Local:TargetPath -Force | Out-Null;
+		        Invoke-Debug "Copying $Local:SourcePath to $Local:TargetPath";
+		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
+		            Copy-Item "$(Join-Path -Path $Local:UnzippedArchive -ChildPath *)" $Local:TargetPath -Force -Recurse | Out-Null;
+		        } else {
+		            Copy-Item "$Local:SourcePath\*" $Local:TargetPath -Force -Recurse | Out-Null;
+		        }
+		        return $Local:ModuleName;
 		    }
 		}
 		Export-ModuleMember -Function *;
@@ -1374,6 +1455,7 @@ Text: $($Local:Region.Text)
 		}
 		$Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module.';
 		$Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
+		$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
 		$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 		function Invoke-EnsureModules {
 		    [CmdletBinding()]
@@ -1398,18 +1480,37 @@ Text: $($Local:Region.Text)
 		            if (Test-Path -Path $Local:Module) {
 		                Invoke-Debug "Module '$Local:Module' is a local path to a module, importing...";
 		                $Script:ImportedModules.Add(($Local:Module | Split-Path -LeafBase));
-		            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module)) {
+		            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module -ErrorAction SilentlyContinue)) {
 		                if ($NoInstall) {
 		                    Invoke-Error -Message "Module '$Local:Module' is not installed, and no-install is set.";
 		                    Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
 		                }
-		                Invoke-Info "Module '$Local:Module' is not installed, installing...";
-		                try {
-		                    Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
-		                    $Script:ImportedModules.Add($Local:Module);
-		                } catch {
-		                    Invoke-Error -Message "Unable to install module '$Local:Module'.";
-		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                if (Find-Module -Name $Local:Module -ErrorAction SilentlyContinue) {
+		                    Invoke-Info "Module '$Local:Module' is not installed, installing...";
+		                    try {
+		                        Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
+		                        $Script:ImportedModules.Add($Local:Module);
+		                    } catch {
+		                        Invoke-Error -Message "Unable to install module '$Local:Module'.";
+		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                    }
+		                } elseif ($Local:Module -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$'){
+		                    [String]$Local:Owner = $Matches.owner;
+		                    [String]$Local:Repo = $Matches.repo;
+		                    [String]$Local:Ref = $Matches.ref;
+		                    [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
+		                    Invoke-Info "Module '$Local:Module' not found in PSGallery, trying to install from git...";
+		                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
+		                    try {
+		                        $ErrorActionPreference = 'Stop';
+		                        [String]$Local:Module = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+		                    } catch {
+		                        Invoke-Error -Message "Unable to install module '$Local:Module' from git.";
+		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                    }
+		                } else {
+		                    Invoke-Error -Message "Module '$Local:Module' could not be found using Find-Module, and was not a git repoistory.";
+		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
 		                }
 		            } else {
 		                Invoke-Debug "Module '$Local:Module' is installed.";
@@ -1692,6 +1793,9 @@ Text: $($Local:Region.Text)
 	"50-Input" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		$Script:Validations = @{
+		    Email = '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
+		}
 		[HashTable]$Script:WriteStyle = @{
 		    PSColour    = 'DarkCyan';
 		    PSPrefix    = '▶';
@@ -1710,7 +1814,7 @@ Text: $($Local:Region.Text)
 		    }
 		    [Console]::SetCursorPosition(0, ($CurrentLine - $Count))
 		}
-		function Register-ReadLineKeyHandlers {
+		function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
 		    [Object]$Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
 		    [Boolean]$Script:PressedEnter = $False;
 		    Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
@@ -1725,10 +1829,23 @@ Text: $($Local:Region.Text)
 		        $Script:ShouldAbort = $True;
 		        [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
 		    };
-		    return @{
-		        Enter = $Local:PreviousEnterFunction;
-		        CtrlC = $Local:PreviousCtrlCFunction;
+		    [System.Func[String,Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
+		    if ($DontSaveInputs) {
+		        Set-PSReadLineOption -AddToHistoryHandler {
+		            Param([String]$Line)
+		            $False;
+		        }
 		    }
+		    return @{
+		        Enter           = $Local:PreviousEnterFunction;
+		        CtrlC           = $Local:PreviousCtrlCFunction;
+		        HistoryHandler  = $Local:HistoryHandler;
+		    }
+		}
+		function Unregister-CustomReadLineHandlers([HashTable]$PreviousHandlers) {
+		    Set-PSReadLineKeyHandler -Chord Enter -Function $PreviousHandlers.Enter;
+		    Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $PreviousHandlers.CtrlC;
+		    Set-PSReadLineOption -AddToHistoryHandler $PreviousHandlers.HistoryHandler;
 		}
 		function Get-UserInput {
 		    Param(
@@ -1740,19 +1857,23 @@ Text: $($Local:Region.Text)
 		        [String]$Question,
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
-		        [ScriptBlock]$Validate
+		        [ScriptBlock]$Validate,
+		        [Parameter()]
+		        [Switch]$AsSecureString,
+		        [Parameter()]
+		        [Switch]$DontSaveInputs
 		    )
 		    begin { Enter-Scope; }
 		    end { Exit-Scope -ReturnValue $Local:UserInput; }
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
-		        [HashTable]$Local:PreviousFunctions = Register-ReadLineKeyHandlers;
+		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:($DontSaveInputs -or $AsSecureString);
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
 		        Write-Host "`r>> " -NoNewline;
 		        do {
-		            [String]$Local:UserInput = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+		            [String]$Local:UserInput = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 		            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeReturnAsIs($Local:UserInput)))) {
 		                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
 		                Clear-HostLight -Count $Local:ClearLines;
@@ -1765,15 +1886,12 @@ Text: $($Local:Region.Text)
 		                break;
 		            }
 		        } while (-not $Script:ShouldAbort);
-		        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousFunctions.Enter;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousFunctions.CtrlC;
-		        $Local:HistoryFile = "$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt";
-		        if (Test-Path -Path $Local:HistoryFile) {
-		            $Local:History = Get-Content -Path $Local:HistoryFile;
-		            $Local:History | Select-Object -First ($Local:History.Count - 1) | Set-Content -Path $Local:HistoryFile;
-		        }
+		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
+		        }
+		        if ($AsSecureString) {
+		            [SecureString]$Local:UserInput = ConvertTo-SecureString -String $Local:UserInput -AsPlainText -Force;
 		        }
 		        return $Local:UserInput;
 		    }
@@ -1817,6 +1935,7 @@ Text: $($Local:Region.Text)
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
+		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs;
 		        $Local:PreviousTabFunction = (Get-PSReadLineKeyHandler -Chord Tab).Function;
 		        if (-not $Local:PreviousTabFunction) {
 		            $Local:PreviousTabFunction = 'TabCompleteNext';
@@ -1850,21 +1969,6 @@ Text: $($Local:Region.Text)
 		                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
 		            }
 		        }
-		        $Local:PreviousEnterFunction = (Get-PSReadLineKeyHandler -Chord Enter).Function;
-		        $Script:PressedEnter = $false;
-		        Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
-		            Param([System.ConsoleKeyInfo]$Key, $Arg)
-		            $Script:PressedEnter = $true;
-		            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-		        };
-		        $Local:PreviousCtrlCFunction = (Get-PSReadLineKeyHandler -Chord Ctrl+c).Function;
-		        $Script:ShouldAbort = $false;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -ScriptBlock {
-		            Param([System.ConsoleKeyInfo]$Key, $Arg)
-		            $Script:ShouldAbort = $true;
-		            [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
-		            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine($Key, $Arg);
-		        };
 		        [Boolean]$Local:FirstRun = $true;
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
@@ -1872,7 +1976,7 @@ Text: $($Local:Region.Text)
 		        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($Choices[$DefaultChoice])" -NoNewline;
 		        Write-Host "`r>> " -NoNewline;
 		        do {
-		            $Local:Selection = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?);
+		            $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 		            if (-not $Local:Selection -and $Local:FirstRun) {
 		                $Local:Selection = $Choices[$DefaultChoice];
 		                Clear-HostLight -Count 1;
@@ -1887,8 +1991,7 @@ Text: $($Local:Region.Text)
 		            $Local:FirstRun = $false;
 		        } while ($Local:Selection -notin $Choices -and -not $Script:ShouldAbort);
 		        Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
-		        Set-PSReadLineKeyHandler -Chord Enter -Function $Local:PreviousEnterFunction;
-		        Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $Local:PreviousCtrlCFunction;
+		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
 		        }
@@ -1916,7 +2019,7 @@ Text: $($Local:Region.Text)
 		    $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
 		    return $Local:Selection;
 		}
-		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection;
+		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
     };`
 	"50-Module" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -2495,8 +2598,8 @@ function Invoke-SetupEnvironment(
     [ValidateNotNullOrEmpty()]
     [String]$ExcelFileName
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         Invoke-EnsureUser;
         Invoke-EnsureModules -Modules @('AzureAD', 'MSOnline', 'ImportExcel');
@@ -2514,8 +2617,8 @@ function Invoke-SetupEnvironment(
     }
 }
 function Get-CurrentData {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:ExpandedUsers; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:ExpandedUsers; }
     process {
         [Object[]]$Local:LicensedUsers = Get-MsolUser -All | Where-Object { $_.isLicensed -eq $true } | Sort-Object DisplayName;
         [PSCustomObject[]]$Local:ExpandedUsers = $Local:LicensedUsers `
@@ -2530,43 +2633,39 @@ function Get-CurrentData {
     }
 }
 function Get-Excel {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        $import = if (Test-Path $script:ExcelFile) {
-            Write-Host -ForegroundColor Cyan "Excel file found; importing data"
+        $Local:Import = if (Test-Path $Script:ExcelFile) {
+            Invoke-Info "Excel file found, importing data...";
             try {
-                Import-Excel $script:ExcelFile
+                Import-Excel $Script:ExcelFile
             } catch {
                 Invoke-Error "Failed to import Excel file.";
-                $Message = $_.Exception.Message
-                $WriteMessage = switch -Regex ($Message) {
+                $Local:Message = $_.Exception.Message
+                $Local:WriteMessage = switch -Regex ($Local:Message) {
                     "Duplicate column headers" {
-                        $Match = Select-String "Duplicate column headers found on row '(?<row>[0-9]+)' in columns '(?:(?<column>[0-9]+)(?:[ ]?))+'." -InputObject $_
-                        $Row = $Match.Matches.Groups[1].Captures
-                        $Columns = $Match.Matches.Groups[2].Captures
-                        "There were duplicate columns found on row $Row in columns $($Columns -join ", "); Please remove any duplicate columns and try again"
+                        [System.Text.RegularExpressions.Match]$Local:Match = Select-String "Duplicate column headers found on row '(?<row>[0-9]+)' in columns '(?:(?<column>[0-9]+)(?:[ ]?))+'." -InputObject $_
+                        [String]$Row = $Match.Matches.Groups[1].Captures;
+                        [String]$Columns = $Match.Matches.Groups[2].Captures;
+                        "There were duplicate columns found on row $Row in columns $($Columns -join ", "); Please remove any duplicate columns and try again";
                     }
-                    default { "Unknown error; Please examine the error message and try again" }
+                    default { "Unknown error; Please examine the error message and try again"; }
                 }
-                Invoke-Error $WriteMessage
-                exit 1004
+                Invoke-Error $WriteMessage;
+                exit 1004;
             }
         } else {
-            Write-Host -ForegroundColor Cyan "Excel file not found; creating new file"
-            New-Object -TypeName System.Collections.ArrayList
+            Invoke-Info "Excel file not found, creating new file...";
+            New-Object -TypeName System.Collections.ArrayList;
         }
-        $import | Export-Excel "$script:ExcelFile" -PassThru -AutoSize -FreezeTopRowFirstColumn
+        $Local:Import | Export-Excel "$Script:ExcelFile" -PassThru -AutoSize -FreezeTopRowFirstColumn;
     }
 }
 function Get-EmailToCell([Parameter(Mandatory)][ValidateNotNullOrEmpty()][OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:EmailTable; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:EmailTable; }
     process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while getting email to cell mapping";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
         [Int]$Local:SheetRows = $WorkSheet.Dimension.Rows;
         If ($null -eq $Local:SheetRows -or $Local:SheetRows -lt 2) {
             Invoke-Info "No data found in worksheet $($WorkSheet.Name)";
@@ -2583,69 +2682,68 @@ function Get-EmailToCell([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Office
     }
 }
 function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeOpenXml.ExcelWorksheet]$HistoryWorkSheet, [int]$KeepHistory = 4) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         if ($ActiveWorkSheet.Dimension.Columns -lt 4) {
-            Write-Host -ForegroundColor Cyan "No data found in worksheet $($ActiveWorkSheet.Name), skipping history update."
+            Invoke-Info  "No data found in worksheet $($ActiveWorkSheet.Name), skipping history update."
             return
         }
-        $TotalColumns = $ActiveWorkSheet.Dimension.Columns
-        $RemovedColumns = 0
-        $KeptRange = ($TotalColumns - $KeepHistory)..$TotalColumns
-        foreach ($ColumnIndex in 4..$ActiveWorkSheet.Dimension.Columns) {
-            $WillKeep = $KeptRange -contains $ColumnIndex
-            $ColumnIndex = $ColumnIndex - $RemovedColumns
-            $DateValue = $ActiveWorkSheet.Cells[1, $ColumnIndex].Value
-            Write-Host -ForegroundColor Cyan "Processing Column $ColumnIndex which is dated $DateValue, moving to history: $(!$WillKeep)"
-            if ($null -eq $DateValue -or $DateValue -eq '') {
-                $ActiveWorkSheet.DeleteColumn($ColumnIndex)
-                $RemovedColumns++
-                continue
+        [Int]$Local:TotalColumns = $ActiveWorkSheet.Dimension.Columns;
+        [Int]$Local:RemovedColumns = 0;
+        [Range]$Local:KeptRange = ($TotalColumns - $KeepHistory)..$TotalColumns;
+        foreach ($Local:ColumnIndex in 4..$ActiveWorkSheet.Dimension.Columns) {
+            [Boolean]$Local:WillKeep = $Local:KeptRange -contains $Local:ColumnIndex;
+            [Int]$ColumnIndex = $Local:ColumnIndex - $Local:RemovedColumns;
+            [String]$Local:DateValue = $ActiveWorkSheet.Cells[1, $Local:ColumnIndex].Value;
+            Invoke-Info "Processing Column $Local:ColumnIndex which is dated $Local:DateValue, moving to history: $(-not $Local:WillKeep)"
+            if ($null -eq $Local:DateValue -or $Local:DateValue -eq '') {
+                $ActiveWorkSheet.DeleteColumn($Local:ColumnIndex);
+                $Local:RemovedColumns++;
+                continue;
             }
-            $Date = try {
-                Get-Date -Date ($DateValue)
+            [DateTime]$Local:Date = try {
+                Get-Date -Date ($Local:DateValue);
             } catch {
                 try {
-                    Get-Date -Date "$($DateValue)-$(Get-Date -Format 'yyyy')"
+                    Get-Date -Date "$($Local:DateValue)-$(Get-Date -Format 'yyyy')";
                 } catch {
                     try {
-                        [DateTime]::FromOADate($DateValue)
+                        [DateTime]::FromOADate($Local:DateValue);
                     } catch {
-                        Write-Host -ForegroundColor Cyan "Deleting what is thought to be invalid or check column at $ColumnIndex"
-                        $ActiveWorkSheet.DeleteColumn($ColumnIndex)
-                        $RemovedColumns++
-                        continue
+                        Invoke-Info "Deleting what is thought to be invalid or check column at $Local:ColumnIndex";
+                        $ActiveWorkSheet.DeleteColumn($Local:ColumnIndex);
+                        $Local:RemovedColumns++;
+                        continue;
                     }
                 }
             }
-            Write-Host -ForegroundColor Cyan "Processing Column $ColumnIndex which is dated $Date, moving to history: $(!$WillKeep)"
-            if ($WillKeep -eq $true) {
-                continue
+            if ($Local:WillKeep) {
+                continue;
             }
             if ($null -ne $HistoryWorkSheet) {
-                $HistoryColumnIndex = $HistoryWorkSheet.Dimension.Columns + 1
-                Write-Host -ForegroundColor Cyan "Moving column $ColumnIndex from working page into history page at $HistoryColumnIndex"
-                $HistoryWorkSheet.InsertColumn($HistoryColumnIndex, 1)
-                $HistoryWorkSheet.Cells[1, $HistoryColumnIndex].Value = $Date.ToString('MMM-yy')
-                $HistoryEmails = Get-EmailToCell -WorkSheet $HistoryWorkSheet
-                foreach ($RowIndex in 2..$ActiveWorkSheet.Dimension.Rows) {
-                    Write-Host -ForegroundColor Cyan "Processing row $RowIndex"
-                    $Email = $ActiveWorkSheet.Cells[$RowIndex, 2].Value
-                    $HistoryIndex = $HistoryEmails[$Email]
-                    if ($null -eq $HistoryIndex) {
-                        $HistoryIndex = $HistoryWorkSheet.Dimension.Rows + 1
-                        $HistoryWorkSheet.InsertRow($HistoryIndex, 1)
-                        $HistoryWorkSheet.Cells[$HistoryIndex, 2].Value = $Email
+                [Int]$Local:HistoryColumnIndex = $HistoryWorkSheet.Dimension.Columns + 1;
+                Invoke-Info "Moving column $Local:ColumnIndex from working page into history page at $Local:HistoryColumnIndex";
+                $HistoryWorkSheet.InsertColumn($Local:HistoryColumnIndex, 1);
+                $HistoryWorkSheet.Cells[1, $Local:HistoryColumnIndex].Value = $Local:Date.ToString('MMM-yy');
+                [HashTable]$Local:HistoryEmails = Get-EmailToCell -WorkSheet $HistoryWorkSheet;
+                foreach ($Local:RowIndex in 2..$ActiveWorkSheet.Dimension.Rows) {
+                    Invoke-Info "Processing row $Local:RowIndex";
+                    [String]$Local:Email = $ActiveWorkSheet.Cells[$RowIndex, 2].Value;
+                    [Int]$Local:HistoryIndex = $HistoryEmails[$Email];
+                    if ($null -eq $Local:HistoryIndex) {
+                        [Int]$Local:HistoryIndex = $HistoryWorkSheet.Dimension.Rows + 1;
+                        $HistoryWorkSheet.InsertRow($Local:HistoryIndex, 1);
+                        $HistoryWorkSheet.Cells[$Local:HistoryIndex, 2].Value = $Local:Email;
                     } else {
-                        $HistoryWorkSheet.Cells[$HistoryIndex, 1].Value = $ActiveWorkSheet.Cells[$RowIndex, 1].Value
-                        $HistoryWorkSheet.Cells[$HistoryIndex, 3].Value = $ActiveWorkSheet.Cells[$RowIndex, 3].Value
+                        $Local:HistoryWorkSheet.Cells[$Local:HistoryIndex, 1].Value = $ActiveWorkSheet.Cells[$Local:RowIndex, 1].Value;
+                        $Local:HistoryWorkSheet.Cells[$Local:HistoryIndex, 3].Value = $ActiveWorkSheet.Cells[$Local:RowIndex, 3].Value;
                     }
-                    $HistoryWorkSheet.Cells[$HistoryIndex, $HistoryColumnIndex].Value = $ActiveWorkSheet.Cells[$RowIndex, $ColumnIndex].Value
+                    $HistoryWorkSheet.Cells[$Local:HistoryIndex, $Local:HistoryColumnIndex].Value = $ActiveWorkSheet.Cells[$Local:RowIndex, $Local:ColumnIndex].Value;
                 }
             }
-            $ActiveWorkSheet.DeleteColumn($ColumnIndex)
-            $RemovedColumns++
+            $ActiveWorkSheet.DeleteColumn($Local:ColumnIndex);
+            $Local:RemovedColumns++;
         }
     }
 }
@@ -2658,7 +2756,7 @@ function Get-ColumnDate {
         [ValidateNotNullOrEmpty()]
         [Int32]$ColumnIndex
     )
-    $DateValue = $WorkSheet.Cells[1, $ColumnIndex].Value
+    $Local:DateValue = $WorkSheet.Cells[1, $ColumnIndex].Value
     try {
         Get-Date -Date ($DateValue)
     } catch {
@@ -2676,10 +2774,10 @@ function Invoke-CleanupWorksheet(
     [OfficeOpenXml.ExcelWorksheet]$WorkSheet,
     [switch]$DuplicateCheck
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        [Int]$Local:Rows = $WorkSheet.Dimension.Rows
+        [Int]$Local:Rows = $WorkSheet.Dimension.Rows;
         if ($null -ne $Local:Rows -and $Local:Rows -ge 2) {
             [Int]$Local:RemovedRows = 0;
             [System.Collections.Generic.List[String]]$Local:VisitiedEmails = New-Object System.Collections.Generic.List[String];
@@ -2776,36 +2874,32 @@ Please select which row you would like to keep, or enter 'b' to exit and manuall
                             Exit 1010
                         }
                     }
-                    Invoke-Info "Removing row $Local:RemovingRow";
+                    Invoke-Verbose "Removing row $Local:RemovingRow";
                     $WorkSheet.DeleteRow($RemovingRow);
                     $Local:RemovedRows++;
                 }
             }
         }
-        $Columns = $WorkSheet.Dimension.Columns
-        if ($null -ne $Columns -and $Columns -ge 4) {
-            $RemovedColumns = 0
-            foreach ($ColumnIndex in 4..$WorkSheet.Dimension.Columns) {
-                $ColumnIndex = $ColumnIndex - $RemovedColumns
-                $Value = $WorkSheet.Cells[1, $ColumnIndex].Value
-                if ($null -eq $Value -or $Value -eq 'Check') {
-                    Write-Host -ForegroundColor Cyan "Removing column $ColumnIndex because date is empty or invalid."
-                    $WorkSheet.DeleteColumn($ColumnIndex)
-                    $RemovedColumns++
-                    continue
+        [Int]$Local:Columns = $WorkSheet.Dimension.Columns;
+        if ($null -ne $Local:Columns -and $Local:Columns -ge 4) {
+            $Local:RemovedColumns = 0;
+            foreach ($Local:ColumnIndex in 4..$WorkSheet.Dimension.Columns) {
+                $Local:ColumnIndex = $Local:ColumnIndex - $Local:RemovedColumns;
+                [String]$Local:Value = $WorkSheet.Cells[1, $Local:ColumnIndex].Value;
+                if ($null -eq $Local:Value -or $Local:Value -eq 'Check') {
+                    Invoke-Verbose "Removing column $Local:ColumnIndex because date is empty or invalid.";
+                    $WorkSheet.DeleteColumn($Local:ColumnIndex);
+                    $Local:RemovedColumns++;
+                    continue;
                 }
             }
         }
     }
 }
 function Remove-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while removing users from worksheet";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
         [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
         $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
         [HashTable]$Local:EmailTable = $Local:EmailTable | Sort-Object -Property Values -Descending;
@@ -2814,25 +2908,21 @@ function Remove-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]
             [Int]$Local:ExistingRow = $_.Value;
             [String]$Local:NewData = $NewData | Where-Object { $_.Email -eq $Local:ExistingEmail } | Select-Object -First 1;
             If ($null -eq $Local:NewData) {
-                Write-Host -ForegroundColor Cyan -Object "$Local:ExistingEmail is not longer present in the new data, removing from row $Local:ExistingRow";
+                Invoke-Verbose "$Local:ExistingEmail is not longer present in the new data, removing from row $Local:ExistingRow";
                 $WorkSheet.DeleteRow($Local:ExistingRow);
             }
         }
     }
 }
 function Add-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while adding users to worksheet";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
         [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
         $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
         [PSCustomObject]$Local:NewUsers = $NewData | Where-Object { -not $Local:EmailTable.ContainsKey($_.Email) };
         If ($null -eq $Local:NewUsers) {
-            Write-Host -ForegroundColor Cyan -Object "No new users found, skipping add users.";
+            Invoke-Debug 'No new users found, skipping add users.';
             return;
         }
         [HashTable]$Local:TableWithInsertions = @{};
@@ -2845,7 +2935,7 @@ function Add-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
             [String]$Local:Email = $_.Key;
             [Boolean]$Local:IsNewUser = $_.Value;
             If ($Local:IsNewUser) {
-                Write-Host -ForegroundColor Cyan -Object "$Local:Email is a new user, inserting into row $($Local:LastRow + 1)";
+                Invoke-Verbose "$Local:Email is a new user, inserting into row $($Local:LastRow + 1)";
                 [PSCustomObject]$Local:NewUserData = $NewData | Where-Object { $_.Email -eq $Local:Email } | Select-Object -First 1;
                 $WorkSheet.InsertRow($Local:LastRow, 1);
                 $WorkSheet.Cells[$Local:LastRow, 1].Value = $Local:NewUserData.DisplayName;
@@ -2860,13 +2950,9 @@ function Invoke-OrderUsers(
     [ValidateNotNullOrEmpty()]
     [OfficeOpenXml.ExcelWorksheet]$WorkSheet
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while re-ordering users";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
         return
         [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
         [HashTable]$Local:RequiresSorting = @{};
@@ -2883,11 +2969,11 @@ function Invoke-OrderUsers(
                     $Local:SmallestKey = $Local:Key;
                 }
             }
-            Write-Host -ForegroundColor Cyan -Object "Smallest key is $Local:SmallestKey";
+            Invoke-Debug "Smallest key is $Local:SmallestKey";
             [Int]$Local:CurrentIndex = $Local:RequiresSorting[$Local:SmallestKey];
             [Int]$Local:ShouldBeAt = $Local:SortedRows++ + 2;
             If ($Local:CurrentIndex -ne $Local:ShouldBeAt) {
-                Write-Host -ForegroundColor Cyan -Object "Moving row $Local:CurrentIndex to row $Local:ShouldBeAt";
+                Invoke-Debug "Moving row $Local:CurrentIndex to row $Local:ShouldBeAt";
                 $WorkSheet.InsertRow($Local:ShouldBeAt, 1);
                 foreach ($Local:Column in (1..$WorkSheet.Dimension.Columns)) {
                     $Local:Value = $WorkSheet.Cells[$Local:CurrentIndex, $Local:Column].Text;
@@ -2906,13 +2992,9 @@ function Invoke-OrderUsers(
     }
 }
 function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$WorkSheet, [switch]$AddNewData) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        Trap {
-            Write-Host -ForegroundColor Red "Unexpected error occurred while updating data";
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        };
         [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
         $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
         If ($AddNewData) {
@@ -2924,10 +3006,10 @@ function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$
             [String]$Local:Email = $Local:User.Email;
             [Int]$Local:Row = $Local:EmailTable[$Local:Email];
             if ($null -eq $Local:Row -or $Local:Row -eq 0) {
-                Write-Host -ForegroundColor Cyan -Object "$Local:Email doesn't exist in this sheet yet, skipping.";
+                Invoke-Verbose "$Local:Email doesn't exist in this sheet yet, skipping.";
                 continue;
             }
-            Write-Host -ForegroundColor Cyan -Object "Updating row $Local:Row with new data";
+            Invoke-Verbose "Updating row $Local:Row with new data";
             $WorkSheet.Cells[$Local:Row, 1].Value = $Local:User.DisplayName;
             $WorkSheet.Cells[$Local:Row, 2].Value = $Local:User.Email;
             $WorkSheet.Cells[$Local:Row, 3].Value = $Local:User.MobilePhone;
@@ -2945,36 +3027,36 @@ function Set-Check(
     [ValidateNotNullOrEmpty()]
     [OfficeOpenXml.ExcelWorksheet]$WorkSheet
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        $Cells = $WorkSheet.Cells
-        $lastColumn = $WorkSheet.Dimension.Columns
-        $prevColumn = $lastColumn - 1
-        $currColumn = $lastColumn
-        $checkColumn = $lastColumn + 1
+        $Local:Cells = $WorkSheet.Cells;
+        $Local:LastColumn = $WorkSheet.Dimension.Columns;
+        $Local:PrevColumn = $Local:LastColumn - 1;
+        $Local:CurrColumn = $Local:LastColumn;
+        $Local:CheckColumn = $Local:LastColumn + 1;
         if ($WorkSheet.Dimension.Columns -eq 4) {
-            $prevColumn = $lastColumn + 2
+            $Local:prevColumn = $Local:lastColumn + 2;
         }
-        foreach ($row in 2..$WorkSheet.Dimension.Rows) {
-            $prevNumber = $Cells[$row, $prevColumn].Value
-            $currNumber = $Cells[$row, $currColumn].Value
-            $Cell = $Cells[$row, $checkColumn]
-            ($Result, $Colour) = if ([String]::IsNullOrWhitespace($prevNumber) -and [String]::IsNullOrWhitespace($currNumber)) {
-                'Missing',[System.Drawing.Color]::Turquoise
-            } elseif ([String]::IsNullOrWhitespace($prevNumber)) {
-                'No Previous',[System.Drawing.Color]::Yellow
-            } elseif ($prevNumber -eq $currNumber) {
-                'Match',[System.Drawing.Color]::Green
+        foreach ($Local:Row in 2..$WorkSheet.Dimension.Rows) {
+            [Int]$Local:PrevNumber = $Cells[$Local:Row, $Local:PrevColumn].Value;
+            [Int]$Local:CurrNumber = $Cells[$Local:Row, $Local:CurrColumn].Value;
+            $Local:Cell = $Cells[$Local:Row, $Local:CheckColumn];
+            ($Local:Result, $Local:Colour) = if ([String]::IsNullOrWhitespace($Local:PrevNumber) -and [String]::IsNullOrWhitespace($Local:CurrNumber)) {
+                'Missing',[System.Drawing.Color]::Turquoise;
+            } elseif ([String]::IsNullOrWhitespace($Local:PrevNumber)) {
+                'No Previous',[System.Drawing.Color]::Yellow;
+            } elseif ($Local:PrevNumber -eq $Local:CurrNumber) {
+                'Match',[System.Drawing.Color]::Green;
             } else {
-                'Miss-match',[System.Drawing.Color]::Red
+                'Miss-match',[System.Drawing.Color]::Red;
             }
-            Write-Host -ForegroundColor Cyan "Setting cell $row,$checkColumn to $colour"
-            $Cell.Value = $Result
-            $Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
-            $Cell.Style.Fill.BackgroundColor.SetColor(($Colour))
+            Invoke-Debug "Setting cell $Local:Row,$Local:CheckColumn to $Local:Colour";
+            $Local:Cell.Value = $Local:Result;
+            $Local:Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid;
+            $Local:Cell.Style.Fill.BackgroundColor.SetColor(($Local:Colour));
         }
-        $Cells[1, $checkColumn].Value = 'Check'
+        $Cells[1, $Local:CheckColumn].Value = 'Check';
     }
 }
 function Set-Styles(
@@ -2982,14 +3064,14 @@ function Set-Styles(
     [ValidateNotNullOrEmpty()]
     [OfficeOpenXml.ExcelWorksheet]$WorkSheet
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
-        $lastColumn = $WorkSheet.Dimension.Address -split ':' | Select-Object -Last 1
-        $lastColumn = $lastColumn -replace '[0-9]', ''
-        Set-ExcelRange -Worksheet $WorkSheet -Range "A1:$($lastColumn)1" -Bold -HorizontalAlignment Center
-        if ($WorkSheet.Dimension.Columns -ge 4) { Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($lastColumn)1" -NumberFormat "MMM-yy" }
-        Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($lastColumn)$(($WorkSheet.Dimension.Rows))" -AutoSize -ResetFont -BackgroundPattern Solid
+        [String]$Local:LastColumn = $WorkSheet.Dimension.Address -split ':' | Select-Object -Last 1;
+        [String]$Local:LastColumn = $Local:LastColumn -replace '[0-9]', '';
+        Set-ExcelRange -Worksheet $WorkSheet -Range "A1:$($Local:LastColumn)1" -Bold -HorizontalAlignment Center;
+        if ($WorkSheet.Dimension.Columns -ge 4) { Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($Local:LastColumn)1" -NumberFormat "MMM-yy" };
+        Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($Local:LastColumn)$(($WorkSheet.Dimension.Rows))" -AutoSize -ResetFont -BackgroundPattern Solid;
     }
 }
 function New-BaseWorkSheet([Parameter(Mandatory)][ValidateNotNullOrEmpty()][OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
@@ -3008,8 +3090,8 @@ function Get-ActiveWorkSheet(
     [ValidateNotNullOrEmpty()]
     [OfficeOpenXml.ExcelPackage]$ExcelData
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:ActiveWorkSheet; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:ActiveWorkSheet; }
     process {
         [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = $ExcelData.Workbook.Worksheets | Where-Object { $_.Name -eq 'Working' };
         if ($null -eq $Local:ActiveWorkSheet) {
@@ -3025,8 +3107,8 @@ function Get-HistoryWorkSheet(
     [ValidateNotNullOrEmpty()]
     [OfficeOpenXml.ExcelPackage]$ExcelData
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:HistoryWorkSheet; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:HistoryWorkSheet; }
     process {
         [OfficeOpenXml.ExcelWorksheet]$Local:HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
         if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne "History") {
@@ -3039,7 +3121,8 @@ function Get-HistoryWorkSheet(
     }
 }
 function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
-    begin { Enter-Scope $MyInvocation }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
     process {
         if ($ExcelData.Workbook.Worksheets.Count -gt 2) {
             Invoke-Info "Removing $($ExcelData.Workbook.Worksheets.Count - 2) worksheets";
@@ -3049,7 +3132,6 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
         }
         Close-ExcelPackage $ExcelData -Show;
     }
-    end { Exit-Scope $MyInvocation }
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
