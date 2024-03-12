@@ -595,7 +595,7 @@ function Invoke-PhaseCleanup {
                         try {
                             $ErrorActionPreference = 'Stop';
 
-                            pnputil /delete-driver $Local:FileName /uninstall /force;
+                            pnputil /delete-driver $Local:FileName /uninstall /force | Out-Null;
                             Invoke-Info "Removed driver: $($Local:FileName)";
                         } catch {
                             Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
@@ -740,7 +740,7 @@ function Invoke-PhaseUpdate {
     process {
         [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { "Finish" } else { "Update" };
 
-        Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false;
+        Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false | Out-Null;
         (Get-RebootFlag).Set($null);
 
         return $Local:NextPhase;
