@@ -68,8 +68,8 @@ function Get-SoapResponse(
     [ValidateNotNullOrEmpty()]
     [String]$Uri
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:ParsedResponse; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:ParsedResponse; }
 
     process {
         [String]$Local:ContentType = "text/xml;charset=`"utf-8`"";
@@ -87,8 +87,8 @@ function Get-BaseUrl(
     [ValidateNotNullOrEmpty()]
     [String]$Service
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         "https://${Endpoint}/api/?apikey=$ApiKey&service=$Service"
@@ -104,13 +104,12 @@ function Get-FormattedName2Id(
     [ValidateNotNullOrEmpty()]
     [ScriptBlock]$IdExpr
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         $InputArr | Select-Object -Property @{Name = 'Name'; Expression = { $_.name.'#cdata-section' } }, @{Name = 'Id'; Expression = $IdExpr }
     }
-
-    end { Exit-Scope -Invocation $MyInvocation; }
 }
 
 #endregion - Utility Functions
@@ -119,8 +118,8 @@ function Get-FormattedName2Id(
 
 # If the script isn't located in the temp folder, copy it there and run it from there.
 function Invoke-EnsureLocalScript {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         [String]$Local:ScriptPath = $MyInvocation.PSScriptRoot;
@@ -149,8 +148,8 @@ function Invoke-EnsureLocalScript {
 
 # Get all required user input for the rest of the script to run automatically.
 function Invoke-EnsureSetupInfo {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         [String]$Local:File = "$($env:TEMP)\InstallInfo.json";
@@ -231,8 +230,11 @@ function Invoke-EnsureSetupInfo {
 #region - Queue Functions
 
 function Remove-QueuedTask {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         [CimInstance]$Local:Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue;
@@ -241,8 +243,10 @@ function Remove-QueuedTask {
             return;
         }
 
-        Invoke-Verbose -Message "Removing scheduled task [$TaskName]...";
-        $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
+        if ($PSCmdlet.ShouldProcess("Removing scheduled task [$TaskName]")) {
+            $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
+            Invoke-Verbose -Message "Removed scheduled task [$TaskName]...";
+        }
     }
 }
 
@@ -259,8 +263,8 @@ function Add-QueuedTask(
 
     [switch]$ForceReboot = $false
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         [Boolean]$Local:RequiresReboot = (Get-RebootFlag).Required() -or $ForceReboot;
@@ -329,8 +333,8 @@ function Add-QueuedTask(
 
 # Configure items like device name from the setup the user provided.
 function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
         $InstallInfo | Assert-NotNull -Message "Install info was null";
@@ -373,8 +377,8 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
 }
 
 function Invoke-PhaseCleanup {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
         function Invoke-Progress {
@@ -443,8 +447,11 @@ function Invoke-PhaseCleanup {
             }
         }
         function Stop-Services_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
 
             process {
                 [String[]]$Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
@@ -466,8 +473,10 @@ function Invoke-PhaseCleanup {
                         try {
                             $ErrorActionPreference = 'Stop';
 
-                            $Local:Instance | Stop-Service -Force -Confirm:$false;
-                            Invoke-Info "Stopped service $Local:Instance";
+                            if ($PSCmdlet.ShouldProcess("Stopping service [$($Local:Instance.Name)]")) {
+                                $Local:Instance | Stop-Service -Force -Confirm:$false;
+                                Invoke-Info "Stopped service $Local:Instance";
+                            }
                         } catch {
                             Invoke-Info -Message "Failed to stop $Local:Instance";
                         }
@@ -476,8 +485,10 @@ function Invoke-PhaseCleanup {
                         try {
                             $ErrorActionPreference = 'Stop';
 
-                            $Local:Instance | Set-Service -StartupType Disabled -Confirm:$false;
-                            Invoke-Info "Disabled service $ServiceName";
+                            if ($PSCmdlet.ShouldProcess("Disabling service [$($Local:Instance.Name)]")) {
+                                $Local:Instance | Set-Service -StartupType Disabled -Confirm:$false;
+                                Invoke-Info "Disabled service $ServiceName";
+                            }
                         } catch {
                             Invoke-Warn "Failed to disable $ServiceName";
                             Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
@@ -487,8 +498,11 @@ function Invoke-PhaseCleanup {
             }
         }
         function Remove-Programs_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
 
             process {
                 [String[]]$Programs = @(
@@ -538,19 +552,24 @@ function Invoke-PhaseCleanup {
                     -ProcessItem {
                         Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program)
 
-                        $Local:Product = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq $Program.Name };
+                        $Local:Product = Get-CimInstance -Query "SELECT * FROM Win32_Product WHERE Name = '$($Program.Name)'";
                         if (-not $Local:Product) {
                             throw "Can't find MSI Package for program [$($Program.Name)]";
                         } else {
-                            msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
-                            Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
+                            if ($PSCmdlet.ShouldProcess("Removing MSI program [$($Local:Product.Name)]")) {
+                                msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
+                                Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
+                            }
                         }
                     };
             }
         }
         function Remove-ProvisionedPackages_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
 
             process {
                 [String]$HPIdentifier = "AD2F1837";
@@ -558,14 +577,19 @@ function Invoke-PhaseCleanup {
                 Invoke-Progress -GetItems { Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
 
-                    Remove-AppxProvisionedPackage -PackageName $Package.PackageName -Online -AllUsers | Out-Null;
-                    Invoke-Info "Sucessfully removed provisioned package [$($Package.DisplayName)]";
+                    if ($PSCmdlet.ShouldProcess("Removing provisioned package [$($Package.DisplayName)]")) {
+                        Remove-AppxProvisionedPackage -PackageName $Package.PackageName -Online -AllUsers | Out-Null;
+                        Invoke-Info "Sucessfully removed provisioned package [$($Package.DisplayName)]";
+                    }
                 }
             }
         }
         function Remove-AppxPackages_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
 
             process {
                 [String]$HPIdentifier = "AD2F1837";
@@ -573,14 +597,19 @@ function Invoke-PhaseCleanup {
                 Invoke-Progress -GetItems { Get-AppxPackage -AllUsers | Where-Object { $_.Name -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
 
-                    Remove-AppxPackage -Package $Package.PackageFullName -AllUsers;
-                    Invoke-Info "Sucessfully removed appx-package [$($Package.Name)]";
+                    if ($PSCmdlet.ShouldProcess("Removing appx-package [$($Package.Name)]")) {
+                        Remove-AppxPackage -Package $Package.PackageFullName -AllUsers;
+                        Invoke-Info "Sucessfully removed appx-package [$($Package.Name)]";
+                    }
                 };
             }
         }
         function Remove-Drivers_HP {
-            begin { Enter-Scope -Invocation $MyInvocation; }
-            end { Exit-Scope -Invocation $MyInvocation; }
+            [CmdletBinding(SupportsShouldProcess)]
+            param()
+
+            begin { Enter-Scope; }
+            end { Exit-Scope; }
 
             process {
                 # Uninstalling the drivers disables and (on reboot) removes the installed services.
@@ -595,8 +624,10 @@ function Invoke-PhaseCleanup {
                         try {
                             $ErrorActionPreference = 'Stop';
 
-                            pnputil /delete-driver $Local:FileName /uninstall /force | Out-Null;
-                            Invoke-Info "Removed driver: $($Local:FileName)";
+                            if ($PSCmdlet.ShouldProcess("Uninstalling driver [$Local:FileName]")) {
+                                pnputil /delete-driver $Local:FileName /uninstall /force | Out-Null;
+                                Invoke-Info "Removed driver: [$Local:FileName]";
+                            }
                         } catch {
                             Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
                         }
@@ -629,7 +660,9 @@ function Invoke-PhaseCleanup {
                     [HashTable]$Local:RegistryTable = $_.Value;
 
                     If (-not (Test-Path $Local:RegistryPath)) {
-                        New-Item -Path $Local:RegistryPath -Force | Out-Null
+                        if ($PSCmdlet.ShouldProcess("Creating registry path [$Local:RegistryPath]")) {
+                            New-Item -Path $Local:RegistryPath -Force | Out-Null;
+                        }
                     } else {
                         Invoke-Info "Registry path [$Local:RegistryPath] already exists, skipping creation...";
                     }
@@ -639,8 +672,11 @@ function Invoke-PhaseCleanup {
                         [String]$Local:ValueData = $_.Value;
 
                         If (-not (Test-Path "$Local:RegistryPath\$Local:ValueName")) {
-                            New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
-                            Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
+
+                            if ($PSCmdlet.ShouldProcess("Creating registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]")) {
+                                New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
+                                Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
+                            }
                         } else {
                             Invoke-Info "Registry value [$Local:ValueName] already exists in path [$Local:RegistryPath], skipping creation...";
                         }
@@ -662,8 +698,8 @@ function Invoke-PhaseCleanup {
 
 # Install the agent and any other required software.
 function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
         [String]$Local:AgentServiceName = "Advanced Monitoring Agent";
@@ -734,8 +770,8 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
 }
 
 function Invoke-PhaseUpdate {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
         [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { "Finish" } else { "Update" };
@@ -748,8 +784,8 @@ function Invoke-PhaseUpdate {
 }
 
 function Invoke-PhaseFinish {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:NextPhase; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
         [String]$Local:NextPhase = $null;
