@@ -1,13 +1,12 @@
 #Requires -Version 5.1
-[CmdletBinding(SupportsShouldProcess)]
+
 Param(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$URL,
-    [Parameter(HelpMessage = 'The pattern to find the executable in the zip file.')]
-    [String]$ExecutablePattern,
+    [Parameter()]
+    [Switch]$NoModify,
     [Parameter(Position = 0, ValueFromRemainingArguments)]
-    [String[]]$ExecArgs
+    [String[]]$UserExceptions = @(),
+    [Parameter(DontShow)]
+    [String[]]$BaseHiddenUsers = @('localadmin', 'nt authority\system', 'administrator', 'AzureAD\Admin', 'AzureAD\AdminO365')
 )
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
@@ -2617,49 +2616,178 @@ Text: $($Local:Region.Text)
 		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUser, Get-FormattedUsers, Get-Group, Get-Groups, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
     };
 }
-function Get-Executable(
+function Get-FilteredUsers(
     [Parameter(Mandatory)]
-    [String]$URL,
-    [Parameter()]
-    [String]$ExecutablePattern
+    [ValidateScript({ $_.SchemaClassName -eq 'Group' })]
+    [ValidateNotNullOrEmpty()]
+    [ADSI]$Group,
+    [Parameter(Mandatory)]
+    [HashTable[]]$Exceptions
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:FilteredMembers; }
     process {
-        if (-not $ExecutablePattern) {
-            [String]$Local:Executable = $URL.Split('/')[-1];
-            Invoke-Info "No executable pattern specified, assuming executable is $Local:Executable";
-            Invoke-WebRequest -Uri $URL -OutFile $Local:Executable -UseBasicParsing;
-        } else {
-            [String]$Local:OutFolder = $URL.Split('/')[-1].Split('.')[0];
-            Invoke-Info "Downloading $URL to $Local:OutFolder.zip"
-            Invoke-WebRequest -Uri $URL -OutFile "$Local:OutFolder.zip" -UseBasicParsing;
-            Invoke-Info "Extracting $Local:OutFolder.zip to $Local:OutFolder";
-            Expand-Archive -Path "$Local:OutFolder.zip" -DestinationPath $Local:OutFolder -Force;
-            Invoke-Info "Looking for executable in $OutFolder\$ExecutablePattern";
-            $Local:Executable = Get-Item -Path "$Local:OutFolder\$ExecutablePattern" | Select-Object -ExpandProperty FullName -First 1;
-            if (-not $Local:Executable) {
-                throw "Could not find executable matching pattern '$ExecutablePattern' in $Local:OutFolder";
-            }
+        [HashTable[]]$Local:Members = Get-GroupMembers -Group $Group | ForEach-Object {
+            [HashTable]$Local:Table = Get-FormattedUser -User $_;
+            $Local:Table | Add-Member -MemberType NoteProperty -Name ADSI -Value $_;
+            $Local:Table
+        };
+        Invoke-Debug "Members of Administrators group [$(($Local:Members | Select-Object -ExpandProperty Name) -join ', ')]";
+        if (-not ($Local:Members | Where-Object { $_.Name -eq 'localadmin' } | Select-Object -First 1)) {
+            Invoke-Error 'The account localadmin could not be found, aborting for safety.';
+            Invoke-FailedExit -ExitCode 1002;
         }
-        return $Local:Executable;
+        [HashTable[]]$Local:FilteredMembers = $Local:Members | Where-Object {
+            [String]$Local:Name = $_.Name;
+            $Local:Exception = $Exceptions | Where-Object { $_.Name -ieq $Local:Name -and $_.Domain -ieq $env:COMPUTERNAME };
+            (-not $Local:Exception) -or ($Local:Exception.Computers -contains $env:COMPUTERNAME)
+        };
+        Invoke-Info "Admins after filtering [$(($Local:FilteredMembers | Select-Object -ExpandProperty Name) -join ', ')]";
+        return $Local:FilteredMembers;
     }
 }
-function Invoke-Exec(
+function Remove-Admins(
     [Parameter(Mandatory)]
-    [String]$Executable,
-    [String[]]$ExecutableArgs
+    [ValidateScript({ $_.SchemaClassName -eq 'Group' })]
+    [ValidateNotNullOrEmpty()]
+    [ADSI]$Group,
+    [Parameter(Mandatory)]
+    [HashTable[]]$Users,
+    [Parameter(Mandatory)]
+    [HashTable[]]$Exceptions
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $RemovedUsers; }
     process {
-        Start-Process -FilePath "$Executable" -ArgumentList $ExecutableArgs -Wait -NoNewWindow;
+        if (-not $Users -or $Users.Count -eq 0) {
+            Invoke-Info 'No non-exception users were supplied, nothing to do.';
+            return @();
+        }
+        $Local:RemovedUsers = $Users | ForEach-Object {
+            if (-not $NoModify) {
+                Remove-MemberFromGroup -Group:$Group -Member:$_.ADSI;
+            }
+        }
+        return $Local:RemovedUsers
+    }
+}
+function Get-LocalUsers {
+    Get-CimInstance Win32_UserAccount | Where-Object { $_.Disabled -eq $false }
+}
+function Get-LocalGroupMembers([Parameter(Mandatory)][String]$Group) {
+    $Users = (Get-CimInstance Win32_Group -Filter "Name='$Group'" | Get-CimAssociatedInstance | Where-Object { $_.Disabled -eq $false })
+    return $Users
+}
+function Get-LocalUserGroups([Parameter(Mandatory)][String]$Username) {
+    $Groups = (Get-CimInstance Win32_UserAccount -Filter "Name='$Username'" | Get-CimAssociatedInstance -ResultClassName Win32_Group)
+    return $Groups
+}
+function Get-LocalUserWithoutGroups {
+    $Users = Get-LocalUsers
+    $Users = $Users | Where-Object { $null -eq (Get-LocalUserGroups -Username $_.Name) }
+    return $Users
+}
+function Set-MissingGroup {
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+    process {
+        $MissingGroups = Get-LocalUserWithoutGroups
+        if (($null -eq $MissingGroups) -or ($MissingGroups.Count -eq 0)) {
+            return @()
+        }
+        foreach ($User in $MissingGroups) {
+            switch ($NoModify) {
+                $true { Invoke-Info "Would have added $($User.Name) to Users group" }
+                $false { Add-LocalGroupMember -Group 'Users' -Member $User.Name | Out-Null }
+            }
+        }
+        return $MissingGroups
+    }
+}
+function Get-ProcessedExceptions(
+    [Parameter()]
+    [String[]]$UserExceptions
+) {
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Exceptions; }
+    process {
+        function Split-NameAndDomain([String]$Name) {
+            if ($Name.Contains('\')) {
+                Invoke-Debug "Splitting [$Name] into domain and name";
+                [String[]]$Split = $Name.Split('\');
+                Invoke-Debug "Split [$($Split | ConvertTo-Json -Depth 1)]";
+                if ($Split.Count -ne 2) {
+                    Invoke-Error "Invalid format for exception [$Name]";
+                    Invoke-FailedExit -ExitCode 1003;
+                }
+                return @{
+                    Name = $Split[1];
+                    Domain = $Split[0];
+                };
+            } else {
+                Invoke-Debug "No domain specified for [$Name], using local domain";
+                return @{
+                    Name = $Name;
+                    Domain = $env:COMPUTERNAME;
+                };
+            }
+        }
+        [HashTable[]]$Local:Exceptions = @();
+        foreach ($Local:Exception in $UserExceptions) {
+            if ($Local:Exception.Contains('=')) {
+                Invoke-Debug "Possible scoped exception [$Local:Exception]";
+                [String[]]$Local:Split = $Local:Exception.Split('=');
+                [String]$Local:UserName = $Local:Split[0];
+                if ($Local:Split.Count -eq 2) {
+                    Invoke-Debug "Is a scoped exception";
+                    [String[]]$Local:Computers = if ($Local:Split[1].Contains(',')) {
+                        $Local:Split[1].Split(',');
+                    } else {
+                        @($Local:Split[1])
+                    }
+                    Invoke-Debug "Scoped exception for [$Local:UserName] covers computers [$($Local:Computers | ConvertTo-Json -Depth 1)]";
+                    [HashTable]$Local:Exception = Split-NameAndDomain -Name $Local:UserName;
+                    $Local:Exception | Add-Member -MemberType NoteProperty -Name Computers -Value $Local:Computers;
+                    $Local:Exceptions += $Local:Exception;
+                } else {
+                    Invoke-Error "Invalid format for exception [$Local:Exception]";
+                    Invoke-FailedExit -ExitCode 1003;
+                }
+            } else {
+                Invoke-Debug "Exception for [$Local:Exception] is not scoped";
+                [HashTable]$Local:Exception = Split-NameAndDomain -Name $Local:Exception;
+                $Local:Exception | Add-Member -MemberType NoteProperty -Name Computers -Value @($env:COMPUTERNAME);
+                $Local:Exceptions += $Local:Exception;
+            }
+        }
+        return $Local:Exceptions;
     }
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
-    Invoke-WithinEphemeral {
-        [String]$Local:Executable = Get-Executable -URL:$URL -ExecutablePattern:$ExecutablePattern;
-        Invoke-Exec -Executable:$Local:Executable -ExecutableArgs:$ExecArgs;
+    if ($NoModify) {
+        Invoke-Info 'Running in WhatIf mode, no changes will be made.';
+    } else {
+        Invoke-EnsureAdministrator;
+    }
+    [ADSI]$Local:Group = Get-Group -Name 'Administrators';
+    [HashTable]$Local:UserExceptions = Get-ProcessedExceptions -UserExceptions:$UserExceptions;
+    [HashTable]$Local:LocalAdmins = Get-FilteredUsers -Group:$Local:Group -Exceptions:$Local:UserExceptions;
+    $Local:RemovedAdmins = Remove-Admins -Group:$Local:Group -Users:$Local:LocalAdmins -Exceptions:$Local:UserExceptions;
+    $Local:FixedUsers = Set-MissingGroup;
+    if ($RemovedAdmins.Count -eq 0 -and $FixedUsers.Count -eq 0) {
+        Invoke-Info 'No accounts modified'
+    }
+    else {
+        foreach ($User in $FixedUsers) {
+            Invoke-Info "Fixed user $($User.Name) by adding them to the Users group"
+        }
+        foreach ($User in $RemovedAdmins) {
+            switch ($NoModify) {
+                $true { Invoke-Info "Would have removed user $($User) from the administrators group" }
+                $false { Invoke-Info "Removed user $($User) from the administrators group" }
+            }
+        }
+        Exit 1001 # Exit code to indicate a change was made
     }
 });

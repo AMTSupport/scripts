@@ -1,14 +1,6 @@
-#Requires -Version 5.1
-[CmdletBinding(SupportsShouldProcess)]
-Param(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$URL,
-    [Parameter(HelpMessage = 'The pattern to find the executable in the zip file.')]
-    [String]$ExecutablePattern,
-    [Parameter(Position = 0, ValueFromRemainingArguments)]
-    [String[]]$ExecArgs
-)
+#Requires -Version 7.4
+
+
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -2617,49 +2609,57 @@ Text: $($Local:Region.Text)
 		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUser, Get-FormattedUsers, Get-Group, Get-Groups, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
     };
 }
-function Get-Executable(
-    [Parameter(Mandatory)]
-    [String]$URL,
-    [Parameter()]
-    [String]$ExecutablePattern
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        if (-not $ExecutablePattern) {
-            [String]$Local:Executable = $URL.Split('/')[-1];
-            Invoke-Info "No executable pattern specified, assuming executable is $Local:Executable";
-            Invoke-WebRequest -Uri $URL -OutFile $Local:Executable -UseBasicParsing;
-        } else {
-            [String]$Local:OutFolder = $URL.Split('/')[-1].Split('.')[0];
-            Invoke-Info "Downloading $URL to $Local:OutFolder.zip"
-            Invoke-WebRequest -Uri $URL -OutFile "$Local:OutFolder.zip" -UseBasicParsing;
-            Invoke-Info "Extracting $Local:OutFolder.zip to $Local:OutFolder";
-            Expand-Archive -Path "$Local:OutFolder.zip" -DestinationPath $Local:OutFolder -Force;
-            Invoke-Info "Looking for executable in $OutFolder\$ExecutablePattern";
-            $Local:Executable = Get-Item -Path "$Local:OutFolder\$ExecutablePattern" | Select-Object -ExpandProperty FullName -First 1;
-            if (-not $Local:Executable) {
-                throw "Could not find executable matching pattern '$ExecutablePattern' in $Local:OutFolder";
-            }
-        }
-        return $Local:Executable;
+[CmdletBinding()]
+param()
+function Install-1Password {
+    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
+        return;
     }
-}
-function Invoke-Exec(
-    [Parameter(Mandatory)]
-    [String]$Executable,
-    [String[]]$ExecutableArgs
-) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
-    process {
-        Start-Process -FilePath "$Executable" -ArgumentList $ExecutableArgs -Wait -NoNewWindow;
+    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
+    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
+    if ($env:PATH -notlike "*$Local:EnvPath*") {
+        $env:PATH += ";$Local:EnvPath";
     }
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
-    Invoke-WithinEphemeral {
-        [String]$Local:Executable = Get-Executable -URL:$URL -ExecutablePattern:$ExecutablePattern;
-        Invoke-Exec -Executable:$Local:Executable -ExecutableArgs:$ExecArgs;
+    Invoke-EnsureUser;
+    Invoke-EnsureModules -Modules @('Microsoft.Powershell.SecretManagement');
+    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
+    Install-1Password;
+    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
+        [Boolean]$Local:Response = Get-UserConfirmation `
+            -Title 'Recreate Secret Vault' `
+            -Question 'Secret vault already exists; do you want to recreate it?';
+        if ($Local:Response) {
+            Remove-SecretVault -Name 'PowerShell Secrets';
+        } else {
+            return;
+        }
     }
+    [Boolean]$Local:Email = Get-UserInput `
+        -Title '1Password Email' `
+        -Question 'Enter your 1Password email address' `
+        -Validate {
+            param([String]$UserInput);
+            $UserInput -match $Validations.Email;
+        };
+    [String]$Local:SecretKey = Get-UserInput `
+        -AsSecureString `
+        -Title '1Password Secret Key' `
+        -Question 'Enter your 1Password secret key' `
+        -Validate {
+            param([String]$UserInput);
+            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
+        }
+    [HashTable]$Local:SecretVault = @{
+        Name            = 'PowerShell Secrets';
+        ModuleName      = 'SecretManagement.1Password';
+        VaultParameters = @{
+            AccountName     = 'teamamt';
+            EmailAddress    = $Local:Email;
+            SecretKey       = $Local:SecretKey;
+        };
+    };
+    Register-SecretVault @Local:SecretVault;
 });

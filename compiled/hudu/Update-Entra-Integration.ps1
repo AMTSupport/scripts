@@ -204,6 +204,11 @@ $Global:EmbededModules = [ordered]@{
 		                    $Global:Logging[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
 		                }
 		            }
+		            $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
+		            $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
+		            $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
+		            $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
+		            $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
 		            if (-not $HideDisclaimer) {
 		                Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
 		            }
@@ -1195,22 +1200,39 @@ Text: $($Local:Region.Text)
 		function Get-StackTop {;
 		    return (Get-Stack).Peek()
 		}
-		function Get-ScopeNameFormatted([Parameter(Mandatory)][Switch]$IsExit) {
+		function Format-ScopeName([Parameter(Mandatory)][Switch]$IsExit) {
 		    [String]$Local:CurrentScope = (Get-StackTop).MyCommand.Name;
 		    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.MyCommand.Name } | Sort-Object -Descending;
 		    [String]$Local:Scope = "$($Local:PreviousScopes -join ' > ')$(if ($Local:PreviousScopes.Count -gt 0) { if ($IsExit) { ' < ' } else { ' > ' } })$Local:CurrentScope";
 		    return $Local:Scope;
 		}
-		function Get-FormattedParameters(
+		function Format-Parameters(
 		    [Parameter()]
 		    [String[]]$IgnoreParams = @()
 		) {
 		    [System.Collections.IDictionary]$Local:Params = (Get-StackTop).BoundParameters;
 		    if ($null -ne $Local:Params -and $Local:Params.Count -gt 0) {
-		        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $($_.Value)" };
+		        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $(Format-Variable -Value $_.Value)" };
 		        [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n";
 		        return "$Local:ParamsFormatted";
 		    }
+		    return $null;
+		}
+		function Format-Variable([Object]$Value) {
+		    function Format-SingleVariable([Parameter(Mandatory)][Object]$Value) {
+		        switch ($Value) {
+		            { $_ -is [System.Collections.HashTable] } { "`n$Script:Tab$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
+		            default { $Value }
+		        };
+		    }
+		    if ($null -ne $Value) {
+		        [String]$Local:FormattedValue = if ($Value -is [Array]) {
+		            "$(($Value | ForEach-Object { Format-SingleVariable $_ }) -join "`n$Script:Tab")"
+		        } else {
+		            Format-SingleVariable -Value $Value;
+		        }
+		        return $Local:FormattedValue;
+		    };
 		    return $null;
 		}
 		function Get-FormattedReturnValue(
@@ -1240,8 +1262,8 @@ Text: $($Local:Region.Text)
 		    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo
 		) {
 		    (Get-Stack).Push($Invocation);
-		    [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$False;
-		    [String]$Local:ParamsFormatted = Get-FormattedParameters -IgnoreParams:$IgnoreParams;
+		    [String]$Local:ScopeName = Format-ScopeName -IsExit:$False;
+		    [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams;
 		    @{
 		        PSMessage   = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
 		        PSColour    = 'Blue';
@@ -1255,8 +1277,8 @@ Text: $($Local:Region.Text)
 		    [Parameter()]
 		    [Object]$ReturnValue
 		) {
-		    [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$True;
-		    [String]$Local:ReturnValueFormatted = Get-FormattedReturnValue -ReturnValue $ReturnValue;
+		    [String]$Local:ScopeName = Format-ScopeName -IsExit:$True;
+		    [String]$Local:ReturnValueFormatted = Format-Variable -Value:$ReturnValue;
 		    @{
 		        PSMessage   = "$Local:ScopeName$(if ($Local:ReturnValueFormatted) { "`n$Script:Tab$Local:ReturnValueFormatted" })";
 		        PSColour    = 'Blue';
@@ -1265,7 +1287,7 @@ Text: $($Local:Region.Text)
 		    } | Invoke-Write;
 		    (Get-Stack).Pop() | Out-Null;
 		}
-		Export-ModuleMember -Function Get-StackTop, Get-FormattedParameters, Get-FormattedReturnValue, Get-ScopeNameFormatted, Enter-Scope,Exit-Scope;
+		Export-ModuleMember -Function Get-StackTop, Format-Parameters, Format-Variable, Format-ScopeName, Enter-Scope, Exit-Scope;
     };`
 	"02-Exit" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1460,62 +1482,96 @@ Text: $($Local:Region.Text)
 		    param (
 		        [Parameter(Mandatory)]
 		        [ValidateNotNullOrEmpty()]
-		        [String[]]$Modules,
+		        [ValidateScript({
+		            $Local:NotValid = $_ | Where-Object {
+		                $Local:IsString = $_ -is [String];
+		                $Local:IsHashTable = $_ -is [HashTable] -and $_.Keys.Contains('Name');
+		                -not ($Local:IsString -or $Local:IsHashTable);
+		            };
+		            $Local:NotValid.Count -eq 0;
+		        })]
+		        [Object[]]$Modules,
 		        [Parameter(HelpMessage = 'Do not install the module if it is not installed.')]
 		        [switch]$NoInstall
 		    )
-		    begin { Enter-Scope -Invocation $MyInvocation; }
-		    end { Exit-Scope -Invocation $MyInvocation; }
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
 		    process {
 		        try {
 		            $ErrorActionPreference = 'Stop';
-		            Get-PackageProvider -Name NuGet | Out-Null;
-		        } catch {
-		            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Confirm:$False;
+		            Get-PackageProvider -ListAvailable -Name NuGet | Out-Null;
+		        }
+		        catch {
+		            Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
 		            Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
 		        }
 		        foreach ($Local:Module in $Modules) {
-		            if (Test-Path -Path $Local:Module) {
-		                Invoke-Debug "Module '$Local:Module' is a local path to a module, importing...";
-		                $Script:ImportedModules.Add(($Local:Module | Split-Path -LeafBase));
-		            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module -ErrorAction SilentlyContinue)) {
-		                if ($NoInstall) {
-		                    Invoke-Error -Message "Module '$Local:Module' is not installed, and no-install is set.";
-		                    Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
+		            $Local:InstallArgs = @{
+		                AllowClobber = $true;
+		                Scope = 'CurrentUser';
+		                Force = $true;
+		            };
+		            if ($Local:Module -is [HashTable]) {
+		                [String]$Local:ModuleName = $Local:Module.Name;
+		                [String]$Local:ModuleMinimumVersion = $Local:Module.MinimumVersion;
+		                if ($Local:ModuleMinimumVersion) {
+		                    $Local:InstallArgs.Add('MinimumVersion', $Local:ModuleMinimumVersion);
 		                }
-		                if (Find-Module -Name $Local:Module -ErrorAction SilentlyContinue) {
-		                    Invoke-Info "Module '$Local:Module' is not installed, installing...";
+		            } else {
+		                [String]$Local:ModuleName = $Local:Module;
+		            }
+		            $Local:InstallArgs.Add('Name', $Local:ModuleName);
+		            if (Test-Path -Path $Local:ModuleName) {
+		                Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
+		                $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+		            }
+		            $Local:AvailableModule = Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Select-Object -First 1;
+		            if ($Local:AvailableModule) {
+		                Invoke-Debug "Module '$Local:ModuleName' is installed, with version $($Local:AvailableModule.Version).";
+		                if ($Local:ModuleMinimumVersion -and $Local:AvailableModule.Version -lt $Local:ModuleMinimumVersion) {
+		                    Invoke-Verbose 'Module is installed, but the version is less than the minimum version required, trying to update...';
 		                    try {
-		                        Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
-		                        $Script:ImportedModules.Add($Local:Module);
+		                        Install-Module @Local:InstallArgs | Out-Null;
 		                    } catch {
-		                        Invoke-Error -Message "Unable to install module '$Local:Module'.";
+		                        Invoke-Error -Message "Unable to update module '$Local:ModuleName'.";
 		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
 		                    }
-		                } elseif ($Local:Module -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$'){
+		                }
+		                $Script:ImportedModules.Add($Local:ModuleName);
+		            } else {
+		                if ($NoInstall) {
+		                    Invoke-Error -Message "Module '$Local:ModuleName' is not installed, and no-install is set.";
+		                    Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
+		                }
+		                if (Find-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue) {
+		                    Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
+		                    try {
+		                        Install-Module @Local:InstallArgs;
+		                        $Script:ImportedModules.Add($Local:ModuleName);
+		                    } catch {
+		                        Invoke-Error -Message "Unable to install module '$Local:ModuleName'.";
+		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                    }
+		                } elseif ($Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$') {
 		                    [String]$Local:Owner = $Matches.owner;
 		                    [String]$Local:Repo = $Matches.repo;
 		                    [String]$Local:Ref = $Matches.ref;
 		                    [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
-		                    Invoke-Info "Module '$Local:Module' not found in PSGallery, trying to install from git...";
+		                    Invoke-Info "Module '$Local:ModuleName' not found in PSGallery, trying to install from git...";
 		                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
 		                    try {
-		                        $ErrorActionPreference = 'Stop';
-		                        [String]$Local:Module = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+		                        [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
 		                    } catch {
-		                        Invoke-Error -Message "Unable to install module '$Local:Module' from git.";
+		                        Invoke-Error -Message "Unable to install module '$Local:ModuleName' from git.";
 		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
 		                    }
 		                } else {
-		                    Invoke-Error -Message "Module '$Local:Module' could not be found using Find-Module, and was not a git repoistory.";
+		                    Invoke-Error -Message "Module '$Local:ModuleName' could not be found using Find-Module, and was not a git repoistory.";
 		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
 		                }
-		            } else {
-		                Invoke-Debug "Module '$Local:Module' is installed.";
-		                $Script:ImportedModules.Add($Local:Module);
 		            }
-		            Invoke-Debug "Importing module '$Local:Module'...";
-		            Import-Module -Name $Local:Module -Global;
+		            Invoke-Debug "Importing module '$Local:ModuleName'...";
+		            Import-Module -Name $Local:ModuleName -Global;
 		        }
 		        Invoke-Verbose -Message 'All modules are installed.';
 		    }
@@ -2017,31 +2073,11 @@ Text: $($Local:Region.Text)
 		    $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
 		    return $Local:Selection;
 		}
+		Invoke-EnsureModules @{
+		    Name = 'PSReadLine';
+		    MinimumVersion = '2.3.0';
+		};
 		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
-    };`
-	"50-Module" = {
-        [CmdletBinding(SupportsShouldProcess)]
-        Param()
-		function Import-DownloadableModule {
-		    Param(
-		        [Parameter(Mandatory)]
-		        [ValidateNotNullOrEmpty()]
-		        [String]$Name
-		    )
-		    $Local:Module = Get-Module -ListAvailable | Where-Object { $_.Name -eq $Name } | Select-Object -First 1;
-		    if ($Local:Module) {
-		        Invoke-Verbose -Message "Importing previously installed module $Name...";
-		        Import-Module $Local:Module;
-		        return;
-		    }
-		    Invoke-Verbose "Ensuring NuGet is installed..."
-		    Install-PackageProvider -Name NuGet -Confirm:$false;
-		    Invoke-Verbose "Installing module $Name...";
-		    Install-Module -Name $Name -Scope CurrentUser -Confirm:$false -Force;
-		    Invoke-Verbose "Importing module $Name...";
-		    Import-Module -Name $Name;
-		}
-		Export-ModuleMember -Function Import-DownloadableModule;
     };`
 	"99-Cache" = {
         [CmdletBinding(SupportsShouldProcess)]
