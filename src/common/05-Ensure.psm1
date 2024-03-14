@@ -39,44 +39,92 @@ function Invoke-EnsureModules {
     param (
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
-        [String[]]$Modules,
+        [ValidateScript({
+            $Local:NotValid = $_ | Where-Object {
+                $Local:IsString = $_ -is [String];
+                $Local:IsHashTable = $_ -is [HashTable] -and $_.Keys.Contains('Name');
+
+                -not ($Local:IsString -or $Local:IsHashTable);
+            };
+
+            $Local:NotValid.Count -eq 0;
+        })]
+        [Object[]]$Modules,
 
         [Parameter(HelpMessage = 'Do not install the module if it is not installed.')]
         [switch]$NoInstall
     )
 
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         try {
             $ErrorActionPreference = 'Stop';
-            Get-PackageProvider -Name NuGet | Out-Null;
-        } catch {
-            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Confirm:$False;
+            Get-PackageProvider -ListAvailable -Name NuGet | Out-Null;
+        }
+        catch {
+            Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
             Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
         }
 
         foreach ($Local:Module in $Modules) {
-            if (Test-Path -Path $Local:Module) {
-                Invoke-Debug "Module '$Local:Module' is a local path to a module, importing...";
-                $Script:ImportedModules.Add(($Local:Module | Split-Path -LeafBase));
-            } elseif (-not (Get-Module -ListAvailable -Name $Local:Module -ErrorAction SilentlyContinue)) {
+            $Local:InstallArgs = @{
+                AllowClobber = $true;
+                Scope = 'CurrentUser';
+                Force = $true;
+            };
+
+            if ($Local:Module -is [HashTable]) {
+                [String]$Local:ModuleName = $Local:Module.Name;
+
+                [String]$Local:ModuleMinimumVersion = $Local:Module.MinimumVersion;
+
+                if ($Local:ModuleMinimumVersion) {
+                    $Local:InstallArgs.Add('MinimumVersion', $Local:ModuleMinimumVersion);
+                }
+            } else {
+                [String]$Local:ModuleName = $Local:Module;
+            }
+
+            $Local:InstallArgs.Add('Name', $Local:ModuleName);
+
+            if (Test-Path -Path $Local:ModuleName) {
+                Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
+                $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+            }
+
+            $Local:AvailableModule = Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Select-Object -First 1;
+            if ($Local:AvailableModule) {
+                Invoke-Debug "Module '$Local:ModuleName' is installed, with version $($Local:AvailableModule.Version).";
+
+                if ($Local:ModuleMinimumVersion -and $Local:AvailableModule.Version -lt $Local:ModuleMinimumVersion) {
+                    Invoke-Verbose 'Module is installed, but the version is less than the minimum version required, trying to update...';
+                    try {
+                        Install-Module @Local:InstallArgs | Out-Null;
+                    } catch {
+                        Invoke-Error -Message "Unable to update module '$Local:ModuleName'.";
+                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+                    }
+                }
+
+                $Script:ImportedModules.Add($Local:ModuleName);
+            } else {
                 if ($NoInstall) {
-                    Invoke-Error -Message "Module '$Local:Module' is not installed, and no-install is set.";
+                    Invoke-Error -Message "Module '$Local:ModuleName' is not installed, and no-install is set.";
                     Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
                 }
 
-                if (Find-Module -Name $Local:Module -ErrorAction SilentlyContinue) {
-                    Invoke-Info "Module '$Local:Module' is not installed, installing...";
+                if (Find-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue) {
+                    Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
                     try {
-                        Install-Module -Name $Local:Module -AllowClobber -Scope CurrentUser -Force;
-                        $Script:ImportedModules.Add($Local:Module);
+                        Install-Module @Local:InstallArgs;
+                        $Script:ImportedModules.Add($Local:ModuleName);
                     } catch {
-                        Invoke-Error -Message "Unable to install module '$Local:Module'.";
+                        Invoke-Error -Message "Unable to install module '$Local:ModuleName'.";
                         Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
                     }
-                } elseif ($Local:Module -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$'){
+                } elseif ($Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$') {
                     # Try to install the module from a git repository.
                     # Parse the input string into <owner>/<repo>/<ref>
                     [String]$Local:Owner = $Matches.owner;
@@ -84,50 +132,23 @@ function Invoke-EnsureModules {
                     [String]$Local:Ref = $Matches.ref;
                     [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
 
-                    Invoke-Info "Module '$Local:Module' not found in PSGallery, trying to install from git...";
+                    Invoke-Info "Module '$Local:ModuleName' not found in PSGallery, trying to install from git...";
                     Invoke-Debug "$Local:ProjectUri, $Local:Ref";
 
                     try {
-                        $ErrorActionPreference = 'Stop';
-
-                        [String]$Local:Module = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+                        [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
                     } catch {
-                        Invoke-Error -Message "Unable to install module '$Local:Module' from git.";
+                        Invoke-Error -Message "Unable to install module '$Local:ModuleName' from git.";
                         Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
                     }
-
-                    # try {
-                    #     $ErrorActionPreference = 'Stop';
-
-                    #     [PSCustomObject]$Local:GitModule = Get-GitModule -ProjectUri $Local:ProjectUri -Branch $Local:Ref;
-                    #     [String]$Local:Module = $Local:GitModule.ManifestName;
-                    # } catch {
-                    #     Invoke-Error -Message "Unable to find module '$Local:Module' in git.";
-                    #     Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -ErrorRecord $_;
-                    # }
-
-                    # if (Get-Module -ListAvailable -Name $Local:GitModule.ManifestName) {
-                    #     Invoke-Debug "Module '$Local:Module' is installed.";
-
-                    #     if ($Local:GitModule.Version -gt (Get-Module -ListAvailable -Name $Local:GitModule.ManifestName).Version) {
-                    #         Invoke-Info "Module '$($Local:GitModule.ManifestName)' is outdated, updating...";
-                    #         Update-GitModule -Name $Local:GitModule.ManifestName -Force;
-                    #     }
-                    # } else {
-                    #     Invoke-Info "Module '$Local:Module' is not installed, installing...";
-                    #     Install-GitModule -ProjectUri $Local:ProjectUri -Branch $Local:Ref;
-                    # }
                 } else {
-                    Invoke-Error -Message "Module '$Local:Module' could not be found using Find-Module, and was not a git repoistory.";
+                    Invoke-Error -Message "Module '$Local:ModuleName' could not be found using Find-Module, and was not a git repoistory.";
                     Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
                 }
-            } else {
-                Invoke-Debug "Module '$Local:Module' is installed.";
-                $Script:ImportedModules.Add($Local:Module);
             }
 
-            Invoke-Debug "Importing module '$Local:Module'...";
-            Import-Module -Name $Local:Module -Global;
+            Invoke-Debug "Importing module '$Local:ModuleName'...";
+            Import-Module -Name $Local:ModuleName -Global;
         }
 
         Invoke-Verbose -Message 'All modules are installed.';
