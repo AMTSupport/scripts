@@ -39,7 +39,7 @@ function Invoke-NableApi {
     }
 }
 
-function Get-NableClients {
+function Get-NableClient {
     begin { Enter-Scope; }
     end { Exit-Scope -ReturnValue $Local:Sites; }
 
@@ -49,7 +49,7 @@ function Get-NableClients {
     }
 }
 
-function Get-NableSites {
+function Get-NableSite {
     param (
         [Parameter(Mandatory, ValueFromPipeline)]
         [String[]]$ClientIds
@@ -70,7 +70,7 @@ function Get-NableSites {
     }
 }
 
-function Get-NableDevices {
+function Get-NableDevice {
     param (
         [Parameter(Mandatory, ValueFromPipeline)]
         [String[]]$SiteIds,
@@ -97,7 +97,7 @@ function Get-NableDevices {
     }
 }
 
-function Get-NableDeviceSoftware {
+function Get-NableDeviceoftware {
     param (
         [Parameter(Mandatory, ValueFromPipeline)]
         [String[]]$DeviceIds
@@ -197,10 +197,10 @@ Invoke-RunMain $MyInvocation {
 
     if (-not (Get-Variable Clients -Scope Global)) {
         Invoke-Debug 'Creating global clients variable.';
-        # $Global:Clients = @{ };
+        $Local:Clients = @{ };
     }
 
-    $Local:RawClients = (Get-NableClients);
+    $Local:RawClients = (Get-NableClient);
 
     [Int]$Local:PercentPerItem = 100 / $Local:RawClients.items.client.Count;
     [Int]$Local:PercentComplete = 0;
@@ -214,15 +214,15 @@ Invoke-RunMain $MyInvocation {
         Invoke-Debug "Processing client: $($Local:Client.name.'#cdata-section')";
         Write-Progress -Activity 'Calling API' -Status "$Local:PercentComplete% Complete" -CurrentOperation "Processing client [$($Local:Client.name)]..." -PercentComplete $Local:PercentComplete;
 
-        if ($Global:Clients[$ClientId] -and $Global:Clients[$ClientId].completed) {
+        if ($Local:Clients[$ClientId] -and $Local:Clients[$ClientId].completed) {
             Invoke-Debug "Client already processed: $ClientId";
             continue;
         }
 
-        $Global:Clients[$ClientId] = @{ name = $Local:Client.name.'#cdata-section'; completed = $false; };
-        $Global:Clients[$ClientId].sites = @{ };
+        $Local:Clients[$ClientId] = @{ name = $Local:Client.name.'#cdata-section'; completed = $false; };
+        $Local:Clients[$ClientId].sites = @{ };
 
-        $Local:Sites = (Get-NableSites -ClientIds $ClientId);
+        $Local:Sites = (Get-NableSite -ClientIds $ClientId);
         if ($Local:Sites -eq $null -or $Local:Sites.Count -eq 0) {
             continue;
         }
@@ -231,15 +231,19 @@ Invoke-RunMain $MyInvocation {
             $SiteId = $_.siteid;
             Invoke-Debug "Processing site: $SiteId";
 
-            if ($Global:Clients[$ClientId].sites[$SiteId] -and $Global:Clients[$ClientId].sites[$SiteId].completed) {
+            if ($Local:Clients[$ClientId].sites[$SiteId] -and $Local:Clients[$ClientId].sites[$SiteId].completed) {
                 Invoke-Debug "Site already processed: $SiteId";
                 return;
             }
 
-            $Global:Clients[$ClientId].sites[$SiteId] = @{ name = $_.name.'#cdata-section'; completed = $false };
+            $Local:Clients[$ClientId].sites[$SiteId] = @{ name = $_.name.'#cdata-section'; completed = $false };
 
             #region Workstations
             function Set-DeviceSoftware {
+                [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                    'PSUseShouldProcessForStateChangingFunctions',
+                    Justification = 'Only reading data from the API, no changes are being made to the system.'
+                )]
                 param(
                     [Parameter(Mandatory)]
                     [ValidateSet('Workstation', 'Server')]
@@ -259,7 +263,7 @@ Invoke-RunMain $MyInvocation {
                     $Clients[$ClientId].sites[$SiteId].${DeviceType} = @{ };
                     $Local:Table = $Clients[$ClientId].sites[$SiteId].${DeviceType};
 
-                    $Local:Devices = (Get-NableDevices -SiteIds $SiteId -DeviceType $DeviceType);
+                    $Local:Devices = (Get-NableDevice -SiteIds $SiteId -DeviceType $DeviceType);
                     if ($null -eq $Local:Devices -or $Local:Devices.Count -eq 0) {
                         return $null;
                     }
@@ -276,7 +280,7 @@ Invoke-RunMain $MyInvocation {
                         $Local:Table[$AssetId] = @{ type = $DeviceType; name = $_.name.'#cdata-section'; user = $_.user.'#cdata-section'; completed = $false };
                         $Local:Table[$AssetId].software = @{ };
 
-                        $Local:Software = (Get-NableDeviceSoftware -DeviceIds $AssetId);
+                        $Local:Software = (Get-NableDeviceoftware -DeviceIds $AssetId);
                         if ($null -eq $Local:Software -or $Local:Software.Count -eq 0) {
                             return;
                         }
@@ -299,19 +303,19 @@ Invoke-RunMain $MyInvocation {
                 }
             }
 
-            Set-DeviceSoftware -DeviceType Workstation -SiteId $SiteId -ClientId $ClientId -Clients $Global:Clients;
-            Set-DeviceSoftware -DeviceType Server -SiteId $SiteId -ClientId $ClientId -Clients $Global:Clients;
+            Set-DeviceSoftware -DeviceType Workstation -SiteId $SiteId -ClientId $ClientId -Clients $Local:Clients;
+            Set-DeviceSoftware -DeviceType Server -SiteId $SiteId -ClientId $ClientId -Clients $Local:Clients;
 
-            $Global:Clients[$ClientId].sites[$SiteId].completed = $true;
+            $Local:Clients[$ClientId].sites[$SiteId].completed = $true;
         };
 
-        $Global:Clients[$ClientId].completed = $true;
+        $Local:Clients[$ClientId].completed = $true;
         $Local:PercentComplete += $Local:PercentPerItem;
     };
     Write-Progress -Activity 'Calling API' -PercentComplete 100 -Completed;
 
     # $Local:Clients = Get-CachedContent -Name 'NSIGHT_CLIENTS' -CreateBlock {
-    #     $Local:RawClients = Get-NableClients;
+    #     $Local:RawClients = Get-NableClient;
 
     #     $Local:RawClients.items.client | ForEach-Object {
     #         []$Local:Client = $_;
@@ -326,7 +330,7 @@ Invoke-RunMain $MyInvocation {
         Matrix  = New-Object 'System.Collections.Generic.List[System.Object]';
     };
 
-    $Global:Clients.GetEnumerator() | ForEach-Object {
+    $Local:Clients.GetEnumerator() | ForEach-Object {
         $Client = $_.Value;
 
         $Client.sites.GetEnumerator() | ForEach-Object {
@@ -376,8 +380,8 @@ Invoke-RunMain $MyInvocation {
     Out-ToExcel -File:($env:TEMP | Join-Path -ChildPath 'N-Sight_All-Software.xlsx') -Data:$Local:Data;
 
     # $Sites = Get-CachedContent -Name 'NSIGHT_SITES' -MaxAge (New-TimeSpan -Days 1) -CreateBlock {
-    #     $Local:Clients = Get-NableClients;
-    #     $Local:Sites = Get-NableSites -ClientIds $Clients.items.client.clientid;
+    #     $Local:Clients = Get-NableClient;
+    #     $Local:Sites = Get-NableSite -ClientIds $Clients.items.client.clientid;
 
     #     $Local:Sites | ConvertTo-Json;
     #     # [Newtonsoft.Json.JsonConvert]::SerializeXmlNode($Sites, 'indent')
@@ -389,7 +393,7 @@ Invoke-RunMain $MyInvocation {
     # };
 
     # $Devices = Get-CachedContent -Name 'NSIGHT_DEVICES' -MaxAge (New-TimeSpan -Days 1) -CreateBlock {
-    #     $Local:Devices = Get-NableDevices -SiteIds $Sites;
+    #     $Local:Devices = Get-NableDevice -SiteIds $Sites;
 
     #     $Local:Devices | ConvertTo-Json;
     #     # [Newtonsoft.Json.JsonConvert]::SerializeXmlNode($Devices, 'indent');

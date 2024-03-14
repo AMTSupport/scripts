@@ -2,7 +2,6 @@
 
 enum PackageManager {
     Chocolatey
-
     Unsupported
 }
 

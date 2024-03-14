@@ -12,7 +12,7 @@ function Get-StackTop {;
     return (Get-Stack).Peek()
 }
 
-function Get-ScopeNameFormatted([Parameter(Mandatory)][Switch]$IsExit) {
+function Format-ScopeName([Parameter(Mandatory)][Switch]$IsExit) {
     [String]$Local:CurrentScope = (Get-StackTop).MyCommand.Name;
     # Skip the first scope as it's the current scope, then sort in descending order so we can get the correct order for printing.
     [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.MyCommand.Name } | Sort-Object -Descending;
@@ -21,17 +21,39 @@ function Get-ScopeNameFormatted([Parameter(Mandatory)][Switch]$IsExit) {
     return $Local:Scope;
 }
 
-function Get-FormattedParameters(
+function Format-Parameters(
     [Parameter()]
     [String[]]$IgnoreParams = @()
 ) {
     [System.Collections.IDictionary]$Local:Params = (Get-StackTop).BoundParameters;
     if ($null -ne $Local:Params -and $Local:Params.Count -gt 0) {
-        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $($_.Value)" };
+        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $(Format-Variable -Value $_.Value)" };
         [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n";
 
         return "$Local:ParamsFormatted";
     }
+
+    return $null;
+}
+
+function Format-Variable([Object]$Value) {
+    function Format-SingleVariable([Parameter(Mandatory)][Object]$Value) {
+        switch ($Value) {
+            { $_ -is [System.Collections.HashTable] } { "`n$Script:Tab$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
+
+            default { $Value }
+        };
+    }
+
+    if ($null -ne $Value) {
+        [String]$Local:FormattedValue = if ($Value -is [Array]) {
+            "$(($Value | ForEach-Object { Format-SingleVariable $_ }) -join "`n$Script:Tab")"
+        } else {
+            Format-SingleVariable -Value $Value;
+        }
+
+        return $Local:FormattedValue;
+    };
 
     return $null;
 }
@@ -70,8 +92,8 @@ function Enter-Scope(
 ) {
     (Get-Stack).Push($Invocation);
 
-    [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$False;
-    [String]$Local:ParamsFormatted = Get-FormattedParameters -IgnoreParams:$IgnoreParams;
+    [String]$Local:ScopeName = Format-ScopeName -IsExit:$False;
+    [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams;
 
     @{
         PSMessage   = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
@@ -87,8 +109,8 @@ function Exit-Scope(
     [Parameter()]
     [Object]$ReturnValue
 ) {
-    [String]$Local:ScopeName = Get-ScopeNameFormatted -IsExit:$True;
-    [String]$Local:ReturnValueFormatted = Get-FormattedReturnValue -ReturnValue $ReturnValue;
+    [String]$Local:ScopeName = Format-ScopeName -IsExit:$True;
+    [String]$Local:ReturnValueFormatted = Format-Variable -Value:$ReturnValue;
 
     @{
         PSMessage   = "$Local:ScopeName$(if ($Local:ReturnValueFormatted) { "`n$Script:Tab$Local:ReturnValueFormatted" })";
@@ -100,4 +122,4 @@ function Exit-Scope(
     (Get-Stack).Pop() | Out-Null;
 }
 
-Export-ModuleMember -Function Get-StackTop, Get-FormattedParameters, Get-FormattedReturnValue, Get-ScopeNameFormatted, Enter-Scope,Exit-Scope;
+Export-ModuleMember -Function Get-StackTop, Format-Parameters, Format-Variable, Format-ScopeName, Enter-Scope, Exit-Scope;
