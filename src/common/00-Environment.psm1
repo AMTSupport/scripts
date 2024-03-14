@@ -257,6 +257,12 @@ function Invoke-RunMain {
                 }
             }
 
+            $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
+            $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
+            $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
+            $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
+            $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
+
             if (-not $HideDisclaimer) {
                 Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
             }
