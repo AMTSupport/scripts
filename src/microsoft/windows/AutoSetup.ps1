@@ -20,7 +20,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 Param (
     [Parameter()]
-    [ValidateSet("Configure", "Cleanup", "Install", "Update", "Finish")]
+    [ValidateSet("SetupWindows", "Configure", "Cleanup", "Install", "Update", "Finish")]
     [String]$Phase = "Configure",
 
     [Parameter(DontShow)]
@@ -204,7 +204,7 @@ function Invoke-EnsureSetupInfo {
         #endregion - Get Site Selection
 
         # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
-        [String]$Local:DeviceName = Get-UserInput -Title "Device Name" -Question "Enter a name for this device"
+        [String]$Local:DeviceName = Get-UserInput -Title "Device Name" -Question "Enter a name for this device";
 
         [PSCustomObject]$Local:InstallInfo = @{
             "DeviceName" = $Local:DeviceName
@@ -330,6 +330,84 @@ function Add-QueuedTask(
 #endregion - Queue Functions
 
 #region - Phase Functions
+
+function Invoke-Phase_SetupWindows {
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        $Local:WindowsVersion = [System.Environment]::OSVersion.Version;
+        switch ($Local:WindowsVersion.Major) {
+            10 {
+                Invoke-Info "Windows 10 detected, continuing...";
+                [String]$Local:Manufacturer = (Get-WmiObject -Class Win32_ComputerSystem).Manufacturer;
+
+                if ($Local:Manufacturer -eq "HP") {
+                    Invoke-Info "HP device detected, continuing...";
+                } else {
+                    Invoke-Error "This script is only supported on HP devices, not $($Local:Manufacturer)";
+                    Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+                }
+
+                Add-Type -AssemblyName System.Windows.Forms;
+                Add-Type -AssemblyName Microsoft.VisualBasic;
+
+                # Windows 10 Setup screen raw inputs
+                # enter                                             - Language
+                # down,enter,enter                                  - Keyboard
+                # tab,tab,tab,enter                                 - Skip Network Setup
+                # tab,tab,tab,tab,tab,tab,enter                     - Skip Second Network Setup
+                # tab,tab,tab,tab,enter                             - Terms and Conditions
+                # localadmin,enter,enter                            - Create Local Account
+                # enter                                             - Permissions
+                # shift+tab,enter                                   - Disable Cortana
+                # tab,tab,tab,tab,tab,enter,tab,tab,tab,tab,enter   - Skip HP Bullshit
+
+                # Activate the Setup Window to allow for keyboard input
+                [Int]$Local:SetupPID = Get-Process -Name WWAHost | Select-Object -ExpandProperty Id -First 1;
+
+                if ($null -eq $Local:SetupPID) {
+                    Invoke-Error "Failed to find the Windows Setup process";
+                    Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+                }
+
+                [Microsoft.VisualBasic.Interaction]::AppActivate($Local:SetupPID) | Out-Null;
+
+                [String[]]$Local:ScreenSteps = @(
+                    "{TAB}{ENTER}",
+                    "{DOWN}{ENTER}{ENTER}",
+                    "{TAB}{TAB}{TAB}{ENTER}",
+                    "{TAB}{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}",
+                    "{TAB}{TAB}{TAB}{TAB}{ENTER}",
+                    "localadmin{ENTER}{ENTER}",
+                    "{TAB}{TAB}{TAB} {TAB} {TAB} {TAB} {TAB}{TAB}{ENTER}", # Nope
+                    "+{TAB}{ENTER}"
+                );
+
+                switch ($Local:Manufacturer) {
+                    "HP" {
+                        $Local:ScreenSteps += "{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}{TAB}{TAB}{TAB}{TAB}{ENTER}"
+                    }
+                    default {
+                        # Do nothing.
+                    }
+                }
+
+                $Local:ScreenSteps | ForEach-Object {
+                    Start-Sleep -Seconds 1;
+                    [System.Windows.Forms.SendKeys]::SendWait($_);
+                }
+
+            }
+            default {
+                Invoke-Error "This script is only supported on Windows 10, not Windows $($Local:WindowsVersion.Major)";
+                Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+            }
+        }
+
+        return $null;
+    }
+}
 
 # Configure items like device name from the setup the user provided.
 function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
@@ -691,6 +769,8 @@ function Invoke-PhaseCleanup {
         Remove-Programs_HP;
         Remove-Drivers_HP;
 
+        (Get-RebootFlag).Set($null);
+
         [String]$Local:NextPhase = "Install";
         return $Local:NextPhase;
     }
@@ -729,7 +809,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
             try {
                 $ErrorActionPreference = "Stop";
 
-                Expand-Archive -Path 'agent.zip' -DestinationPath $PWD | Out-Null;
+                Expand-Archive -Path 'agent.zip' -DestinationPath $PWD -Force | Out-Null;
             } catch {
                 Invoke-Error "Failed to expand archive";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_EXPAND;
@@ -827,6 +907,11 @@ Invoke-RunMain $MyInvocation {
     } else {
         (Get-RunningFlag).Set($null);
         Remove-QueuedTask;
+    }
+
+    if ($Phase -eq 'SetupWindows') {
+        Invoke-Phase_SetupWindows;
+        return;
     }
 
     Invoke-EnsureLocalScript;
