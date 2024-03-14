@@ -290,4 +290,10 @@ function Get-PopupSelection {
     return $Local:Selection;
 }
 
+# Windows comes pre-installed with PSReadLine 2.0.0, so we need to ensure that we have at least 2.3.0;
+Invoke-EnsureModules @{
+    Name = 'PSReadLine';
+    MinimumVersion = '2.3.0';
+};
+
 Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
