@@ -204,16 +204,16 @@ function Install-PrinterImpl(
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    [String]$Local:PrinterName = $PrinterName.Trim();
-    [String]$Local:PrinterIP = $PrinterIP.Trim();
-    [String]$Local:PrinterDriver = $PrinterDriver.Trim();
-    [String]$Local:ChocoDriver = $ChocoDriver.Trim();
+    [String]$Local:TrimmedPrinterName = $PrinterName.Trim();
+    [String]$Local:TrimmedPrinterIP = $PrinterIP.Trim();
+    [String]$Local:TrimmedPrinterDriver = $PrinterDriver.Trim();
+    [String]$Local:TrimmedChocoDriver = $ChocoDriver.Trim();
 
-    if (-not $Force -and (-not (Test-Connection -ComputerName $Local:PrinterIP -Count 1 -Quiet))) {
-        Invoke-Info "Unable to contact printer $Local:PrinterIP, exiting.";
+    if (-not $Force -and (-not (Test-Connection -ComputerName $Local:TrimmedPrinterIP -Count 1 -Quiet))) {
+        Invoke-Info "Unable to contact printer $Local:TrimmedPrinterIP, exiting.";
         return;
     }
 
-    [String]$Local:PrinterDriver = Install-Driver -DriverName $Local:PrinterDriver -ChocolateyPackage $Local:ChocoDriver;
-    Install-PrinterImpl -PrinterName $Local:PrinterName -PrinterIP $Local:PrinterIP -PrinterDriver $Local:PrinterDriver;
+    [String]$Local:PrinterDriver = Install-Driver -DriverName $Local:TrimmedPrinterDriver -ChocolateyPackage $Local:TrimmedChocoDriver;
+    Install-PrinterImpl -PrinterName $Local:TrimmedPrinterName -PrinterIP $Local:TrimmedPrinterIP -PrinterDriver $Local:TrimmedPrinterDriver;
 }
