@@ -1515,6 +1515,7 @@ Text: $($Local:Region.Text)
 		            if ($Local:Module -is [HashTable]) {
 		                [String]$Local:ModuleName = $Local:Module.Name;
 		                [String]$Local:ModuleMinimumVersion = $Local:Module.MinimumVersion;
+		                [Boolean]$Local:DontRemove = $Local:Module.DontRemove;
 		                if ($Local:ModuleMinimumVersion) {
 		                    $Local:InstallArgs.Add('MinimumVersion', $Local:ModuleMinimumVersion);
 		                }
@@ -1524,7 +1525,9 @@ Text: $($Local:Region.Text)
 		            $Local:InstallArgs.Add('Name', $Local:ModuleName);
 		            if (Test-Path -Path $Local:ModuleName) {
 		                Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
-		                $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+		                if (-not $Local:DontRemove) {
+		                    $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+		                }
 		            }
 		            $Local:AvailableModule = Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Select-Object -First 1;
 		            if ($Local:AvailableModule) {
@@ -1538,7 +1541,9 @@ Text: $($Local:Region.Text)
 		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
 		                    }
 		                }
-		                $Script:ImportedModules.Add($Local:ModuleName);
+		                if (-not $Local:DontRemove) {
+		                    $Script:ImportedModules.Add($Local:ModuleName);
+		                }
 		            } else {
 		                if ($NoInstall) {
 		                    Invoke-Error -Message "Module '$Local:ModuleName' is not installed, and no-install is set.";
@@ -1548,7 +1553,9 @@ Text: $($Local:Region.Text)
 		                    Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
 		                    try {
 		                        Install-Module @Local:InstallArgs;
-		                        $Script:ImportedModules.Add($Local:ModuleName);
+		                        if (-not $Local:DontRemove) {
+		                            $Script:ImportedModules.Add($Local:ModuleName);
+		                        }
 		                    } catch {
 		                        Invoke-Error -Message "Unable to install module '$Local:ModuleName'.";
 		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
@@ -1562,6 +1569,9 @@ Text: $($Local:Region.Text)
 		                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
 		                    try {
 		                        [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+		                        if (-not $Local:DontRemove) {
+		                            $Script:ImportedModules.Add($Local:ModuleName);
+		                        }
 		                    } catch {
 		                        Invoke-Error -Message "Unable to install module '$Local:ModuleName' from git.";
 		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
@@ -1572,7 +1582,7 @@ Text: $($Local:Region.Text)
 		                }
 		            }
 		            Invoke-Debug "Importing module '$Local:ModuleName'...";
-		            Import-Module -Name $Local:ModuleName -Global;
+		            Import-Module -Name $Local:ModuleName -Global -Force;
 		        }
 		        Invoke-Verbose -Message 'All modules are installed.';
 		    }
@@ -2077,6 +2087,7 @@ Text: $($Local:Region.Text)
 		Invoke-EnsureModules @{
 		    Name = 'PSReadLine';
 		    MinimumVersion = '2.3.0';
+		    DontRemove = $true;
 		};
 		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
     };`
@@ -2133,7 +2144,7 @@ Text: $($Local:Region.Text)
 		                Invoke-Error 'The script block should have one parameter.';
 		                return $False;
 		            }
-		            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes [Boolean])) {
+		            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes @([Boolean]))) {
 		                Invoke-Error 'The script block should return a boolean value.';
 		                return $False;
 		            }
@@ -2183,6 +2194,7 @@ Text: $($Local:Region.Text)
 		    process {
 		        [String]$Local:CachePath = $Script:Folder | Join-Path -ChildPath "Cached-$Name";
 		        if (-not (Test-Path -Path $Script:Folder)) {
+		            Invoke-Verbose 'Cache folder not found, creating one...';
 		            try {
 		                New-Item -Path $Script:Folder -ItemType Directory | Out-Null;
 		            } catch {
@@ -2649,7 +2661,11 @@ function Get-CachableResponse {
             }
         } -ParseBlock {
             param([String]$RawContent)
-            return $RawContent | ConvertFrom-Json -Depth 5;
+            if ($PSVersionTable.PSVersion.Major -lt 6 -and $PSVersionTable.PSVersion.Minor -lt 2) {
+                return $RawContent | ConvertFrom-Json;
+            } else {
+                return $RawContent | ConvertFrom-Json -Depth 5;
+            }
         }
         return $Local:Releases;
         [String]$Local:Folder = Get-RunnerFolder;
@@ -2678,7 +2694,7 @@ function Get-CachableResponse {
                 Invoke-FailedExit -ExitCode $Script:FAILED_RESPONSE -ErrorRecord $_;
             }
         }
-        [HashTable[]]$Local:CacheContent = Get-Content -Path $Local:CachePath | ConvertFrom-Json -AsHashtable;
+        [PSCustomObject[]]$Local:CacheContent = Get-Content -Path $Local:CachePath | ConvertFrom-Json;
         return $Local:CacheContent;
     }
 }
@@ -2785,7 +2801,7 @@ function Get-DownloadedExecutable(
             [String]$Local:DownloadUrl = $Artifact.browser_download_url;
             try {
                 $ErrorActionPreference = 'Stop';
-                [Byte[]]$Local:ByteArray = (Invoke-WebRequest -Uri $Local:DownloadUrl).Content;
+                [Byte[]]$Local:ByteArray = (Invoke-WebRequest -Uri $Local:DownloadUrl -UseBasicParsing).Content;
                 return $Local:ByteArray;
             } catch {
                 Invoke-FailedExit -ExitCode $Script:FAILED_DOWNLOAD -ErrorRecord $_;
