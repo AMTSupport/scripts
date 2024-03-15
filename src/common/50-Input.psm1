@@ -294,6 +294,7 @@ function Get-PopupSelection {
 Invoke-EnsureModules @{
     Name = 'PSReadLine';
     MinimumVersion = '2.3.0';
+    DontRemove = $true;
 };
 
 Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;

@@ -35,6 +35,66 @@ $Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not instal
 $Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
 $Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 function Invoke-EnsureModules {
+    <#
+    .SYNOPSIS
+        Ensures the required modules are installed.
+
+    .DESCRIPTION
+        This function will ensure the required modules are installed.
+        If the module is not installed, it will be installed.
+
+    .PARAMETER Modules
+        The modules represented with their name as a string,
+        a git repository string in the format of 'owner/repo@ref', where ref is the branch or tag to install,
+        or a hashtable in the following format where items marked with * are optional:
+        ```powershell
+        @{
+            Name = 'ModuleName';
+            *MinimumVersion = '1.0.0';
+            *DontRemove = $true;
+        }
+        ```
+
+        These formats can be mixed within the same call, and the module will be installed accordingly.
+
+    .PARAMETER NoInstall
+        Do not install the module if it is not installed.
+
+    .EXAMPLE
+        Install the ImportExcel and PSScriptAnalyzer modules.
+        ```powershell
+        Invoke-EnsureModules -Modules 'ImportExcel', 'PSScriptAnalyzer'
+        ```
+    .EXAMPLE
+        Install the ImportExcel module with a minimum version of 7.1.0.
+        ```powershell
+        Invoke-EnsureModules -Modules @{
+            Name = 'ImportExcel';
+            MinimumVersion = '7.1.0';
+        }
+        ```
+    .EXAMPLE
+        Install the PSReadLine module and don't remove it once the script has completed running.
+        ```powershell
+        Invoke-EnsureModules -Modules @{
+            Name = 'PSReadLine';
+            MinimumVersion = '3.2.0';
+            DontRemove = $true;
+        }
+        ```
+    .EXAMPLE
+        Install the ImportExcel module using the string format, and the PSScriptAnalyzer module using the hashtable format.
+        ```powershell
+        Invoke-EnsureModules -Modules 'ImportExcel', @{
+            Name = 'PSScriptAnalyzer';
+            MinimumVersion = '1.0.0';
+        }
+        ```
+    .OUTPUTS
+        None
+    .EXTERNALHELP
+        https://amtsupport.github.io/scripts/docs/modules/common/Ensure/Invoke-EnsureModules
+    #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -79,6 +139,7 @@ function Invoke-EnsureModules {
                 [String]$Local:ModuleName = $Local:Module.Name;
 
                 [String]$Local:ModuleMinimumVersion = $Local:Module.MinimumVersion;
+                [Boolean]$Local:DontRemove = $Local:Module.DontRemove;
 
                 if ($Local:ModuleMinimumVersion) {
                     $Local:InstallArgs.Add('MinimumVersion', $Local:ModuleMinimumVersion);
@@ -91,7 +152,9 @@ function Invoke-EnsureModules {
 
             if (Test-Path -Path $Local:ModuleName) {
                 Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
-                $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+                if (-not $Local:DontRemove) {
+                    $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+                }
             }
 
             $Local:AvailableModule = Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Select-Object -First 1;
@@ -108,7 +171,9 @@ function Invoke-EnsureModules {
                     }
                 }
 
-                $Script:ImportedModules.Add($Local:ModuleName);
+                if (-not $Local:DontRemove) {
+                    $Script:ImportedModules.Add($Local:ModuleName);
+                }
             } else {
                 if ($NoInstall) {
                     Invoke-Error -Message "Module '$Local:ModuleName' is not installed, and no-install is set.";
@@ -119,7 +184,10 @@ function Invoke-EnsureModules {
                     Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
                     try {
                         Install-Module @Local:InstallArgs;
-                        $Script:ImportedModules.Add($Local:ModuleName);
+
+                        if (-not $Local:DontRemove) {
+                            $Script:ImportedModules.Add($Local:ModuleName);
+                        }
                     } catch {
                         Invoke-Error -Message "Unable to install module '$Local:ModuleName'.";
                         Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
@@ -137,6 +205,10 @@ function Invoke-EnsureModules {
 
                     try {
                         [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+
+                        if (-not $Local:DontRemove) {
+                            $Script:ImportedModules.Add($Local:ModuleName);
+                        }
                     } catch {
                         Invoke-Error -Message "Unable to install module '$Local:ModuleName' from git.";
                         Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
@@ -148,7 +220,7 @@ function Invoke-EnsureModules {
             }
 
             Invoke-Debug "Importing module '$Local:ModuleName'...";
-            Import-Module -Name $Local:ModuleName -Global;
+            Import-Module -Name $Local:ModuleName -Global -Force;
         }
 
         Invoke-Verbose -Message 'All modules are installed.';
