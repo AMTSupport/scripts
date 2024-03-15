@@ -52,7 +52,11 @@ function Get-CachableResponse {
         } -ParseBlock {
             param([String]$RawContent)
 
-            return $RawContent | ConvertFrom-Json -Depth 5;
+            if ($PSVersionTable.PSVersion.Major -lt 6 -and $PSVersionTable.PSVersion.Minor -lt 2) {
+                return $RawContent | ConvertFrom-Json;
+            } else {
+                return $RawContent | ConvertFrom-Json -Depth 5;
+            }
         }
 
         return $Local:Releases;
@@ -89,7 +93,7 @@ function Get-CachableResponse {
         }
 
 
-        [HashTable[]]$Local:CacheContent = Get-Content -Path $Local:CachePath | ConvertFrom-Json -AsHashtable;
+        [PSCustomObject[]]$Local:CacheContent = Get-Content -Path $Local:CachePath | ConvertFrom-Json;
         return $Local:CacheContent;
     }
 }
@@ -195,7 +199,6 @@ function Get-ExecutableArtifact(
     }
 }
 
-# TODO :: Caching
 function Get-DownloadedExecutable(
     [Parameter(Mandatory)]
     [PSCustomObject]$Artifact
@@ -227,7 +230,7 @@ function Get-DownloadedExecutable(
             try {
                 $ErrorActionPreference = 'Stop';
 
-                [Byte[]]$Local:ByteArray = (Invoke-WebRequest -Uri $Local:DownloadUrl).Content;
+                [Byte[]]$Local:ByteArray = (Invoke-WebRequest -Uri $Local:DownloadUrl -UseBasicParsing).Content;
                 return $Local:ByteArray;
             } catch {
                 Invoke-FailedExit -ExitCode $Script:FAILED_DOWNLOAD -ErrorRecord $_;
