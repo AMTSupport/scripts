@@ -66,7 +66,7 @@ function Get-CachedLocation {
                 return $False;
             }
 
-            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes [Boolean])) {
+            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes @([Boolean]))) {
                 Invoke-Error 'The script block should return a boolean value.';
                 return $False;
             }
@@ -130,6 +130,8 @@ function Get-CachedLocation {
         [String]$Local:CachePath = $Script:Folder | Join-Path -ChildPath "Cached-$Name";
 
         if (-not (Test-Path -Path $Script:Folder)) {
+            Invoke-Verbose 'Cache folder not found, creating one...';
+
             try {
                 New-Item -Path $Script:Folder -ItemType Directory | Out-Null;
             } catch {
