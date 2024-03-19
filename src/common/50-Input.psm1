@@ -87,7 +87,7 @@ function Get-UserInput {
         [Switch]$DontSaveInputs
     )
 
-    begin { Enter-Scope; }
+    begin { Enter-Scope; Install-Requirements; }
     end { Exit-Scope -ReturnValue $Local:UserInput; }
 
     process {
@@ -173,7 +173,7 @@ function Get-UserSelection {
         [Int]$DefaultChoice = 0
     )
 
-    begin { Enter-Scope; }
+    begin { Enter-Scope; Install-Requirements; }
     end { Exit-Scope -ReturnValue $Local:Selection; }
 
     process {
@@ -290,11 +290,24 @@ function Get-PopupSelection {
     return $Local:Selection;
 }
 
-# Windows comes pre-installed with PSReadLine 2.0.0, so we need to ensure that we have at least 2.3.0;
-Invoke-EnsureModules @{
-    Name = 'PSReadLine';
-    MinimumVersion = '2.3.0';
-    DontRemove = $true;
-};
+# TODO :: Make a common way to handle requirements.
+[Boolean]$Script:CompletedSetup = $False;
+function Install-Requirements {
+    if ($Script:CompletedSetup) {
+        return;
+    }
+
+    # Windows comes pre-installed with PSReadLine 2.0.0, so we need to ensure that we have at least 2.3.0;
+    Invoke-EnsureModules @{
+        Name           = 'PSReadLine';
+        MinimumVersion = '2.3.0';
+        DontRemove     = $True;
+    };
+
+    $Using = [ScriptBlock]::Create('Using module ''PSReadLine''');
+    . $Using;
+
+    [Boolean]$Script:CompletedSetup = $True;
+}
 
 Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
