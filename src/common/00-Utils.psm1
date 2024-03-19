@@ -471,4 +471,63 @@ function Install-ModuleFromGitHub {
     }
 }
 
+function Test-NetworkConnection {
+    (Get-NetConnectionProfile | Where-Object {
+        $Local:HasIPv4 = $_.IPv4Connectivity -eq 'Internet';
+        $Local:HasIPv6 = $_.IPv6Connectivity -eq 'Internet';
+
+        $Local:HasIPv4 -or $Local:HasIPv6
+    } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
+}
+
+function Export-Types {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [Type[]]$Types,
+
+        [Switch]$Clobber
+    )
+
+    if (-not $MyInvocation.MyCommand.ScriptBlock.Module) {
+        throw [System.InvalidOperationException]::new('This function must be called from within a module.');
+    }
+
+    # Get the internal TypeAccelerators class to use its static methods.
+    $TypeAcceleratorsClass = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators');
+
+    if (-not $Clobber) {
+        # Ensure none of the types would clobber an existing type accelerator.
+        # If a type accelerator with the same name exists, throw an exception.
+        $ExistingTypeAccelerators = $TypeAcceleratorsClass::Get;
+        foreach ($Type in $Types) {
+            if ($Type.FullName -in $ExistingTypeAccelerators.Keys) {
+                $Message = @(
+                    "Unable to register type accelerator '$($Type.FullName)'"
+                    'Accelerator already exists.'
+                ) -join ' - '
+
+                throw [System.Management.Automation.ErrorRecord]::new(
+                    [System.InvalidOperationException]::new($Message),
+                    'TypeAcceleratorAlreadyExists',
+                    [System.Management.Automation.ErrorCategory]::InvalidOperation,
+                    $Type.FullName
+                )
+            }
+        }
+    }
+
+    # Add type accelerators for every exportable type.
+    foreach ($Type in $Types) {
+        $TypeAcceleratorsClass::Add($Type.FullName, $Type)
+    }
+
+    # Remove type accelerators when the module is removed.
+    $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
+        foreach ($Type in $Types) {
+            $TypeAcceleratorsClass::Remove($Type.FullName) | Out-Null
+        }
+    }.GetNewClosure()
+}
+
 Export-ModuleMember -Function *;

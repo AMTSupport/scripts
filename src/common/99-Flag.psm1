@@ -116,4 +116,5 @@ function Get-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Conte
     [Flag]::new($Context);
 }
 
+Export-Types -Types ([Flag], [RunningFlag], [RebootFlag]) -Clobber;
 Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag,Get-Flag;
