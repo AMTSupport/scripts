@@ -121,11 +121,17 @@ function Invoke-EnsureModules {
     process {
         try {
             $ErrorActionPreference = 'Stop';
+
             Get-PackageProvider -ListAvailable -Name NuGet | Out-Null;
-        }
-        catch {
-            Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
-            Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+        } catch {
+            try {
+                Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
+                Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+            } catch {
+                # TODO :: Handle this better, this is a no network case.
+                Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
+                return;
+            }
         }
 
         foreach ($Local:Module in $Modules) {
