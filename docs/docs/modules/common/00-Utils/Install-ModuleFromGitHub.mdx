@@ -1,7 +1,7 @@
 ---
-id: Get-ScopeNameFormatted
-title: Get-ScopeNameFormatted
-description: Help page for the "Get-ScopeNameFormatted" command
+id: Install-ModuleFromGitHub
+title: Install-ModuleFromGitHub
+description: Help page for the "Install-ModuleFromGitHub" command
 keywords:
   - PowerShell
   - Help
@@ -17,7 +17,8 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Get-ScopeNameFormatted [-IsExit] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Install-ModuleFromGitHub [-GitHubRepo] <String> [-Branch] <String> [[-Scope] <String>]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -36,17 +37,50 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -IsExit
+### -Branch
 
-\{\{ Fill IsExit Description \}\}
+\{\{ Fill Branch Description \}\}
 
 ```yaml
-Type: SwitchParameter
+Type: String
 Parameter Sets: (All)
 Aliases:
 
 Required: True
-Position: Named
+Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -GitHubRepo
+
+\{\{ Fill GitHubRepo Description \}\}
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: True
+Position: 0
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Scope
+
+\{\{ Fill Scope Description \}\}
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+Accepted values: CurrentUser, AllUsers
+
+Required: False
+Position: 2
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False

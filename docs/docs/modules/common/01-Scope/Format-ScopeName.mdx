@@ -1,7 +1,7 @@
 ---
-id: Get-FormattedUsers
-title: Get-FormattedUsers
-description: Help page for the "Get-FormattedUsers" command
+id: Format-ScopeName
+title: Format-ScopeName
+description: Help page for the "Format-ScopeName" command
 keywords:
   - PowerShell
   - Help
@@ -17,7 +17,7 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Get-FormattedUsers [-Users] <DirectoryEntry[]> [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Format-ScopeName [-IsExit] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -36,17 +36,17 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -Users
+### -IsExit
 
-\{\{ Fill Users Description \}\}
+\{\{ Fill IsExit Description \}\}
 
 ```yaml
-Type: DirectoryEntry[]
+Type: SwitchParameter
 Parameter Sets: (All)
 Aliases:
 
 Required: True
-Position: 0
+Position: Named
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
