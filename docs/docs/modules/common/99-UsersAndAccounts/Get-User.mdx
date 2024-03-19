@@ -1,7 +1,7 @@
 ---
-id: Get-UserByInputOrName
-title: Get-UserByInputOrName
-description: Help page for the "Get-UserByInputOrName" command
+id: Get-User
+title: Get-User
+description: Help page for the "Get-User" command
 keywords:
   - PowerShell
   - Help
@@ -17,7 +17,7 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Get-UserByInputOrName [-InputObject] <Object> [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Get-User [[-Name] <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -36,16 +36,16 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -InputObject
+### -Name
 
-\{\{ Fill InputObject Description \}\}
+The name of the user to retrieve, if not specified all users will be returned.
 
 ```yaml
-Type: Object
+Type: String
 Parameter Sets: (All)
 Aliases:
 
-Required: True
+Required: False
 Position: 0
 Default value: None
 Accept pipeline input: False

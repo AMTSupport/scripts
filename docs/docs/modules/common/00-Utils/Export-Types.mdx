@@ -1,7 +1,7 @@
 ---
-id: Get-FormattedParameters
-title: Get-FormattedParameters
-description: Help page for the "Get-FormattedParameters" command
+id: Export-Types
+title: Export-Types
+description: Help page for the "Export-Types" command
 keywords:
   - PowerShell
   - Help
@@ -17,7 +17,7 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Get-FormattedParameters [[-IgnoreParams] <String[]>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Export-Types [-Types] <Type[]> [-Clobber] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -36,16 +36,32 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -IgnoreParams
+### -Clobber
 
-\{\{ Fill IgnoreParams Description \}\}
+\{\{ Fill Clobber Description \}\}
 
 ```yaml
-Type: String[]
+Type: SwitchParameter
 Parameter Sets: (All)
 Aliases:
 
 Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Types
+
+\{\{ Fill Types Description \}\}
+
+```yaml
+Type: Type[]
+Parameter Sets: (All)
+Aliases:
+
+Required: True
 Position: 0
 Default value: None
 Accept pipeline input: False

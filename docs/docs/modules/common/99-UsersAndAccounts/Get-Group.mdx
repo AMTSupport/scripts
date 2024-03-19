@@ -12,41 +12,52 @@ hide_table_of_contents: false
 
 ## SYNOPSIS
 
-\{\{ Fill in the Synopsis \}\}
+Gets the groups on the local machine, returning a list of ADSI objects.
 
 ## SYNTAX
 
 ```powershell
-Get-Group [-Name] <String> [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Get-Group [[-Name] <String>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
 
-\{\{ Fill in the Description \}\}
+This function will return a list of groups on the local machine.
+If a name is specified then only the group with that name will be returned.
 
 ## EXAMPLES
 
-### Example 1
+### EXAMPLE 1
 
-```powershell
-PS C:\> {{ Add example code here }}
 ```
+This will return the Administrators group.
+```powershell
+Get-Group -Name 'Administrators';
+```
+```powershell
 
-\{\{ Add example description here \}\}
+### EXAMPLE 2
+
+```
+This will return all groups on the local machine.
+```powershell
+Get-Group;
+```
+```
 
 ## PARAMETERS
 
 ### -Name
 
-\{\{ Fill Name Description \}\}
+The name of the group to retrieve, if not specified all groups will be returned.
 
 ```yaml
 Type: String
 Parameter Sets: (All)
 Aliases:
 
-Required: True
-Position: 0
+Required: False
+Position: 1
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -74,12 +85,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## INPUTS
 
-### None
-
 ## OUTPUTS
 
-### System.Object
+### [ADSI[]] - A list of ADSI objects representing the groups on the local machine.
 
 ## NOTES
+This function is designed to work with the ADSI provider for the local machine.
+It will not work with remote machines or other providers.
 
 ## RELATED LINKS

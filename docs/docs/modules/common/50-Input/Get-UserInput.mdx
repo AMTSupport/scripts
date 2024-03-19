@@ -17,8 +17,8 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Get-UserInput [-Title] <String> [-Question] <String> [[-Validate] <ScriptBlock>]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Get-UserInput [-Title] <String> [-Question] <String> [[-Validate] <ScriptBlock>] [-AsSecureString]
+ [-DontSaveInputs] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -36,6 +36,38 @@ PS C:\> {{ Add example code here }}
 \{\{ Add example description here \}\}
 
 ## PARAMETERS
+
+### -AsSecureString
+
+\{\{ Fill AsSecureString Description \}\}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -DontSaveInputs
+
+\{\{ Fill DontSaveInputs Description \}\}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
 
 ### -Question
 

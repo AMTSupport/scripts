@@ -12,7 +12,7 @@ hide_table_of_contents: false
 
 ## SYNOPSIS
 
-\{\{ Fill in the Synopsis \}\}
+Adds a user to a group.
 
 ## SYNTAX
 
@@ -23,39 +23,24 @@ Add-MemberToGroup [-Group] <Object> [-Username] <Object> [-ProgressAction <Actio
 
 ## DESCRIPTION
 
-\{\{ Fill in the Description \}\}
+This function will add a user to a group.
 
 ## EXAMPLES
 
-### Example 1
+### EXAMPLE 1
 
-```powershell
-PS C:\> {{ Add example code here }}
 ```
-
-\{\{ Add example description here \}\}
+This will add the user localadmin to the Administrators group.
+```powershell
+Add-MemberToGroup -Group (Get-Group -Name 'Administrators') -Username 'localadmin';
+```
+```
 
 ## PARAMETERS
 
 ### -Group
 
-\{\{ Fill Group Description \}\}
-
-```yaml
-Type: Object
-Parameter Sets: (All)
-Aliases:
-
-Required: True
-Position: 0
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -Username
-
-\{\{ Fill Username Description \}\}
+The group to add the user to.
 
 ```yaml
 Type: Object
@@ -64,6 +49,22 @@ Aliases:
 
 Required: True
 Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -Username
+
+The username to add to the group.
+
+```yaml
+Type: Object
+Parameter Sets: (All)
+Aliases:
+
+Required: True
+Position: 2
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False
@@ -91,12 +92,12 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## INPUTS
 
-### None
-
 ## OUTPUTS
 
-### System.Object
+### [Boolean] - $True if the user was added to the group, otherwise $False.
 
 ## NOTES
+This function is designed to work with the ADSI provider for the local machine.
+It will not work with remote machines or other providers.
 
 ## RELATED LINKS

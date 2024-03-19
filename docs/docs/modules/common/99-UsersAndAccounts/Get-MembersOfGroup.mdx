@@ -1,7 +1,7 @@
 ---
-id: Get-GroupMembers
-title: Get-GroupMembers
-description: Help page for the "Get-GroupMembers" command
+id: Get-MembersOfGroup
+title: Get-MembersOfGroup
+description: Help page for the "Get-MembersOfGroup" command
 keywords:
   - PowerShell
   - Help
@@ -12,33 +12,35 @@ hide_table_of_contents: false
 
 ## SYNOPSIS
 
-Gets the members of a group, returning a list of psobjects with their name and domain.
+Gets the members of a group.
 
 ## SYNTAX
 
 ```powershell
-Get-GroupMembers [-Group] <Object> [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Get-MembersOfGroup [-Group] <Object> [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
 
-\{\{ Fill in the Description \}\}
+This function will return a list of members of a group.
+If a group is specified then only the members of that group will be returned.
 
 ## EXAMPLES
 
-### Example 1
+### EXAMPLE 1
 
-```powershell
-PS C:\> {{ Add example code here }}
 ```
-
-\{\{ Add example description here \}\}
+This will return the members of the Administrators group.
+```powershell
+Get-MembersOfGroup -Group (Get-Group -Name 'Administrators');
+```
+```
 
 ## PARAMETERS
 
 ### -Group
 
-\{\{ Fill Group Description \}\}
+The group to retrieve the members of.
 
 ```yaml
 Type: Object
@@ -76,6 +78,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ## OUTPUTS
 
+### [ADSI[]] - A list of ADSI objects representing the members of the group.
+
 ## NOTES
+This function is designed to work with the ADSI provider for the local machine.
+It will not work with remote machines or other providers.
 
 ## RELATED LINKS
