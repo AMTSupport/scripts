@@ -1,8 +1,7 @@
+#Requires -Modules BitLocker
 #Requires -Version 5.1
 
-param(
-    [TimeSpan]$MaxUpTime = [TimeSpan]::FromDays(7)
-)
+
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -2623,84 +2622,25 @@ Text: $($Local:Region.Text)
 		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUser, Get-FormattedUsers, Get-Group, Get-Groups, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
     };
 }
-function Format-Time {
-    param(
-        [TimeSpan]$Time
-    )
-    if ($Time.TotalDays -gt 1) {
-        return "$($Time.TotalDays) days"
-    }
-    if ($Time.TotalHours -gt 1) {
-        return "$($Time.TotalHours) hours"
-    }
-    if ($Time.TotalMinutes -gt 1) {
-        return "$($Time.TotalMinutes) minutes"
-    }
-    if ($Time.TotalSeconds -gt 1) {
-        return "$($Time.TotalSeconds) seconds"
-    }
-    return 'less than a second'
-}
-function Get-ShouldRestart {
-    begin { Enter-Scope; }
-    end { Exit-Scope -ReturnValue $Local:Restart; }
-    process {
-        if ((Get-CimInstance -Class Win32_OperatingSystem).LastBootUpTime -lt (Get-Date).Add(-$MaxUpTime)) {
-            return [PSCustomObject]@{
-                required = $true
-                reason = "This computer hasn't been restarted for more than $(Format-Time $MaxUpTime)"
-            }
-        }
-        if ($null -ne (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired' -ErrorAction SilentlyContinue)) {
-            return [PSCustomObject]@{
-                required = $true
-                reason   = 'This computer has pending updates that require a reboot.'
-            }
-        }
-        return [PSCustomObject]@{
-            required = $false
-            reason   = 'No reboot required'
-        }
-    }
-}
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
-    $Local:RequiresRestart = Get-ShouldRestart;
-    if (-not $Local:RequiresRestart.required) {
-        Invoke-Info "No reboot required.";
-        return;
+    Invoke-EnsureAdministrator;
+    $Script:ERROR_BITLOCKER_DISABLED = Register-ExitCode 'BitLocker is not enabled on the system drive.';
+    $Script:ERROR_NO_RECOVERY_PASSWORD = Register-ExitCode 'BitLocker is not configured to use a recovery password.';
+    $Script:ERROR_DURING_UPLOAD = Register-ExitCode 'An error occurred while uploading the recovery key to Azure AD.';
+    [Microsoft.BitLocker.Structures.BitLockerVolume]$Local:Volume = Get-BitLockerVolume -MountPoint $env:SystemDrive;
+    [Microsoft.BitLocker.Structures.BitLockerVolumeKeyProtector]$Local:RecoveryProtector = ($Local:Volume.KeyProtector | Where-Object { $_.KeyProtectorType -eq [Microsoft.BitLocker.Structures.BitLockerVolumeKeyProtectorType]::RecoveryPassword });
+    if (($Local:Volume.ProtectionStatus -eq 'Off') -or $Local:Volume.KeyProtector.Count -eq 0) {
+        Invoke-failedExit -ExitCode $Script:ERROR_BITLOCKER_DISABLED;
     }
-    $Local:DisplayedMessage = Get-Flag 'REBOOT_HELPER_DISPLAYED';
-    [Boolean]$Local:ShouldDisplayMessage = $True;
-    if ($Local:DisplayedMessage.Exists()) {
-        [String]$Local:RawLastDisplayed = $Local:DisplayedMessage.GetData();
-        [DateTime]$Local:LastDisplayed = [DateTime]::Parse($Local:RawLastDisplayed);
-        [Boolean]$Local:DisplayedToday = $Local:LastDisplayed.Date -eq (Get-Date).Date;
-        [Boolean]$Local:DisplayedWithinHour = $Local:LastDisplayed -gt (Get-Date).AddHours(-1);
-        if ($Local:DisplayedToday -and $Local:DisplayedWithinHour) {
-            Invoke-Info "Reboot notice was already displayed today at $Local:LastDisplayed";
-            $Local:ShouldDisplayMessage = $False;
-        }
+    if ($null -eq $Local:RecoveryProtector) {
+        Invoke-failedExit -ExitCode $Script:ERROR_NO_RECOVERY_PASSWORD;
     }
-    if ($Local:ShouldDisplayMessage) {
-        try {
-            $ErrorActionPreference = 'Stop';
-            $Local:Message = @"
-Message from AMT
-$($Local:RequiresRestart.reason)
-At your earliest convenience, please perform a restart.
-"@;
-            $Local:Message | . msg * /TIME:3600;
-            if ($LASTEXITCODE -ne 0) {
-                Invoke-Error "Failed to send reboot notice.";
-            } else {
-                Invoke-Info 'Reboot notice sent.';
-                $Local:DisplayedMessage.Set((Get-Date));
-            }
-        } catch {
-            Invoke-Error "Failed to send reboot notice: $_";
-        }
+    try {
+        BackupToAAD-BitLockerKeyProtector -MountPoint $env:SystemDrive -KeyProtectorId $Local:RecoveryProtector.KeyProtectorID | Out-Null;
+        Invoke-Info 'BitLocker recovery key successfully backed up to Azure AD.';
     }
-    Invoke-Error $Local:RequiresRestart.Reason;
-    Invoke-FailedExit -ExitCode 5100;
+    catch {
+        Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:ERROR_DURING_UPLOAD;
+    }
 });
