@@ -354,7 +354,9 @@ function Invoke-Timeout {
             }
         } while ($Local:TimeLeft.TotalMilliseconds -gt 0)
 
-        if ($Local:TimeLeft -eq 0) {
+        Invoke-Debug "Finished waiting for $Activity, time left: $Local:TimeLeft.";
+
+        if ($Local:TimeLeft -le 0) {
             Invoke-Verbose -Message 'Timeout reached, invoking timeout script if one is present.' -UnicodePrefix $Local:Prefix;
             if ($TimeoutScript) {
                 & $TimeoutScript;
