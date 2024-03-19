@@ -32,7 +32,18 @@ enum PackageManager {
     }
 };
 
-function Install-Requirements {
+[Boolean]$Script:CompletedSetup = $False;
+function Local:Install-Requirements {
+    if ($Script:CompletedSetup) {
+        Invoke-Debug 'Setup already completed. Skipping...';
+        return;
+    }
+
+    if (-not (Test-NetworkConnection)) {
+        Invoke-Error 'No network connection detected. Skipping package manager installation.';
+        Invoke-FailedExit -ExitCode 9999;
+    }
+
     @{
         PSPrefix = '📦';
         PSMessage = "Installing requirements for $Script:PackageManager...";
@@ -66,6 +77,8 @@ function Install-Requirements {
         }
         Default {}
     }
+
+    [Boolean]$Script:CompletedSetup = $True;
 }
 
 <#
@@ -79,19 +92,24 @@ function Test-ManagedPackage(
     [ValidateNotNullOrEmpty()]
     [String]$PackageName
 ) {
-    @{
-        PSPrefix = '🔍';
-        PSMessage = "Checking if package '$PackageName' is installed...";
-        PSColour = 'Yellow';
-    } | Invoke-Write;
+    begin { Enter-Scope; Install-Requirements; }
+    end { Exit-Scope -ReturnValue $Local:Installed; }
 
-    # if ($PackageVersion) {
-    #     $Local:PackageArgs['Version'] = $PackageVersion;
-    # }
+    process {
+        @{
+            PSPrefix = '🔍';
+            PSMessage = "Checking if package '$PackageName' is installed...";
+            PSColour = 'Yellow';
+        } | Invoke-Write;
 
-    [Boolean]$Local:Installed = & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.List $Script:PackageManagerDetails.Options.Common $PackageName;
-    Invoke-Verbose "Package '$PackageName' is $(if (-not $Local:Installed) { 'not ' })installed.";
-    return $Local:Installed;
+        # if ($PackageVersion) {
+        #     $Local:PackageArgs['Version'] = $PackageVersion;
+        # }
+
+        [Boolean]$Local:Installed = & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.List $Script:PackageManagerDetails.Options.Common $PackageName;
+        Invoke-Verbose "Package '$PackageName' is $(if (-not $Local:Installed) { 'not ' })installed.";
+        return $Local:Installed;
+    }
 }
 
 function Install-ManagedPackage(
@@ -111,20 +129,25 @@ function Install-ManagedPackage(
     # [ValidateNotNullOrEmpty()]
     # [String]$PackageVersion
 ) {
-    @{
-        PSPrefix = '📦';
-        PSMessage = "Installing package '$Local:PackageName'...";
-        PSColour = 'Green';
-    } | Invoke-Write;
+    begin { Enter-Scope; Install-Requirements; }
+    end { Exit-Scope; }
 
-    # if ($PackageVersion) {
-    #     $Local:PackageArgs['Version'] = $PackageVersion;
-    # }
+    process {
+        @{
+            PSPrefix = '📦';
+            PSMessage = "Installing package '$Local:PackageName'...";
+            PSColour = 'Green';
+        } | Invoke-Write;
 
-    [System.Diagnostics.Process]$Local:Process = Start-Process -FilePath $Script:PackageManagerDetails.Executable -ArgumentList (@($Script:PackageManagerDetails.Commands.Install) + $Script:PackageManagerDetails.Options.Common + @($PackageName)) -NoNewWindow -PassThru -Wait;
-    if ($Local:Process.ExitCode -ne 0) {
-        Invoke-Error "There was an issue while installing $Local:PackageName.";
-        Invoke-FailedExit -ExitCode $Local:Process.ExitCode -DontExit:$NoFail;
+        # if ($PackageVersion) {
+        #     $Local:PackageArgs['Version'] = $PackageVersion;
+        # }
+
+        [System.Diagnostics.Process]$Local:Process = Start-Process -FilePath $Script:PackageManagerDetails.Executable -ArgumentList (@($Script:PackageManagerDetails.Commands.Install) + $Script:PackageManagerDetails.Options.Common + @($PackageName)) -NoNewWindow -PassThru -Wait;
+        if ($Local:Process.ExitCode -ne 0) {
+            Invoke-Error "There was an issue while installing $Local:PackageName.";
+            Invoke-FailedExit -ExitCode $Local:Process.ExitCode -DontExit:$NoFail;
+        }
     }
 }
 
@@ -137,23 +160,27 @@ function Update-ManagedPackage(
     [ValidateNotNullOrEmpty()]
     [String]$PackageName
 ) {
-    @{
-        PSPrefix = '🔄';
-        PSMessage = "Updating package '$Local:PackageName'...";
-        PSColour = 'Blue';
-    } | Invoke-Write;
+    begin { Enter-Scope; Install-Requirements; }
+    end { Exit-Scope; }
 
-    try {
-        & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+    process {
+        @{
+            PSPrefix = '🔄';
+            PSMessage = "Updating package '$Local:PackageName'...";
+            PSColour = 'Blue';
+        } | Invoke-Write;
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "Error Code: $LASTEXITCODE";
+        try {
+            & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "Error Code: $LASTEXITCODE";
+            }
+        } catch {
+            Invoke-Error "There was an issue while updating $Local:PackageName.";
+            Invoke-Error $_.Exception.Message;
         }
-    } catch {
-        Invoke-Error "There was an issue while updating $Local:PackageName.";
-        Invoke-Error $_.Exception.Message;
     }
 }
 
-Install-Requirements;
 Export-ModuleMember -Function Test-ManagedPackage, Install-ManagedPackage, Uninstall-Package, Update-ManagedPackage;
