@@ -168,7 +168,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
 
         [Int]$Local:TotalColumns = $ActiveWorkSheet.Dimension.Columns;
         [Int]$Local:RemovedColumns = 0;
-        [Range]$Local:KeptRange = ($TotalColumns - $KeepHistory)..$TotalColumns;
+        $Local:KeptRange = ($TotalColumns - $KeepHistory)..$TotalColumns;
         foreach ($Local:ColumnIndex in 4..$ActiveWorkSheet.Dimension.Columns) {
             [Boolean]$Local:WillKeep = $Local:KeptRange -contains $Local:ColumnIndex;
             [Int]$ColumnIndex = $Local:ColumnIndex - $Local:RemovedColumns;
@@ -638,8 +638,8 @@ function Set-Check(
         }
 
         foreach ($Local:Row in 2..$WorkSheet.Dimension.Rows) {
-            [Int]$Local:PrevNumber = $Cells[$Local:Row, $Local:PrevColumn].Value;
-            [Int]$Local:CurrNumber = $Cells[$Local:Row, $Local:CurrColumn].Value;
+            [String]$Local:PrevNumber = $Cells[$Local:Row, $Local:PrevColumn].Value;
+            [String]$Local:CurrNumber = $Cells[$Local:Row, $Local:CurrColumn].Value;
             $Local:Cell = $Cells[$Local:Row, $Local:CheckColumn];
 
             ($Local:Result, $Local:Colour) = if ([String]::IsNullOrWhitespace($Local:PrevNumber) -and [String]::IsNullOrWhitespace($Local:CurrNumber)) {
