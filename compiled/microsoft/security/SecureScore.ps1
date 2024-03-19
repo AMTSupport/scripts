@@ -156,6 +156,9 @@ $Global:EmbededModules = [ordered]@{
 		    Invoke-EnvVerbose -Message "Removing modules: `n$(($Script:ImportedModules | Sort-Object -Descending) -join "`n")";
 		    $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
 		        Invoke-EnvDebug -Message "Removing module $_.";
+		        if ($Global:CompiledScript -and $_ -eq '00-Envrionment') {
+		            continue;
+		        }
 		        if ($_ -eq '01-Logging') {
 		            $Global:Logging.Loaded = $false;
 		        }
@@ -197,7 +200,6 @@ $Global:EmbededModules = [ordered]@{
 		                    $Global:Logging[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
 		                }
 		            }
-		            $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
 		            $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
 		            $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
 		            $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
@@ -791,6 +793,50 @@ Text: $($Local:Region.Text)
 		        return $Local:ModuleName;
 		    }
 		}
+		function Test-NetworkConnection {
+		    (Get-NetConnectionProfile | Where-Object {
+		        $Local:HasIPv4 = $_.IPv4Connectivity -eq 'Internet';
+		        $Local:HasIPv6 = $_.IPv6Connectivity -eq 'Internet';
+		        $Local:HasIPv4 -or $Local:HasIPv6
+		    } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
+		}
+		function Export-Types {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [Type[]]$Types,
+		        [Switch]$Clobber
+		    )
+		    if (-not $MyInvocation.MyCommand.ScriptBlock.Module) {
+		        throw [System.InvalidOperationException]::new('This function must be called from within a module.');
+		    }
+		    $TypeAcceleratorsClass = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators');
+		    if (-not $Clobber) {
+		        $ExistingTypeAccelerators = $TypeAcceleratorsClass::Get;
+		        foreach ($Type in $Types) {
+		            if ($Type.FullName -in $ExistingTypeAccelerators.Keys) {
+		                $Message = @(
+		                    "Unable to register type accelerator '$($Type.FullName)'"
+		                    'Accelerator already exists.'
+		                ) -join ' - '
+		                throw [System.Management.Automation.ErrorRecord]::new(
+		                    [System.InvalidOperationException]::new($Message),
+		                    'TypeAcceleratorAlreadyExists',
+		                    [System.Management.Automation.ErrorCategory]::InvalidOperation,
+		                    $Type.FullName
+		                )
+		            }
+		        }
+		    }
+		    foreach ($Type in $Types) {
+		        $TypeAcceleratorsClass::Add($Type.FullName, $Type)
+		    }
+		    $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
+		        foreach ($Type in $Types) {
+		            $TypeAcceleratorsClass::Remove($Type.FullName) | Out-Null
+		        }
+		    }.GetNewClosure()
+		}
 		Export-ModuleMember -Function *;
     };`
 	"01-Logging" = {
@@ -1069,7 +1115,8 @@ Text: $($Local:Region.Text)
 		                $Local:TimeLeft -= $Local:ElaspedTime;
 		            }
 		        } while ($Local:TimeLeft.TotalMilliseconds -gt 0)
-		        if ($Local:TimeLeft -eq 0) {
+		        Invoke-Debug "Finished waiting for $Activity, time left: $Local:TimeLeft.";
+		        if ($Local:TimeLeft -le 0) {
 		            Invoke-Verbose -Message 'Timeout reached, invoking timeout script if one is present.' -UnicodePrefix $Local:Prefix;
 		            if ($TimeoutScript) {
 		                & $TimeoutScript;
@@ -1194,8 +1241,8 @@ Text: $($Local:Region.Text)
 		    return (Get-Stack).Peek()
 		}
 		function Format-ScopeName([Parameter(Mandatory)][Switch]$IsExit) {
-		    [String]$Local:CurrentScope = (Get-StackTop).MyCommand.Name;
-		    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.MyCommand.Name } | Sort-Object -Descending;
+		    [String]$Local:CurrentScope = (Get-StackTop).Invocation.MyCommand.Name;
+		    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.Invocation.MyCommand.Name } | Sort-Object -Descending;
 		    [String]$Local:Scope = "$($Local:PreviousScopes -join ' > ')$(if ($Local:PreviousScopes.Count -gt 0) { if ($IsExit) { ' < ' } else { ' > ' } })$Local:CurrentScope";
 		    return $Local:Scope;
 		}
@@ -1203,7 +1250,7 @@ Text: $($Local:Region.Text)
 		    [Parameter()]
 		    [String[]]$IgnoreParams = @()
 		) {
-		    [System.Collections.IDictionary]$Local:Params = (Get-StackTop).BoundParameters;
+		    [System.Collections.IDictionary]$Local:Params = (Get-StackTop).Invocation.BoundParameters;
 		    if ($null -ne $Local:Params -and $Local:Params.Count -gt 0) {
 		        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $(Format-Variable -Value $_.Value)" };
 		        [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n";
@@ -1214,13 +1261,13 @@ Text: $($Local:Region.Text)
 		function Format-Variable([Object]$Value) {
 		    function Format-SingleVariable([Parameter(Mandatory)][Object]$Value) {
 		        switch ($Value) {
-		            { $_ -is [System.Collections.HashTable] } { "`n$Script:Tab$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
+		            { $_ -is [System.Collections.HashTable] } { "$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n")" }
 		            default { $Value }
 		        };
 		    }
 		    if ($null -ne $Value) {
 		        [String]$Local:FormattedValue = if ($Value -is [Array]) {
-		            "$(($Value | ForEach-Object { Format-SingleVariable $_ }) -join "`n$Script:Tab")"
+		            "$(($Value | ForEach-Object { Format-SingleVariable $_ }) -join "`n")"
 		        } else {
 		            Format-SingleVariable -Value $Value;
 		        }
@@ -1228,33 +1275,15 @@ Text: $($Local:Region.Text)
 		    };
 		    return $null;
 		}
-		function Get-FormattedReturnValue(
-		    [Parameter()]
-		    [Object]$ReturnValue
-		) {
-		    function Format([Object]$Value) {
-		        switch ($Value) {
-		            { $_ -is [System.Collections.HashTable] } { "`n$Script:Tab$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n$Script:Tab")" }
-		            default { $ReturnValue }
-		        };
-		    }
-		    if ($null -ne $ReturnValue) {
-		        [String]$Local:FormattedValue = if ($ReturnValue -is [Array]) {
-		            "$(($ReturnValue | ForEach-Object { Format $_ }) -join "`n$Script:Tab")"
-		        } else {
-		            Format -Value $ReturnValue;
-		        }
-		        return "Return Value: $Local:FormattedValue";
-		    };
-		    return $null;
-		}
 		function Enter-Scope(
 		    [Parameter()][ValidateNotNull()]
 		    [String[]]$IgnoreParams = @(),
-		    [Parameter()][ValidateNotNull()]
-		    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo
+		    [Parameter()]
+		    [ValidateNotNull()]
+		    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo # Get's the callers invocation info.
 		) {
-		    (Get-Stack).Push($Invocation);
+		    if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
+		    (Get-Stack).Push(@{ Invocation = $Invocation; StopWatch = [System.Diagnostics.Stopwatch]::StartNew(); });
 		    [String]$Local:ScopeName = Format-ScopeName -IsExit:$False;
 		    [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams;
 		    @{
@@ -1270,10 +1299,21 @@ Text: $($Local:Region.Text)
 		    [Parameter()]
 		    [Object]$ReturnValue
 		) {
+		    if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
+		    [System.Diagnostics.Stopwatch]$Local:StopWatch = (Get-StackTop).StopWatch;
+		    $Local:StopWatch.Stop();
+		    [String]$Local:ExecutionTime = "Execution Time: $($Local:StopWatch.ElapsedMilliseconds)ms";
 		    [String]$Local:ScopeName = Format-ScopeName -IsExit:$True;
 		    [String]$Local:ReturnValueFormatted = Format-Variable -Value:$ReturnValue;
+		    [String]$Local:Message = $Local:ScopeName;
+		    if ($Local:ExecutionTime) {
+		        $Local:Message += "`n$Local:ExecutionTime";
+		    }
+		    if ($Local:ReturnValueFormatted) {
+		        $Local:Message += "`n$Local:ReturnValueFormatted";
+		    }
 		    @{
-		        PSMessage   = "$Local:ScopeName$(if ($Local:ReturnValueFormatted) { "`n$Script:Tab$Local:ReturnValueFormatted" })";
+		        PSMessage   = $Local:Message;
 		        PSColour    = 'Blue';
 		        PSPrefix    = '❮❮';
 		        ShouldWrite = $Global:Logging.Verbose;
@@ -1493,10 +1533,14 @@ Text: $($Local:Region.Text)
 		        try {
 		            $ErrorActionPreference = 'Stop';
 		            Get-PackageProvider -ListAvailable -Name NuGet | Out-Null;
-		        }
-		        catch {
-		            Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
-		            Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+		        } catch {
+		            try {
+		                Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
+		                Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+		            } catch {
+		                Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
+		                return;
+		            }
 		        }
 		        foreach ($Local:Module in $Modules) {
 		            $Local:InstallArgs = @{
@@ -1755,7 +1799,16 @@ Text: $($Local:Region.Text)
 		        $null;
 		    }
 		};
-		function Install-Requirements {
+		[Boolean]$Script:CompletedSetup = $False;
+		function Local:Install-Requirements {
+		    if ($Script:CompletedSetup) {
+		        Invoke-Debug 'Setup already completed. Skipping...';
+		        return;
+		    }
+		    if (-not (Test-NetworkConnection)) {
+		        Invoke-Error 'No network connection detected. Skipping package manager installation.';
+		        Invoke-FailedExit -ExitCode 9999;
+		    }
 		    @{
 		        PSPrefix = '📦';
 		        PSMessage = "Installing requirements for $Script:PackageManager...";
@@ -1785,20 +1838,25 @@ Text: $($Local:Region.Text)
 		        }
 		        Default {}
 		    }
+		    [Boolean]$Script:CompletedSetup = $True;
 		}
 		function Test-ManagedPackage(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
 		    [String]$PackageName
 		) {
-		    @{
-		        PSPrefix = '🔍';
-		        PSMessage = "Checking if package '$PackageName' is installed...";
-		        PSColour = 'Yellow';
-		    } | Invoke-Write;
-		    [Boolean]$Local:Installed = & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.List $Script:PackageManagerDetails.Options.Common $PackageName;
-		    Invoke-Verbose "Package '$PackageName' is $(if (-not $Local:Installed) { 'not ' })installed.";
-		    return $Local:Installed;
+		    begin { Enter-Scope; Install-Requirements; }
+		    end { Exit-Scope -ReturnValue $Local:Installed; }
+		    process {
+		        @{
+		            PSPrefix = '🔍';
+		            PSMessage = "Checking if package '$PackageName' is installed...";
+		            PSColour = 'Yellow';
+		        } | Invoke-Write;
+		        [Boolean]$Local:Installed = & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.List $Script:PackageManagerDetails.Options.Common $PackageName;
+		        Invoke-Verbose "Package '$PackageName' is $(if (-not $Local:Installed) { 'not ' })installed.";
+		        return $Local:Installed;
+		    }
 		}
 		function Install-ManagedPackage(
 		    [Parameter(Mandatory)]
@@ -1811,15 +1869,19 @@ Text: $($Local:Region.Text)
 		    [ValidateNotNullOrEmpty()]
 		    [Switch]$NoFail
 		) {
-		    @{
-		        PSPrefix = '📦';
-		        PSMessage = "Installing package '$Local:PackageName'...";
-		        PSColour = 'Green';
-		    } | Invoke-Write;
-		    [System.Diagnostics.Process]$Local:Process = Start-Process -FilePath $Script:PackageManagerDetails.Executable -ArgumentList (@($Script:PackageManagerDetails.Commands.Install) + $Script:PackageManagerDetails.Options.Common + @($PackageName)) -NoNewWindow -PassThru -Wait;
-		    if ($Local:Process.ExitCode -ne 0) {
-		        Invoke-Error "There was an issue while installing $Local:PackageName.";
-		        Invoke-FailedExit -ExitCode $Local:Process.ExitCode -DontExit:$NoFail;
+		    begin { Enter-Scope; Install-Requirements; }
+		    end { Exit-Scope; }
+		    process {
+		        @{
+		            PSPrefix = '📦';
+		            PSMessage = "Installing package '$Local:PackageName'...";
+		            PSColour = 'Green';
+		        } | Invoke-Write;
+		        [System.Diagnostics.Process]$Local:Process = Start-Process -FilePath $Script:PackageManagerDetails.Executable -ArgumentList (@($Script:PackageManagerDetails.Commands.Install) + $Script:PackageManagerDetails.Options.Common + @($PackageName)) -NoNewWindow -PassThru -Wait;
+		        if ($Local:Process.ExitCode -ne 0) {
+		            Invoke-Error "There was an issue while installing $Local:PackageName.";
+		            Invoke-FailedExit -ExitCode $Local:Process.ExitCode -DontExit:$NoFail;
+		        }
 		    }
 		}
 		function Uninstall-ManagedPackage() {
@@ -1829,22 +1891,25 @@ Text: $($Local:Region.Text)
 		    [ValidateNotNullOrEmpty()]
 		    [String]$PackageName
 		) {
-		    @{
-		        PSPrefix = '🔄';
-		        PSMessage = "Updating package '$Local:PackageName'...";
-		        PSColour = 'Blue';
-		    } | Invoke-Write;
-		    try {
-		        & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
-		        if ($LASTEXITCODE -ne 0) {
-		            throw "Error Code: $LASTEXITCODE";
+		    begin { Enter-Scope; Install-Requirements; }
+		    end { Exit-Scope; }
+		    process {
+		        @{
+		            PSPrefix = '🔄';
+		            PSMessage = "Updating package '$Local:PackageName'...";
+		            PSColour = 'Blue';
+		        } | Invoke-Write;
+		        try {
+		            & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+		            if ($LASTEXITCODE -ne 0) {
+		                throw "Error Code: $LASTEXITCODE";
+		            }
+		        } catch {
+		            Invoke-Error "There was an issue while updating $Local:PackageName.";
+		            Invoke-Error $_.Exception.Message;
 		        }
-		    } catch {
-		        Invoke-Error "There was an issue while updating $Local:PackageName.";
-		        Invoke-Error $_.Exception.Message;
 		    }
 		}
-		Install-Requirements;
 		Export-ModuleMember -Function Test-ManagedPackage, Install-ManagedPackage, Uninstall-Package, Update-ManagedPackage;
     };`
 	"50-Input" = {
@@ -1920,7 +1985,7 @@ Text: $($Local:Region.Text)
 		        [Parameter()]
 		        [Switch]$DontSaveInputs
 		    )
-		    begin { Enter-Scope; }
+		    begin { Enter-Scope; Install-Requirements; }
 		    end { Exit-Scope -ReturnValue $Local:UserInput; }
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
@@ -1987,7 +2052,7 @@ Text: $($Local:Region.Text)
 		        [ValidateNotNullOrEmpty()]
 		        [Int]$DefaultChoice = 0
 		    )
-		    begin { Enter-Scope; }
+		    begin { Enter-Scope; Install-Requirements; }
 		    end { Exit-Scope -ReturnValue $Local:Selection; }
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
@@ -2076,11 +2141,20 @@ Text: $($Local:Region.Text)
 		    $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
 		    return $Local:Selection;
 		}
-		Invoke-EnsureModules @{
-		    Name = 'PSReadLine';
-		    MinimumVersion = '2.3.0';
-		    DontRemove = $true;
-		};
+		[Boolean]$Script:CompletedSetup = $False;
+		function Install-Requirements {
+		    if ($Script:CompletedSetup) {
+		        return;
+		    }
+		    Invoke-EnsureModules @{
+		        Name           = 'PSReadLine';
+		        MinimumVersion = '2.3.0';
+		        DontRemove     = $True;
+		    };
+		    $Using = [ScriptBlock]::Create('Using module ''PSReadLine''');
+		    . $Using;
+		    [Boolean]$Script:CompletedSetup = $True;
+		}
 		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
     };`
 	"99-Cache" = {
@@ -2397,6 +2471,7 @@ Text: $($Local:Region.Text)
 		function Get-Flag([Parameter(Mandatory)][ValidateNotNullOrEmpty()][String]$Context) {
 		    [Flag]::new($Context);
 		}
+		Export-Types -Types ([Flag], [RunningFlag], [RebootFlag]) -Clobber;
 		Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag,Get-Flag;
     };`
 	"99-Registry" = {
@@ -2450,74 +2525,73 @@ Text: $($Local:Region.Text)
 	"99-UsersAndAccounts" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-		function Local:Get-GroupByInputOrName(
+		function Local:Get-ObjectByInputOrName(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
 		    [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
-		    [Object]$InputObject
+		    [Object]$InputObject,
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [String]$SchemaClassName,
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ScriptBlock]$GetByName
 		) {
 		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:Group; }
+		    end { Exit-Scope -ReturnValue $Local:Value; }
 		    process {
 		        if ($InputObject -is [String]) {
-		            [ADSI]$Local:Group = Get-Group -Name $InputObject;
-		        } elseif ($InputObject.SchemaClassName -ne 'Group') {
-		            Write-Error 'The supplied object is not a group.' -TargetObject $InputObject -Category InvalidArgument;
+		            [ADSI]$Local:Value = $GetByName.InvokeReturnAsIs();
+		        } elseif ($InputObject.SchemaClassName -ne $SchemaClassName) {
+		            Write-Error "The supplied object is not a $SchemaClassName." -TargetObject $InputObject -Category InvalidArgument;
 		        } else {
-		            [ADSI]$Local:Group = $InputObject;
+		            [ADSI]$Local:Value = $InputObject;
 		        }
-		        return $Local:Group;
+		        return $Local:Value;
 		    }
 		}
-		function Local:Get-UserByInputOrName(
-		    [Parameter(Mandatory)]
+		function Local:Get-GroupByInputOrName([Object]$InputObject) {
+		    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'Group' -GetByName { Get-Group $Using:InputObject; };
+		}
+		function Local:Get-UserByInputOrName([Object]$InputObject) {
+		    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'User' -GetByName { Get-User $Using:InputObject; };
+		}
+		function Get-Group(
+		    [Parameter(HelpMessage = 'The name of the group to retrieve, if not specified all groups will be returned.')]
 		    [ValidateNotNullOrEmpty()]
-		    [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
-		    [Object]$InputObject
+		    [String]$Name
 		) {
 		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:User; }
+		    end { Exit-Scope -ReturnValue $Local:Value; }
 		    process {
-		        if ($InputObject -is [String]) {
-		            [ADSI]$Local:User = Get-User -Name $InputObject;
-		        } elseif ($InputObject.SchemaClassName -ne 'User') {
-		            Write-Error 'The supplied object is not a user.' -TargetObject $InputObject -Category InvalidArgument;
-		        } else {
-		            [ADSI]$Local:User = $InputObject;
+		        if (-not $Name) {
+		            [ADSI]$Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
+		            $Local:Value = $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' };
 		        }
-		        return $Local:User;
+		        else {
+		            [ADSI]$Local:Value = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
+		        }
+		        return $Local:Value;
 		    }
 		}
-		function Get-FormattedUser(
+		function Get-MembersOfGroup(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
-		    [ValidateScript({ $_.SchemaClassName -eq 'User' })]
-		    [ADSI]$User
+		    [Object]$Group
 		) {
 		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:FormattedUser; }
+		    end { Exit-Scope -ReturnValue $Local:Members; }
 		    process {
-		        [String]$Local:Path = $User.Path.Substring(8); # Remove the WinNT:// prefix
-		        [String[]]$Local:PathParts = $Local:Path.Split('/');
-		        [HashTable]$Local:FormattedUser = @{
-		            Name = $Local:PathParts[$Local:PathParts.Count - 1]
-		            Domain = $Local:PathParts[$Local:PathParts.Count - 2]
-		        };
-		        return $Local:FormattedUser;
-		    }
-		}
-		function Get-FormattedUsers(
-		    [Parameter(Mandatory)]
-		    [ValidateNotNullOrEmpty()]
-		    [ADSI[]]$Users
-		) {
-		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:FormattedUsers; }
-		    process {
-		        $Local:FormattedUsers = $Users | ForEach-Object {
-		            Get-FormattedUser -User $_;
-		        };
-		        return $Local:FormattedUsers;
+		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject:$Group;
+		        $Group.Invoke('Members') `
+		            | ForEach-Object { [ADSI]$_ } `
+		            | Where-Object {
+		                if ($_.Parent.Length -gt 8) {
+		                    $_.Parent.Substring(8) -ne 'NT AUTHORITY'
+		                } else {
+		                    $False
+		                }
+		            };
 		    }
 		}
 		function Test-MemberOfGroup(
@@ -2531,47 +2605,7 @@ Text: $($Local:Region.Text)
 		    process {
 		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
 		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
-		        return $Local:Group.Invoke("IsMember", $Local:User.Path);
-		    }
-		}
-		function Get-Group(
-		    [Parameter(Mandatory)]
-		    [ValidateNotNullOrEmpty()]
-		    [String]$Name
-		) {
-		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:Group; }
-		    process {
-		        [ADSI]$Local:Group = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
-		        return $Local:Group
-		    }
-		}
-		function Get-Groups {
-		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:Groups; }
-		    process {
-		        $Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
-		        $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' };
-		    }
-		}
-		function Get-GroupMembers(
-		    [Parameter(Mandatory)]
-		    [ValidateNotNullOrEmpty()]
-		    [Object]$Group
-		) {
-		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:Members; }
-		    process {
-		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
-		        $Group.Invoke("Members") `
-		            | ForEach-Object { [ADSI]$_ } `
-		            | Where-Object {
-		                if ($_.Parent.Length -gt 8) {
-		                    $_.Parent.Substring(8) -ne 'NT AUTHORITY'
-		                } else {
-		                    $False
-		                }
-		            };
+		        return $Local:Group.Invoke('IsMember', $Local:User.Path);
 		    }
 		}
 		function Add-MemberToGroup(
@@ -2592,7 +2626,7 @@ Text: $($Local:Region.Text)
 		            return $False;
 		        }
 		        Invoke-Verbose "Adding user $Name to group $Group...";
-		        $Local:Group.Invoke("Add", $Local:User.Path);
+		        $Local:Group.Invoke('Add', $Local:User.Path);
 		        return $True;
 		    }
 		}
@@ -2614,11 +2648,54 @@ Text: $($Local:Region.Text)
 		            return $False;
 		        }
 		        Invoke-Verbose "Removing user $Name from group $Group...";
-		        $Local:Group.Invoke("Remove", $Local:User.Path);
+		        $Local:Group.Invoke('Remove', $Local:User.Path);
 		        return $True;
 		    }
 		}
-		Export-ModuleMember -Function Add-MemberToGroup, Get-FormattedUser, Get-FormattedUsers, Get-Group, Get-Groups, Get-GroupMembers, Get-UserByInputOrName, Remove-MemberFromGroup, Test-MemberOfGroup;
+		function Get-User(
+		    [Parameter(HelpMessage = 'The name of the user to retrieve, if not specified all users will be returned.')]
+		    [ValidateNotNullOrEmpty()]
+		    [String]$Name
+		) {
+		    begin { Enter-Scope; }
+		    end { Exit-Scope -ReturnValue $Local:Value; }
+		    process {
+		        if (-not $Name) {
+		            [ADSI]$Local:Users = [ADSI]"WinNT://$env:COMPUTERNAME";
+		            $Local:Value = $Local:Users.Children | Where-Object { $_.SchemaClassName -eq 'User' };
+		        }
+		        else {
+		            [ADSI]$Local:Value = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,user";
+		        }
+		        return $Local:Value;
+		    }
+		}
+		function Format-ADSIUser(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [ValidateScript({ $_ | ForEach-Object { $_.SchemaClassName -eq 'User' } })]
+		    [ADSI[]]$User
+		) {
+		    begin { Enter-Scope; }
+		    end { Exit-Scope -ReturnValue $Local:Value; }
+		    process {
+		        if ($User -is [Array] -and $User.Count -gt 1) {
+		            $Local:Value = $User | ForEach-Object {
+		                Format-ADSIUser -User $_;
+		            };
+		            return $Local:Value;
+		        } else {
+		            [String]$Local:Path = $User.Path.Substring(8); # Remove the WinNT:// prefix
+		            [String[]]$Local:PathParts = $Local:Path.Split('/');
+		            [HashTable]$Local:Value = @{
+		                Name = $Local:PathParts[$Local:PathParts.Count - 1]
+		                Domain = $Local:PathParts[$Local:PathParts.Count - 2]
+		            };
+		            return $Local:Value;
+		        }
+		    }
+		}
+		Export-ModuleMember -Function Get-User, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser;
     };
 }
 function Get-SecureScore(

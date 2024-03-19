@@ -1,6 +1,9 @@
 #Requires -Version 5.1
-
-
+[CmdletBinding(SupportsShouldProcess)]
+param(
+    [Parameter(Mandatory)]
+    [String[]]$ApplicationName
+)
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -2700,12 +2703,19 @@ Text: $($Local:Region.Text)
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
-    Connect-Service Graph -Scopes Device.ReadWrite.All, DeviceManagementManagedDevices.ReadWrite.All, DeviceManagementServiceConfig.ReadWrite.All, Group.ReadWrite.All, GroupMember.ReadWrite.All, Mail.ReadWrite.Shared, openid, profile, User.ReadWrite.All, email, Directory.Read.All, LicenseAssignment.ReadWrite.All;
-    [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser[]]$Local:Users = Get-MgUser;
-    [String]$Local:UserSelection = Get-PopupSelection -Title 'Select the user to offboard.' -Items $Local:Users.Name;
-    [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Local:User = $Local:Users | Where-Object { $_.Mail -eq $Local:UserSelection } | Select-Object -First 1;
-    if (-not (Get-Confirmation -Message "Are you sure you want to offboard $($Local:User.Name)/$($Local:User.Mail)?")) {
+    $Local:Applications = Get-WmiObject -Class Win32_Product | Select-Object -Property Name,Version;
+    $Local:LikeApplications = $Local:Applications | Where-Object {
+        $Application = $_;
+        ($ApplicationName | Where-Object { $Application.Name -like $_; }).Count -gt 0;
+    };
+    if ($null -eq $Local:LikeApplications) {
+        Invoke-Info "No applications found matching '$ApplicationName'";
         return;
     }
-    Set-MailBox -Identity $User.Mail -Type Shared; # TODO :: Graph API
+    $Local:LikeApplications | ForEach-Object {
+        if ($PSCmdlet.ShouldProcess($_.Name, "Uninstall, with version $($_.Version)")) {
+            Invoke-Info "Uninstalling $($_.Name) version $($_.Version)";
+            wmic product where "Name='$($_.Name)'" call uninstall /nointeractive;
+        }
+    };
 });
