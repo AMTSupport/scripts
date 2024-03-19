@@ -27,7 +27,7 @@ Invoke-RunMain $MyInvocation {
         [ADSI]$Local:Group = Get-Group 'Network Configuration Operators';
         [ADSI]$Local:UserGroup = Get-Group 'Users';
         [HashTable[]]$Local:Users = Get-GroupMembers $Local:UserGroup | ForEach-Object {
-            [PSCustomObject]$Local:Formatted = Get-FormattedUsers $_;
+            [PSCustomObject]$Local:Formatted = Format-ADSIUser $_;
             @{
                 ADSI = $_;
                 Formatted = "$($Local:Formatted.Domain)\$($Local:Formatted.Name)";
