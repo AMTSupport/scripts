@@ -187,6 +187,10 @@ function Remove-CommonModules {
     $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
         Invoke-EnvDebug -Message "Removing module $_.";
 
+        if ($Global:CompiledScript -and $_ -eq '00-Envrionment') {
+            continue;
+        }
+
         if ($_ -eq '01-Logging') {
             $Global:Logging.Loaded = $false;
         }
@@ -257,7 +261,7 @@ function Invoke-RunMain {
                 }
             }
 
-            $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
+            # $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
             $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
             $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
             $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
