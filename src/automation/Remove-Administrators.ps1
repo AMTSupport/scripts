@@ -15,12 +15,6 @@ Param(
 
 #region - ASDI Functions
 
-# function Get-Group {
-#     $Groups = Get-WmiObject -ComputerName $env:COMPUTERNAME -Class Win32_Group
-#     $Group = $Groups | Where-Object { $_.Name -eq 'Administrators' } | Select-Object -First 1
-#     return $Group
-# }
-
 # function Is-AzureADUser([ADSI]$User) {
 #     begin { Enter-Scope $MyInvocation }
 
@@ -54,15 +48,15 @@ function Get-FilteredUsers(
     [ValidateNotNullOrEmpty()]
     [ADSI]$Group,
 
-    [Parameter(Mandatory)]
+    [Parameter()]
     [HashTable[]]$Exceptions
 ) {
     begin { Enter-Scope; }
     end { Exit-Scope -ReturnValue $Local:FilteredMembers; }
 
     process {
-        [HashTable[]]$Local:Members = Get-GroupMembers -Group $Group | ForEach-Object {
-            [HashTable]$Local:Table = Get-FormattedUser -User $_;
+        [HashTable[]]$Local:Members = Get-MembersOfGroup -Group $Group | ForEach-Object {
+            [HashTable]$Local:Table = Format-ADSIUser -User $_;
             $Local:Table | Add-Member -MemberType NoteProperty -Name ADSI -Value $_;
 
             $Local:Table
@@ -75,12 +69,16 @@ function Get-FilteredUsers(
             Invoke-FailedExit -ExitCode 1002;
         }
 
-        [HashTable[]]$Local:FilteredMembers = $Local:Members | Where-Object {
-            [String]$Local:Name = $_.Name;
-            $Local:Exception = $Exceptions | Where-Object { $_.Name -ieq $Local:Name -and $_.Domain -ieq $env:COMPUTERNAME };
+        if ($Exceptions) {
+            [HashTable[]]$Local:FilteredMembers = $Local:Members | Where-Object {
+                [String]$Local:Name = $_.Name;
+                $Local:Exception = $Exceptions | Where-Object { $_.Name -ieq $Local:Name -and $_.Domain -ieq $env:COMPUTERNAME };
 
-            (-not $Local:Exception) -or ($Local:Exception.Computers -contains $env:COMPUTERNAME)
-        };
+                (-not $Local:Exception) -or ($Local:Exception.Computers -contains $env:COMPUTERNAME)
+            };
+        } else {
+            [HashTable[]]$Local:FilteredMembers = $Local:Members;
+        }
 
         Invoke-Info "Admins after filtering [$(($Local:FilteredMembers | Select-Object -ExpandProperty Name) -join ', ')]";
         return $Local:FilteredMembers;
@@ -94,10 +92,7 @@ function Remove-Admins(
     [ADSI]$Group,
 
     [Parameter(Mandatory)]
-    [HashTable[]]$Users,
-
-    [Parameter(Mandatory)]
-    [HashTable[]]$Exceptions
+    [HashTable[]]$Users
 ) {
     begin { Enter-Scope; }
     end { Exit-Scope -ReturnValue $RemovedUsers; }
@@ -203,11 +198,17 @@ function Get-ProcessedExceptions(
             }
         }
 
-        [HashTable[]]$Local:Exceptions = @();
-        foreach ($Local:Exception in $UserExceptions) {
+        if (-not $UserExceptions) {
+            Invoke-Debug 'No user exceptions were supplied, skipping processing.';
+            return @();
+        }
+
+        $UserExceptions | ForEach-Object {
+            Invoke-Info "Processing exception [$_]"
+
             if ($Local:Exception.Contains('=')) {
-                Invoke-Debug "Possible scoped exception [$Local:Exception]";
-                [String[]]$Local:Split = $Local:Exception.Split('=');
+                Invoke-Debug "Possible scoped exception [$_]";
+                [String[]]$Local:Split = $_.Split('=');
                 [String]$Local:UserName = $Local:Split[0];
 
                 if ($Local:Split.Count -eq 2) {
@@ -224,9 +225,9 @@ function Get-ProcessedExceptions(
                     [HashTable]$Local:Exception = Split-NameAndDomain -Name $Local:UserName;
                     $Local:Exception | Add-Member -MemberType NoteProperty -Name Computers -Value $Local:Computers;
 
-                    $Local:Exceptions += $Local:Exception;
+                    return $Local:Exception;
                 } else {
-                    Invoke-Error "Invalid format for exception [$Local:Exception]";
+                    Invoke-Error "Invalid format for exception [$_]";
                     Invoke-FailedExit -ExitCode 1003;
                 }
             } else {
@@ -235,7 +236,7 @@ function Get-ProcessedExceptions(
                 [HashTable]$Local:Exception = Split-NameAndDomain -Name $Local:Exception;
                 $Local:Exception | Add-Member -MemberType NoteProperty -Name Computers -Value @($env:COMPUTERNAME);
 
-                $Local:Exceptions += $Local:Exception;
+                return $Local:Exception;
             }
         }
 
@@ -252,10 +253,10 @@ Invoke-RunMain $MyInvocation {
     }
 
     [ADSI]$Local:Group = Get-Group -Name 'Administrators';
-    [HashTable]$Local:UserExceptions = Get-ProcessedExceptions -UserExceptions:$UserExceptions;
-    [HashTable]$Local:LocalAdmins = Get-FilteredUsers -Group:$Local:Group -Exceptions:$Local:UserExceptions;
+    [HashTable]$Local:UserExceptions = Get-ProcessedExceptions -UserExceptions ($BaseHiddenUsers + $UserExceptions);
+    [HashTable[]]$Local:LocalAdmins = Get-FilteredUsers -Group:$Local:Group -Exceptions $Local:UserExceptions;
 
-    $Local:RemovedAdmins = Remove-Admins -Group:$Local:Group -Users:$Local:LocalAdmins -Exceptions:$Local:UserExceptions;
+    $Local:RemovedAdmins = Remove-Admins -Group:$Local:Group -Users:$Local:LocalAdmins;
     $Local:FixedUsers = Set-MissingGroup;
 
     if ($RemovedAdmins.Count -eq 0 -and $FixedUsers.Count -eq 0) {
