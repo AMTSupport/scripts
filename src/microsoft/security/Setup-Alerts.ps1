@@ -1,36 +1,9 @@
 #Requires -Version 5.1
 
-function Get-AlertsUser {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:User; }
-
-    process {
-        $Local:User = (Get-User | Where-Object { $_.Name -like 'Alerts*' } | Select-Object -First 1)
-
-        if (-not $Local:User) {
-            # TODO :: Create shared mailbox.
-
-            Warn 'No Alerts user found. Please create one manually.'
-            $Local:User = $null;
-        }
-
-            # $params = @{
-            #     Name             = "Alerts"
-            #     DisplayName      = "Alerts"
-            #     UserPrincipalName = "Alerts@$(Get-OrganizationConfig).PrimarySmtpAddress.Domain"
-            #     FirstName        = "Alerts"
-            #     LastName         = "Alerts"
-            #     Password         = (ConvertTo-SecureString -String "P@ssw0rd" -AsPlainText -Force)
-            #     ResetPasswordOnNextLogon = $false
-            #     PasswordNeverExpires    = $true
-            #     UsageLocation           = "US"
-            #     ForceChangePasswordNextLogon = $false
-            # }
-            # New-User @params
-
-        return $Local:User
-    }
-}
+param(
+    [Parameter()]
+    [Switch]$UpdatePolicies
+)
 
 function Update-SecurityAndCompilence(
     [Parameter(Mandatory)]
@@ -84,8 +57,8 @@ function Update-SecurityAndCompilence(
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    Connect-Service SecurityComplience;
+    Connect-Service -Services SecurityComplience,Graph -Scopes 'SecurityEvents.ReadWrite.All';
 
-    $Local:AlertsUser = Get-AlertsUser;
+    [MicrosoftGraphUser]$Local:AlertsUser = Get-AlertsUser;
     Update-SecurityAndCompilence -AlertsUser $Local:AlertsUser;
 };

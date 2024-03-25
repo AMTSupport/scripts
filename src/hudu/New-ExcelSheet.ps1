@@ -37,8 +37,8 @@ Param(
 #region - Excel Functions
 
 function New-ExcelPackage {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation $Local:Excel; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Excel; }
 
     process {
         [ExcelPackage]$Local:Excel = [ExcelPackage]::new();
@@ -59,8 +59,8 @@ function Set-Companies(
     [Parameter(Mandatory)]
     [PSCustomObject[]]$Companies
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         Invoke-Info "Adding $($Companies.Count) companies to excel sheet...";
@@ -79,8 +79,8 @@ function Set-Style(
     [Parameter(Mandatory)]
     [ExcelWorksheet]$WorkSheet
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
 
     process {
         [String]$Local:LastColumn = $WorkSheet.Dimension.Address -split ':' | Select-Object -Last 1;
@@ -96,10 +96,10 @@ function Set-Style(
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Invoke-EnsureUser;
-    Invoke-EnsureModules -Modules 'ImportExcel', "$PSScriptRoot/Common.psm1"; # TODO - This should be imported by compiler in future.
+    Invoke-EnsureModule -Modules 'ImportExcel', "$PSScriptRoot\Common.psm1"; # TODO - This should be imported by compiler in future.
 
     [ExcelPackage]$Local:Excel = New-ExcelPackage;
-    [PSCustomObject[]]$Local:Companies = Get-Companies -Endpoint $Endpoint -ApiKey $ApiKey -OnlyParents;
+    [PSCustomObject[]]$Local:Companies = Get-HuduCompanies -Endpoint $Endpoint -OnlyParents;
     [ExcelWorksheet]$Local:WorkSheet = $Local:Excel.Workbook.Worksheets["Main"];
 
     Set-Companies -WorkSheet $Local:WorkSheet -Companies $Local:Companies;
