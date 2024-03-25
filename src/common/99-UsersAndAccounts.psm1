@@ -60,13 +60,13 @@ function Local:Get-UserByInputOrName([Object]$InputObject) {
 
 .EXAMPLE
     This will return the Administrators group.
-    ```powershell
+    ```
     Get-Group -Name 'Administrators';
     ```
 
 .EXAMPLE
     This will return all groups on the local machine.
-    ```powershell
+    ```
     Get-Group;
     ```
 
@@ -111,7 +111,7 @@ function Get-Group(
 
 .EXAMPLE
     This will return the members of the Administrators group.
-    ```powershell
+    ```
     Get-MembersOfGroup -Group (Get-Group -Name 'Administrators');
     ```
 
@@ -161,7 +161,7 @@ function Get-MembersOfGroup(
 
 .EXAMPLE
     This will test if the user localadmin is a member of the Administrators group.
-    ```powershell
+    ```
     Test-MemberOfGroup -Group (Get-Group -Name 'Administrators') -Username 'localadmin';
     ```
 
@@ -205,7 +205,7 @@ function Test-MemberOfGroup(
 
 .EXAMPLE
     This will add the user localadmin to the Administrators group.
-    ```powershell
+    ```
     Add-MemberToGroup -Group (Get-Group -Name 'Administrators') -Username 'localadmin';
     ```
 
