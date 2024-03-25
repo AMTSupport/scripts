@@ -170,7 +170,11 @@ function Get-UserSelection {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [Int]$DefaultChoice = 0
+        [Int]$DefaultChoice = 0,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [ScriptBlock]$FormatChoice = { Param([String]$Choice) $Choice.ToString(); }
     )
 
     begin { Enter-Scope; Install-Requirements; }
@@ -188,7 +192,7 @@ function Get-UserSelection {
             $Local:PreviousTabFunction = 'TabCompleteNext';
         }
 
-        $Script:ChoicesList = $Choices;
+        [String[]]$Script:ChoicesList = $Choices | ForEach-Object { $FormatChoice.InvokeReturnAsIs($_); };
         Set-PSReadLineKeyHandler -Chord Tab -ScriptBlock {
             Param([System.ConsoleKeyInfo]$Key, $Arg)
 
@@ -308,6 +312,12 @@ function Install-Requirements {
     . $Using;
 
     [Boolean]$Script:CompletedSetup = $True;
+}
+
+try {
+    Install-Requirements;
+} catch {
+    throw $_;
 }
 
 Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
