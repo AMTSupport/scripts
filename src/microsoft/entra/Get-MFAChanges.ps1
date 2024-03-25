@@ -384,17 +384,18 @@ function Invoke-CleanupWorksheet(
                         # $(Invoke-FormattedRows 1,$Local:VisitiedEmails.IndexOf($Local:Email),$Local:RowIndex);
                     }
 
-                    [Int]$Local:Selection = Get-UserSelection `
+                    [String]$Local:Selection = Get-UserSelection `
                         -Title "Duplicate email found at row $Local:AdditionalRealIndex." `
                         -Question @"
 The email '$Local:Email' was first seen at row $Local:ExistingRealIndex.
 Please select which row you would like to keep, or enter 'b' to exit and manually review the file.
 "@ `
-                        -Choices @('&Existing', '&New', '&Break') -DefaultChoice 0;
+                        -Choices @('Existing', 'New', 'Break') `
+                        -DefaultChoice 0;
 
                     $Local:RemovingRow = switch ($Local:Selection) {
-                        0 { $RowIndex }
-                        1 {
+                        'Existing' { $RowIndex }
+                        'New' {
                             $Local:ExistingIndex = $Local:VisitiedEmails.IndexOf($Local:Email);
                             $Local:VisitiedEmails.Remove($Local:Email);
                             $Local:VisitiedEmails.Add($Local:Email);
@@ -797,8 +798,10 @@ Invoke-RunMain $MyInvocation {
         } elseif ($Local:PossibleMatches.Count -eq 1) {
             $Local:Client = $Local:PossibleMatches[0]
         } elseif ($Local:PossibleMatches.Count -gt 1) {
-            $Local:ClientIndex = Get-UserSelection -Title 'Multiple client folders found' -Question 'Please select the client you would like to run the script for' -Choices $Local:PossibleMatches;
-            $Local:Client = $Local:PossibleMatches[$Local:ClientIndex];
+            $Local:Client = Get-UserSelection `
+                -Title 'Multiple client folders found' `
+                -Question 'Please select the client you would like to run the script for' `
+                -Choices $Local:PossibleMatches;
         } else {
             Invoke-Error "Client $Client not found; please check the spelling and try again."
             return

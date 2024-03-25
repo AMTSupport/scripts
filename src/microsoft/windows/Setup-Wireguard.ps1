@@ -34,8 +34,11 @@ Invoke-RunMain $MyInvocation {
             };
         };
         while ($True) {
-            [Int16]$Local:SelectedIndex = Get-UserSelection -Title 'Select User' 'Select the user you want to add to Network Configuration Operators:' -Choices $Local:Users.Formatted;
-            [HashTable]$Local:User = $Local:Users[$Local:SelectedIndex];
+            [HashTable]$Local:User = Get-UserSelection `
+                -Title 'Select User'
+                -Question 'Select the user you want to add to Network Configuration Operators:' `
+                -Choices $Local:Users `
+                -FormatChoice { $_.Formatted };
 
             $null = Add-MemberToGroup -Group $Local:Group -Username $Local:User.ADSI;
             $Local:Users = $Local:Users | Where-Object { $_ -ne $Local:User };

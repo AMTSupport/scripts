@@ -149,8 +149,8 @@ function Get-UserConfirmation {
     $Local:DefaultChoice = if ($null -eq $DefaultChoice) { 1 } elseif ($DefaultChoice) { 0 } else { 1 };
     $Local:Result = Get-UserSelection -Title $Title -Question $Question -Choices @('Yes', 'No') -DefaultChoice $Local:DefaultChoice;
     switch ($Local:Result) {
-        0 { $true }
-        Default { $false }
+        'Yes' { $true }
+        'No' { $false }
     }
 }
 
@@ -233,8 +233,8 @@ function Get-UserSelection {
         [Boolean]$Local:FirstRun = $true;
         $Host.UI.RawUI.FlushInputBuffer();
         Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
-        Invoke-Write @Script:WriteStyle -PSMessage "Enter one of the following: $($Choices -join ', ')";
-        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($Choices[$DefaultChoice])" -NoNewline;
+        Invoke-Write @Script:WriteStyle -PSMessage "Enter one of the following: $($ChoicesList -join ', ')";
+        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($ChoicesList[$DefaultChoice])" -NoNewline;
         Write-Host "`r>> " -NoNewline;
 
         do {
@@ -243,7 +243,7 @@ function Get-UserSelection {
             if (-not $Local:Selection -and $Local:FirstRun) {
                 $Local:Selection = $Choices[$DefaultChoice];
                 Clear-HostLight -Count 1;
-            } elseif ($Local:Selection -notin $Choices) {
+            } elseif ($Local:Selection -notin $ChoicesList) {
                 $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
                 Clear-HostLight -Count $Local:ClearLines;
 
@@ -255,7 +255,7 @@ function Get-UserSelection {
             }
 
             $Local:FirstRun = $false;
-        } while ($Local:Selection -notin $Choices -and -not $Script:ShouldAbort);
+        } while ($Local:Selection -notin $ChoicesList -and -not $Script:ShouldAbort);
 
         Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
         Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
@@ -264,7 +264,7 @@ function Get-UserSelection {
             throw [System.Management.Automation.PipelineStoppedException]::new();
         }
 
-        return $Choices.IndexOf($Local:Selection);
+        return $Choices[$ChoicesList.IndexOf($Local:Selection)];
     }
 }
 
