@@ -77,7 +77,7 @@ If a new mailbox was created, please ensure that the user account is correctly d
         }
 
         #startregion Admin Delegate Access
-        $Local:Admin = Get-MgUser -Filter "startswith(UserPrincipalName, 'admin@') -or startswith(UserPrincipalName, 'amtadmin@')";
+        $Local:Admin = Get-MgUser -Filter "startswith(UserPrincipalName, 'admin@') or startswith(UserPrincipalName, 'amtadmin@') or startsWith(UserPrincipalName, 'O365Admin@')";
         if (-not $Local:Admin) {
             Invoke-Warn 'Could not find admin account, please select the admin account to grant delegate access to the Alerts mailbox.';
             [MicrosoftGraphUser[]]$Local:AllUsers = Get-MgUser;
@@ -85,7 +85,7 @@ If a new mailbox was created, please ensure that the user account is correctly d
                 -Title 'Which account?' `
                 -Question 'Select the admin account to grant delegate access to the Alerts mailbox' `
                 -Choices $Local:AllUsers `
-                -FormatChoice { $_.UserPrincipalName };
+                -FormatChoice { param([MicrosoftGraphUser]$Item) $Item.UserPrincipalName };
         } elseif ($Local:Admin.Count -gt 1) {
             Invoke-Warn 'Multiple admin accounts found, please select the admin account to grant delegate access to the Alerts mailbox.';
             [MicrosoftGraphUser]$Local:Admin = Get-UserSelection `
