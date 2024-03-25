@@ -193,7 +193,7 @@ function Out-ToExcel {
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    Invoke-EnsureModules -Modules 'ImportExcel';
+    Invoke-EnsureModule -Modules 'ImportExcel';
 
     if (-not (Get-Variable Clients -Scope Global)) {
         Invoke-Debug 'Creating global clients variable.';

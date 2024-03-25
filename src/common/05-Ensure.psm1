@@ -34,7 +34,7 @@ $Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to ins
 $Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
 $Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
 $Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
-function Invoke-EnsureModules {
+function Invoke-EnsureModule {
     <#
     .SYNOPSIS
         Ensures the required modules are installed.
@@ -47,7 +47,7 @@ function Invoke-EnsureModules {
         The modules represented with their name as a string,
         a git repository string in the format of 'owner/repo@ref', where ref is the branch or tag to install,
         or a hashtable in the following format where items marked with * are optional:
-        ```powershell
+        ```
         @{
             Name = 'ModuleName';
             *MinimumVersion = '1.0.0';
@@ -62,21 +62,21 @@ function Invoke-EnsureModules {
 
     .EXAMPLE
         Install the ImportExcel and PSScriptAnalyzer modules.
-        ```powershell
-        Invoke-EnsureModules -Modules 'ImportExcel', 'PSScriptAnalyzer'
+        ```
+        Invoke-EnsureModule -Modules 'ImportExcel', 'PSScriptAnalyzer'
         ```
     .EXAMPLE
         Install the ImportExcel module with a minimum version of 7.1.0.
-        ```powershell
-        Invoke-EnsureModules -Modules @{
+        ```
+        Invoke-EnsureModule -Modules @{
             Name = 'ImportExcel';
             MinimumVersion = '7.1.0';
         }
         ```
     .EXAMPLE
         Install the PSReadLine module and don't remove it once the script has completed running.
-        ```powershell
-        Invoke-EnsureModules -Modules @{
+        ```
+        Invoke-EnsureModule -Modules @{
             Name = 'PSReadLine';
             MinimumVersion = '3.2.0';
             DontRemove = $true;
@@ -84,8 +84,8 @@ function Invoke-EnsureModules {
         ```
     .EXAMPLE
         Install the ImportExcel module using the string format, and the PSScriptAnalyzer module using the hashtable format.
-        ```powershell
-        Invoke-EnsureModules -Modules 'ImportExcel', @{
+        ```
+        Invoke-EnsureModule -Modules 'ImportExcel', @{
             Name = 'PSScriptAnalyzer';
             MinimumVersion = '1.0.0';
         }
@@ -93,7 +93,7 @@ function Invoke-EnsureModules {
     .OUTPUTS
         None
     .EXTERNALHELP
-        https://amtsupport.github.io/scripts/docs/modules/common/Ensure/Invoke-EnsureModules
+        https://amtsupport.github.io/scripts/docs/modules/common/Ensure/Invoke-EnsureModule
     #>
     [CmdletBinding()]
     param (
@@ -343,4 +343,4 @@ Register-ExitHandler -Name 'Remove Imported Modules' -ExitHandler {
     Remove-Module -Name $Script:ImportedModules -Force;
 };
 
-Export-ModuleMember -Function Invoke-EnsureAdministrator, Invoke-EnsureUser, Invoke-EnsureModules, Invoke-EnsureNetwork;
+Export-ModuleMember -Function Invoke-EnsureAdministrator, Invoke-EnsureUser, Invoke-EnsureModule, Invoke-EnsureNetwork;

@@ -302,7 +302,7 @@ function Install-Requirements {
     }
 
     # Windows comes pre-installed with PSReadLine 2.0.0, so we need to ensure that we have at least 2.3.0;
-    Invoke-EnsureModules @{
+    Invoke-EnsureModule @{
         Name           = 'PSReadLine';
         MinimumVersion = '2.3.0';
         DontRemove     = $True;

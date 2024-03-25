@@ -21,7 +21,7 @@ function Install-1Password {
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Invoke-EnsureUser;
-    Invoke-EnsureModules -Modules @('Microsoft.Powershell.SecretManagement');
+    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
     Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
     Install-1Password;
 

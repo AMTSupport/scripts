@@ -50,7 +50,7 @@ function New-Database {
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    Invoke-EnsureModules -Modules "$PSScriptRoot/Common.psm1";
+    Invoke-EnsureModule -Modules "$PSScriptRoot/Common.psm1";
 
     if ($PSCmdlet.ParameterSetName -eq 'Update') {
         Invoke-Info "Updating companies"
@@ -59,7 +59,7 @@ Invoke-RunMain $MyInvocation {
     } else {
         Invoke-Info "Invoking existing companies";
 
-        # Invoke-EnsureModules -Modules "$PSScriptRoot/Existing.psm1";
+        # Invoke-EnsureModule -Modules "$PSScriptRoot/Existing.psm1";
         # Invoke-Existing-Company -Database $Database;
     }
 };
