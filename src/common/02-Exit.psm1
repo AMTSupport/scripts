@@ -37,14 +37,22 @@ function Invoke-FailedExit {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [Switch]$DontExit
+        [Switch]$DontExit,
+
+        [Parameter()]
+        [String[]]$FormatArgs
     )
 
     [String]$Local:ExitDescription = $Global:ExitCodes[$ExitCode];
     if ($null -ne $Local:ExitDescription -and $Local:ExitDescription.Length -gt 0) {
+        if ($FormatArgs) {
+            [String]$Local:ExitDescription = $Local:ExitDescription -f $FormatArgs;
+        }
+
         Invoke-Error $Local:ExitDescription;
     }
 
+    # FIXME - Not getting to correct depth of exception
     if ($ErrorRecord) {
         [System.Exception]$Local:DeepestException = $ErrorRecord.Exception;
         [String]$Local:DeepestMessage = $Local:DeepestException.Message;
