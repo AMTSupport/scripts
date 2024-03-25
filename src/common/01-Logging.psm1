@@ -71,7 +71,7 @@ function Invoke-Write {
     }
 }
 
-function Invoke-FormattedError(
+function Format-Error(
     [Parameter(Mandatory, HelpMessage = 'The error records invocation info.')]
     [ValidateNotNullOrEmpty()]
     [System.Management.Automation.InvocationInfo]$InvocationInfo,
@@ -494,4 +494,4 @@ function Invoke-Progress {
     }
 }
 
-Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout, Invoke-Progress;
+Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Format-Error, Invoke-Timeout, Invoke-Progress;

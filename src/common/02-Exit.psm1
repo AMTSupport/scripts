@@ -78,7 +78,7 @@ function Invoke-FailedExit {
         }
 
         if ($Local:DeepestInvocationInfo) {
-            Invoke-FormattedError -InvocationInfo $Local:DeepestInvocationInfo -Message $Local:DeepestMessage;
+            Format-Error -InvocationInfo $Local:DeepestInvocationInfo -Message $Local:DeepestMessage;
         } elseif ($Local:DeepestMessage) {
             Invoke-Error -Message $Local:DeepestMessage;
         }

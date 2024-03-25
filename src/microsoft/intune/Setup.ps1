@@ -1,6 +1,6 @@
 <#
 .NOTES
-    Before use must opt into beta shcemas, after logging into MSGraph run Update-MSGraphEnvironment -SchemaVersion 'beta';
+    Before use, must opt into beta shcemas, after logging into MSGraph run Update-MSGraphEnvironment -SchemaVersion 'beta';
 #>
 
 #Requires -Modules Microsoft.Graph.Authentication,Microsoft.Graph.Beta.DeviceManagement,Microsoft.Graph.Beta.Groups
@@ -261,7 +261,7 @@ function New-DeviceCompliancePolicy_Windows {
         defenderEnabled                             = $true;
         defenderVersion                             = $null;
         signatureOutOfDate                          = $true;
-        rtpEnabled                                  = $true;
+        rtpEnabled                                  = $false; # SentinalOne is used
         antivirusRequired                           = $true;
         antiSpywareRequired                         = $true;
 
@@ -421,6 +421,13 @@ $Script:DeviceConfigurationProfiles = @(
 #region - MacOS Configuration Profiles
 #endregion - MacOS Configuration Profiles
 #endregion - Device Configuration Profiles
+
+#region - Endpoint Security Policies
+
+# Windows - Firewall
+
+
+#endregion
 
 #region - Conditional Access Policies
 
