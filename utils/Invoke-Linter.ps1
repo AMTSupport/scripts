@@ -1,6 +1,6 @@
 Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    Invoke-EnsureModules -Modules 'PSScriptAnalyzer';
+    Invoke-EnsureModule -Modules 'PSScriptAnalyzer';
 
     $Local:Results = Invoke-ScriptAnalyzer `
         -Path $PSSCriptRoot/../src `

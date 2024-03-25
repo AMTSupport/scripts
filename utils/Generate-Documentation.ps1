@@ -4,7 +4,7 @@ Invoke-RunMain $MyInvocation {
 
     Set-StrictMode -Version Latest;
     Push-Location -Path $PSScriptRoot;
-    Invoke-EnsureModules -Modules @('Alt3.Docusaurus.Powershell', 'PlatyPS');
+    Invoke-EnsureModule -Modules @('Alt3.Docusaurus.Powershell', 'PlatyPS');
 
     # -----------------------------------------------------------------------------
     # Use below settings to manipulate the rendered MDX files

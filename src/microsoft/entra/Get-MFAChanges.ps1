@@ -40,7 +40,7 @@ function Invoke-SetupEnvironment(
 
     process {
         Invoke-EnsureUser;
-        Invoke-EnsureModules -Modules @('AzureAD', 'MSOnline', 'ImportExcel');
+        Invoke-EnsureModule -Modules @('AzureAD', 'MSOnline', 'ImportExcel');
 
         Connect-Service -Services 'Msol', 'AzureAD';
 

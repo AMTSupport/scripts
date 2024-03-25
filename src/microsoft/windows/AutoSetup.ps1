@@ -914,12 +914,14 @@ Invoke-RunMain $MyInvocation {
         return;
     }
 
+    # TODO Restart computer on first boot to ensure correct time is returned.
+
     Invoke-EnsureLocalScript;
     # There is an issue with the CimInstance LastBootUpTime where it returns the incorrect time on first boot.
     # To work around this if there was previously no connecting and we have just connected we can assume its a new setup, and force a reboot to ensure the correct time is returned.
     # TODO - Find a better way to determine if this is a first boot.
     $Local:PossibleFirstBoot = Invoke-EnsureNetwork -Name $NetworkName -Password $NetworkPassword;
-    Invoke-EnsureModules -Modules @('PSWindowsUpdate');
+    Invoke-EnsureModule -Modules @('PSWindowsUpdate');
     $Local:InstallInfo = Invoke-EnsureSetupInfo;
 
     # Queue this phase to run again if a restart is required by one of the environment setups.

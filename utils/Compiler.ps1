@@ -22,6 +22,10 @@
     TODO: Add support for using statements in the script, im not sure how to handle this yet.
     TODO: While compiling the script check it with PSScriptAnalyzer to make sure it is valid.
           In the same vain we could also check for any functions or variables that could be undefined and cause errors.
+    TODO: Embed non local modules too, this would allow us to compile scripts that use modules from the PowerShell Gallery.
+          This would require us to download the module and extract the files to merge them into the script.
+    TODO: Use the Using modules statement to define the modules that are being used in the script.
+          This would allow us to remove the need for the current method of ordering the modules by their names.
 #>
 
 #Requires -Version 7.1
