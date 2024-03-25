@@ -1,7 +1,7 @@
 ---
-id: Invoke-FormattedError
-title: Invoke-FormattedError
-description: Help page for the "Invoke-FormattedError" command
+id: Invoke-EnsureModule
+title: Invoke-EnsureModule
+description: Help page for the "Invoke-EnsureModule" command
 keywords:
   - PowerShell
   - Help
@@ -17,8 +17,8 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Invoke-FormattedError [-InvocationInfo] <InvocationInfo> [[-Message] <String>] [[-UnicodePrefix] <String>]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Invoke-EnsureModule [-Modules] <Object[]> [-NoInstall] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -37,12 +37,12 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -InvocationInfo
+### -Modules
 
-The error records invocation info.
+\{\{ Fill Modules Description \}\}
 
 ```yaml
-Type: InvocationInfo
+Type: Object[]
 Parameter Sets: (All)
 Aliases:
 
@@ -53,33 +53,17 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -Message
+### -NoInstall
 
-The Unicode Prefix to use if the terminal supports Unicode.
+Do not install the module if it is not installed.
 
 ```yaml
-Type: String
+Type: SwitchParameter
 Parameter Sets: (All)
 Aliases:
 
 Required: False
-Position: 1
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -UnicodePrefix
-
-The Unicode Prefix to use if the terminal supports Unicode.
-
-```yaml
-Type: String
-Parameter Sets: (All)
-Aliases: Prefix
-
-Required: False
-Position: 2
+Position: Named
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False

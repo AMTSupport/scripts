@@ -1,7 +1,7 @@
 ---
-id: Invoke-EnsureModules
-title: Invoke-EnsureModules
-description: Help page for the "Invoke-EnsureModules" command
+id: Get-ServiceContext
+title: Get-ServiceContext
+description: Help page for the "Get-ServiceContext" command
 keywords:
   - PowerShell
   - Help
@@ -17,8 +17,7 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Invoke-EnsureModules [-Modules] <Object[]> [-NoInstall] [-ProgressAction <ActionPreference>]
- [<CommonParameters>]
+Get-ServiceContext [-Service] <String> [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -37,33 +36,18 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -Modules
+### -Service
 
-\{\{ Fill Modules Description \}\}
+\{\{ Fill Service Description \}\}
 
 ```yaml
-Type: Object[]
+Type: String
 Parameter Sets: (All)
 Aliases:
+Accepted values: ExchangeOnline, SecurityComplience, AzureAD, Graph, Msol
 
 Required: True
 Position: 0
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -NoInstall
-
-Do not install the module if it is not installed.
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False

@@ -18,7 +18,7 @@ hide_table_of_contents: false
 
 ```powershell
 Get-UserSelection [-Title] <String> [-Question] <String> [-Choices] <Array> [[-DefaultChoice] <Int32>]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [[-FormatChoice] <ScriptBlock>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -64,6 +64,22 @@ Aliases:
 
 Required: False
 Position: 3
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -FormatChoice
+
+\{\{ Fill FormatChoice Description \}\}
+
+```yaml
+Type: ScriptBlock
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 4
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False

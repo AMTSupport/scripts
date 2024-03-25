@@ -29,9 +29,9 @@ This function will test if a user is a member of a group.
 
 ### EXAMPLE 1
 
-```
-This will test if the user localadmin is a member of the Administrators group.
 ```powershell
+This will test if the user localadmin is a member of the Administrators group.
+```
 Test-MemberOfGroup -Group (Get-Group -Name 'Administrators') -Username 'localadmin';
 ```
 ```
