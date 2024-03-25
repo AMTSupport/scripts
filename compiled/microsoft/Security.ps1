@@ -1,5 +1,5 @@
-#Requires -Version 5.1
 #Requires -Modules AzureADPreview ExchangeOnlineManagement Microsoft.Online.SharePoint.PowerShell MSOnline
+#Requires -Version 5.1
 
 Param(
     [Parameter(Mandatory)]
@@ -898,7 +898,7 @@ Text: $($Local:Region.Text)
 		        Write-Information $Local:FormattedMessage;
 		    }
 		}
-		function Invoke-FormattedError(
+		function Format-Error(
 		    [Parameter(Mandatory, HelpMessage = 'The error records invocation info.')]
 		    [ValidateNotNullOrEmpty()]
 		    [System.Management.Automation.InvocationInfo]$InvocationInfo,
@@ -1232,7 +1232,7 @@ Text: $($Local:Region.Text)
 		        }
 		    }
 		}
-		Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Invoke-FormattedError, Invoke-Timeout, Invoke-Progress;
+		Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Format-Error, Invoke-Timeout, Invoke-Progress;
     };`
 	"01-Scope" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1362,10 +1362,15 @@ Text: $($Local:Region.Text)
 		        [System.Management.Automation.ErrorRecord]$ErrorRecord,
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
-		        [Switch]$DontExit
+		        [Switch]$DontExit,
+		        [Parameter()]
+		        [String[]]$FormatArgs
 		    )
 		    [String]$Local:ExitDescription = $Global:ExitCodes[$ExitCode];
 		    if ($null -ne $Local:ExitDescription -and $Local:ExitDescription.Length -gt 0) {
+		        if ($FormatArgs) {
+		            [String]$Local:ExitDescription = $Local:ExitDescription -f $FormatArgs;
+		        }
 		        Invoke-Error $Local:ExitDescription;
 		    }
 		    if ($ErrorRecord) {
@@ -1388,7 +1393,7 @@ Text: $($Local:Region.Text)
 		            }
 		        }
 		        if ($Local:DeepestInvocationInfo) {
-		            Invoke-FormattedError -InvocationInfo $Local:DeepestInvocationInfo -Message $Local:DeepestMessage;
+		            Format-Error -InvocationInfo $Local:DeepestInvocationInfo -Message $Local:DeepestMessage;
 		        } elseif ($Local:DeepestMessage) {
 		            Invoke-Error -Message $Local:DeepestMessage;
 		        }
@@ -1515,7 +1520,7 @@ Text: $($Local:Region.Text)
 		$Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
 		$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
 		$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
-		function Invoke-EnsureModules {
+		function Invoke-EnsureModule {
 		    [CmdletBinding()]
 		    param (
 		        [Parameter(Mandatory)]
@@ -1721,7 +1726,7 @@ Text: $($Local:Region.Text)
 		    Invoke-Verbose -Prefix '✅' -Message "Removed modules: `n`t$($Script:ImportedModules -join "`n`t")";
 		    Remove-Module -Name $Script:ImportedModules -Force;
 		};
-		Export-ModuleMember -Function Invoke-EnsureAdministrator, Invoke-EnsureUser, Invoke-EnsureModules, Invoke-EnsureNetwork;
+		Export-ModuleMember -Function Invoke-EnsureAdministrator, Invoke-EnsureUser, Invoke-EnsureModule, Invoke-EnsureNetwork;
     };`
 	"40-Temp" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -2038,8 +2043,8 @@ Text: $($Local:Region.Text)
 		    $Local:DefaultChoice = if ($null -eq $DefaultChoice) { 1 } elseif ($DefaultChoice) { 0 } else { 1 };
 		    $Local:Result = Get-UserSelection -Title $Title -Question $Question -Choices @('Yes', 'No') -DefaultChoice $Local:DefaultChoice;
 		    switch ($Local:Result) {
-		        0 { $true }
-		        Default { $false }
+		        'Yes' { $true }
+		        'No' { $false }
 		    }
 		}
 		function Get-UserSelection {
@@ -2055,7 +2060,10 @@ Text: $($Local:Region.Text)
 		        [Array]$Choices,
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
-		        [Int]$DefaultChoice = 0
+		        [Int]$DefaultChoice = 0,
+		        [Parameter()]
+		        [ValidateNotNullOrEmpty()]
+		        [ScriptBlock]$FormatChoice = { Param([String]$Choice) $Choice.ToString(); }
 		    )
 		    begin { Enter-Scope; Install-Requirements; }
 		    end { Exit-Scope -ReturnValue $Local:Selection; }
@@ -2067,7 +2075,7 @@ Text: $($Local:Region.Text)
 		        if (-not $Local:PreviousTabFunction) {
 		            $Local:PreviousTabFunction = 'TabCompleteNext';
 		        }
-		        $Script:ChoicesList = $Choices;
+		        [String[]]$Script:ChoicesList = $Choices | ForEach-Object { $FormatChoice.InvokeReturnAsIs($_); };
 		        Set-PSReadLineKeyHandler -Chord Tab -ScriptBlock {
 		            Param([System.ConsoleKeyInfo]$Key, $Arg)
 		            $Line = $null;
@@ -2099,15 +2107,15 @@ Text: $($Local:Region.Text)
 		        [Boolean]$Local:FirstRun = $true;
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
-		        Invoke-Write @Script:WriteStyle -PSMessage "Enter one of the following: $($Choices -join ', ')";
-		        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($Choices[$DefaultChoice])" -NoNewline;
+		        Invoke-Write @Script:WriteStyle -PSMessage "Enter one of the following: $($ChoicesList -join ', ')";
+		        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($ChoicesList[$DefaultChoice])" -NoNewline;
 		        Write-Host "`r>> " -NoNewline;
 		        do {
 		            $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 		            if (-not $Local:Selection -and $Local:FirstRun) {
 		                $Local:Selection = $Choices[$DefaultChoice];
 		                Clear-HostLight -Count 1;
-		            } elseif ($Local:Selection -notin $Choices) {
+		            } elseif ($Local:Selection -notin $ChoicesList) {
 		                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
 		                Clear-HostLight -Count $Local:ClearLines;
 		                Invoke-Write @Script:WriteStyle -PSMessage 'Invalid selection, please try again...';
@@ -2116,13 +2124,13 @@ Text: $($Local:Region.Text)
 		                $Script:PressedEnter = $false;
 		            }
 		            $Local:FirstRun = $false;
-		        } while ($Local:Selection -notin $Choices -and -not $Script:ShouldAbort);
+		        } while ($Local:Selection -notin $ChoicesList -and -not $Script:ShouldAbort);
 		        Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
 		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
 		        }
-		        return $Choices.IndexOf($Local:Selection);
+		        return $Choices[$ChoicesList.IndexOf($Local:Selection)];
 		    }
 		}
 		function Get-PopupSelection {
@@ -2151,7 +2159,7 @@ Text: $($Local:Region.Text)
 		    if ($Script:CompletedSetup) {
 		        return;
 		    }
-		    Invoke-EnsureModules @{
+		    Invoke-EnsureModule @{
 		        Name           = 'PSReadLine';
 		        MinimumVersion = '2.3.0';
 		        DontRemove     = $True;
@@ -2159,6 +2167,11 @@ Text: $($Local:Region.Text)
 		    $Using = [ScriptBlock]::Create('Using module ''PSReadLine''');
 		    . $Using;
 		    [Boolean]$Script:CompletedSetup = $True;
+		}
+		try {
+		    Install-Requirements;
+		} catch {
+		    throw $_;
 		}
 		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
     };`
@@ -2315,72 +2328,165 @@ Text: $($Local:Region.Text)
 	"99-Connection" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		$Script:Services = @{
+		    ExchangeOnline = @{
+		        Context = { Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName; };
+		        Connect = { Connect-ExchangeOnline -ShowBanner:$False };
+		        Disconnect = { Disconnect-ExchangeOnline -Confirm:$False };
+		    };
+		    SecurityComplience = @{
+		        Context = { Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName; };
+		        Connect = { Connect-IPPSSession -ShowBanner:$False };
+		        Disconnect = { Disconnect-IPPSSession };
+		    };
+		    AzureAD = @{
+		        Context = { Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account; };
+		        Connect = { Connect-AzureAD };
+		        Disconnect = { Disconnect-AzureAD };
+		    };
+		    Msol = @{
+		        Context = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
+		        Connect = { Connect-MsolService };
+		        Disconnect = { Disconnect-MsolService };
+		    };
+		    Graph = @{
+		        Context = { Get-MgContext | Select-Object -ExpandProperty Account; };
+		        Connect = { param([String[]]$Scopes) Connect-MgGraph -NoWelcome -Scopes:$Scopes; };
+		        Disconnect = { Disconnect-MgGraph };
+		        IsValid = {
+		            param([String[]]$Scopes)
+		            $Local:Context = Get-MgContext;
+		            if ($null -eq $Local:Context) {
+		                return $False;
+		            }
+		            if ($Scopes) {
+		                Invoke-Debug "Checking if connected to Graph with required scopes...";
+		                Invoke-Debug "Required Scopes: $($Scopes -join ', ')";
+		                Invoke-Debug "Current Scopes: $($Local:Context.Scopes -join ', ')";
+		                [Bool]$Local:HasAllScopes = ($Scopes | Where-Object { $Local:Context.Scopes -notcontains $_; }).Count -eq 0;
+		            } else {
+		                $Local:HasAllScopes = $True;
+		            }
+		            $Local:HasAllScopes;
+		        }
+		    };
+		}
+		[Int]$Script:ERROR_CANT_DISCONNECT = Register-ExitCode -Description 'Failed to disconnect from {0}.';
+		function Local:Disconnect-ServiceInternal {
+		    [CmdletBinding(SupportsShouldProcess)]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$Service
+		    )
+		    Invoke-Info "Disconnecting from $Local:Service...";
+		    try {
+		        if ($PSCmdlet.ShouldProcess("Disconnect from $Local:Service")) {
+		            & $Script:Services[$Local:Service].Disconnect | Out-Null;
+		        };
+		    } catch {
+		        Invoke-FailedExit -ExitCode $Script:ERROR_CANT_DISCONNECT -FormatArgs @($Local:Service);
+		    }
+		}
+		[Int]$Script:ERROR_NOT_CONNECTED = Register-ExitCode -Description 'There was an error connecting to {0}, please try again.';
+		function Local:Connect-ServiceInternal {
+		    [CmdletBinding(SupportsShouldProcess)]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$Service,
+		        [Parameter()]
+		        [String[]]$Scopes
+		    )
+		    Invoke-Info "Connecting to $Local:Service...";
+		    Invoke-Verbose "Scopes: $($Scopes -join ', ')";
+		    try {
+		        if ($PSCmdlet.ShouldProcess("Connect to $Local:Service")) {
+		            & $Script:Services[$Local:Service].Connect -Scopes:$Scopes;
+		        };
+		    } catch {
+		        Invoke-FailedExit -ExitCode $Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
+		    }
+		}
+		function Local:Get-ServiceContext {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$Service
+		    )
+		    try {
+		        & $Script:Services[$Local:Service].Context;
+		    } catch {
+		        $null;
+		    }
+		}
+		[Int]$Script:ERROR_NOT_CONNECTED = Register-ExitCode -Description 'Not connected to {0}, must be connected to continue.';
+		[Int]$Script:ERROR_COULDNT_CONNECT = Register-ExitCode -Description 'Failed to connect to {0}.';
+		[Int]$Script:ERROR_NOT_MATCHING_ACCOUNTS = Register-ExitCode -Description 'Not all services are connected with the same account, please ensure all services are connected with the same account.';
 		function Connect-Service(
 		    [Parameter(Mandatory)]
 		    [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
 		    [String[]]$Services,
 		    [Parameter()]
 		    [String[]]$Scopes,
-		    [Switch]$DontConfirm
+		    [Switch]$DontConfirm,
+		    [Switch]$CheckOnly
 		) {
-		    foreach ($Local:Service in $Services) {
-		        Invoke-Info "Connecting to $Local:Service...";
-		        $Local:Connected = try {
-		            $ErrorActionPreference = 'SilentlyContinue'; # For some reason AzureAD loves to be noisy.
-		            switch ($Service) {
-		                'ExchangeOnline' {
-		                    Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName;
-		                }
-		                'SecurityComplience' {
-		                    Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName;
-		                }
-		                'AzureAD' {
-		                    Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account;
-		                }
-		                'Graph' {
-		                    Get-MgDomain | Where-Object { $_.IsDefault -eq $True } | Select-Object -First 1 -ExpandProperty Id;
-		                }
-		                'Msol' {
-		                    Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName;
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        [String]$Local:Account;
+		        foreach ($Local:Service in $Services) {
+		            $Local:Context = try {
+		                Get-ServiceContext -Service $Local:Service;
+		            } catch {
+		                Invoke-Debug "Failed to get connection information for $Local:Service";
+		                if ($Global:Logging.Debug) {
+		                    Format-Error -InvocationInfo $_.InvocationInfo;
 		                }
 		            }
-		        } catch {
-		            $null
-		        }
-		        if ($Local:Connected) {
-		            if (!$DontConfirm) {
-		                $Local:Continue = Get-UserConfirmation -Title "Already connected to $Local:Service as [$Local:Connected]" -Question 'Do you want to continue?' -DefaultChoice $true;
-		                if ($Local:Continue) {
+		            if ($Local:Account -and $Local:Context -and $Local:Account -ne $Local:Context) {
+		                Invoke-Info 'Not all services are connected with the same account, forcing disconnect...';
+		                Disconnect-ServiceInternal -Service $Local:Service;
+		            } elseif ($Local:Context) {
+		                [ScriptBlock]$Local:ValidCheck = $Script:Services[$Local:Service].IsValid;
+		                if ($Local:ValidCheck -and -not (& $Local:ValidCheck -Scopes:$Scopes)) {
+		                    Invoke-Info "Connected to $Local:Service, but missing required scopes. Disconnecting...";
+		                    Disconnect-ServiceInternal -Service $Local:Service;
+		                } elseif (!$DontConfirm) {
+		                    $Local:Continue = Get-UserConfirmation -Title "Already connected to $Local:Service as [$Local:Context]" -Question 'Do you want to continue?' -DefaultChoice $true;
+		                    if ($Local:Continue) {
+		                        Invoke-Verbose 'Continuing with current connection...';
+		                        $Local:Account = $Local:Context;
+		                        continue;
+		                    }
+		                    Disconnect-ServiceInternal -Service $Local:Service;
+		                } else {
+		                    Invoke-Verbose "Already connected to $Local:Service. Skipping...";
+		                    $Local:Account = $Local:Context;
+		                    continue
+		                }
+		            } elseif ($CheckOnly) {
+		                Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
+		            }
+		            do {
+		                try {
+		                    Connect-ServiceInternal -Service $Local:Service -Scopes:$Scopes;
+		                } catch {
+		                    Invoke-FailedExit -ExitCode $Script:ERROR_COULDNT_CONNECT -FormatArgs @($Local:Service);
+		                }
+		                $Local:NewContext = Get-ServiceContext -Service $Local:Service;
+		                if ($Local:Account -and $Local:NewContext -ne $Local:Account) {
+		                    Invoke-Warn 'Not all services are connected with the same account, please reconnect with the same account.';
+		                    Disconnect-ServiceInternal -Service $Local:Service;
 		                    continue;
 		                }
-		                Invoke-Verbose 'Continuing with current connection...';
-		            } else {
-		                Invoke-Verbose "Already connected to $Local:Service. Skipping..."
-		                continue
-		            }
-		        }
-		        try {
-		            Invoke-Info "Getting credentials for $Local:Service...";
-		            switch ($Local:Service) {
-		                'ExchangeOnline' {
-		                    Connect-ExchangeOnline;
+		                if (-not $Local:Account) {
+		                    $Local:Account = Get-ServiceContext -Service $Local:Service;
 		                }
-		                'SecurityComplience' {
-		                    Connect-IPPSSession;
-		                }
-		                'AzureAD' {
-		                    Connect-AzureAD;
-		                }
-		                'Graph' {
-		                    Connect-MgGraph -NoWelcome -Scopes $Scopes;
-		                }
-		                'Msol' {
-		                    Connect-MsolService;
-		                }
-		            }
-		        } catch {
-		            Invoke-Error "Failed to connect to $Local:Service";
-		            Invoke-FailedExit -ExitCode 1002 -ErrorRecord $_;
+		                Invoke-Info "Connected to $Local:Service as [$Local:Account].";
+		            } while ($Local:NewContext -ne $Local:Account);
 		        }
 		    }
 		}
