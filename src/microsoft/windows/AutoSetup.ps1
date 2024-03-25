@@ -25,6 +25,7 @@ Param (
 
     [Parameter(DontShow)]
     [ValidateLength(32, 32)]
+    [String]$ApiKey,
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
