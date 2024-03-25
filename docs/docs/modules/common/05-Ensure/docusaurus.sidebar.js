@@ -10,7 +10,7 @@
 
 module.exports = [
     'modules/common/05-Ensure/Invoke-EnsureAdministrator',
-    'modules/common/05-Ensure/Invoke-EnsureModules',
+    'modules/common/05-Ensure/Invoke-EnsureModule',
     'modules/common/05-Ensure/Invoke-EnsureNetwork',
     'modules/common/05-Ensure/Invoke-EnsureUser'
 ];

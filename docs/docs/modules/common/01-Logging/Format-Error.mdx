@@ -1,7 +1,7 @@
 ---
-id: Invoke-FailedExit
-title: Invoke-FailedExit
-description: Help page for the "Invoke-FailedExit" command
+id: Format-Error
+title: Format-Error
+description: Help page for the "Format-Error" command
 keywords:
   - PowerShell
   - Help
@@ -17,7 +17,7 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Invoke-FailedExit [-ExitCode] <Int32> [[-ErrorRecord] <ErrorRecord>] [-DontExit] [[-FormatArgs] <String[]>]
+Format-Error [-InvocationInfo] <InvocationInfo> [[-Message] <String>] [[-UnicodePrefix] <String>]
  [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
@@ -37,44 +37,12 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -DontExit
+### -InvocationInfo
 
-\{\{ Fill DontExit Description \}\}
-
-```yaml
-Type: SwitchParameter
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: Named
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -ErrorRecord
-
-The error record that caused the exit, if any.
+The error records invocation info.
 
 ```yaml
-Type: ErrorRecord
-Parameter Sets: (All)
-Aliases:
-
-Required: False
-Position: 1
-Default value: None
-Accept pipeline input: False
-Accept wildcard characters: False
-```
-
-### -ExitCode
-
-The exit code to return.
-
-```yaml
-Type: Int32
+Type: InvocationInfo
 Parameter Sets: (All)
 Aliases:
 
@@ -85,14 +53,30 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -FormatArgs
+### -Message
 
-\{\{ Fill FormatArgs Description \}\}
+The Unicode Prefix to use if the terminal supports Unicode.
 
 ```yaml
-Type: String[]
+Type: String
 Parameter Sets: (All)
 Aliases:
+
+Required: False
+Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -UnicodePrefix
+
+The Unicode Prefix to use if the terminal supports Unicode.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases: Prefix
 
 Required: False
 Position: 2

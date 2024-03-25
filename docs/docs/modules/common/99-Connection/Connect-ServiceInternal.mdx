@@ -1,7 +1,7 @@
 ---
-id: Invoke-FailedExit
-title: Invoke-FailedExit
-description: Help page for the "Invoke-FailedExit" command
+id: Connect-ServiceInternal
+title: Connect-ServiceInternal
+description: Help page for the "Connect-ServiceInternal" command
 keywords:
   - PowerShell
   - Help
@@ -17,8 +17,8 @@ hide_table_of_contents: false
 ## SYNTAX
 
 ```powershell
-Invoke-FailedExit [-ExitCode] <Int32> [[-ErrorRecord] <ErrorRecord>] [-DontExit] [[-FormatArgs] <String[]>]
- [-ProgressAction <ActionPreference>] [<CommonParameters>]
+Connect-ServiceInternal [-Service] <String> [[-Scopes] <String[]>] [-ProgressAction <ActionPreference>]
+ [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -37,14 +37,14 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
-### -DontExit
+### -Confirm
 
-\{\{ Fill DontExit Description \}\}
+Prompts you for confirmation before running the cmdlet.
 
 ```yaml
 Type: SwitchParameter
 Parameter Sets: (All)
-Aliases:
+Aliases: cf
 
 Required: False
 Position: Named
@@ -53,12 +53,12 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -ErrorRecord
+### -Scopes
 
-The error record that caused the exit, if any.
+\{\{ Fill Scopes Description \}\}
 
 ```yaml
-Type: ErrorRecord
+Type: String[]
 Parameter Sets: (All)
 Aliases:
 
@@ -69,14 +69,15 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -ExitCode
+### -Service
 
-The exit code to return.
+\{\{ Fill Service Description \}\}
 
 ```yaml
-Type: Int32
+Type: String
 Parameter Sets: (All)
 Aliases:
+Accepted values: ExchangeOnline, SecurityComplience, AzureAD, Graph, Msol
 
 Required: True
 Position: 0
@@ -85,17 +86,18 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
-### -FormatArgs
+### -WhatIf
 
-\{\{ Fill FormatArgs Description \}\}
+Shows what would happen if the cmdlet runs.
+The cmdlet is not run.
 
 ```yaml
-Type: String[]
+Type: SwitchParameter
 Parameter Sets: (All)
-Aliases:
+Aliases: wi
 
 Required: False
-Position: 2
+Position: Named
 Default value: None
 Accept pipeline input: False
 Accept wildcard characters: False

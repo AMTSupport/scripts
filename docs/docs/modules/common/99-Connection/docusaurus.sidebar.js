@@ -9,5 +9,8 @@
  */
 
 module.exports = [
-    'modules/common/99-Connection/Connect-Service'
+    'modules/common/99-Connection/Connect-Service',
+    'modules/common/99-Connection/Connect-ServiceInternal',
+    'modules/common/99-Connection/Disconnect-ServiceInternal',
+    'modules/common/99-Connection/Get-ServiceContext'
 ];

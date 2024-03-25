@@ -9,9 +9,9 @@
  */
 
 module.exports = [
+    'modules/common/01-Logging/Format-Error',
     'modules/common/01-Logging/Invoke-Debug',
     'modules/common/01-Logging/Invoke-Error',
-    'modules/common/01-Logging/Invoke-FormattedError',
     'modules/common/01-Logging/Invoke-Info',
     'modules/common/01-Logging/Invoke-Progress',
     'modules/common/01-Logging/Invoke-Timeout',

@@ -29,9 +29,9 @@ This function will add a user to a group.
 
 ### EXAMPLE 1
 
-```
-This will add the user localadmin to the Administrators group.
 ```powershell
+This will add the user localadmin to the Administrators group.
+```
 Add-MemberToGroup -Group (Get-Group -Name 'Administrators') -Username 'localadmin';
 ```
 ```
