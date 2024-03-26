@@ -168,10 +168,17 @@ If a new mailbox was created, please ensure that the user account is correctly d
 
         $Local:ExistingPolicy = Get-HostedOutboundSpamFilterPolicy -Identity $Local:PolicyName -ErrorAction SilentlyContinue;
         if (-not $Local:ExistingPolicy) {
+            $Local:ExistingPolicy = Get-HostedOutboundSpamFilterPolicy -Identity 'Allow AMT Support' -ErrorAction SilentlyContinue;
+        }
+
+        if (-not $Local:ExistingPolicy) {
             Invoke-Info 'Creating Outbound Forwarding policy...';
 
             # Create the rule so we can update it later
             $Local:ExistingPolicy = New-HostedOutboundSpamFilterPolicy -Name $Local:PolicyName;
+        } else {
+            Invoke-Info 'Outbound Forwarding policy already exists.';
+            $Local:PolicyName = $Local:ExistingPolicy.Name;
         }
 
         if ($Local:ExistingPolicy.AutoForwardingMode -ne 'On') {
