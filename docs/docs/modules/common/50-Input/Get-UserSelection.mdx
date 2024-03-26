@@ -18,7 +18,7 @@ hide_table_of_contents: false
 
 ```powershell
 Get-UserSelection [-Title] <String> [-Question] <String> [-Choices] <Array> [[-DefaultChoice] <Int32>]
- [[-FormatChoice] <ScriptBlock>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-AllowNone] [[-FormatChoice] <ScriptBlock>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -37,6 +37,22 @@ PS C:\> {{ Add example code here }}
 
 ## PARAMETERS
 
+### -AllowNone
+
+\{\{ Fill AllowNone Description \}\}
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
 ### -Choices
 
 \{\{ Fill Choices Description \}\}
@@ -44,7 +60,7 @@ PS C:\> {{ Add example code here }}
 ```yaml
 Type: Array
 Parameter Sets: (All)
-Aliases:
+Aliases: Items
 
 Required: True
 Position: 2
