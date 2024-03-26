@@ -8,6 +8,7 @@
     Debug       = $DebugPreference -ne 'SilentlyContinue';
 };
 
+#region - Logging Functions
 function Invoke-WithLogging {
     Param(
         [Parameter(Mandatory)]
@@ -75,6 +76,7 @@ function Invoke-EnvDebug {
         -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Debug $Message $UnicodePrefix } else { Invoke-Debug -Message:$Message; }; } `
         -MissingLoggingFunc { Write-Debug -Message $Message; };
 }
+#endregion
 
 function Get-OrFalse {
     Param(
@@ -117,14 +119,14 @@ function Import-CommonModules {
             Invoke-EnvDebug -Message "Module $Name is a script block.";
 
             if (Get-Module -Name $Name) {
-                Remove-Module -Name $Name -Force;
+                Remove-Module -Name $Name -Force -Verbose:$False -Debug:$False;
             }
 
-            New-Module -ScriptBlock $Value -Name $Name | Import-Module -Global -Force;
+            New-Module -ScriptBlock $Value -Name $Name | Import-Module -Global -Force -Verbose:$False -Debug:$False;
         } else {
             Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
 
-            Import-Module -Name $Value -Global -Force;
+            Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
         }
     }
 
@@ -195,7 +197,7 @@ function Remove-CommonModules {
             $Global:Logging.Loaded = $false;
         }
 
-        Remove-Module -Name $_ -Force;
+        Remove-Module -Name $_ -Force -Verbose:$False -Debug:$False;
     };
 
     if ($Global:CompiledScript) {
@@ -261,11 +263,14 @@ function Invoke-RunMain {
                 }
             }
 
-            # $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
+            $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
             $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
             $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
             $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
             $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
+
+            $Global:DebugPreference = $Global:Logging.Debug ? 'Continue' : 'SilentlyContinue';
+            $Global:VerbosePreference = $Global:Logging.Verbose ? 'Continue' : 'SilentlyContinue';
 
             if (-not $HideDisclaimer) {
                 Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
@@ -281,7 +286,7 @@ function Invoke-RunMain {
 
         process {
             try {
-                # TODO :: Fix this, it's not working as expected
+                # FIXME :: it's not working as expected
                 # If the script is being run directly, invoke the main function
                 # If ($Invocation.CommandOrigin -eq 'Runspace') {
                 Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
