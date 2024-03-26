@@ -1,0 +1,25 @@
+name: Lint
+
+on:
+  push: null
+  pull_request: null
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      statuses: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Super-Linter
+      uses: super-linter/super-linter@v6.3.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        FILTER_REGEX_EXCLUDE: '.*compiled/.*|.*docs/.*'

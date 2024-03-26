@@ -1,0 +1,82 @@
+name: Documentaion
+
+on:
+  push:
+    branches: [ master ]
+    paths: [ 'docs/**', 'src/**', 'utils/Generate-Documentation.ps1', '.github/workflows/documentation.yaml' ]
+  pull_request:
+    paths: [ 'docs/**', 'src/**' ]
+
+jobs:
+  update_docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    outputs:
+      changes: ${{ steps.changes.outputs.changes }}
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Generate Documentation
+      shell: pwsh
+      run: .\utils\Generate-Documentation.ps1
+
+    - name: Check for changes
+      id: changes
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          docs/docs/**
+
+    - name: Commit changes
+      if: ${{ steps.changes.outputs.changes == 'true' }}
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "chore(docs): Update documentation"
+
+  deploy:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: update_docs
+    if : ${{ github.event_name == 'push' && needs.update_docs.outputs.changes == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.ref }}
+
+    - uses: pnpm/action-setup@v3
+      with:
+        version: 8
+        run_install: false
+        standalone: true
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: latest
+        cache: pnpm
+        cache-dependency-path: ./docs
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+      working-directory: ./docs
+
+    - name: Build website
+      run: pnpm build
+      working-directory: ./docs
+
+    - name: Deploy Documentation
+      uses: peaceiris/actions-gh-pages@v3.9.3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/build
+        user_name: github-actions[bot]
+        user_email: 41898282+github-actions[bot]@users.noreply.github.com
