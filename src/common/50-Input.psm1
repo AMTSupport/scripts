@@ -76,7 +76,7 @@ function Get-UserInput {
         [ValidateNotNullOrEmpty()]
         [String]$Question,
 
-        [Parameter()]
+        [Parameter(HelpMessage = 'Validation script block to validate the user input.')]
         [ValidateNotNullOrEmpty()]
         [ScriptBlock]$Validate,
 
@@ -166,11 +166,15 @@ function Get-UserSelection {
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
+        [Alias('Items')]
         [Array]$Choices,
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [Int]$DefaultChoice = 0,
+
+        [Parameter()]
+        [Switch]$AllowNone,
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
@@ -191,8 +195,19 @@ function Get-UserSelection {
         if (-not $Local:PreviousTabFunction) {
             $Local:PreviousTabFunction = 'TabCompleteNext';
         }
+        $Local:PreviousShiftTabFunction = (Get-PSReadLineKeyHandler -Chord Shift+Tab).Function;
+        if (-not $Local:PreviousShiftTabFunction) {
+            $Local:PreviousShiftTabFunction = 'TabCompletePrevious';
+        }
 
-        [String[]]$Script:ChoicesList = $Choices | ForEach-Object { $FormatChoice.InvokeReturnAsIs($_); };
+        [String[]]$Script:ChoicesList = $Choices | ForEach-Object {
+            $Formatted = $FormatChoice.InvokeReturnAsIs($_);
+            if (-not $Formatted -or $Formatted -eq "") {
+                throw [System.ArgumentException]::new('FormatChoice script block must return a non-empty string.');
+            }
+
+            $Formatted;
+        };
         Set-PSReadLineKeyHandler -Chord Tab -ScriptBlock {
             Param([System.ConsoleKeyInfo]$Key, $Arg)
 
@@ -228,6 +243,26 @@ function Get-UserSelection {
                 [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
             }
         }
+        Set-PSReadLineKeyHandler -Chord Shift+Tab -ScriptBlock {
+            Param([System.ConsoleKeyInfo]$Key, $Arg)
+
+            $Line = $null;
+            $Cursor = $null;
+            [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$Line, [ref]$Cursor);
+            $MatchingInput = $Line.Substring(0, $Cursor);
+
+            if ($Script:PreviewingChoices -and $Line -eq $Script:PreviewingInput) {
+                if ($Script:ChoicesGoneThrough -eq 0) {
+                    $Script:ChoicesGoneThrough = $Script:MatchedChoices.Count - 1;
+                } else {
+                    $Script:ChoicesGoneThrough--;
+                }
+
+                $Script:PreviewingInput = $Script:MatchedChoices[$Script:ChoicesGoneThrough];
+                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:PreviewingInput);
+                return;
+            }
+        };
         #endregion
 
         [Boolean]$Local:FirstRun = $true;
@@ -258,10 +293,15 @@ function Get-UserSelection {
         } while ($Local:Selection -notin $ChoicesList -and -not $Script:ShouldAbort);
 
         Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
+        Set-PSReadLineKeyHandler -Chord Shift+Tab -Function $Local:PreviousShiftTabFunction;
         Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 
         if ($Script:ShouldAbort) {
-            throw [System.Management.Automation.PipelineStoppedException]::new();
+            if (-not $AllowNone) {
+                throw [System.Management.Automation.PipelineStoppedException]::new();
+            } else {
+                return $null;
+            }
         }
 
         return $Choices[$ChoicesList.IndexOf($Local:Selection)];
