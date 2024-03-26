@@ -1,10 +1,7 @@
-[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Invoke')]
+[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Update')]
 Param(
-    [Parameter(ParameterSetName = 'Update', Mandatory)]
+    [Parameter(ParameterSetName = 'Update')]
     [String]$Endpoint,
-
-    [Parameter(ParameterSetName = 'Update', Mandatory)]
-    [String]$ApiKey,
 
     [Parameter(ParameterSetName = 'Update')]
     [ValidateScript({ Test-Path $_ -PathType Container })]
@@ -15,20 +12,24 @@ Param(
 )
 
 
-function New-Database {
+function New-HuduDatabase {
     Param(
         [Parameter(Mandatory)]
         [String]$Database,
 
         [Parameter(Mandatory)]
-        [String]$Endpoint,
-
-        [Parameter(Mandatory)]
-        [String]$ApiKey
+        [String]$Endpoint
     )
 
-    $Local:Companies = Get-HuduCompanies -Endpoint $Endpoint -ApiKey $ApiKey;
-    $Local:BitwardenItems = bw list items --search 'O365 Admin -';
+    $Local:Companies = async {
+        Get-HuduCompanies -Endpoint $Endpoint;
+    };
+    $Local:BitWardenItems = async {
+        bw list items --search 'O365 Admin -' | ConvertFrom-Json;
+    };
+
+    $Local:Companies = $Local:Companies | await;
+    $Local:BitwardenItems = $Local:BitWardenItems | await;
 
     $Local:DisplayItems = $Local:BitwardenItems `
         | Select-Object -Property name, id `
@@ -36,13 +37,19 @@ function New-Database {
 
     [HashTable]$Local:Matches = @{};
     foreach ($Local:Company in $Local:Companies) {
-        $Local:Selection = Get-PopupSelection -Title "Select Bitwarden item for $($Local:Company.name)" -Items $Local:DisplayItems -AllowNone;
+        $Local:Selection = Get-UserSelection `
+            -Title "Select Bitwarden item for $($Local:Company.name)" `
+            -Question "Which Bitwarden item corresponds to $($Local:Company.name)?" `
+            -Items $Local:DisplayItems `
+            -AllowNone `
+            -FormatChoice { $Input.name };
+
         if (-not $Local:Selection) {
             Invoke-Warn "No selection made for $($Local:Company.name); skipping.";
             continue;
         }
 
-        $Local:Matches[$Local:Company.name] = $Local:Selection.id;
+        $Local:Matches[$Local:Company.name]['BitWarden'] = $Local:Selection.id;
     }
 
     $Local:Matches | ConvertTo-Json | Out-File -FilePath "$Database";
@@ -54,8 +61,17 @@ Invoke-RunMain $MyInvocation {
 
     if ($PSCmdlet.ParameterSetName -eq 'Update') {
         Invoke-Info "Updating companies"
+
+        if (-not $Endpoint) {
+            $Endpoint = Get-UserInput -Title 'Hudu Endpoint' -Question 'Please enter your Hudu Endpoint';
+        }
+
+        if (-not $Database) {
+            $Database = Get-UserInput -Title 'Database Path' -Question 'Please enter the path to save the database';
+        }
+
         # TODO :: Create update function if there is an existing file.
-        New-Database -Database "$Database/matched-companies.json" -Endpoint $Endpoint -ApiKey $ApiKey;
+        New-HuduDatabase -Database "$Database/matched-companies.json" -Endpoint $Endpoint;
     } else {
         Invoke-Info "Invoking existing companies";
 
