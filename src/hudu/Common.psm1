@@ -4,19 +4,16 @@ function Get-HuduApiKey {
 
     process {
         [String]$Local:HuduKey = Get-VarOrSave -VariableName 'HUDU_API_KEY' -LazyValue {
-            $Local:Input = Get-UserInput -Title 'Hudu API Key' -Question 'Please enter your Hudu API Key';
-            if (-not $Local:Input) {
-                throw 'Hudu Key cannot be empty';
-            }
+            [SecureString]$Local:UserInput = Get-UserInput `
+                -Title 'Hudu API Key' `
+                -Question 'Please enter your Hudu API Key' `
+                -AsSecureString -Validate { $_ -and $_.Length -eq 24; };
 
-            return $Local:Input;
-        } -Validate {
-            param([String]$Key)
-
-            $Key.Length -eq 24;
+            return $Local:UserInput | ConvertFrom-SecureString;
         };
 
-        return $Local:HuduKey;
+        [SecureString]$Local:SecureStringKey = $Local:HuduKey | ConvertTo-SecureString;
+        return $Local:SecureStringKey | ConvertFrom-SecureString -AsPlainText;
     }
 }
 
@@ -31,7 +28,7 @@ function Get-HuduCompanies {
     )
 
     begin { Enter-Scope; }
-    end { Exit-Scope -ReturnValue $Local:Companies; }
+    end { Exit-Scope -ReturnValue ($Local:Companies | ForEach-Object { $_.name }); }
 
     process {
         [String]$Local:Uri = "https://$Endpoint/api/v1/companies?page_size=1000";
