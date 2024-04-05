@@ -120,6 +120,20 @@ function Invoke-QuickExit {
     throw $Local:ErrorRecord;
 }
 
+function Restart-Script {
+    Invoke-Handlers -IsFailure:$False;
+
+    [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
+        [System.Exception]::new('Restart Script'),
+        'RestartScript',
+        [System.Management.Automation.ErrorCategory]::NotSpecified,
+        $null
+    );
+
+    throw $Local:ErrorRecord;
+
+}
+
 function Register-ExitHandler {
     [CmdletBinding()]
     param (
