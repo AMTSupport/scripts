@@ -29,7 +29,7 @@ If a new mailbox was created, please ensure that the user account is correctly d
         }
         $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
 
-        [MicrosoftGraphDomain]$Local:Domain = Get-PrimaryDomain;
+        [Microsoft.Graph.PowerShell.Models.MicrosoftGraphDomain]$Local:Domain = Get-PrimaryDomain;
         [String]$Local:DomainName = $Domain.Id.Split('.')[0];
         [String]$Local:DisplayName = 'Alerts';
         [String]$Local:MailNickname = "alerts_$($DomainName)";
@@ -57,7 +57,7 @@ If a new mailbox was created, please ensure that the user account is correctly d
         }
 
         do {
-            [MicrosoftGraphUser]$Local:User = Get-MgUser -Property Id, AccountEnabled -Filter "UserPrincipalName eq '$($Local:UserPrincipalName)'";
+            [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Local:User = Get-MgUser -Property Id, AccountEnabled -Filter "UserPrincipalName eq '$($Local:UserPrincipalName)'";
 
             if (-not $Local:User) {
                 Invoke-Verbose 'Waiting for user to be created...';
@@ -80,19 +80,19 @@ If a new mailbox was created, please ensure that the user account is correctly d
         $Local:Admin = Get-MgUser -Filter "startswith(UserPrincipalName, 'admin@') or startswith(UserPrincipalName, 'amtadmin@') or startsWith(UserPrincipalName, 'O365Admin@')";
         if (-not $Local:Admin) {
             Invoke-Warn 'Could not find admin account, please select the admin account to grant delegate access to the Alerts mailbox.';
-            [MicrosoftGraphUser[]]$Local:AllUsers = Get-MgUser;
-            [MicrosoftGraphUser]$Local:Admin = Get-UserSelection `
+            [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser[]]$Local:AllUsers = Get-MgUser;
+            [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Local:Admin = Get-UserSelection `
                 -Title 'Which account?' `
                 -Question 'Select the admin account to grant delegate access to the Alerts mailbox' `
                 -Choices $Local:AllUsers `
-                -FormatChoice { param([MicrosoftGraphUser]$Item) $Item.UserPrincipalName };
+                -FormatChoice { param([Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Item) $Item.UserPrincipalName };
         } elseif ($Local:Admin.Count -gt 1) {
             Invoke-Warn 'Multiple admin accounts found, please select the admin account to grant delegate access to the Alerts mailbox.';
-            [MicrosoftGraphUser]$Local:Admin = Get-UserSelection `
+            [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Local:Admin = Get-UserSelection `
                 -Title 'Which account?' `
                 -Question 'Select the admin account to grant delegate access to the Alerts mailbox' `
                 -Choices $Local:Admin `
-                -FormatChoice { param([MicrosoftGraphUser]$Item) $Item.UserPrincipalName };
+                -FormatChoice { param([Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Item) $Item.UserPrincipalName };
         }
 
         [PSObject]$Local:ExistingPermission = Get-MailboxPermission -Identity $Local:UserPrincipalName -User $Local:Admin.UserPrincipalName -ErrorAction SilentlyContinue;
@@ -107,7 +107,7 @@ If a new mailbox was created, please ensure that the user account is correctly d
         #startregion AMT Support Contact
         [String]$Local:ContactName = 'AMT Support';
 
-        [MicrosoftGraphContact]$Local:Contact = Get-MgContact -Filter "DisplayName eq '$Local:ContactName'";
+        [Microsoft.Graph.PowerShell.Models.MicrosoftGraphContact]$Local:Contact = Get-MgContact -Filter "DisplayName eq '$Local:ContactName'";
         if (-not $Local:Contact) {
             Invoke-Info "Creating $Local:ContactName contact...";
             New-MailContact `
@@ -119,7 +119,7 @@ If a new mailbox was created, please ensure that the user account is correctly d
         }
 
         do {
-            [MicrosoftGraphContact]$Local:Contact = Get-MgContact -Filter "DisplayName eq 'AMT Support'";
+            [Microsoft.Graph.PowerShell.Models.MicrosoftGraphContact]$Local:Contact = Get-MgContact -Filter "DisplayName eq 'AMT Support'";
 
             if (-not $Local:Contact) {
                 Invoke-Verbose 'Waiting for contact to be created...';
