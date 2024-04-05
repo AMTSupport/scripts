@@ -32,69 +32,69 @@ function Invoke-EnsureUser {
 
 $Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module.';
 $Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
-$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
+$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module {0}.';
 $Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
+<#
+.SYNOPSIS
+    Ensures the required modules are installed.
+
+.DESCRIPTION
+    This function will ensure the required modules are installed.
+    If the module is not installed, it will be installed.
+
+.PARAMETER Modules
+    The modules represented with their name as a string,
+    a git repository string in the format of 'owner/repo@ref', where ref is the branch or tag to install,
+    or a hashtable in the following format where items marked with * are optional:
+    ```
+    @{
+        Name = 'ModuleName';
+        *MinimumVersion = '1.0.0';
+        *DontRemove = $true;
+    }
+    ```
+
+    These formats can be mixed within the same call, and the module will be installed accordingly.
+
+.PARAMETER NoInstall
+    Do not install the module if it is not installed.
+
+.EXAMPLE
+    Install the ImportExcel and PSScriptAnalyzer modules.
+    ```
+    Invoke-EnsureModule -Modules 'ImportExcel', 'PSScriptAnalyzer'
+    ```
+.EXAMPLE
+    Install the ImportExcel module with a minimum version of 7.1.0.
+    ```
+    Invoke-EnsureModule -Modules @{
+        Name = 'ImportExcel';
+        MinimumVersion = '7.1.0';
+    }
+    ```
+.EXAMPLE
+    Install the PSReadLine module and don't remove it once the script has completed running.
+    ```
+    Invoke-EnsureModule -Modules @{
+        Name = 'PSReadLine';
+        MinimumVersion = '3.2.0';
+        DontRemove = $true;
+    }
+    ```
+.EXAMPLE
+    Install the ImportExcel module using the string format, and the PSScriptAnalyzer module using the hashtable format.
+    ```
+    Invoke-EnsureModule -Modules 'ImportExcel', @{
+        Name = 'PSScriptAnalyzer';
+        MinimumVersion = '1.0.0';
+    }
+    ```
+.OUTPUTS
+    None
+.EXTERNALHELP
+    https://amtsupport.github.io/scripts/docs/modules/common/Ensure/Invoke-EnsureModule
+#>
 function Invoke-EnsureModule {
-    <#
-    .SYNOPSIS
-        Ensures the required modules are installed.
-
-    .DESCRIPTION
-        This function will ensure the required modules are installed.
-        If the module is not installed, it will be installed.
-
-    .PARAMETER Modules
-        The modules represented with their name as a string,
-        a git repository string in the format of 'owner/repo@ref', where ref is the branch or tag to install,
-        or a hashtable in the following format where items marked with * are optional:
-        ```
-        @{
-            Name = 'ModuleName';
-            *MinimumVersion = '1.0.0';
-            *DontRemove = $true;
-        }
-        ```
-
-        These formats can be mixed within the same call, and the module will be installed accordingly.
-
-    .PARAMETER NoInstall
-        Do not install the module if it is not installed.
-
-    .EXAMPLE
-        Install the ImportExcel and PSScriptAnalyzer modules.
-        ```
-        Invoke-EnsureModule -Modules 'ImportExcel', 'PSScriptAnalyzer'
-        ```
-    .EXAMPLE
-        Install the ImportExcel module with a minimum version of 7.1.0.
-        ```
-        Invoke-EnsureModule -Modules @{
-            Name = 'ImportExcel';
-            MinimumVersion = '7.1.0';
-        }
-        ```
-    .EXAMPLE
-        Install the PSReadLine module and don't remove it once the script has completed running.
-        ```
-        Invoke-EnsureModule -Modules @{
-            Name = 'PSReadLine';
-            MinimumVersion = '3.2.0';
-            DontRemove = $true;
-        }
-        ```
-    .EXAMPLE
-        Install the ImportExcel module using the string format, and the PSScriptAnalyzer module using the hashtable format.
-        ```
-        Invoke-EnsureModule -Modules 'ImportExcel', @{
-            Name = 'PSScriptAnalyzer';
-            MinimumVersion = '1.0.0';
-        }
-        ```
-    .OUTPUTS
-        None
-    .EXTERNALHELP
-        https://amtsupport.github.io/scripts/docs/modules/common/Ensure/Invoke-EnsureModule
-    #>
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
@@ -109,32 +109,41 @@ function Invoke-EnsureModule {
 
             $Local:NotValid.Count -eq 0;
         })]
-        [Object[]]$Modules,
-
-        [Parameter(HelpMessage = 'Do not install the module if it is not installed.')]
-        [switch]$NoInstall
+        [Object[]]$Modules
     )
 
-    begin { Enter-Scope; }
+    begin {
+        Enter-Scope;
+        if (-not $Script:SatisfiedModules) {
+            [HashTable]$Script:SatisfiedModules = [HashTable]::new();
+        }
+    }
     end { Exit-Scope; }
 
     process {
-        try {
-            $ErrorActionPreference = 'Stop';
-
-            Get-PackageProvider -ListAvailable -Name NuGet | Out-Null;
-        } catch {
+        #region NuGet Package Provider
+        if (-not $Script:CheckedNuGet) {
             try {
-                Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
-                Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+                $ErrorActionPreference = 'Stop';
+
+                Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | Out-Null;
             } catch {
-                # TODO :: Handle this better, this is a no network case.
-                Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
-                return;
+                try {
+                    Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
+                    Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+                } catch {
+                    # TODO :: Handle this better, this is a no network case.
+                    Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
+                    return;
+                }
             }
+
+            $Script:CheckedNuGet = $true;
         }
+        #endregion
 
         foreach ($Local:Module in $Modules) {
+            #region Local Variables
             $Local:InstallArgs = @{
                 AllowClobber = $true;
                 Scope = 'CurrentUser';
@@ -150,83 +159,100 @@ function Invoke-EnsureModule {
                 if ($Local:ModuleMinimumVersion) {
                     $Local:InstallArgs.Add('MinimumVersion', $Local:ModuleMinimumVersion);
                 }
+
+                [Version]$Local:MinimumVersion = [Version]::Parse($Local:ModuleMinimumVersion);
             } else {
                 [String]$Local:ModuleName = $Local:Module;
             }
 
+            [String]$Local:PossibleSatifiedModuleVersion = $Script:SatisfiedModules[$Local:ModuleName];
+            if ($Local:PossibleSatifiedModuleVersion -and ($Local:PossibleSatifiedModuleVersion -ge $Local:MinimumVersion)) {
+                Invoke-Debug "Module '$Local:ModuleName' is already satisfied with version $Local:PossibleSatifiedModuleVersion.";
+                continue;
+            }
+
             $Local:InstallArgs.Add('Name', $Local:ModuleName);
 
-            if (Test-Path -Path $Local:ModuleName) {
-                Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
-                if (-not $Local:DontRemove) {
-                    $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+            [Bool]$Local:IsLocalPath = Test-Path -Path $Local:ModuleName;
+            [Bool]$Local:IsGitRepo = $Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$';
+            $Local:CurrentImportedModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
+            $Local:AvailableModule = if (-not ($Local:CurrentImportedModule)) { Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1; } else { $Local:CurrentImportedModule };
+            #endregion
+
+            function Import-Module_Internal {
+                param(
+                    [String]$ModuleName,
+                    [String]$ModuleImport,
+                    [Boolean]$DontRemove
+                )
+
+                if (-not $DontRemove) {
+                    $Script:ImportedModules.Add($ModuleName);
+                }
+
+                if ($Local:AvailableModule) {
+                    Remove-Module -Name $ModuleName -Force;
+                }
+
+                try {
+                    [PSModuleInfo]$Local:ImportedModule = Import-Module -Name $ModuleImport -Global -Force -PassThru;
+                    Invoke-Info "Module '$ModuleName' imported with version $($Local:ImportedModule.Version).";
+                    $Script:SatisfiedModules[$ModuleName] = $Local:ImportedModule.Version;
+                } catch {
+                    Invoke-Error -Message "Unable to install module '$ModuleName'";
+                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
                 }
             }
 
-            $Local:AvailableModule = Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Select-Object -First 1;
-            if ($Local:AvailableModule) {
-                Invoke-Debug "Module '$Local:ModuleName' is installed, with version $($Local:AvailableModule.Version).";
+            if ($Local:IsLocalPath) {
+                Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
+                Import-Module_Internal -ModuleName:($Local:ModuleName | Split-Path -LeafBase) -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
+            } elseif ($Local:IsGitRepo) {
+                # FIXME - Don't use auto variable matches, could be accidentally overwritten.
+                Invoke-Debug "Module '$Local:ModuleName' is a git repository, importing...";
+                # Try to install the module from a git repository.
+                # Parse the input string into <owner>/<repo>/<ref>
+                [String]$Local:Owner = $Matches.owner;
+                [String]$Local:Repo = $Matches.repo;
+                [String]$Local:Ref = $Matches.ref;
 
+                [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+                Import-Module_Internal -ModuleName:($Local:ModuleName | Split-Path -LeafBase) -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
+                continue;
+            } elseif ($Local:AvailableModule) {
+                Invoke-Debug "Module '$Local:ModuleName' is installed with version $($Local:AvailableModule.Version).";
                 if ($Local:ModuleMinimumVersion -and $Local:AvailableModule.Version -lt $Local:ModuleMinimumVersion) {
                     Invoke-Verbose 'Module is installed, but the version is less than the minimum version required, trying to update...';
                     try {
-                        Install-Module @Local:InstallArgs | Out-Null;
+                        Update-Module -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion;
+                        Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
                     } catch {
-                        Invoke-Error -Message "Unable to update module '$Local:ModuleName'.";
+                        Invoke-Error -Message "Unable to update module '$Local:ModuleName'";
                         Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
                     }
-                }
-
-                if (-not $Local:DontRemove) {
-                    $Script:ImportedModules.Add($Local:ModuleName);
+                } elseif ($null -eq $Local:CurrentImportedModule -or ($Local:CurrentImportedModule.Version -lt $Local:ModuleMinimumVersion)) {
+                    Invoke-Debug "Module '$Local:ModuleName' is installed, but the version is less than the minimum version required, importing...";
+                    Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
+                } else {
+                    Invoke-Debug "Module '$Local:ModuleName' is installed, skipping...";
+                    $Script:SatisfiedModules[$Local:ModuleName] = $Local:CurrentImportedModule.Version;
                 }
             } else {
-                if ($NoInstall) {
-                    Invoke-Error -Message "Module '$Local:ModuleName' is not installed, and no-install is set.";
-                    Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
-                }
-
-                if (Find-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue) {
+                $Local:FoundModule = Find-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue;
+                if ($Local:FoundModule) {
                     Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
-                    try {
-                        Install-Module @Local:InstallArgs;
-
-                        if (-not $Local:DontRemove) {
-                            $Script:ImportedModules.Add($Local:ModuleName);
-                        }
-                    } catch {
-                        Invoke-Error -Message "Unable to install module '$Local:ModuleName'.";
-                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
-                    }
-                } elseif ($Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$') {
-                    # Try to install the module from a git repository.
-                    # Parse the input string into <owner>/<repo>/<ref>
-                    [String]$Local:Owner = $Matches.owner;
-                    [String]$Local:Repo = $Matches.repo;
-                    [String]$Local:Ref = $Matches.ref;
-                    [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
-
-                    Invoke-Info "Module '$Local:ModuleName' not found in PSGallery, trying to install from git...";
-                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
-
-                    try {
-                        [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
-
-                        if (-not $Local:DontRemove) {
-                            $Script:ImportedModules.Add($Local:ModuleName);
-                        }
-                    } catch {
-                        Invoke-Error -Message "Unable to install module '$Local:ModuleName' from git.";
-                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
-                    }
-                } else {
-                    Invoke-Error -Message "Module '$Local:ModuleName' could not be found using Find-Module, and was not a git repoistory.";
-                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
+                    $Local:FoundModule | Install-Module @Local:InstallArgs;
+                    Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
                 }
             }
 
-            Invoke-Debug "Importing module '$Local:ModuleName'...";
-            Import-Module -Name $Local:ModuleName -Global -Force;
+            [PSModuleInfo]$Local:AfterEnsureModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
+            if ($null -eq $Local:AfterEnsureModule) {
+                Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -Arguments @($Local:ModuleName);
+            } elseif ($Local:CurrentImportedModule -ne $Local:AfterEnsureModule -and $Local:Module.RestartIfUpdated) {
+                Invoke-Info "Module '$Local:ModuleName' has been updated, restart script...";
+                Restart-Script;
+            }
         }
 
         Invoke-Verbose -Message 'All modules are installed.';
