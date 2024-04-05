@@ -175,39 +175,6 @@ function Get-Requirements([Parameter(Mandatory)][String[]]$Lines, [HashTable]$Re
     }
 }
 
-# function Get-FilteredContent([Parameter(Mandatory)][String[]]$Content) {
-#     begin { Enter-Scope -Invocation $MyInvocation; }
-#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CleanedLines; }
-
-#     process {
-#         $Local:CleanedLines = $Content;
-
-#         while ($true) {
-#             ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:CleanedLines -OpenPattern '<#' -ClosePattern '#>';
-
-#             if ($Local:StartIndex -ge 0 -and $Local:EndIndex -ge 0) {
-#                 Invoke-Debug -Message "Found comment block at lines $Local:StartIndex to $Local:EndIndex";
-#                 Invoke-Debug -Message "Comment block content: $($Local:CleanedLines[$Local:StartIndex..$Local:EndIndex] | Join-String -Separator "`n")";
-
-#                 if ($Local:StartIndex -gt 0) {
-#                     $Local:CleanedLines = $Local:CleanedLines[0..($Local:StartIndex - 1)] + $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
-#                 } else {
-#                     $Local:CleanedLines = $Local:CleanedLines[($Local:EndIndex + 1)..($Local:CleanedLines.Count - 1)];
-#                 }
-
-#                 continue;
-#             }
-
-#             break;
-#         }
-
-#         # Remove any comments from the content
-#         $Local:CleanedLines = $Local:CleanedLines | Where-Object { $_ -notmatch '^#' };
-
-#         return $Local:CleanedLines;
-#     }
-# }
-
 function Invoke-FixLines(
     [Parameter(Mandatory)][ValidateNotNull()][String[]]$Lines
 ) {
@@ -328,7 +295,7 @@ function New-CompiledScript(
         } | Join-String -Separator "`n";
 
         [String]$Local:CmdletBinding = $null;
-        if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(i?)^\s*\[CmdletBinding\(([a-z,\s]+)\)\]') {
+        if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(i?)^\s*\[CmdletBinding\(([a-z,\s]*)\)\]') {
             Invoke-Debug -Message 'Found CmdletBinding attribute';
 
             ($Local:ParamStart, $Local:ParamEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '\[' -ClosePattern '\]';

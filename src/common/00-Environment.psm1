@@ -9,6 +9,7 @@
 };
 
 #region - Logging Functions
+
 function Invoke-WithLogging {
     Param(
         [Parameter(Mandatory)]
@@ -267,10 +268,10 @@ function Invoke-RunMain {
             $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
             $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
             $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
-            $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
+            # $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
 
-            $Global:DebugPreference = $Global:Logging.Debug ? 'Continue' : 'SilentlyContinue';
-            $Global:VerbosePreference = $Global:Logging.Verbose ? 'Continue' : 'SilentlyContinue';
+            $Global:DebugPreference = if ($Global:Logging.Debug) { 'Continue' } else { 'SilentlyContinue' };
+            $Global:VerbosePreference = if ($Global:Logging.Verbose) { 'Continue' } else { 'SilentlyContinue' };
 
             if (-not $HideDisclaimer) {
                 Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
@@ -288,25 +289,43 @@ function Invoke-RunMain {
             try {
                 # FIXME :: it's not working as expected
                 # If the script is being run directly, invoke the main function
-                # If ($Invocation.CommandOrigin -eq 'Runspace') {
-                Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
-                & $Main;
-            } catch {
-                if ($_.FullyQualifiedErrorId -eq 'QuickExit') {
-                    Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
-                } elseif ($_.FullyQualifiedErrorId -eq 'FailedExit') {
-                    [Int16]$Local:ExitCode = $_.TargetObject;
-                    Invoke-EnvVerbose -Message "Script exited with an error code of $Local:ExitCode.";
-                    $LASTEXITCODE = $Local:ExitCode;
+                If ($Invocation.CommandOrigin -eq 'Runspace') {
+                    Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
+                    & $Main;
                 } else {
-                    Invoke-Error 'Uncaught Exception during script execution';
-                    Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_ -DontExit;
+                    Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Script is being imported, skipping main function.';
+                }
+            } catch {
+                switch ($_.FullyQualifiedErrorId) {
+                    'QuickExit' {
+                        Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
+                    }
+                    'FailedExit' {
+                        [Int16]$Local:ExitCode = $_.TargetObject;
+                        Invoke-EnvVerbose -Message "Script exited with an error code of $Local:ExitCode.";
+                        $LASTEXITCODE = $Local:ExitCode;
+                    }
+                    'RestartScript' {
+                        $Global:ScriptRestarting = $True;
+                    }
+                    default {
+                        Invoke-Error 'Uncaught Exception during script execution';
+                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_ -DontExit;
+                    }
                 }
             } finally {
                 Invoke-Handlers;
 
                 if (-not $Local:DontImport) {
                     Remove-CommonModules;
+                }
+
+                if ($Global:ScriptRestarting) {
+                    Invoke-EnvVerbose -UnicodePrefix '🔄' -Message 'Restarting script.';
+                    Remove-Variable -Scope Global -Name ScriptRestarting;
+                    Set-Variable -Scope Global -Name ScriptRestarted -Value $True; # Bread trail for the script to know it's been restarted.
+                    Remove-Variable -Scope Local;
+                    Invoke-Inner @PSBoundParameters;
                 }
             }
         }
