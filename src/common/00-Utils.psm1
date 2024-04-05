@@ -107,12 +107,12 @@ function Get-VarOrSave {
                     break;
                 }
             } catch {
-                Invoke-Error "Encountered an error while trying to get value for ${VariableName}.";
+                Invoke-Error "Encountered an error while evalutating LazyValue for ${VariableName}.";
                 return $null;
             }
         };
 
-
+        # TODO - Support saving in a more permanent location.
         [Environment]::SetEnvironmentVariable($VariableName, $Local:Value, 'Process');
         return $Local:Value;
     }
@@ -480,6 +480,44 @@ function Test-NetworkConnection {
     } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
 }
 
+#region Module Export Helpers
+<#
+.SYNOPSIS
+    Exports the types from a module for importing.
+
+.DESCRIPTION
+    This function will export the types from a module for importing.
+    These types will be added to the TypeAccelerators class which will allow them to be used in other modules after importing.
+
+.EXAMPLE
+    Export the some types from the module.
+    ```
+    Export-Types -Types (
+        [System.Management.Automation.PSCredential],
+        [System.Management.Automation.PSObject],
+        [System.Management.Automation.PSModuleInfo]
+    );
+    ```
+
+.PARAMETER Types
+    The types to export from the module.
+
+.PARAMETER Clobber
+    If the types should be allowed to clobber existing type accelerators.
+
+.INPUTS
+    None
+
+.OUTPUTS
+    None
+
+.FUNCTIONALITY
+    Module Management
+    Type Accelerators
+
+.EXTERNALHELP
+    https://amtsupport.github.io/scripts/docs/modules/Utils/Export-Types
+#>
 function Export-Types {
     [CmdletBinding()]
     param(
@@ -523,11 +561,376 @@ function Export-Types {
     }
 
     # Remove type accelerators when the module is removed.
-    $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
+    Add-ModuleCallback -Module $MyInvocation.MyCommand.ScriptBlock.Module -ScriptBlock {
         foreach ($Type in $Types) {
             $TypeAcceleratorsClass::Remove($Type.FullName) | Out-Null
         }
-    }.GetNewClosure()
+    }
 }
 
-Export-ModuleMember -Function *;
+<#
+.SYNOPSIS
+    Adds a function to be executed when the module is removed.
+
+.DESCRIPTION
+    This function will add a function to be executed when the module is removed.
+    This is useful for cleaning up resources when the module is removed.
+
+.EXAMPLE
+    Add a function to be executed when the module is removed.
+    ```
+    $TempFile = [System.IO.Path]::GetTempFileName();
+    # Do something with the temp file.
+
+    Add-OnRemove {
+        Remove-Item -Path $TempFile -Force;
+    }
+    ```
+
+.PARAMETER ScriptBlock
+    The script block to execute when the module is removed.
+
+.PARAMETER Module
+    The module to add the callback to. Defaults to the current module.
+
+.INPUTS
+    None
+
+.OUTPUTS
+    None
+
+.FUNCTIONALITY
+    Module Management
+
+.EXTERNALHELP
+    https://amtsupport.github.io/scripts/docs/modules/Utils/Add-ModuleCallback
+#>
+function Add-ModuleCallback {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ScriptBlock]$ScriptBlock,
+
+        [Parameter(Mandatory)]
+        [System.Management.Automation.PSModuleInfo]$Module
+    )
+
+    if (-not $Module) {
+        $Module = $MyInvocation.MyCommand.ScriptBlock.Module;
+
+        if (-not $Module) {
+            throw [System.InvalidOperationException]::new('This function must be called from within a module.');
+        }
+    }
+
+    $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = $ScriptBlock.GetNewClosure()
+}
+
+#endregion
+
+#region Async Helpers
+<#
+.SYNOPSIS
+    Waits for a task to complete.
+
+.DESCRIPTION
+    This function will wait for a task to complete before continuing.
+    This is useful for waiting for a task to complete before continuing with the script.
+
+.EXAMPLE
+    Wait for a task to complete.
+    ```
+    $Task = async {
+        Start-Sleep -Seconds 5;
+    };
+
+    # Do something else while waiting for the task to complete.
+
+    # Wait for the task to complete before continuing.
+    Wait-Task -Task $Task;
+
+    # Do something after the task has completed.
+    ```
+
+.EXAMPLE
+    Wait for multiple tasks to complete.
+    ```
+    $Tasks = @(
+        async {
+            Start-Sleep -Seconds 5;
+        },
+        async {
+            Start-Sleep -Seconds 10;
+        }
+    );
+
+    # Do something else while waiting for the tasks to complete.
+
+    # Wait for the tasks to complete before continuing.
+    Wait-Task -Task $Tasks;
+
+    # Do something after the tasks have completed.
+    ```
+
+.EXAMPLE
+    Wait for a task to complete using the alias.
+    ```
+    $Task = async {
+        Start-Sleep -Seconds 5;
+    };
+
+    # Do something else while waiting for the task to complete.
+
+    # Wait for the task to complete before continuing.
+    await $Task;
+
+    # Do something after the task has completed.
+    ```
+
+.EXAMPLE
+    Wait for the task using the pipeline.
+    ```
+    $Task = async {
+        Start-Sleep -Seconds 5;
+    };
+
+    # Do something else while waiting for the task to complete.
+
+    # Wait for the task to complete before continuing.
+    $Task | await;
+
+    # Do something after the task has completed.
+    ```
+
+.EXAMPLE
+    Wait for the task to complete and return the task object.
+    ```
+    $Task = async {
+        Start-Sleep -Seconds 5;
+
+        return 'Task completed';
+    };
+
+    # Do something else while waiting for the task to complete.
+
+    # Wait for the task to complete before continuing.
+    $Result = await $Task;
+
+    # Do something with the result of the task.
+    ```
+
+.PARAMETER Task
+    The task to wait for.
+
+.PARAMETER PassThru
+    If the task object should be returned after the task has completed.
+
+.INPUTS
+    A task object.
+    An array of task objects.
+
+.OUTPUTS
+    The result of the task.
+
+.EXTERNALHELP
+    https://amtsupport.github.io/scripts/docs/modules/Utils/Wait-Task
+#>
+function Wait-Task {
+    [CmdletBinding()]
+    [Alias('await')]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [PSCustomObject[]]$Run,
+
+        [Switch]$PassThru
+    )
+
+    Begin {
+        $Running = @{};
+        $Finished = { $_.IsCompleted -or ($_.JobStateInfo.State -gt 1 -and $_.JobStateInfo.State -ne 6 -and $_.JobStateInfo.State -ne 8) };
+        $Handle = { $_.AsyncWaitHandle };
+    }
+
+    Process {
+        if (-not ($Run.Job -and $Run.Job.Id)) {
+            throw [System.InvalidOperationException]::new('The Run object must contain a Job with an Id.');
+        }
+
+        $Running.Add($Run.Job.Id, $Run) | Out-Null;
+    }
+
+    End {
+        filter Complete-Job {
+            $Local:Out = $Running.Item($_.Id);
+            $Running.Remove($_.Id) | Out-Null;
+
+            if (-not ($Local:Out | Get-Member -Name 'Result' -MemberType NoteProperty)) {
+                $Local:Result = if ($_.PWSH) {
+                    try {
+                        $_.PWSH.EndInvoke($_)
+                    } catch {
+                        #[System.Management.Automation.MethodInvocationException]
+                        $_.Exception.InnerException
+                    } finally {
+                        $_.PWSH.Dispose()
+                    }
+                } elseif ($_.IsFaulted) {
+                    #[System.AggregateException]
+                    $_.Exception.InnerException
+                } else {
+                    $_.Result
+                }
+
+                $Local:Out | Add-Member -MemberType NoteProperty -Name Result -Value $Local:Result;
+            }
+
+            if ($PassThru) {
+                $Local:Out
+            } else {
+                $Local:Out.Result
+            }
+        }
+
+        while ($Running.Count -gt 0) {
+            function Get-Jobs {
+                param($Filter)
+
+                $Running.Values | ForEach-Object { $_.Job } | Where-Object $Filter;
+            }
+
+            [System.Threading.WaitHandle]::WaitAny((Get-Jobs -Filter $Handle | ForEach-Object $Handle)) | Out-Null;
+            (Get-Jobs -Filter $Finished) | Complete-Job;
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    Starts a task asynchronously.
+
+.DESCRIPTION
+    This function will start a task asynchronously.
+    This is useful for running a task in the background while continuing with the script.
+
+.EXAMPLE
+    Start a task asynchronously.
+    ```
+    Start-AsyncTask {
+        Start-Sleep -Seconds 5;
+    }
+
+    # Do something else while the task is running.
+    ```
+
+.EXAMPLE
+    Start a task asynchronously using the alias.
+    ```
+    async {
+        Start-Sleep -Seconds 5;
+    }
+
+    # Do something else while the task is running.
+    ```
+
+.PARAMETER ScriptBlock
+    The script block to run asynchronously.
+
+.INPUTS
+    None
+
+.OUTPUTS
+    The task that was started.
+
+.FUNCTIONALITY
+    Asynchronous Programming
+
+.EXTERNALHELP
+    https://amtsupport.github.io/scripts/docs/modules/Utils/Start-AsyncTask
+#>
+function Start-AsyncTask {
+    [CmdletBinding()]
+    [Alias('async')]
+    param(
+        [Parameter(Mandatory)]
+        [ScriptBlock]$ScriptBlock
+    )
+
+    # Start-Job -ScriptBlock $ScriptBlock;
+
+    process {
+        [PSCustomObject]$Local:Run = [PSCustomObject]@{
+            Input = $_;
+            Job = $null;
+            # Args = $ArgumentList;
+            # Parameters = $Parameters;
+        };
+
+        [Powershell]$PWSH = [Powershell]::Create();
+        $PWSH.AddScript($ScriptBlock) | Out-Null;
+
+        if ($null -ne $Local:Run.Input) {
+            $Local:Run.Job = $PWSH.BeginInvoke([System.Management.Automation.PSDataCollection[PSObject]]::new([PSObject[]]($Local:Run.Input)));
+        } else {
+            $Local:Run.Job = $PWSH.BeginInvoke();
+        }
+
+        $Run.Job | Add-Member -MemberType NoteProperty -Name pwsh -Value $PWSH -PassThru | Add-Member -MemberType NoteProperty -Name Id -Value $Run.Job.AsyncWaitHandle.Handle.ToString();
+
+        return $Local:Run;
+    }
+}
+#endregion
+
+#region Lazy Loading
+function Add-LazyProperty {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory, ValueFromPipeline = $true)]
+        [PSObject]$InputObject,
+
+        [Parameter(Mandatory, Position = 1)]
+        [String]$Name,
+
+        [Parameter(Mandatory, Position = 2)]
+        [ScriptBlock]$Value,
+
+        [Switch]$PassThru
+    )
+
+    process {
+        $Local:LazyValue = {
+            $Local:Result = & $Value;
+            Add-Member -InputObject $this -MemberType NoteProperty -Name $Name -Value $Local:Result -Force;
+            $Local:Result;
+        }.GetNewClosure();
+
+        Add-Member -InputObject:$InputObject -MemberType:ScriptProperty -Name:$Name -Value:$Local:LazyValue -PassThru:$Local:PassThru;
+    }
+}
+
+function Set-LazyVariable {
+    [CmdletBinding()]
+    [Alias('lazy')]
+    param (
+        [Parameter(Mandatory, Position = 1)]
+        [String]$Name,
+
+        [Parameter(Mandatory, Position = 2)]
+        [ScriptBlock]$Value,
+
+        [Switch]$PassThru
+    )
+
+    process {
+        $Local:LazyValue = {
+            $Local:Result = & $Value;
+            Set-Variable -Name $Local:Name -Value $Local:Result -Scope Local -Option ReadOnly;
+            $Local:Result;
+        }.GetNewClosure();
+
+        Set-Variable -Name:$Name -Value:$Local:LazyValue -Scope:Local -Option:ReadOnly -PassThru:$PassThru;
+    }
+}
+#endregion
+
+Export-ModuleMember -Function * -Alias *;
