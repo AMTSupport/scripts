@@ -99,6 +99,22 @@ function Get-OrFalse {
     }
 }
 
+function Invoke-Setup {
+    $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
+    $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
+    $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
+    $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
+    $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
+}
+
+function Invoke-Teardown {
+    $PSDefaultParameterValues.Remove('*:ErrorAction');
+    $PSDefaultParameterValues.Remove('*:WarningAction');
+    $PSDefaultParameterValues.Remove('*:InformationAction');
+    $PSDefaultParameterValues.Remove('*:Verbose');
+    $PSDefaultParameterValues.Remove('*:Debug');
+}
+
 function Import-CommonModules {
     [HashTable]$Local:ToImport = [Ordered]@{};
 
@@ -264,15 +280,6 @@ function Invoke-RunMain {
                 }
             }
 
-            $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
-            $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
-            $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
-            $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
-            # $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
-
-            $Global:DebugPreference = if ($Global:Logging.Debug) { 'Continue' } else { 'SilentlyContinue' };
-            $Global:VerbosePreference = if ($Global:Logging.Verbose) { 'Continue' } else { 'SilentlyContinue' };
-
             if (-not $HideDisclaimer) {
                 Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
             }
@@ -283,6 +290,7 @@ function Invoke-RunMain {
             }
 
             Import-CommonModules;
+            Invoke-Setup;
         }
 
         process {
@@ -296,7 +304,8 @@ function Invoke-RunMain {
                     Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Script is being imported, skipping main function.';
                 }
             } catch {
-                switch ($_.FullyQualifiedErrorId) {
+                $Local:Error = $_;
+                switch ($Local:Error.FullyQualifiedErrorId) {
                     'QuickExit' {
                         Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
                     }
@@ -310,15 +319,17 @@ function Invoke-RunMain {
                     }
                     default {
                         Invoke-Error 'Uncaught Exception during script execution';
-                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_ -DontExit;
+                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:Error -DontExit;
                     }
                 }
             } finally {
                 Invoke-Handlers;
 
                 if (-not $Local:DontImport) {
+                    Invoke-Teardown;
                     Remove-CommonModules;
                 }
+
 
                 if ($Global:ScriptRestarting) {
                     Invoke-EnvVerbose -UnicodePrefix '🔄' -Message 'Restarting script.';
