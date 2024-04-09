@@ -65,7 +65,7 @@ function Find-StartToEndBlock(
     [Parameter(Mandatory)][String]$OpenPattern,
     [Parameter(Mandatory)][String]$ClosePattern
 ) {
-    begin { Enter-Scope; }
+    begin { Enter-Scope -IgnoreParams @('Lines'); }
     end { Exit-Scope -ReturnValue $Local:StartIndex,$Local:EndIndex; }
 
     process {
@@ -102,8 +102,8 @@ function Find-StartToEndBlock(
 }
 
 function Get-ModuleDefinitions {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:ModuleTable; }
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:ModuleTable.Keys; }
 
     process {
         [HashTable]$Local:ModuleTable = @{};
@@ -128,8 +128,8 @@ function Get-ModuleDefinitions {
 }
 
 function Get-Requirements([Parameter(Mandatory)][String[]]$Lines, [HashTable]$RequirementsTable) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:RequirmentsTable; }
+    begin { Enter-Scope -IgnoreParams 'Lines'; }
+    end { Exit-Scope -ReturnValue $Local:RequirmentsTable; }
 
     process {
         [HashTable]$Local:Requirements = @{};
@@ -178,8 +178,8 @@ function Get-Requirements([Parameter(Mandatory)][String[]]$Lines, [HashTable]$Re
 function Invoke-FixLines(
     [Parameter(Mandatory)][ValidateNotNull()][String[]]$Lines
 ) {
-    begin { Enter-Scope; }
-    end { Exit-Scope -ReturnValue $Local:FixedLines; }
+    begin { Enter-Scope -IgnoreParams 'Lines'; }
+    end { Exit-Scope; }
 
     process {
         function Remove-Index(
@@ -270,8 +270,6 @@ $($Lines[$StartIndex..$EndIndex] | Join-String -Separator "`n")
         # TODO :: Remove comments from the end of statements too? eg. $Var = 'Value' # This is a comment
         $Local:FixedLines = $Local:FixedLines | Where-Object { $_ -ne '' -and $_ -notmatch '^\s*#' };
 
-        Invoke-Debug 'Finished fixing lines';
-        Invoke-Debug "Fixed lines: `n$($Local:FixedLines | Join-String -Separator "`n")";
         return $Local:FixedLines;
     }
 }
@@ -281,8 +279,8 @@ function New-CompiledScript(
     [Parameter(Mandatory)][ValidateNotNull()][HashTable]$ModuleTable,
     [Parameter(Mandatory)][ValidateNotNull()][HashTable]$Requirements
 ) {
-    begin { Enter-Scope; }
-    end { Exit-Scope -ReturnValue $Local:CompiledScript; }
+    begin { Enter-Scope -IgnoreParams 'Lines','ModuleTable'; }
+    end { Exit-Scope; }
 
     process {
         [String[]]$Local:FilteredLines = Invoke-FixLines -Lines $Lines;
@@ -295,7 +293,7 @@ function New-CompiledScript(
         } | Join-String -Separator "`n";
 
         [String]$Local:CmdletBinding = $null;
-        if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(i?)^\s*\[CmdletBinding\(([a-z,\s]*)\)\]') {
+        if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(?i)^\s*\[cmdletBinding\(([A-z,=''\s]*)\)\]') {
             Invoke-Debug -Message 'Found CmdletBinding attribute';
 
             ($Local:ParamStart, $Local:ParamEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '\[' -ClosePattern '\]';
@@ -402,7 +400,7 @@ Invoke-RunMain $MyInvocation -DontImport:$InnerInvocation -HideDisclaimer:$Inner
         [String]$Local:CompiledScript = New-CompiledScript -Lines $Local:Lines -ModuleTable $Local:ModuleTable -Requirements $Local:Requirements;
 
         if (-not $Output) {
-            Invoke-Info $Local:CompiledScript;
+            return $Local:CompiledScript;
         } else {
             [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
             if (Test-Path $Local:OutputFile) {
