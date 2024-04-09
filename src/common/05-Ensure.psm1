@@ -163,6 +163,7 @@ function Invoke-EnsureModule {
                 [Version]$Local:MinimumVersion = [Version]::Parse($Local:ModuleMinimumVersion);
             } else {
                 [String]$Local:ModuleName = $Local:Module;
+                [Boolean]$Local:DontRemove = $False;
             }
 
             [String]$Local:PossibleSatifiedModuleVersion = $Script:SatisfiedModules[$Local:ModuleName];
