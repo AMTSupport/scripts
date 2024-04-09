@@ -23,12 +23,21 @@ function Format-ScopeName([Parameter(Mandatory)][Switch]$IsExit) {
 
 function Format-Parameters(
     [Parameter()]
-    [String[]]$IgnoreParams = @()
+    [String[]]$IgnoreParams = @(),
+
+    [Parameter()]
+    [HashTable]$ArgumentFormatter
 ) {
     [System.Collections.IDictionary]$Local:Params = (Get-StackTop).Invocation.BoundParameters;
     if ($null -ne $Local:Params -and $Local:Params.Count -gt 0) {
-        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $(Format-Variable -Value $_.Value)" };
-        [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n";
+        [String]$Local:ParamsFormatted = ($Local:Params.GetEnumerator() `
+            | Where-Object { $_.Key -notin $IgnoreParams } `
+            | ForEach-Object {
+                $Local:Formatter = $ArgumentFormatter[$_.Key];
+                $Local:FormattedValue = Format-Variable -Value:$_.Value -Formatter:$Local:Formatter;
+                "$($_.Key) = $Local:FormattedValue";
+            }) `
+            -join "`n";
 
         return "$Local:ParamsFormatted";
     }
@@ -36,19 +45,45 @@ function Format-Parameters(
     return $null;
 }
 
-function Format-Variable([Object]$Value) {
-    function Format-SingleVariable([Parameter(Mandatory)][Object]$Value) {
+function Format-Variable(
+    [Parameter()]
+    [Object]$Value,
+
+    [Parameter()]
+    [ScriptBlock]$Formatter
+) {
+    function Format-SingleVariable(
+        [Parameter()]
+        [Object]$Value,
+
+        [Parameter()]
+        [ScriptBlock]$Formatter
+    ) {
         switch ($Value) {
-            { $_ -is [System.Collections.HashTable] } { "$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n")" }
-            default { $Value }
+            { $_ -is [System.Collections.HashTable] } {
+                [String[]]$Local:Pairs = $Value.GetEnumerator() | ForEach-Object { "$($_.Key) = $(Format-SingleVariable -Value:$_.Value -Formatter:$Formatter)" };
+
+                return @"
+{
+  $($Local:Pairs -join "`n$Script:Tab")
+}
+"@;
+            }
+            default {
+                if ($null -ne $Formatter) {
+                    $Formatter.InvokeWithContext($null, [PSVariable]::new('_', $Value));
+                } else {
+                    $Value
+                }
+            }
         };
     }
 
     if ($null -ne $Value) {
         [String]$Local:FormattedValue = if ($Value -is [Array]) {
-            "$(($Value | ForEach-Object { Format-SingleVariable $_ }) -join "`n")"
+            "$(($Value | ForEach-Object { Format-SingleVariable $_ -Formatter:$Formatter }) -join "`n")"
         } else {
-            Format-SingleVariable -Value $Value;
+            Format-SingleVariable -Value:$Value -Formatter:$Formatter;
         }
 
         return $Local:FormattedValue;
@@ -63,14 +98,20 @@ function Enter-Scope(
 
     [Parameter()]
     [ValidateNotNull()]
-    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo # Get's the callers invocation info.
+    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo, # Get's the callers invocation info.
+
+    [Parameter()]
+    [HashTable]$ArgumentFormatter
 ) {
     if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
+    if ($null -eq $ArgumentFormatter) {
+        $ArgumentFormatter = @{};
+    }
 
     (Get-Stack).Push(@{ Invocation = $Invocation; StopWatch = [System.Diagnostics.Stopwatch]::StartNew(); });
 
     [String]$Local:ScopeName = Format-ScopeName -IsExit:$False;
-    [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams;
+    [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams -ArgumentFormatter:$ArgumentFormatter;
 
     @{
         PSMessage   = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
@@ -87,6 +128,9 @@ function Exit-Scope(
     [Object]$ReturnValue
 ) {
     if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
+    if ($null -eq $ArgumentFormatter) {
+        $ArgumentFormatter = @{};
+    }
 
     [System.Diagnostics.Stopwatch]$Local:StopWatch = (Get-StackTop).StopWatch;
     $Local:StopWatch.Stop();
