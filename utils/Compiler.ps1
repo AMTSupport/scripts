@@ -386,22 +386,51 @@ if (-not $InnerInvocation) {
     Import-Module $PSScriptRoot/../src/common/00-Environment.psm1 -ErrorAction Stop;
 }
 
-Invoke-RunMain $MyInvocation -DontImport:$InnerInvocation -HideDisclaimer:$InnerInvocation {
-    [HashTable]$Local:ModuleTable = Get-ModuleDefinitions;
-    [HashTable]$Local:ModuleRequirements = @{};
-    $Local:ModuleTable.GetEnumerator() | ForEach-Object {
-        $Local:ModuleRequirements = Get-Requirements -Lines $_.Value -Requirements $Local:ModuleRequirements;
-    };
+function Invoke-Compile {
+    param(
+        [Parameter(Mandatory, ValueFromPipeline, HelpMessage = 'The path of the target script to compile a merged version of.')]
+        [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Target script file does not exist: {0}')]
+        [ValidateScript({ $_.EndsWith('.ps1') }, ErrorMessage = 'Target script file must be a PowerShell script file: {0}')]
+        [Alias('PSPath')]
+        [String]$ScriptPath,
 
-    foreach ($Local:Script in $CompileScripts) {
-        [System.IO.FileInfo]$Local:ScriptFile = Get-Item -Path $Local:Script;
+        [Parameter(HelpMessage = 'The folders or files to search for modules to merge into the target script.')]
+        [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Module folder does not exist: {0}')]
+        [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = 'Module folder is not a folder: {0}')]
+        [String[]]$Modules = @("$PSScriptRoot\..\src\common"),
+
+        [Parameter(HelpMessage = 'The root folder to search for modules to merge into the target script.')]
+        [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Module root folder does not exist: {0}')]
+        [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = 'Module root folder is not a folder: {0}')]
+        [String]$ModuleRoot = "$PSScriptRoot\..\src"
+    )
+
+    begin {
+        [HashTable]$Local:ModuleTable = Get-ModuleDefinitions;
+        [HashTable]$Local:ModuleRequirements = @{};
+        $Local:ModuleTable.GetEnumerator() | ForEach-Object {
+            $Local:ModuleRequirements = Get-Requirements -Lines $_.Value -Requirements $Local:ModuleRequirements;
+        };
+    }
+    process {
+        [System.IO.FileInfo]$Local:ScriptFile = Get-Item -Path $ScriptPath;
         [String[]]$Local:Lines = (Get-Content -Raw -Path $Local:ScriptFile).Split("`n") | Where-Object { $_.Trim() };
         [HashTable]$Local:Requirements = Get-Requirements -Lines $Local:Lines -Requirements $Local:ModuleRequirements;
         [String]$Local:CompiledScript = New-CompiledScript -Lines $Local:Lines -ModuleTable $Local:ModuleTable -Requirements $Local:Requirements;
 
+        return $Local:CompiledScript;
+    }
+}
+
+Invoke-RunMain $MyInvocation -DontImport:$InnerInvocation -HideDisclaimer:$InnerInvocation {
+    $CompileScripts | ForEach-Object {
+        $Local:OutPath = $_;
+        $Local:CompiledScript = $_ | Invoke-Compile;
+
         if (-not $Output) {
             return $Local:CompiledScript;
         } else {
+            [System.IO.FileInfo]$Local:ScriptFile = Get-Item -Path $Local:OutPath;
             [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
             if (Test-Path $Local:OutputFile) {
                 if ($Force -or (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true)) {

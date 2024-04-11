@@ -3,10 +3,10 @@
 [CmdletBinding(SupportsShouldProcess)]
 param (
     [Parameter(HelpMessage='This directory to source scripts from.')]
-    [String]$SourceDir = "./src",
+    [String]$SourceDir = "$PSScriptRoot/../src",
 
     [Parameter(HelpMessage='The directory to output compiled scripts to.')]
-    [String]$OutputDir = "./compiled",
+    [String]$OutputDir = "$PSScriptRoot/../compiled",
 
     [Parameter(DontShow, HelpMessage='The compiler scripts location.')]
     [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
@@ -47,6 +47,7 @@ function Invoke-EnsureDirectoryStructure {
 Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Invoke-Info "Compiling scripts from $SourceDir to $OutputDir";
+    Invoke-EnsureModule "$PSScriptRoot/Compiler.ps1";
 
     [Object[]]$Local:Items = Get-ChildItem -Path $SourceDir -Recurse -Filter '*.ps1';
     foreach ($Local:Item in $Local:Items) {
@@ -63,6 +64,9 @@ Invoke-RunMain $MyInvocation {
         [String]$Local:OutputFolderPath = Join-Path $OutputDir $Local:RelativePath;
 
         Invoke-EnsureDirectoryStructure -SourcePath $SourceDir -TargetBasePath $OutputDir -CurrentPath ($Local:Item.FullName | Split-Path -Parent);
-        & "${CompilerScript}" -CompileScripts "$($Local:Item.FullName)" -Output "${Local:OutputFolderPath}" -Force -InnerInvocation | Out-Null;
+        [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Local:OutputFolderPath -ChildPath $Local:Item.Name;
+
+        [String]$Local:CompiledScript = Invoke-Compile -ScriptPath $Local:Item.FullName;
+        Set-Content -Path $Local:OutputFile -Value $Local:CompiledScript;
     }
 }
