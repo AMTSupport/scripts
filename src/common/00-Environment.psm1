@@ -101,10 +101,12 @@ function Get-OrFalse {
 
 function Invoke-Setup {
     $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
-    $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
+    $PSDefaultParameterValues['*:WarningAction'] = 'Continue';
     $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
     $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
     $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
+
+    $Global:ErrorActionPreference = 'Stop';
 }
 
 function Invoke-Teardown {
@@ -204,6 +206,7 @@ function Remove-CommonModules {
     Invoke-EnvVerbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
     Invoke-EnvVerbose -Message "Removing modules: `n$(($Script:ImportedModules | Sort-Object -Descending) -join "`n")";
     $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
+        $Local:Module = $_;
         Invoke-EnvDebug -Message "Removing module $_.";
 
         if ($Global:CompiledScript -and $_ -eq '00-Envrionment') {
@@ -214,7 +217,11 @@ function Remove-CommonModules {
             $Global:Logging.Loaded = $false;
         }
 
-        Remove-Module -Name $_ -Force -Verbose:$False -Debug:$False;
+        try {
+            Remove-Module -Name $_ -Force -Verbose:$False -Debug:$False;
+        } catch {
+            Invoke-EnvDebug -Message "Failed to remove module $Local:Module";
+        }
     };
 
     if ($Global:CompiledScript) {
@@ -295,17 +302,47 @@ function Invoke-RunMain {
 
         process {
             try {
-                # FIXME :: it's not working as expected
+                # FIXME :: it's not working as expected, currently not executing if ran from within a script.
                 # If the script is being run directly, invoke the main function
-                If ($Invocation.CommandOrigin -eq 'Runspace') {
-                    Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
-                    & $Main;
-                } else {
-                    Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Script is being imported, skipping main function.';
-                }
+                # If ($Invocation.CommandOrigin -eq 'Runspace') {
+                Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
+
+                $Local:RunBoundParameters = $Invocation.BoundParameters;
+                & $Main @Local:RunBoundParameters;
+                # } else {
+                #     Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Script is being imported, skipping main function.';
+                # }
+
+                # $Invocation | Select-Object -Property * | Format-List;
+                # $Global:Invocation = $Invocation;
+                # $Global:PSCallStack = Get-PSCallStack;
+
+                # Being ran from terminal
+                # CommandOrigin: Runspace
+                # InvocationName: relative path to script name
+                # if ($Invocation.CommandOrigin -eq 'Runspace' -and ($Invocation.InvocationName | Split-Path -Leaf) -eq $Invocation.MyCommand.Name) {
+                #     Invoke-EnvInfo -UnicodePrefix '🚀' -Message 'Running main function.';
+                #     $Local:RunBoundParameters = $Invocation.BoundParameters;
+                #     & $Main @Local:RunBoundParameters;
+                # }
+
+                # Being imported
+                # CommandOrigin: Internal
+                #
+
+
+                # if ($Invocation.MyCommand.CommandType -eq 'Script') {
+                #     Write-Host 'The script is being run directly from the terminal.'
+                # } elseif ($null -ne $Invocation.MyCommand.Module) {
+                #     Write-Host 'The script has been imported using Import-Module.'
+                # } elseif ($Invocation.MyCommand.CommandType -eq 'Script' -or $Invocation.MyCommand.CommandType -eq 'ExternalScript') {
+                #     Write-Host 'The script is being run from within another script.'
+                # } else {
+                #     Write-Host 'The script context is unclear.'
+                # }
             } catch {
-                $Local:Error = $_;
-                switch ($Local:Error.FullyQualifiedErrorId) {
+                $Local:CatchingError = $_;
+                switch ($Local:CatchingError.FullyQualifiedErrorId) {
                     'QuickExit' {
                         Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
                     }
@@ -319,17 +356,15 @@ function Invoke-RunMain {
                     }
                     default {
                         Invoke-Error 'Uncaught Exception during script execution';
-                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:Error -DontExit;
+                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:CatchingError -DontExit;
                     }
                 }
             } finally {
-                Invoke-Handlers;
-
                 if (-not $Local:DontImport) {
+                    Invoke-Handlers;
                     Invoke-Teardown;
                     Remove-CommonModules;
                 }
-
 
                 if ($Global:ScriptRestarting) {
                     Invoke-EnvVerbose -UnicodePrefix '🔄' -Message 'Restarting script.';
