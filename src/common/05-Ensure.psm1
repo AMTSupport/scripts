@@ -1,4 +1,8 @@
-$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description "Not running as administrator!`nPlease re-run your terminal session as Administrator, and try again.";
+$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description @"
+Not running as administrator!
+Please re-run your terminal session as Administrator, and try again.
+"@;
+
 <#
 .SYNOPSIS
     Ensures the current session is running as an Administrator.
@@ -30,7 +34,9 @@ function Invoke-EnsureUser {
     Invoke-Verbose -Message 'Running as user.';
 }
 
-$Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module.';
+$Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module {0}';
+$Script:UNABLE_TO_IMPORT_MODULE = Register-ExitCode -Description 'Unable to import module {0}';
+$Script:UNABLE_TO_UPDATE_MODULE = Register-ExitCode -Description 'Unable to update module {0}';
 $Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
 $Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module {0}.';
 $Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
@@ -121,6 +127,13 @@ function Invoke-EnsureModule {
     end { Exit-Scope; }
 
     process {
+        $ErrorActionPreference = 'Stop';
+
+        if (-not (Test-NetworkConnection)) {
+            Invoke-Warn 'No network connection, some modules may not be installed.';
+            return;
+        };
+
         #region NuGet Package Provider
         if (-not $Script:CheckedNuGet) {
             try {
@@ -173,11 +186,6 @@ function Invoke-EnsureModule {
             }
 
             $Local:InstallArgs.Add('Name', $Local:ModuleName);
-
-            [Bool]$Local:IsLocalPath = Test-Path -Path $Local:ModuleName;
-            [Bool]$Local:IsGitRepo = $Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$';
-            $Local:CurrentImportedModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
-            $Local:AvailableModule = if (-not ($Local:CurrentImportedModule)) { Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1; } else { $Local:CurrentImportedModule };
             #endregion
 
             function Import-Module_Internal {
@@ -200,15 +208,17 @@ function Invoke-EnsureModule {
                     Invoke-Info "Module '$ModuleName' imported with version $($Local:ImportedModule.Version).";
                     $Script:SatisfiedModules[$ModuleName] = $Local:ImportedModule.Version;
                 } catch {
-                    Invoke-Error -Message "Unable to install module '$ModuleName'";
-                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_IMPORT_MODULE -FormatArgs $ModuleName;
                 }
             }
 
-            if ($Local:IsLocalPath) {
+            if (Test-Path $Local:ModuleName) {
                 Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
                 Import-Module_Internal -ModuleName:($Local:ModuleName | Split-Path -LeafBase) -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
-            } elseif ($Local:IsGitRepo) {
+                continue;
+            }
+
+            if ($Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$') {
                 # FIXME - Don't use auto variable matches, could be accidentally overwritten.
                 Invoke-Debug "Module '$Local:ModuleName' is a git repository, importing...";
                 # Try to install the module from a git repository.
@@ -220,16 +230,26 @@ function Invoke-EnsureModule {
                 [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
                 Import-Module_Internal -ModuleName:($Local:ModuleName | Split-Path -LeafBase) -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
                 continue;
-            } elseif ($Local:AvailableModule) {
+            }
+
+            $Local:CurrentImportedModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
+            $Local:AvailableModule = if (-not ($Local:CurrentImportedModule)) { Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1; } else { $Local:CurrentImportedModule };
+
+            if ($Local:AvailableModule) {
                 Invoke-Debug "Module '$Local:ModuleName' is installed with version $($Local:AvailableModule.Version).";
                 if ($Local:ModuleMinimumVersion -and $Local:AvailableModule.Version -lt $Local:ModuleMinimumVersion) {
                     Invoke-Verbose 'Module is installed, but the version is less than the minimum version required, trying to update...';
                     try {
-                        Update-Module -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion;
+                        Update-Module -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion -ErrorAction Stop;
                         Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
                     } catch {
-                        Invoke-Error -Message "Unable to update module '$Local:ModuleName'";
-                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+                        if ($_.FullyQualifiedErrorId -ne 'ModuleNotInstalledUsingInstallModuleCmdlet,Update-Module') {
+                            Invoke-Error -Message "Unable to update module '$Local:ModuleName'";
+                            Invoke-FailedExit -ExitCode $Script:UNABLE_TO_UPDATE_MODULE -FormatArgs @($Local:ModuleName);
+                        }
+
+                        Invoke-Verbose 'Module was unable to be updated, will try to install...';
+                        [Boolean]$Local:TryInstall = $true
                     }
                 } elseif ($null -eq $Local:CurrentImportedModule -or ($Local:CurrentImportedModule.Version -lt $Local:ModuleMinimumVersion)) {
                     Invoke-Debug "Module '$Local:ModuleName' is installed, but the version is less than the minimum version required, importing...";
@@ -238,18 +258,38 @@ function Invoke-EnsureModule {
                     Invoke-Debug "Module '$Local:ModuleName' is installed, skipping...";
                     $Script:SatisfiedModules[$Local:ModuleName] = $Local:CurrentImportedModule.Version;
                 }
-            } else {
-                $Local:FoundModule = Find-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue;
+            }
+
+            if ($null -eq $Local:AvailableModule -or $Local:TryInstall) {
+                $Local:FoundModule = Find-Module `
+                    -Name $Local:ModuleName `
+                    -MinimumVersion:$(if ($Local:InstallArgs.MinimumVersion) { $Local:InstallArgs.MinimumVersion} else { '0.0.0' }) `
+                    -ErrorAction SilentlyContinue;
+
                 if ($Local:FoundModule) {
                     Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
-                    $Local:FoundModule | Install-Module @Local:InstallArgs;
-                    Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
+                    try {
+                        $Local:FoundModule | Install-Module -AllowClobber -Scope CurrentUser -Force;
+                    } catch {
+                        Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:UNABLE_TO_INSTALL_MODULE -FormatArgs @($Local:ModuleName);
+                    }
+
+                    # There may have been a good reason to restart,
+                    # Like an assembly conflict or something.
+                    if (-not $Local:Module.RestartIfUpdated) {
+                        Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove -ErrorAction SilentlyContinue;
+                    } else {
+                        Invoke-Info "Module '$Local:ModuleName' has been installed, restart script...";
+                        Restart-Script;
+                    }
+                } else {
+                    Invoke-Warn "Unable to find module '$Local:ModuleName'.";
                 }
             }
 
             [PSModuleInfo]$Local:AfterEnsureModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
             if ($null -eq $Local:AfterEnsureModule) {
-                Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -Arguments @($Local:ModuleName);
+                Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -FormatArgs @($Local:ModuleName);
             } elseif ($Local:CurrentImportedModule -ne $Local:AfterEnsureModule -and $Local:Module.RestartIfUpdated) {
                 Invoke-Info "Module '$Local:ModuleName' has been updated, restart script...";
                 Restart-Script;

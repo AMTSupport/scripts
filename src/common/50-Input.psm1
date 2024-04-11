@@ -66,6 +66,60 @@ function Unregister-CustomReadLineHandlers([HashTable]$PreviousHandlers) {
 }
 
 # TODO - Better SecureString handling.
+<#
+.SYNOPSIS
+    Prompts the user for input.
+
+.DESCRIPTION
+    Prompts the user for input, with the ability to validate the input and return it as a SecureString.
+    If the input is invalid, the user will be prompted to try again.
+
+.PARAMETER Title
+    The title of the prompt.
+
+.PARAMETER Question
+    The question to ask the user.
+
+.PARAMETER Validate
+    A script block to validate the user input.
+    The script block is invoked with the raw string the user entered.
+
+.PARAMETER AsSecureString
+    If set, the user input will be returned as a SecureString.
+    This setting implies DontSaveInputs.
+
+.PARAMETER DontSaveInputs
+    If set, the user input will not be saved in the history.
+
+.PARAMETER SaveInputAsUniqueHistory
+    If set, the user input will be saved as a unique history item.
+    This will result in a history file being made which is only avaialble when this exact
+    Get-UserInput function is called, this is done by combining the title and question and hashing it.
+
+    When this is set, the input will not be saved to normal history and the user will only be able to
+    use the up and down arrow keys to navigate through the history of this specific prompt.
+
+.EXAMPLE
+    ```
+    Get-UserInput `
+        -Title 'Enter your name' `
+        -Question 'What is your name?' `
+        -Validate { Param([String]$Input) $Input.Length -gt 0; }
+    ```
+
+    This will prompt the user with the title "Enter your name" and the question "What is your name?".
+
+.EXAMPLE
+    ```
+    Get-UserInput `
+        -Title 'Enter your password' `
+        -Question 'What is your password?' `
+        -AsSecureString
+    ```
+
+    This will prompt the user with the title "Enter your password" and the question "What is your password?".
+    The user input will be returned as a SecureString.
+#>
 function Get-UserInput {
     Param(
         [Parameter(Mandatory)]
@@ -84,7 +138,10 @@ function Get-UserInput {
         [Switch]$AsSecureString,
 
         [Parameter()]
-        [Switch]$DontSaveInputs
+        [Switch]$DontSaveInputs = $AsSecureString,
+
+        [Parameter()]
+        [Switch]$SaveInputAsUniqueHistory
     )
 
     begin { Enter-Scope; Install-Requirements; }
@@ -94,7 +151,7 @@ function Get-UserInput {
         Invoke-Write @Script:WriteStyle -PSMessage $Title;
         Invoke-Write @Script:WriteStyle -PSMessage $Question;
 
-        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:($DontSaveInputs -or $AsSecureString);
+        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:$DontSaveInputs;
 
         $Host.UI.RawUI.FlushInputBuffer();
         Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
@@ -343,21 +400,16 @@ function Install-Requirements {
 
     # Windows comes pre-installed with PSReadLine 2.0.0, so we need to ensure that we have at least 2.3.0;
     Invoke-EnsureModule @{
-        Name           = 'PSReadLine';
-        MinimumVersion = '2.3.0';
-        DontRemove     = $True;
+        Name                = 'PSReadLine';
+        MinimumVersion      = '2.3.0';
+        DontRemove          = $True;
+        RestartIfUpdated    = $True;
     };
 
     $Using = [ScriptBlock]::Create('Using module ''PSReadLine''');
     . $Using;
 
     [Boolean]$Script:CompletedSetup = $True;
-}
-
-try {
-    Install-Requirements;
-} catch {
-    throw $_;
 }
 
 Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
