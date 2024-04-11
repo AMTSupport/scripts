@@ -123,6 +123,8 @@ function Invoke-QuickExit {
 function Restart-Script {
     Invoke-Handlers -IsFailure:$False;
 
+    Invoke-Info 'Restarting script...';
+
     [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
         [System.Exception]::new('Restart Script'),
         'RestartScript',
@@ -180,4 +182,4 @@ function Register-ExitCode {
     return $Local:ExitCode;
 }
 
-Export-ModuleMember -Function Invoke-Handlers, Invoke-FailedExit, Invoke-QuickExit, Register-ExitHandler, Register-ExitCode;
+Export-ModuleMember -Function Invoke-Handlers, Invoke-FailedExit, Invoke-QuickExit, Register-ExitHandler, Register-ExitCode, Restart-Script;
