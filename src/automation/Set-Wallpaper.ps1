@@ -1,7 +1,10 @@
 [CmdletBinding(DefaultParameterSetName='Set_Base64')]
 param(
-    [Parameter(ParameterSetName='Set_Function')]
-    [String]$FunctionParameter,
+    [Parameter(ParameterSetName='Set_StorageBlob')]
+    [String]$StorageBlobUrl,
+
+    [Parameter(ParameterSetName='Set_StorageBlob')]
+    [String]$StorageBlobSasToken,
 
     [Parameter(Mandatory, ParameterSetName='Set_Base64')]
     [ValidateNotNullOrEmpty()]
@@ -36,6 +39,32 @@ function Invoke-EncodeFromFile {
     }
 }
 
+function Find-FileByHash {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Hash,
+
+        [Parameter(Mandatory)]
+        [Object]$Path,
+
+        [String]$Filter = '*'
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        foreach ($Local:File in Get-ChildItem -Path $Path -File -Filter:$Filter) {
+            [String]$Local:FileHash = Get-FileHash -Path $Local:File.FullName -Algorithm MD5;
+            if ($Local:FileHash -eq $Hash) {
+                return $Local:File;
+            }
+        }
+
+        return $null;
+    }
+}
+
 function Export-ToFile {
     [CmdletBinding()]
     param(
@@ -50,20 +79,43 @@ function Export-ToFile {
     end { Exit-Scope; }
 
     process {
-        [System.IO.DirectoryInfo]$Local:WallpaperFolder = Get-Item -Path $Script:WallpaperFolder;
-        if (-not (Test-Path -Path $Local:WallpaperFolder.FullName)) {
-            New-Item -Path $Local:WallpaperFolder.FullName -ItemType Directory -Force;
-        }
-
-        # Enter Loop to ensure unique file name
-        do {
-            [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.jpg';
-            [System.IO.FileInfo]$Local:Path = [System.IO.Path]::Combine($WallpaperFolder.FullName, $FileName);
-        } while (Test-Path -Path $Path);
-
-        [System.IO.File]::WriteAllBytes($Path, [System.Convert]::FromBase64String($Base64Content));
+        [System.IO.FileInfo]$Local:TmpFile = New-Item -Path $env:TEMP -Name ([System.IO.Path]::GetTempFileName()) -ItemType File -Force;
+        [System.IO.File]::WriteAllBytes($TmpFile, [System.Convert]::FromBase64String($Base64Content));
 
         return $Path;
+    }
+}
+
+function Get-FromBlob {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [String]$Url,
+
+        [Parameter(Mandatory)]
+        [String]$SasToken
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        [String]$Local:Uri = "${Url}?${SasToken}";
+
+        Invoke-Debug "Calling HEAD on $Local:Uri to get MD5 hash...";
+        Invoke-RestMethod -Uri:$Local:Uri -Method:HEAD -ResponseHeadersVariable:ResponseHeaders;
+        [String]$Local:MD5 = $ResponseHeaders['Content-MD5'];
+
+        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.png';
+
+        if ($Local:ExistingFile) {
+            return $Local:ExistingFile;
+        }
+
+        [String]$Local:OutPath = [System.IO.Path]::Combine($env:TEMP, [System.IO.Path]::GetTempFileName());
+        Invoke-RestMethod -Uri:$Local:Uri -Method:GET -OutFile:$Local:OutPath;
+
+        return $Local:OutPath;
     }
 }
 
@@ -186,36 +238,20 @@ function Get-ReusableFile {
     end { Exit-Scope; }
 
     process {
-        function Test-IsSameWallpaper {
-            param(
-                [Parameter(Mandatory)]
-                [System.IO.FileInfo]$NewPath,
-
-                [Parameter(Mandatory)]
-                [System.IO.FileInfo]$ExistingPath
-            )
-
-            [String]$Local:NewWallpaperHash = Get-FileHash -Path $NewPath -Algorithm SHA512;
-            [String]$Local:CurrentWallpaperHash = Get-FileHash -Path $ExistingPath -Algorithm SHA512;
-
-            if ($CurrentWallpaperHash -eq $NewWallpaperHash) {
-                return $True;
-            } else {
-                return $False;
-            }
-        }
-
         [System.IO.DirectoryInfo]$Local:WallpaperFolder = Get-Item -Path $Script:WallpaperFolder;
-        foreach ($Local:WallpaperPath in Get-ChildItem -Path $Local:WallpaperFolder -Filter '*.jpg' -File) {
-            if ($Path.FullName -eq $Local:WallpaperPath.FullName) {
-                continue;
-            }
+        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:(Get-FileHash -Path $Path -Algorithm MD5) -Path:$Local:WallpaperFolder -Filter:'*.png';
+        if ($Local:ExistingFile) {
+            Remove-Item -Path $Path; # Remove the file if it is the same as an existing file.
+            $Path = $Local:ExistingFile;
+        } else {
+            # Enter Loop to ensure unique file name
+            do {
+                [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.png';
+                [System.IO.FileInfo]$Local:NewPath = [System.IO.Path]::Combine($WallpaperFolder.FullName, $FileName);
+            } while (Test-Path -Path $Path);
 
-            if (Test-IsSameWallpaper -NewPath $Path -ExistingPath $Local:WallpaperPath) {
-                Remove-Item -Path $Path; # Remove the file if it is the same as an existing file.
-                $Path = $Local:WallpaperPath;
-                break;
-            }
+            Move-Item -Path:$Path -Destination:$Local:NewPath;
+            $Path = $Local:NewPath;
         }
 
         return $Path;
@@ -224,6 +260,9 @@ function Get-ReusableFile {
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
+    return
+    Invoke-EnsureAdministrator;
+
     switch ($PSCmdlet.ParameterSetName) {
         'Set_Base64' {
             Invoke-Info 'Setting wallpaper...';
@@ -232,12 +271,12 @@ Invoke-RunMain $MyInvocation {
             [System.IO.FileInfo]$Local:ImagePath = Get-ReusableFile -Path $Local:ImagePath;
             Set-Wallpaper -Path $Local:ImagePath;
         }
-        'Set_Function' {
+        'Set_StorageBlob' {
             Invoke-Info 'Setting wallpaper...';
 
-            # Call azure function with parameter
+            [String]$Local:ImagePath = Get-FromBlob -Url $StorageBlobUrl -SasToken $StorageBlobSasToken;
 
-            Set-Wallpaper -Path $Path;
+            Set-Wallpaper -Path $Local:ImagePath;
         }
         'Encode' {
             Invoke-Info 'Encoding image to base64...';
