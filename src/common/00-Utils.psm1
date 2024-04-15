@@ -524,15 +524,18 @@ function Export-Types {
         [Parameter(Mandatory)]
         [Type[]]$Types,
 
-        [Switch]$Clobber
+        [Switch]$Clobber,
+
+        [Parameter(DontShow)]
+        [PSModuleInfo]$Module = (Get-PSCallStack)[0].InvocationInfo.MyCommand.ScriptBlock.Module
     )
 
-    if (-not $MyInvocation.MyCommand.ScriptBlock.Module) {
+    if (-not $Module) {
         throw [System.InvalidOperationException]::new('This function must be called from within a module.');
     }
 
     # Get the internal TypeAccelerators class to use its static methods.
-    $TypeAcceleratorsClass = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators');
+    $TypeAcceleratorsClass = [PSObject].Assembly.GetType('System.Management.Automation.TypeAccelerators');
 
     if (-not $Clobber) {
         # Ensure none of the types would clobber an existing type accelerator.
@@ -557,15 +560,18 @@ function Export-Types {
 
     # Add type accelerators for every exportable type.
     foreach ($Type in $Types) {
-        $TypeAcceleratorsClass::Add($Type.FullName, $Type)
+        $TypeAcceleratorsClass::Add($Type.FullName, $Type);
     }
 
+    Invoke-Debug "Exported types: $($Types -join ', ')";
+    Invoke-Debug "Registering module callback to remove type accelerators: $($Types -join ', ') from $($Module)";
+
     # Remove type accelerators when the module is removed.
-    Add-ModuleCallback -Module $MyInvocation.MyCommand.ScriptBlock.Module -ScriptBlock {
+    Add-ModuleCallback -Module $Module -ScriptBlock {
         foreach ($Type in $Types) {
-            $TypeAcceleratorsClass::Remove($Type.FullName) | Out-Null
+            $null = $TypeAcceleratorsClass::Remove($Type.FullName);
         }
-    }
+    }.GetNewClosure();
 }
 
 <#
@@ -609,21 +615,17 @@ function Add-ModuleCallback {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ScriptBlock]$ScriptBlock,
+        $ScriptBlock,
 
-        [Parameter(Mandatory)]
-        [System.Management.Automation.PSModuleInfo]$Module
+        [Parameter()]
+        $Module = (Get-PSCallStack)[0].InvocationInfo.MyCommand.ScriptBlock.Module
     )
 
     if (-not $Module) {
-        $Module = $MyInvocation.MyCommand.ScriptBlock.Module;
-
-        if (-not $Module) {
-            throw [System.InvalidOperationException]::new('This function must be called from within a module.');
-        }
+        throw [System.InvalidOperationException]::new('This function must be called from within a module.');
     }
 
-    $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = $ScriptBlock.GetNewClosure()
+    $Module.OnRemove = $ScriptBlock;
 }
 
 #endregion
