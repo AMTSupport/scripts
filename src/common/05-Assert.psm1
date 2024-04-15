@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 
 function Assert-NotNull(
-    [Parameter(Mandatory, ValueFromPipeline)]
+    [Parameter(ValueFromPipeline)]
     [Object]$Object,
 
     [Parameter()]
