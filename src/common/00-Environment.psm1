@@ -79,6 +79,7 @@ function Invoke-EnvDebug {
 }
 #endregion
 
+#region - Utility Functions
 function Get-OrFalse {
     Param(
         [Parameter(Mandatory)]
@@ -98,6 +99,43 @@ function Get-OrFalse {
         }
     }
 }
+
+function Test-ExplicitlyCalled {
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [System.Management.Automation.InvocationInfo]$Invocation
+    )
+
+    process {
+        $Global:Invocation = $Invocation;
+        $Global:PSCallStack = Get-PSCallStack;
+
+        # Being ran from terminal
+        # CommandOrigin: Runspace
+        # InvocationName: relative path to script name
+        if ($Invocation.CommandOrigin -eq 'Runspace' -and ($Invocation.InvocationName | Split-Path -Leaf) -eq $Invocation.MyCommand.Name) {
+            return $True;
+        }
+
+        # Being imported
+        # CommandOrigin: Internal
+        #
+
+
+        # if ($Invocation.MyCommand.CommandType -eq 'Script') {
+        #     Write-Host 'The script is being run directly from the terminal.'
+        # } elseif ($null -ne $Invocation.MyCommand.Module) {
+        #     Write-Host 'The script has been imported using Import-Module.'
+        # } elseif ($Invocation.MyCommand.CommandType -eq 'Script' -or $Invocation.MyCommand.CommandType -eq 'ExternalScript') {
+        #     Write-Host 'The script is being run from within another script.'
+        # } else {
+        #     Write-Host 'The script context is unclear.'
+        # }
+        return $False;
+    }
+}
+#endregion
 
 function Invoke-Setup {
     $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
@@ -223,10 +261,6 @@ function Remove-CommonModules {
             Invoke-EnvDebug -Message "Failed to remove module $Local:Module";
         }
     };
-
-    if ($Global:CompiledScript) {
-        Remove-Variable -Scope Global -Name CompiledScript, EmbededModules, Logging;
-    }
 }
 
 <#
@@ -256,10 +290,10 @@ function Invoke-RunMain {
         [ScriptBlock]$Main,
 
         [Parameter(DontShow)]
-        [Switch]$DontImport,
+        [Switch]$DontImport = (-not (Test-ExplicitlyCalled -Invocation:$Invocation)),
 
         [Parameter(DontShow)]
-        [Switch]$HideDisclaimer = (($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
+        [Switch]$HideDisclaimer = ($DontImport -or ($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
     )
 
     # Workaround for embedding modules in a script, can't use Invoke if a scriptblock contains begin/process/clean blocks
@@ -281,65 +315,37 @@ function Invoke-RunMain {
         )
 
         begin {
-            foreach ($Local:Param in @('Verbose','Debug')) {
-                if ($Invocation.BoundParameters.ContainsKey($Local:Param)) {
-                    $Global:Logging[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
+            # If the script is being restarted, we have already done this.
+            if (-not $Global:ScriptRestarted) {
+                foreach ($Local:Param in @('Verbose','Debug')) {
+                    if ($Invocation.BoundParameters.ContainsKey($Local:Param)) {
+                        $Global:Logging[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
+                    }
                 }
-            }
 
-            if (-not $HideDisclaimer) {
-                Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
-            }
+                if (-not $HideDisclaimer) {
+                    Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
+                }
 
-            if ($Local:DontImport) {
-                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Skipping module import.';
-                return;
-            }
+                if ($Local:DontImport) {
+                    Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Skipping module import.';
+                    return;
+                }
 
-            Import-CommonModules;
-            Invoke-Setup;
+                Import-CommonModules;
+                Invoke-Setup;
+            }
         }
 
         process {
             try {
                 # FIXME :: it's not working as expected, currently not executing if ran from within a script.
-                # If the script is being run directly, invoke the main function
-                # If ($Invocation.CommandOrigin -eq 'Runspace') {
-                Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
+                if (Test-ExplicitlyCalled -Invocation:$Invocation) {
+                    Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
 
-                $Local:RunBoundParameters = $Invocation.BoundParameters;
-                & $Main @Local:RunBoundParameters;
-                # } else {
-                #     Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Script is being imported, skipping main function.';
-                # }
-
-                # $Invocation | Select-Object -Property * | Format-List;
-                # $Global:Invocation = $Invocation;
-                # $Global:PSCallStack = Get-PSCallStack;
-
-                # Being ran from terminal
-                # CommandOrigin: Runspace
-                # InvocationName: relative path to script name
-                # if ($Invocation.CommandOrigin -eq 'Runspace' -and ($Invocation.InvocationName | Split-Path -Leaf) -eq $Invocation.MyCommand.Name) {
-                #     Invoke-EnvInfo -UnicodePrefix '🚀' -Message 'Running main function.';
-                #     $Local:RunBoundParameters = $Invocation.BoundParameters;
-                #     & $Main @Local:RunBoundParameters;
-                # }
-
-                # Being imported
-                # CommandOrigin: Internal
-                #
-
-
-                # if ($Invocation.MyCommand.CommandType -eq 'Script') {
-                #     Write-Host 'The script is being run directly from the terminal.'
-                # } elseif ($null -ne $Invocation.MyCommand.Module) {
-                #     Write-Host 'The script has been imported using Import-Module.'
-                # } elseif ($Invocation.MyCommand.CommandType -eq 'Script' -or $Invocation.MyCommand.CommandType -eq 'ExternalScript') {
-                #     Write-Host 'The script is being run from within another script.'
-                # } else {
-                #     Write-Host 'The script context is unclear.'
-                # }
+                    $Local:RunBoundParameters = $Invocation.BoundParameters;
+                    & $Main @Local:RunBoundParameters;
+                }
             } catch {
                 $Local:CatchingError = $_;
                 switch ($Local:CatchingError.FullyQualifiedErrorId) {
@@ -363,14 +369,25 @@ function Invoke-RunMain {
                 if (-not $Local:DontImport) {
                     Invoke-Handlers;
                     Invoke-Teardown;
-                    Remove-CommonModules;
+
+                    # There is no point in removing the modules if the script is restarting.
+                    if (-not $Global:ScriptRestarting) {
+                        Remove-CommonModules;
+                    }
+
+                    if (-not $Global:ScriptRestarting) {
+                        if ($Global:CompiledScript) {
+                            Remove-Variable -Scope Global -Name CompiledScript, EmbededModules;
+                        }
+
+                        Remove-Variable -Scope Global -Name Logging, ScriptRestarted -ErrorAction SilentlyContinue;
+                    }
                 }
 
                 if ($Global:ScriptRestarting) {
                     Invoke-EnvVerbose -UnicodePrefix '🔄' -Message 'Restarting script.';
                     Remove-Variable -Scope Global -Name ScriptRestarting;
                     Set-Variable -Scope Global -Name ScriptRestarted -Value $True; # Bread trail for the script to know it's been restarted.
-                    Remove-Variable -Scope Local;
                     Invoke-Inner @PSBoundParameters;
                 }
             }
