@@ -54,14 +54,37 @@ function Find-FileByHash {
     end { Exit-Scope; }
 
     process {
+        Invoke-Info "Looking for file with hash $Hash in $Path...";
+
         foreach ($Local:File in Get-ChildItem -Path $Path -File -Filter:$Filter) {
-            [String]$Local:FileHash = Get-FileHash -Path $Local:File.FullName -Algorithm MD5;
+            [String]$Local:FileHash = Get-BlobCompatableHash -Path:$Local:File.FullName;
+            Invoke-Debug "Checking file $($Local:File.FullName) with hash $Local:FileHash...";
             if ($Local:FileHash -eq $Hash) {
                 return $Local:File;
             }
         }
 
         return $null;
+    }
+}
+
+function Get-BlobCompatableHash {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Path
+    )
+
+    begin {
+        Enter-Scope;
+        $Private:Algorithm = [System.Security.Cryptography.HashAlgorithm]::Create('MD5');
+    }
+    end { Exit-Scope; }
+
+    process {
+        [Byte[]]$Private:ByteStream = Get-Content -Path:$Path -Raw -AsByteStream;
+        [Byte[]]$Private:HashBytes = $Private:Algorithm.ComputeHash($Private:ByteStream);
+
+        return [System.Convert]::ToBase64String($Private:HashBytes);
     }
 }
 
@@ -106,13 +129,13 @@ function Get-FromBlob {
         Invoke-RestMethod -Uri:$Local:Uri -Method:HEAD -ResponseHeadersVariable:ResponseHeaders;
         [String]$Local:MD5 = $ResponseHeaders['Content-MD5'];
 
-        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.png';
+        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.jpg';
 
         if ($Local:ExistingFile) {
             return $Local:ExistingFile;
         }
 
-        [String]$Local:OutPath = [System.IO.Path]::Combine($env:TEMP, [System.IO.Path]::GetTempFileName());
+        [String]$Local:OutPath = [System.IO.Path]::Combine($Script:WallpaperFolder, [System.IO.Path]::GetRandomFileName() + '.jpg');
         Invoke-RestMethod -Uri:$Local:Uri -Method:GET -OutFile:$Local:OutPath;
 
         return $Local:OutPath;
@@ -132,7 +155,7 @@ function Set-Wallpaper {
         Enter-Scope;
 
         try {
-            Add-Type @'
+            Add-Type <#c#> @'
                 using System;
                 using System.Runtime.InteropServices;
                 using Microsoft.Win32;
@@ -141,16 +164,18 @@ function Set-Wallpaper {
 	                    Tile, Center, Stretch, Fill, Fit, Span, NoChange
                     }
 
+                    public const int SetDesktopWallpaper = 20;
+                    public const int UpdateIniFile = 0x01;
+                    public const int SendWinIniChange = 0x02;
+
+                    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+                    private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fWinIni);
+
                     public class Setter {
-                        // public const int SetDesktopWallpaper = 20;
-	                    // public const int UpdateIniFile = 0x01;
-	                    // public const int SendWinIniChange = 0x02;
-
-                        // [DllImport( "user32.dll", SetLastError = true, CharSet = CharSet.Auto )]
-	                    // private static extern int SystemParametersInfo (int uAction, int uParam, string lpvParam, int fuWinIni);
-
                         public static void SetWallpaper(string path, Wallpaper.Style style) {
-		                    // SystemParametersInfo(SetDesktopWallpaper, 0, path, UpdateIniFile | SendWinIniChange);
+                            // clear current wallpaper and update ini
+                            SystemParametersInfo(SetDesktopWallpaper, 0, "", UpdateIniFile | SendWinIniChange);
+
 		                    RegistryKey key = Registry.CurrentUser.OpenSubKey("Control Panel\\Desktop", true);
 		                    switch(style) {
 			                    case Style.Tile :
@@ -209,7 +234,7 @@ function Set-Wallpaper {
         # ForEach for all users, load the .dat hive and set the wallpaper
         [Wallpaper.Setter]::SetWallpaper($Path, $StyleNum[$Style]);
 
-        rundll32.exe user32.dll, UpdatePerUserSystemParameters;
+        Update-PerUserSystemParameters;
     }
 }
 
@@ -224,7 +249,19 @@ function Remove-Wallpaper {
         Remove-RegistryKey -Path $Local:RegPath -Key 'DesktopImageUrl';
         Remove-RegistryKey -Path $Local:RegPath -Key 'DesktopImageStatus';
 
-        rundll32.exe user32.dll, UpdatePerUserSystemParameters;
+        Update-PerUserSystemParameters;
+    }
+}
+
+function Update-PerUserSystemParameters {
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        # For some reason, we need to run this multiple times to get it to work
+        for ($i = 0; $i -lt 50; $i++) {
+            rundll32.exe user32.dll, UpdatePerUserSystemParameters;
+        }
     }
 }
 
@@ -239,14 +276,14 @@ function Get-ReusableFile {
 
     process {
         [System.IO.DirectoryInfo]$Local:WallpaperFolder = Get-Item -Path $Script:WallpaperFolder;
-        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:(Get-FileHash -Path $Path -Algorithm MD5) -Path:$Local:WallpaperFolder -Filter:'*.png';
+        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:(Get-FileHash -Path $Path -Algorithm MD5) -Path:$Local:WallpaperFolder -Filter:'*.jpg';
         if ($Local:ExistingFile) {
             Remove-Item -Path $Path; # Remove the file if it is the same as an existing file.
             $Path = $Local:ExistingFile;
         } else {
             # Enter Loop to ensure unique file name
             do {
-                [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.png';
+                [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.jpg';
                 [System.IO.FileInfo]$Local:NewPath = [System.IO.Path]::Combine($WallpaperFolder.FullName, $FileName);
             } while (Test-Path -Path $Path);
 
@@ -260,7 +297,6 @@ function Get-ReusableFile {
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    return
     Invoke-EnsureAdministrator;
 
     switch ($PSCmdlet.ParameterSetName) {
