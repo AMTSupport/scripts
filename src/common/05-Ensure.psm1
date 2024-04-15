@@ -179,7 +179,7 @@ function Invoke-EnsureModule {
                 [Boolean]$Local:DontRemove = $False;
             }
 
-            [String]$Local:PossibleSatifiedModuleVersion = $Script:SatisfiedModules[$Local:ModuleName];
+            [Version]$Local:PossibleSatifiedModuleVersion = $Script:SatisfiedModules[$Local:ModuleName];
             if ($Local:PossibleSatifiedModuleVersion -and ($Local:PossibleSatifiedModuleVersion -ge $Local:MinimumVersion)) {
                 Invoke-Debug "Module '$Local:ModuleName' is already satisfied with version $Local:PossibleSatifiedModuleVersion.";
                 continue;
@@ -204,9 +204,21 @@ function Invoke-EnsureModule {
                 }
 
                 try {
-                    [PSModuleInfo]$Local:ImportedModule = Import-Module -Name $ModuleImport -Global -Force -PassThru;
+                    if ($ModuleImport.EndsWith('.ps1')) {
+                        [PSModuleInfo]$Local:ImportedModule = Import-Module `
+                            -Name $ModuleImport `
+                            -Function * `
+                            -Variable * `
+                            -Alias * `
+                            -Global `
+                            -Force `
+                            -PassThru;
+                    } else {
+                        [PSModuleInfo]$Local:ImportedModule = Import-Module -Name $ModuleImport -Global -Force -PassThru;
+                    }
+
                     Invoke-Info "Module '$ModuleName' imported with version $($Local:ImportedModule.Version).";
-                    $Script:SatisfiedModules[$ModuleName] = $Local:ImportedModule.Version;
+                    $Script:SatisfiedModules[$ModuleName] = [Version]::Parse($Local:ImportedModule.Version);
                 } catch {
                     Invoke-FailedExit -ExitCode $Script:UNABLE_TO_IMPORT_MODULE -FormatArgs $ModuleName;
                 }
