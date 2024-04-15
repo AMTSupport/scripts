@@ -1,7 +1,16 @@
-<Configuration>
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="resources/sandbox.schema.xsd">
     <vGPU>Enable</vGPU>
     <Networking>Enable</Networking>
     <LogonCommand>
-        <Command>powershell.exe -ExecutionPolicy Bypass</Command>
+        <Command>powershell.exe</Command>
     </LogonCommand>
+    <MappedFolders>
+        <MappedFolder>
+            <HostFolder></HostFolder>
+            <SandboxFolder>file</SandboxFolder>
+            <ReadOnly>Enable</ReadOnly>
+        </MappedFolder>
+    </MappedFolders>
 </Configuration>
