@@ -2,22 +2,22 @@ name: PowerShell Script Tests
 
 on:
   push:
-    branches: [ master ]
-    paths: [ 'src/**', 'tests/**', '.github/workflows/test-scripts.yaml' ]
+    branches: [master]
+    paths: ['src/**', 'tests/**', '.github/workflows/test-scripts.yaml']
 
 jobs:
   test:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout Repo
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Run Pester Tests
-      run: |
-        # Install Pester if not already installed
-        Install-Module -Name Pester -Force -SkipPublisherCheck
-        # Run tests
-        Invoke-Pester ./tests
+      - name: Run Pester Tests
+        run: |
+          # Install Pester if not already installed
+          Install-Module -Name Pester -Force -SkipPublisherCheck
+          # Run tests
+          Invoke-Pester ./tests
