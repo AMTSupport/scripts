@@ -2,10 +2,14 @@ name: Compiler
 
 on:
   push:
-    branches: [ master ]
-    paths: [ 'src/**', 'compiled/**', 'utils/Compiler.ps1', '.github/workflows/compiler.yaml' ]
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'compiled/**'
+      - 'utils/Compiler.ps1'
+      - '.github/workflows/compiler.yaml'
   pull_request:
-    paths: [ 'src/**', 'compiled/**', 'utils/Compiler.ps1' ]
+    paths: ['src/**', 'compiled/**', 'utils/Compiler.ps1']
 
 jobs:
   changes:
@@ -15,26 +19,26 @@ jobs:
       src: ${{ steps.changes.outputs.src }}
       src_deleted: ${{ steps.changes.outputs.src_deleted }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Checks for changes in the 'compiled' and 'src' directories
-      # We include 'utils/Compiler.ps1' in the 'src' directory incase it is modified
-      # As this can affect all scripts in the src directory.
-      # We also check for deleted files so we can cleanup the compiled directory
-    - name: Collect Changes for Upcoming Jobs
-      uses: dorny/paths-filter@v3.0.2
-      id: changes
-      with:
-        list-files: shell
-        filters: |
-          compiled:
-            - 'compiled/**'
-          src:
-            - 'src/**'
-            - 'utils/Compiler.ps1'
-          src_deleted:
-            - deleted: 'src/**'
+        # Checks for changes in the 'compiled' and 'src' directories
+        # We include 'utils/Compiler.ps1' in the 'src' directory incase it is modified
+        # As this can affect all scripts in the src directory.
+        # We also check for deleted files so we can cleanup the compiled directory
+      - name: Collect Changes for Upcoming Jobs
+        uses: dorny/paths-filter@v3.0.2
+        id: changes
+        with:
+          list-files: shell
+          filters: |
+            compiled:
+              - 'compiled/**'
+            src:
+              - 'src/**'
+              - 'utils/Compiler.ps1'
+            src_deleted:
+              - deleted: 'src/**'
 
   protect-directory:
     runs-on: ubuntu-latest

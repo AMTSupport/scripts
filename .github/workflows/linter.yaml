@@ -1,8 +1,6 @@
 name: Lint
 
-on:
-  push: null
-  pull_request: null
+on: [workflow_dispatch]
 
 jobs:
   lint:
@@ -13,13 +11,13 @@ jobs:
       packages: read
       statuses: write
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Super-Linter
-      uses: super-linter/super-linter@v6.3.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        FILTER_REGEX_EXCLUDE: '.*compiled/.*|.*docs/.*'
+      - name: Super-Linter
+        uses: super-linter/super-linter@v6.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FILTER_REGEX_EXCLUDE: '.*compiled/.*|.*docs/.*'
