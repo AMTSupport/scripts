@@ -11,7 +11,6 @@ Param(
     [ScriptBlock]$Invoke
 )
 
-
 function New-HuduDatabase {
     Param(
         [Parameter(Mandatory)]
