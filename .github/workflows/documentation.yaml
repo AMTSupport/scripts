@@ -30,7 +30,7 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            docs/docs/**
+            'docs/docs/**'
 
       - name: Commit changes
         if: ${{ steps.changes.outputs.changes == 'true' }}
