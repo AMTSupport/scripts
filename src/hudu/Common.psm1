@@ -35,7 +35,7 @@ function Get-HuduCompanies {
         [PSCustomObject]$Local:Headers = @{'x-api-key' = Get-HuduApiKey };
 
         try {
-            $Local:Response = (Invoke-WebRequest -Headers $Local:Headers -Uri $Local:Uri -UseBasicParsing);
+            $Local:Response = (Invoke-RestMethod -Headers $Local:Headers -Uri $Local:Uri);
             [PSCustomObject[]]$Local:Companies = ($Local:Response | ConvertFrom-Json).companies;
 
             Invoke-Debug "Got $($Local:Companies.Count) companies from hudu.";
@@ -46,7 +46,7 @@ function Get-HuduCompanies {
 
         [Object[]]$Local:Companies = $Local:Companies `
             | Sort-Object -Property name `
-            | Where-Object { $_.company_type -ne 'Supplier' -and (-not $OnlyParents -or ($null -eq $_.parent_company_name)) };
+            | Where-Object { ($_.company_type -ne 'Supplier' -and $_.company_type -ne 'Personal') -and (-not $OnlyParents -or ($null -eq $_.parent_company_name)) };
 
         return $Local:Companies;
     }
