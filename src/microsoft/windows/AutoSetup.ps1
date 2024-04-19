@@ -155,72 +155,75 @@ function Invoke-EnsureSetupInfo {
     process {
         [String]$Local:File = "$($env:TEMP)\InstallInfo.json";
 
-        If (Test-Path $Local:File) {
-            Invoke-Info "Install Info exists, checking validity...";
+        function Invoke-TestOrGet {
+            param(
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [String]$Key,
 
-            try {
-                [PSCustomObject]$Local:InstallInfo = Get-Content -Path $Local:File -Raw | ConvertFrom-Json;
-                $Local:InstallInfo | Assert-NotNull -Message "Install info was null";
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [ScriptBlock]$GetBlock,
 
-                [String]$Local:DeviceName = $Local:InstallInfo.DeviceName;
-                $Local:DeviceName | Assert-NotNull -Message "Device name was null";
+                [Parameter(Mandatory)]
+                [PSCustomObject]$InstallInfo
+            )
 
-                [String]$Local:ClientId = $Local:InstallInfo.ClientId;
-                $Local:ClientId | Assert-NotNull -Message "Client id was null";
+            Invoke-Info "Testing for $Key in install info...";
+            Invoke-Info "Install Info: $($InstallInfo | ConvertTo-Json)";
 
-                [String]$Local:SiteId = $Local:InstallInfo.SiteId;
-                $Local:SiteId | Assert-NotNull -Message "Site id was null";
+            if (-not ($InstallInfo.PSObject.Properties.Name -contains $Key)) {
+                $Value = $GetBlock.InvokeWithContext($null, [PSVariable]::new('_', $InstallInfo));
+                Invoke-Info "Adding $Key to install info with value $Value...";
+                $InstallInfo | Add-Member -MemberType NoteProperty -Name:$Key -Value:$Value;
 
-                [String]$Local:Path = $Local:InstallInfo.Path;
-                $Local:Path | Assert-NotNull -Message "Path was null";
-
-
-                return $Local:InstallInfo;
-            } catch {
-                Invoke-Warn 'There was an issue with the install info, deleting the file for recreation...';
-                Remove-Item -Path $Local:File -Force;
+                Invoke-Info "Saving install info to $($InstallInfo.Path)...";
+                try {
+                    $InstallInfo | ConvertTo-Json | Set-Content -Path:$($InstallInfo.Path) -Force;
+                } catch {
+                    Invoke-Error "There was an issue saving the install info to $Local:File";
+                    Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+                }
             }
         }
 
-        Invoke-Info 'No install info found, creating new install info...';
+        If (Test-Path $Local:File) {
+            try {
+                [PSCustomObject]$Local:InstallInfo = Get-Content -Path $Local:File -Raw | ConvertFrom-Json;
+            } catch {
+                Invoke-Error "There was an issue reading the install info from $Local:File";
+                Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+            }
+        }
 
-        #region - Get Client Selection
-        $Local:Clients = (Get-SoapResponse -Uri (Get-BaseUrl "list_clients")).items.client;
-        $Local:Clients | Assert-NotNull -Message "Failed to get clients from N-Able";
+        if (-not $Local:InstallInfo) {
+            [PSCustomObject]$Local:InstallInfo = @{ Path = $Local:File; };
+        }
 
-        $Local:FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
-        $Local:FormattedClients | Assert-NotNull -Message "Failed to format clients";
+        Invoke-TestOrGet -InstallInfo:$Local:InstallInfo -Key 'ClientId' -GetBlock {
+            $Local:Clients = (Get-SoapResponse -Uri (Get-BaseUrl 'list_clients')).items.client;
+            $Local:Clients | Assert-NotNull -Message 'Failed to get clients from N-Able';
 
-        $Local:SelectedClient = Get-PopupSelection -Items $Local:FormattedClients -Title "Please select a Client";
-        #endregion - Get Client Selection
+            $Local:FormattedClients = Get-FormattedName2Id -InputArr $Clients -IdExpr { $_.clientid }
+            $Local:FormattedClients | Assert-NotNull -Message 'Failed to format clients';
 
-        #region - Get Site Selection
-        $Local:Sites = (Get-SoapResponse -Uri "$(Get-BaseUrl "list_sites")&clientid=$($SelectedClient.Id)").items.site;
-        $Local:Sites | Assert-NotNull -Message "Failed to get sites from N-Able";
-
-        $Local:FormattedSites = Get-FormattedName2Id -InputArr $Sites -IdExpr { $_.siteid };
-        $Local:FormattedSites | Assert-NotNull -Message "Failed to format sites";
-
-        $Local:SelectedSite = Get-PopupSelection -Items $Local:FormattedSites -Title "Please select a Site";
-        #endregion - Get Site Selection
-
-        # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
-        [String]$Local:DeviceName = Get-UserInput -Title "Device Name" -Question "Enter a name for this device";
-
-        [PSCustomObject]$Local:InstallInfo = @{
-            "DeviceName" = $Local:DeviceName
-            "ClientId"   = $Local:SelectedClient.Id
-            "SiteId"     = $Local:SelectedSite.Id
-            "Path"       = $Local:File
+            (Get-PopupSelection -Items $Local:FormattedClients -Title 'Please select a Client').Id;
         };
 
-        Invoke-Info "Saving install info to $Local:File...";
-        try {
-            $Local:InstallInfo | ConvertTo-Json | Out-File -FilePath $File -Force;
-        } catch {
-            Invoke-Error "There was an issue saving the install info to $Local:File";
-            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
-        }
+        Invoke-TestOrGet -InstallInfo:$Local:InstallInfo -Key 'SiteId' -GetBlock {
+            $Local:Sites = (Get-SoapResponse -Uri "$(Get-BaseUrl 'list_sites')&clientid=$($_.ClientId)").items.site;
+            $Local:Sites | Assert-NotNull -Message 'Failed to get sites from N-Able';
+
+            $Local:FormattedSites = Get-FormattedName2Id -InputArr $Sites -IdExpr { $_.siteid };
+            $Local:FormattedSites | Assert-NotNull -Message 'Failed to format sites';
+
+            (Get-PopupSelection -Items $Local:FormattedSites -Title 'Please select a Site').Id;
+        };
+
+        Invoke-TestOrGet -InstallInfo:$Local:InstallInfo -Key 'DeviceName' -GetBlock {
+            # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
+            Get-UserInput -Title "Device Name" -Question "Enter a name for this device"
+        };
 
         return $Local:InstallInfo;
     }
@@ -238,15 +241,16 @@ function Remove-QueuedTask {
     end { Exit-Scope; }
 
     process {
-        [CimInstance]$Local:Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue;
-        if (-not $Local:Task) {
+        try {
+            [CimInstance]$Local:Task = Get-ScheduledTask -TaskName $TaskName;
+
+            if ($PSCmdlet.ShouldProcess("Removing scheduled task [$TaskName]")) {
+                $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
+                Invoke-Verbose -Message "Removed scheduled task [$TaskName]...";
+            }
+        } catch {
             Invoke-Verbose -Message "Scheduled task [$TaskName] does not exist, skipping removal...";
             return;
-        }
-
-        if ($PSCmdlet.ShouldProcess("Removing scheduled task [$TaskName]")) {
-            $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
-            Invoke-Verbose -Message "Removed scheduled task [$TaskName]...";
         }
     }
 }
