@@ -43,6 +43,19 @@ function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
         [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
     };
 
+    [Int]$Script:ExtraLines = 0;
+    [ScriptBlock]$Private:EnterScriptBlock = {
+        Param([System.ConsoleKeyInfo]$Key, $Arg)
+
+        $Script:ExtraLines++;
+        [Microsoft.PowerShell.PSConsoleReadLine]::AddLine($Key, $Arg);
+    };
+
+    [Object]$Local:PreviousCtrlEnterFunction = (Get-PSReadLineKeyHandler -Chord Ctrl+Enter).Function;
+    [Object]$Local:PreviousShiftEnterFunction = (Get-PSReadLineKeyHandler -Chord Shift+Enter).Function;
+    Set-PSReadLineKeyHandler -Chord Ctrl+Enter -ScriptBlock $Private:EnterScriptBlock;
+    Set-PSReadLineKeyHandler -Chord Shift+Enter -ScriptBlock $Private:EnterScriptBlock;
+
     [System.Func[String,Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
     if ($DontSaveInputs) {
         Set-PSReadLineOption -AddToHistoryHandler {
@@ -55,6 +68,8 @@ function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
     return @{
         Enter           = $Local:PreviousEnterFunction;
         CtrlC           = $Local:PreviousCtrlCFunction;
+        CtrlShift       = $Local:PreviousCtrlEnterFunction;
+        ShiftEnter      = $Local:PreviousShiftEnterFunction;
         HistoryHandler  = $Local:HistoryHandler;
     }
 }
@@ -62,10 +77,11 @@ function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
 function Unregister-CustomReadLineHandlers([HashTable]$PreviousHandlers) {
     Set-PSReadLineKeyHandler -Chord Enter -Function $PreviousHandlers.Enter;
     Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $PreviousHandlers.CtrlC;
+    Set-PSReadLineKeyHandler -Chord Ctrl+Enter -Function $PreviousHandlers.CtrlShift;
+    Set-PSReadLineKeyHandler -Chord Shift+Enter -Function $PreviousHandlers.ShiftEnter;
     Set-PSReadLineOption -AddToHistoryHandler $PreviousHandlers.HistoryHandler;
 }
 
-# TODO - Better SecureString handling.
 <#
 .SYNOPSIS
     Prompts the user for input.
@@ -159,8 +175,15 @@ function Get-UserInput {
 
         do {
             [String]$Local:UserInput = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
-            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeReturnAsIs($Local:UserInput)))) {
-                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
+            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeWithContext($null, [PSVariable]::new('_', $Local:UserInput))))) {
+                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) {
+                    $Private:Value = $Script:ExtraLines + 2;
+                    $Script:ExtraLines = 0;
+                    $Private:Value;
+                } else {
+                    1
+                };
+
                 Clear-HostLight -Count $Local:ClearLines;
 
                 Invoke-Write @Script:WriteStyle -PSMessage 'Invalid input, please try again...';
