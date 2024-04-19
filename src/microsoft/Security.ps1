@@ -1,5 +1,3 @@
-#Requires -Modules MSOnline,ExchangeOnlineManagement,AzureADPreview,Microsoft.Online.SharePoint.PowerShell
-
 Param(
     [Parameter(Mandatory)]
     [ValidateSet("SecurityAlerts", "ConditionalAccess", "Sharepoint", "Exchange")]
@@ -150,6 +148,8 @@ Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     switch ($Action) {
         'SecurityAlerts' {
+            Invoke-EnsureModule MSOnline, AzureAD;
+
             $AlertsUser = Get-AlertsUser
             if ($AlertsUser) {
                 $Continue = $Host.UI.PromptForChoice("Alerts User: $($AlertsUser.WindowsLiveID)", 'Is this the correct alerts user?', @('&Yes', '&No'), 0)
@@ -165,9 +165,11 @@ Invoke-RunMain $MyInvocation {
             New-ConditionalAccessPrivilegedIdentityManagementPolicy;
         }
         'Sharepoint' {
-
+            Invoke-EnsureModule Microsoft.Online.Sharepoint.Powershell;
         }
         'Exchange' {
+            Invoke-EnsureModule ExchangeOnlineManagement;
+
             Disable-Outlook_StorageProviders
 
             Set-Exchange_SafeAttachmentsPolicy

@@ -227,7 +227,7 @@ $($Lines[$StartIndex..$EndIndex] | Join-String -Separator "`n")
 
         # Look for any mulitline strings, capture them and trim the whitespace from the start to ensure they are correctly merged.
         while ($True) {
-            ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:FixedLines -OpenPattern '^\s*.*@"' -ClosePattern '^\s+.*"@';
+            ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:FixedLines -OpenPattern '^.*@"' -ClosePattern '^\s+.*"@';
             if ($Local:StartIndex -eq -1 -or $Local:EndIndex -eq -1) {
                 Invoke-Debug 'No more multiline strings found';
                 break
@@ -422,7 +422,7 @@ function Invoke-Compile {
     }
 }
 
-Invoke-RunMain $MyInvocation -DontImport:$InnerInvocation -HideDisclaimer:$InnerInvocation {
+Invoke-RunMain $MyInvocation -HideDisclaimer:$InnerInvocation {
     $CompileScripts | ForEach-Object {
         $Local:OutPath = $_;
         $Local:CompiledScript = $_ | Invoke-Compile;
@@ -447,5 +447,3 @@ Invoke-RunMain $MyInvocation -DontImport:$InnerInvocation -HideDisclaimer:$Inner
         }
     }
 };
-
-
