@@ -45,7 +45,6 @@ function Get-HuduCompanies {
         }
 
         [Object[]]$Local:Companies = $Local:Companies `
-            | Select-Object -Property name, company_type, parent_company_name `
             | Sort-Object -Property name `
             | Where-Object { $_.company_type -ne 'Supplier' -and (-not $OnlyParents -or ($null -eq $_.parent_company_name)) };
 
