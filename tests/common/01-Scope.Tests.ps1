@@ -36,6 +36,22 @@ Describe '01-Scope.psm1 Tests' {
             Should -Invoke -CommandName Get-StackTop -ModuleName:$ModuleName -Times 1;
             Should -Invoke -CommandName Get-Stack -ModuleName:$ModuleName -Times 1;
         }
+
+        It 'Formatting variabels should work' {
+            $Private:Formatted = Format-Variable @{ foo = 'bar'; hello = 'world'; this = @('super', @{ cool = 'list'; }) };
+            $Private:Formatted | Should -Be @"
+{
+  foo = bar
+  hello = world
+  this = [
+    super,
+    {
+      cool = list
+    }
+  ]
+}
+"@;
+        }
     }
 
     Context 'Enter-Scope Tests' {
