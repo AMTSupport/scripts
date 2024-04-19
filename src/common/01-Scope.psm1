@@ -48,42 +48,63 @@ function Format-Parameters(
 function Format-Variable(
     [Parameter()]
     [Object]$Value,
-
     [Parameter()]
-    [ScriptBlock]$Formatter
+    [ScriptBlock]$Formatter,
+
+    [Parameter(DontShow)]
+    [Int]$CallDepth = 0,
+
+    [Parameter(DontShow)]
+    [Switch]$Appending
 ) {
-    function Format-SingleVariable(
-        [Parameter()]
-        [Object]$Value,
+    [String]$Local:FullIndent = $Script:Tab * ($CallDepth + 1);
+    [String]$Local:AppendingIndent = if (-not $Appending -and $CallDepth -gt 0) { $Local:FullIndent } else { '' };
+    [String]$Local:EndingIndent = $Script:Tab * $CallDepth;
 
-        [Parameter()]
-        [ScriptBlock]$Formatter
-    ) {
-        switch ($Value) {
-            { $_ -is [System.Collections.HashTable] } {
-                [String[]]$Local:Pairs = $Value.GetEnumerator() | ForEach-Object { "$($_.Key) = $(Format-SingleVariable -Value:$_.Value -Formatter:$Formatter)" };
+    if ($null -ne $Value) {
+        [String]$Local:FormattedValue = switch ($Value) {
+            { $Value -is [Array] } {
+                [String[]]$Private:Values = $Value | ForEach-Object { Format-Variable -Value:$_ -Formatter:$Formatter -CallDepth:($CallDepth + 1) -Appending; };
 
-                return @"
-{
-  $($Local:Pairs -join "`n$Script:Tab")
-}
+                if ($Private:Values.Count -eq 0) {
+                    return "$Local:AppendingIndent[]";
+                }
+
+                @"
+$Local:AppendingIndent[
+$Local:FullIndent$($Private:Values -join ",`n$Local:FullIndent")
+$Local:EndingIndent]
 "@;
+                break;
+            }
+            { $Value -is [HashTable] } {
+                [String[]]$Private:Pairs = $Value.GetEnumerator() | ForEach-Object {
+                    $Private:Key = $_.Key;
+                    $Private:Value = $_.Value;
+
+                    "$Private:Key = $(Format-Variable -Value:$Private:Value -Formatter:$Formatter -CallDepth:($CallDepth + 1) -Appending)"
+                };
+
+                if ($Private:Pairs.Count -eq 0) {
+                    return "$Local:AppendingIndent{}";
+                }
+
+                @"
+$Local:AppendingIndent{
+$Local:FullIndent$($Private:Pairs -join "`n$Local:FullIndent")
+$Local:EndingIndent}
+"@;
+                break;
             }
             default {
                 if ($null -ne $Formatter) {
                     $Formatter.InvokeWithContext($null, [PSVariable]::new('_', $Value));
                 } else {
-                    $Value
+                    $Value;
                 }
-            }
-        };
-    }
 
-    if ($null -ne $Value) {
-        [String]$Local:FormattedValue = if ($Value -is [Array]) {
-            "$(($Value | ForEach-Object { Format-SingleVariable $_ -Formatter:$Formatter }) -join "`n")"
-        } else {
-            Format-SingleVariable -Value:$Value -Formatter:$Formatter;
+                break;
+            }
         }
 
         return $Local:FormattedValue;
