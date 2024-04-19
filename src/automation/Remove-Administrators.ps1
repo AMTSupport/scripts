@@ -51,7 +51,11 @@ function Get-FilteredUsers(
     [Parameter()]
     [HashTable[]]$Exceptions
 ) {
-    begin { Enter-Scope; }
+    begin {
+        Enter-Scope -ArgumentFormatter @{
+            Group = { $_.Name };
+        };
+    }
     end { Exit-Scope -ReturnValue $Local:FilteredMembers; }
 
     process {
@@ -94,7 +98,7 @@ function Remove-Admins(
     [Parameter(Mandatory)]
     [HashTable[]]$Users
 ) {
-    begin { Enter-Scope; }
+    begin { Enter-Scope -Formatter @{ Group = { $_.Name }; } }
     end { Exit-Scope -ReturnValue $RemovedUsers; }
 
     process {
@@ -203,8 +207,8 @@ function Get-ProcessedExceptions(
             return @();
         }
 
-        $UserExceptions | ForEach-Object {
-            Invoke-Info "Processing exception [$_]"
+        foreach ($Private:Exception in $UserExceptions) {
+            Invoke-Info "Processing exception [$Private:Exception]";
 
             if ($Local:Exception.Contains('=')) {
                 Invoke-Debug "Possible scoped exception [$_]";
