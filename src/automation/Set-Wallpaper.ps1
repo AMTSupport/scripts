@@ -172,11 +172,16 @@ function Set-Wallpaper {
                     private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fWinIni);
 
                     public class Setter {
-                        public static void SetWallpaper(string path, Wallpaper.Style style) {
+                        public static void SetWallpaper(bool isCurrent, string path, Wallpaper.Style style) {
                             // clear current wallpaper and update ini
                             SystemParametersInfo(SetDesktopWallpaper, 0, "", UpdateIniFile | SendWinIniChange);
 
-		                    RegistryKey key = Registry.CurrentUser.OpenSubKey("Control Panel\\Desktop", true);
+                            RegistryKey key = if (isCurrent) {
+                                Registry.CurrentUser.OpenSubKey("Control Panel\\Desktop", true);
+                            } else {
+                                Registry.Users.OpenSubKey("Temp\\Control Panel\\Desktop", true);
+                            }
+
 		                    switch(style) {
 			                    case Style.Tile :
                                     key.SetValue(@"WallpaperStyle", "0") ;
@@ -231,8 +236,19 @@ function Set-Wallpaper {
         Set-RegistryKey -Path $Local:RegPath -Key 'DesktopImageUrl' -Value $Path -Kind String;
         Set-RegistryKey -Path $Local:RegPath -Key 'DesktopImageStatus' -Value 1 -Kind DWord;
 
-        # ForEach for all users, load the .dat hive and set the wallpaper
-        [Wallpaper.Setter]::SetWallpaper($Path, $StyleNum[$Style]);
+        $Private:Users = Get-ChildItem -Path ($env:SystemDrive | Join-Path -ChildPath:'Users') -Directory;
+        foreach ($User in $Private:Users) {
+            $Private:isCurrent = $User.Name -eq $env:USERNAME;
+            if (-not $Private:isCurrent) {
+                reg LOAD HKU\Temp "$(Join-Path -Path $User.FullName -ChildPath:'NTUSER.DAT')";
+            }
+
+            [Wallpaper.Setter]::SetWallpaper($Path, $StyleNum[$Style]);
+
+            if (-not $Private:isCurrent) {
+                reg UNLOAD HKU\Temp;
+            }
+        }
 
         Update-PerUserSystemParameters;
     }
