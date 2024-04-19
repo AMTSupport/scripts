@@ -1,29 +1,34 @@
 $Script:Services = @{
     ExchangeOnline = @{
-        Context = { Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName; };
-        Connect = { Connect-ExchangeOnline -ShowBanner:$False };
+        Matchable  = $True;
+        Context    = { Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName; };
+        Connect    = { Connect-ExchangeOnline -ShowBanner:$False };
         Disconnect = { Disconnect-ExchangeOnline -Confirm:$False };
     };
     SecurityComplience = @{
-        Context = { Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName; };
-        Connect = { Connect-IPPSSession -ShowBanner:$False };
+        Matchable  = $True;
+        Context    = { Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName; };
+        Connect    = { Connect-IPPSSession -ShowBanner:$False };
         Disconnect = { Disconnect-IPPSSession };
     };
     AzureAD = @{
-        Context = { Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account; };
-        Connect = { Connect-AzureAD };
+        Matchable  = $True;
+        Context    = { Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account; };
+        Connect    = { Connect-AzureAD };
         Disconnect = { Disconnect-AzureAD };
     };
     Msol = @{
-        Context = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
-        Connect = { Connect-MsolService };
+        Matchable  = $False;
+        Context    = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
+        Connect    = { Connect-MsolService };
         Disconnect = { Disconnect-MsolService };
     };
     Graph = @{
-        Context = { Get-MgContext | Select-Object -ExpandProperty Account; };
-        Connect = { param([String[]]$Scopes) Connect-MgGraph -NoWelcome -Scopes:$Scopes; };
+        Matchable  = $True;
+        Context    = { Get-MgContext | Select-Object -ExpandProperty Account; };
+        Connect    = { param([String[]]$Scopes) Connect-MgGraph -NoWelcome -Scopes:$Scopes; };
         Disconnect = { Disconnect-MgGraph };
-        IsValid = {
+        IsValid    = {
             param([String[]]$Scopes)
 
             $Local:Context = Get-MgContext;
@@ -85,8 +90,8 @@ function Local:Connect-ServiceInternal {
 
     try {
         if ($PSCmdlet.ShouldProcess("Connect to $Local:Service")) {
-            & $Script:Services[$Local:Service].Connect -Scopes:$Scopes;
-        };
+            $null = & $Script:Services[$Local:Service].Connect -Scopes:$Scopes;
+        }
     } catch {
         Invoke-FailedExit -ExitCode $Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
     }
@@ -101,11 +106,69 @@ function Local:Get-ServiceContext {
     )
 
     try {
-        & $Script:Services[$Local:Service].Context;
+        & $Script:Services[$Service].Context;
     } catch {
         # If we can't get the context, we're not connected.
         $null;
     }
+}
+
+function Local:Test-HasContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [String]$Service
+    )
+
+    $null -ne (Get-ServiceContext -Service $Service);
+}
+
+function Local:Test-IsMatchable {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [String]$ServiceA,
+
+        [Parameter()]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [String]$ServiceB
+    )
+
+    $Script:Services[$Service].Matchable -and (-not $ServiceB -or $Script:Services[$ServiceB].Matchable);
+}
+
+function Local:Test-SameContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [String]$ServiceA,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [String]$ServiceB
+    )
+
+    [String]$Private:ContextA = Get-ServiceContext -Service $ServiceA;
+    [String]$Private:ContextB = Get-ServiceContext -Service $ServiceB;
+    $Private:ContextA -and $Private:ContextB -and ($Private:ContextA -eq $Private:ContextB);
+}
+
+function Local:Test-NotMatchableOrSameContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [String]$ServiceA,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [String]$ServiceB
+    )
+
+    (Test-IsMatchable -ServiceA $ServiceA -ServiceB $ServiceB) -or (Test-SameContext -ServiceA $ServiceA -ServiceB $ServiceB);
 }
 #endregion
 
@@ -130,10 +193,11 @@ function Connect-Service(
     end { Exit-Scope; }
 
     process {
+        [String]$Local:LastService;
         [String]$Local:Account;
 
         foreach ($Local:Service in $Services) {
-            $Local:Context = try {
+            [String]$Local:Context = try {
                 Get-ServiceContext -Service $Local:Service;
             } catch {
                 Invoke-Debug "Failed to get connection information for $Local:Service";
@@ -142,9 +206,19 @@ function Connect-Service(
                 }
             }
 
-            if ($Local:Account -and $Local:Context -and $Local:Account -ne $Local:Context) {
+            # if ($Local:LastService) {
+            #     if (-not (Test-MatchableAndSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
+            #         Invoke-Warn 'Not all services are connected with the same account, please reconnect with the same account.';
+            #         Disconnect-ServiceInternal -Service $Local:Service;
+            #     }
+            # } else {
+
+            # }
+
+
+            if ($Local:LastService -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
                 Invoke-Info 'Not all services are connected with the same account, forcing disconnect...';
-                Disconnect-ServiceInternal -Service $Local:Service;
+                Disconnect-ServiceInternal -Service:$Local:Service;
             } elseif ($Local:Context) {
                 [ScriptBlock]$Local:ValidCheck = $Script:Services[$Local:Service].IsValid;
                 if ($Local:ValidCheck -and -not (& $Local:ValidCheck -Scopes:$Scopes)) {
@@ -155,6 +229,7 @@ function Connect-Service(
                     if ($Local:Continue) {
                         Invoke-Verbose 'Continuing with current connection...';
                         $Local:Account = $Local:Context;
+                        $Local:LastService = $Local:Service;
                         continue;
                     }
 
@@ -162,33 +237,33 @@ function Connect-Service(
                 } else {
                     Invoke-Verbose "Already connected to $Local:Service. Skipping...";
                     $Local:Account = $Local:Context;
+                    $Local:LastService = $Local:Service;
                     continue
                 }
             } elseif ($CheckOnly) {
                 Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
             }
 
-            do {
+            while ($True) {
                 try {
                     Connect-ServiceInternal -Service $Local:Service -Scopes:$Scopes;
                 } catch {
                     Invoke-FailedExit -ExitCode $Script:ERROR_COULDNT_CONNECT -FormatArgs @($Local:Service);
                 }
 
-                $Local:NewContext = Get-ServiceContext -Service $Local:Service;
-
-                if ($Local:Account -and $Local:NewContext -ne $Local:Account) {
+                if ($Local:Account -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
                     Invoke-Warn 'Not all services are connected with the same account, please reconnect with the same account.';
                     Disconnect-ServiceInternal -Service $Local:Service;
                     continue;
                 }
 
-                if (-not $Local:Account) {
+                if (-not $Local:Account -and (Test-IsMatchable $Local:Service)) {
                     $Local:Account = Get-ServiceContext -Service $Local:Service;
                 }
 
                 Invoke-Info "Connected to $Local:Service as [$Local:Account].";
-            } while ($Local:NewContext -ne $Local:Account);
+                break;
+            };
         }
     }
 }
