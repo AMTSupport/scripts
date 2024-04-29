@@ -27,7 +27,7 @@ function Disable-OutlookStorageProviders {
 
 function Update-SafeAttachmentsPolicy {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope; }
 
     process {
         $Local:Params = @{
@@ -74,7 +74,7 @@ function Update-SafeAttachmentsPolicy {
 
 function Update-SafeLinksPolicy {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope; }
 
     process {
         $Local:Params = @{
@@ -126,7 +126,7 @@ function Update-SafeLinksPolicy {
 
 function Update-AntiPhishPolicy {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope; }
 
     process {
         $Local:Params = @{
@@ -199,7 +199,7 @@ function Update-AntiPhishPolicy {
 
 function Update-AntiMalwarePolicy {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope; }
 
     process {
         $Local:Params = @{

@@ -1,7 +1,7 @@
-$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description @"
+$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description @'
 Not running as administrator!
 Please re-run your terminal session as Administrator, and try again.
-"@;
+'@;
 
 <#
 .SYNOPSIS
@@ -106,15 +106,15 @@ function Invoke-EnsureModule {
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [ValidateScript({
-            $Local:NotValid = $_ | Where-Object {
-                $Local:IsString = $_ -is [String];
-                $Local:IsHashTable = $_ -is [HashTable] -and $_.Keys.Contains('Name');
+                $Local:NotValid = $_ | Where-Object {
+                    $Local:IsString = $_ -is [String];
+                    $Local:IsHashTable = $_ -is [HashTable] -and $_.Keys.Contains('Name');
 
-                -not ($Local:IsString -or $Local:IsHashTable);
-            };
+                    -not ($Local:IsString -or $Local:IsHashTable);
+                };
 
-            $Local:NotValid.Count -eq 0;
-        })]
+                $Local:NotValid.Count -eq 0;
+            })]
         [Object[]]$Modules
     )
 
@@ -140,11 +140,13 @@ function Invoke-EnsureModule {
                 $ErrorActionPreference = 'Stop';
 
                 Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | Out-Null;
-            } catch {
+            }
+            catch {
                 try {
                     Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
                     Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
-                } catch {
+                }
+                catch {
                     # TODO :: Handle this better, this is a no network case.
                     Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
                     return;
@@ -159,8 +161,8 @@ function Invoke-EnsureModule {
             #region Local Variables
             $Local:InstallArgs = @{
                 AllowClobber = $true;
-                Scope = 'CurrentUser';
-                Force = $true;
+                Scope        = 'CurrentUser';
+                Force        = $true;
             };
 
             if ($Local:Module -is [HashTable]) {
@@ -174,7 +176,8 @@ function Invoke-EnsureModule {
                 }
 
                 [Version]$Local:MinimumVersion = [Version]::Parse($Local:ModuleMinimumVersion);
-            } else {
+            }
+            else {
                 [String]$Local:ModuleName = $Local:Module;
                 [Boolean]$Local:DontRemove = $False;
             }
@@ -213,13 +216,15 @@ function Invoke-EnsureModule {
                             -Global `
                             -Force `
                             -PassThru;
-                    } else {
+                    }
+                    else {
                         [PSModuleInfo]$Local:ImportedModule = Import-Module -Name $ModuleImport -Global -Force -PassThru;
                     }
 
                     Invoke-Info "Module '$ModuleName' imported with version $($Local:ImportedModule.Version).";
                     $Script:SatisfiedModules[$ModuleName] = [Version]::Parse($Local:ImportedModule.Version);
-                } catch {
+                }
+                catch {
                     Invoke-FailedExit -ExitCode $Script:UNABLE_TO_IMPORT_MODULE -FormatArgs $ModuleName;
                 }
             }
@@ -254,7 +259,8 @@ function Invoke-EnsureModule {
                     try {
                         Update-Module -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion -ErrorAction Stop;
                         Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
-                    } catch {
+                    }
+                    catch {
                         if ($_.FullyQualifiedErrorId -ne 'ModuleNotInstalledUsingInstallModuleCmdlet,Update-Module') {
                             Invoke-Error -Message "Unable to update module '$Local:ModuleName'";
                             Invoke-FailedExit -ExitCode $Script:UNABLE_TO_UPDATE_MODULE -FormatArgs @($Local:ModuleName);
@@ -263,10 +269,12 @@ function Invoke-EnsureModule {
                         Invoke-Verbose 'Module was unable to be updated, will try to install...';
                         [Boolean]$Local:TryInstall = $true
                     }
-                } elseif ($null -eq $Local:CurrentImportedModule -or ($Local:CurrentImportedModule.Version -lt $Local:ModuleMinimumVersion)) {
+                }
+                elseif ($null -eq $Local:CurrentImportedModule -or ($Local:CurrentImportedModule.Version -lt $Local:ModuleMinimumVersion)) {
                     Invoke-Debug "Module '$Local:ModuleName' is installed, but the version is less than the minimum version required, importing...";
                     Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
-                } else {
+                }
+                else {
                     Invoke-Debug "Module '$Local:ModuleName' is installed, skipping...";
                     $Script:SatisfiedModules[$Local:ModuleName] = $Local:CurrentImportedModule.Version;
                 }
@@ -275,14 +283,15 @@ function Invoke-EnsureModule {
             if ($null -eq $Local:AvailableModule -or $Local:TryInstall) {
                 $Local:FoundModule = Find-Module `
                     -Name $Local:ModuleName `
-                    -MinimumVersion:$(if ($Local:InstallArgs.MinimumVersion) { $Local:InstallArgs.MinimumVersion} else { '0.0.0' }) `
+                    -MinimumVersion:$(if ($Local:InstallArgs.MinimumVersion) { $Local:InstallArgs.MinimumVersion } else { '0.0.0' }) `
                     -ErrorAction SilentlyContinue;
 
                 if ($Local:FoundModule) {
                     Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
                     try {
                         $Local:FoundModule | Install-Module -AllowClobber -Scope CurrentUser -Force;
-                    } catch {
+                    }
+                    catch {
                         Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:UNABLE_TO_INSTALL_MODULE -FormatArgs @($Local:ModuleName);
                     }
 
@@ -290,11 +299,13 @@ function Invoke-EnsureModule {
                     # Like an assembly conflict or something.
                     if (-not $Local:Module.RestartIfUpdated) {
                         Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove -ErrorAction SilentlyContinue;
-                    } else {
+                    }
+                    else {
                         Invoke-Info "Module '$Local:ModuleName' has been installed, restart script...";
                         Restart-Script;
                     }
-                } else {
+                }
+                else {
                     Invoke-Warn "Unable to find module '$Local:ModuleName'.";
                 }
             }
@@ -302,7 +313,8 @@ function Invoke-EnsureModule {
             [PSModuleInfo]$Local:AfterEnsureModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
             if ($null -eq $Local:AfterEnsureModule) {
                 Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -FormatArgs @($Local:ModuleName);
-            } elseif ($Local:CurrentImportedModule -ne $Local:AfterEnsureModule -and $Local:Module.RestartIfUpdated) {
+            }
+            elseif ($Local:CurrentImportedModule -ne $Local:AfterEnsureModule -and $Local:Module.RestartIfUpdated) {
                 Invoke-Info "Module '$Local:ModuleName' has been updated, restart script...";
                 Restart-Script;
             }
@@ -312,8 +324,8 @@ function Invoke-EnsureModule {
     }
 }
 
-$Script:WifiXmlTemplate = "<?xml version=""1.0""?>
-<WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
+$Script:WifiXmlTemplate = '<?xml version="1.0"?>
+<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
   <name>{0}</name>
   <SSIDConfig>
     <SSID>
@@ -338,7 +350,7 @@ $Script:WifiXmlTemplate = "<?xml version=""1.0""?>
     </security>
   </MSM>
 </WLANProfile>
-";
+';
 $Private:NO_CONNECTION_AFTER_SETUP = Register-ExitCode -Description 'Failed to connect to the internet after network setup.';
 function Invoke-EnsureNetwork(
     [Parameter(HelpMessage = 'The name of the network to connect to.')]
@@ -349,15 +361,15 @@ function Invoke-EnsureNetwork(
     [SecureString]$Password
 ) {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope; }
 
     process {
         [Boolean]$Local:HasNetwork = (Get-NetConnectionProfile | Where-Object {
-            $Local:HasIPv4 = $_.IPv4Connectivity -eq 'Internet';
-            $Local:HasIPv6 = $_.IPv6Connectivity -eq 'Internet';
+                $Local:HasIPv4 = $_.IPv4Connectivity -eq 'Internet';
+                $Local:HasIPv6 = $_.IPv6Connectivity -eq 'Internet';
 
-            $Local:HasIPv4 -or $Local:HasIPv6
-        } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
+                $Local:HasIPv4 -or $Local:HasIPv6
+            } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
 
         if ($Local:HasNetwork) {
             Invoke-Debug 'Network is setup, skipping network setup...';
@@ -385,7 +397,8 @@ function Invoke-EnsureNetwork(
             if ($WhatIfPreference) {
                 Invoke-Info -Message 'WhatIf is set, skipping network setup...';
                 return $true;
-            } else {
+            }
+            else {
                 Invoke-Info -Message 'Setting up network...';
                 netsh wlan add profile filename="$Local:ProfileFile" | Out-Null;
                 netsh wlan show profiles $Name key=clear | Out-Null;
