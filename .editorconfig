@@ -13,5 +13,5 @@ end_of_line = crlf
 [*.{yml,yaml}]
 indent_size = 2
 
-[*.{xml,xsd,wsb}]
+[*.{xml,xsd,wsb,csproj}]
 indent_size = 2
