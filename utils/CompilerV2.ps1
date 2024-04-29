@@ -27,7 +27,7 @@
 #     )
 
 #     begin { Enter-Scope -Invocation $MyInvocation; }
-#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:CompiledBody; }
+#     end { Exit-Scope -ReturnValue $Local:CompiledBody; }
 
 #     process {
 #         [System.Management.Automation.Language.Token[]]$Local:Tokens = $null;
@@ -73,7 +73,7 @@
 #     [Parameter(Mandatory)][Int,Int]$Range
 # ) {
 #     begin { Enter-Scope -Invocation $MyInvocation; }
-#     end { Exit-Scope -Invocation $MyInvocation -ReturnValue [ref]$Local:UsingStatements,[ref]$Local:NewRange; }
+#     end { Exit-Scope -ReturnValue [ref]$Local:UsingStatements,[ref]$Local:NewRange; }
 
 #     process {
 #         [Token[]]$Local:UsingStatements = $Tokens | Where-Object { $_.Kind -eq 'Using' };
@@ -128,7 +128,7 @@
 
 function Get-Modules {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation -ReturnValue $Local:Modules; }
+    end { Exit-Scope -ReturnValue $Local:Modules; }
 
     process {
         # Get all the modules in the root/common folder

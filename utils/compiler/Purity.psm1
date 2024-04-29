@@ -1,25 +1,25 @@
 <#
 .SYNOPSIS
-Checks if a function AST is pure.
+    Checks if a function AST is pure.
 
 .DESCRIPTION
-This function takes a function AST (Abstract Syntax Tree) as input and determines if the function is pure. A pure function is a function that always produces the same output for the same input and has no side effects.
+    This function takes a function AST (Abstract Syntax Tree) as input and determines if the function is pure. A pure function is a function that always produces the same output for the same input and has no side effects.
 
 .PARAMETER FunctionAST
-The function AST to be checked for purity.
+    The function AST to be checked for purity.
 
 .OUTPUTS
-System.Boolean
-Returns $true if the function is pure, otherwise returns $false.
+    System.Boolean
+    Returns $true if the function is pure, otherwise returns $false.
 
 .EXAMPLE
-$functionAST = Get-FunctionAST -Name "MyFunction"
-$isPure = Test-PureFunction -FunctionAST $functionAST
-$isPure
-# Output: True
+    $functionAST = Get-FunctionAST -Name "MyFunction"
+    $isPure = Test-PureFunction -FunctionAST $functionAST
+    $isPure
+    # Output: True
 
 .NOTES
-This function relies on the Get-FunctionAST cmdlet to retrieve the function AST. Make sure to install the required module before using this function.
+    This function relies on the Get-FunctionAST cmdlet to retrieve the function AST. Make sure to install the required module before using this function.
 #>
 function Test-FunctionPurity {
     param (
