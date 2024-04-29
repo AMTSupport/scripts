@@ -36,7 +36,11 @@ function Invoke-Write {
 
         [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
-        [Boolean]$ShouldWrite
+        [Boolean]$ShouldWrite,
+
+        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Switch]$PassThru
     )
 
     process {
@@ -45,7 +49,8 @@ function Invoke-Write {
             return;
         }
 
-        if (-not $ShouldWrite) {
+        # If PassThru is set, we should always return the message.
+        if (-not $ShouldWrite -and -not $PassThru) {
             return;
         }
 
@@ -61,13 +66,16 @@ function Invoke-Write {
             $Local:FormattedMessage = "$(Get-ConsoleColour $PSColour)$Local:FormattedMessage$($PSStyle.Reset)";
         }
 
-
         [String]$Local:FormattedMessage = if ($PSPrefix -and (Test-SupportsUnicode)) {
             "$PSPrefix $Local:FormattedMessage";
         } else { $Local:FormattedMessage; }
 
-        $InformationPreference = 'Continue';
-        Write-Information $Local:FormattedMessage;
+        if ($PassThru) {
+            return $Local:FormattedMessage;
+        } else {
+            $InformationPreference = 'Continue';
+            Write-Information $Local:FormattedMessage;
+        }
     }
 }
 
@@ -83,7 +91,10 @@ function Format-Error(
     [Parameter(HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
     [ValidateNotNullOrEmpty()]
     [Alias('Prefix')]
-    [String]$UnicodePrefix
+    [String]$UnicodePrefix,
+
+    [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+    [Switch]$PassThru
 ) {
     [String]$Local:TrimmedLine = $InvocationInfo.Line.Trim();
     [String]$Local:Script = $InvocationInfo.ScriptName.Trim();
@@ -110,20 +121,20 @@ function Format-Error(
         (' ' * $Local:StatementIndex) + $Message;
     } else { $null };
 
-
     # Fucking PS 5 doesn't allow variable overrides so i have to add the colour to all of them. :<(
-    [HashTable]$Local:BaseHash = @{
-        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { $null };
+    [HashTable]$Private:BaseArgs = @{
+        PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { $null };
         ShouldWrite = $True;
+        PassThru    = $PassThru;
     };
 
-    Invoke-Write @Local:BaseHash -PSMessage "File    | $($PSStyle.Foreground.Red)$Local:Script" -PSColour Cyan;
-    Invoke-Write @Local:BaseHash -PSMessage "Line    | $($PSStyle.Foreground.Red)$($InvocationInfo.ScriptLineNumber)" -PSColour Cyan;
-    Invoke-Write @Local:BaseHash -PSMessage "Preview | $($PSStyle.Foreground.Red)$Local:TrimmedLine" -PSColour Cyan;
-    Invoke-Write @Local:BaseHash -PSMessage "$Local:Underline" -PSColour 'Red';
+    Invoke-Write @Private:BaseArgs -PSMessage "File    | $($PSStyle.Foreground.Red)$Local:Script" -PSColour Cyan;
+    Invoke-Write @Private:BaseArgs -PSMessage "Line    | $($PSStyle.Foreground.Red)$($InvocationInfo.ScriptLineNumber)" -PSColour Cyan;
+    Invoke-Write @Private:BaseArgs -PSMessage "Preview | $($PSStyle.Foreground.Red)$Local:TrimmedLine" -PSColour Cyan;
+    Invoke-Write @Private:BaseArgs -PSMessage "$Local:Underline" -PSColour 'Red';
 
     if ($Local:Message) {
-        Invoke-Write @Local:BaseHash -PSMessage "Message | $($PSStyle.Foreground.Red)$Local:Message" -PSColour Cyan;
+        Invoke-Write @Private:BaseArgs -PSMessage "Message | $($PSStyle.Foreground.Red)$Local:Message" -PSColour Cyan;
     }
 }
 
@@ -140,7 +151,10 @@ function Invoke-Verbose {
         [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
         [ValidateNotNullOrEmpty()]
         [Alias('Prefix')]
-        [String]$UnicodePrefix
+        [String]$UnicodePrefix,
+
+        [Parameter(ValueFromPipelineByPropertyName, HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+        [Switch]$PassThru
     )
 
     process {
@@ -150,10 +164,11 @@ function Invoke-Verbose {
         }
 
         $Local:Params = @{
-            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
-            PSMessage = $Message;
-            PSColour = 'Yellow';
+            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
+            PSMessage   = $Message;
+            PSColour    = 'Yellow';
             ShouldWrite = $Global:Logging.Verbose;
+            PassThru    = $PassThru;
         };
 
         Invoke-Write @Local:Params;
@@ -173,7 +188,10 @@ function Invoke-Debug {
         [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
         [ValidateNotNullOrEmpty()]
         [Alias('Prefix')]
-        [String]$UnicodePrefix
+        [String]$UnicodePrefix,
+
+        [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+        [Switch]$PassThru
     )
 
     process {
@@ -183,10 +201,11 @@ function Invoke-Debug {
         }
 
         $Local:Params = @{
-            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
-            PSMessage = $Message;
-            PSColour = 'Magenta';
+            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
+            PSMessage   = $Message;
+            PSColour    = 'Magenta';
             ShouldWrite = $Global:Logging.Debug;
+            PassThru    = $PassThru;
         };
 
         Invoke-Write @Local:Params;
@@ -206,7 +225,10 @@ function Invoke-Info {
         [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
         [ValidateNotNullOrEmpty()]
         [Alias('Prefix')]
-        [String]$UnicodePrefix
+        [String]$UnicodePrefix,
+
+        [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+        [Switch]$PassThru
     )
 
     process {
@@ -216,10 +238,11 @@ function Invoke-Info {
         }
 
         $Local:Params = @{
-            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
-            PSMessage = $Message;
-            PSColour = 'Cyan';
+            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
+            PSMessage   = $Message;
+            PSColour    = 'Cyan';
             ShouldWrite = $Global:Logging.Information;
+            PassThru    = $PassThru;
         };
 
         Invoke-Write @Local:Params;
