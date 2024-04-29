@@ -1,3 +1,5 @@
+[System.Boolean]$Global:ScriptRestarted = $False;
+[System.Boolean]$Global:ScriptRestarting = $False;
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 [HashTable]$Global:Logging = @{
     Loaded      = $false;
@@ -24,7 +26,8 @@ function Invoke-WithLogging {
     process {
         if ($Global:Logging.Loaded) {
             $HasLoggingFunc.InvokeReturnAsIs();
-        } else {
+        }
+        else {
             $MissingLoggingFunc.InvokeReturnAsIs();
         }
     }
@@ -39,7 +42,7 @@ function Invoke-EnvInfo {
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [String]$UnicodePrefix
-   )
+    )
 
     Invoke-WithLogging `
         -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Info $Message $UnicodePrefix; } else { Invoke-Info -Message:$Message; } } `
@@ -94,10 +97,40 @@ function Get-OrFalse {
     process {
         if ($HashTable.ContainsKey($Key)) {
             return $HashTable[$Key];
-        } else {
+        }
+        else {
             return $false;
         }
     }
+}
+
+function Test-OrGetBooleanVariable {
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
+        [String]$Name
+    )
+
+    process {
+        if (Test-Path Variable:Global:$Name) {
+            return Get-Variable -Scope Global -Name $Name -ValueOnly;
+        }
+        else {
+            return $false;
+        }
+    }
+}
+
+function Test-IsCompiledScript {
+    Test-OrGetBooleanVariable -Name 'CompiledScript';
+}
+
+function Test-IsRestartingScript {
+    Test-OrGetBooleanVariable -Name 'ScriptRestarting';
+}
+
+function Test-IsRestartedScript {
+    Test-OrGetBooleanVariable -Name 'ScriptRestarted';
 }
 
 function Test-ExplicitlyCalled {
@@ -109,7 +142,7 @@ function Test-ExplicitlyCalled {
 
     process {
         $Global:Invocation = $Invocation;
-        $Global:PSCallStack = Get-PSCallStack;
+        # $Global:PSCallStack = Get-PSCallStack;
 
         # Being ran from terminal
         # CommandOrigin: Runspace
@@ -170,42 +203,57 @@ function Import-CommonModules {
     }
 
     function Import-ModuleOrScriptBlock([String]$Name, [Object]$Value) {
-        Invoke-EnvDebug -Message "Importing module $Name.";
+        begin {
+            $Local:Hasher = [System.Security.Cryptography.SHA256]::Create();
+        }
 
-        if ($Value -is [ScriptBlock]) {
-            Invoke-EnvDebug -Message "Module $Name is a script block.";
+        process {
+            Invoke-EnvDebug -Message "Importing module $Name.";
 
-            if (Get-Module -Name $Name) {
-                Remove-Module -Name $Name -Force -Verbose:$False -Debug:$False;
+            if ($Value -is [ScriptBlock]) {
+                Invoke-EnvDebug -Message "Module $Name is a script block.";
+
+                $Local:ContentHash = $Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes(($Value -as [ScriptBlock]).Ast.Extent.Text)) | ForEach-Object { $_.ToString('x2') } | Join-String;
+                $Local:ModuleName = "$Name-$Local:ContentHash.psm1";
+                $Local:ModulePath = ($env:TEMP | Join-Path -ChildPath "$Local:ModuleName");
+
+                if (-not (Test-Path $Private:ModulePath)) {
+                    Set-Content -Path $Private:ModulePath -Value $Value.ToString();
+                }
+
+                Import-Module -Name $Private:ModulePath -Global -Force -Verbose:$False -Debug:$False;
             }
+            else {
+                Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
 
-            New-Module -ScriptBlock $Value -Name $Name | Import-Module -Global -Force -Verbose:$False -Debug:$False;
-        } else {
-            Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
-
-            Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
+                Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
+            }
         }
     }
 
     # Collect a List of the modules to import.
-    if ($Global:CompiledScript) {
+    if (Test-IsCompiledScript) {
         Invoke-EnvVerbose 'Script has been embeded with required modules.';
         [HashTable]$Local:ToImport = $Global:EmbededModules;
-    } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
+    }
+    elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
         Invoke-EnvVerbose 'Script is in git repository; Using local files.';
         [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
-    } else {
+    }
+    else {
         [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 
         if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
             if (-not (Test-Path -Path $Local:RepoPath)) {
                 Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
                 git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
-            } else {
+            }
+            else {
                 Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Updating repository.';
                 git -C $Local:RepoPath pull;
             }
-        } else {
+        }
+        else {
             Invoke-EnvInfo -Message 'Git is not installed, unable to update the repository or clone if required.';
         }
 
@@ -244,20 +292,29 @@ function Remove-CommonModules {
     Invoke-EnvVerbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
     Invoke-EnvVerbose -Message "Removing modules: `n$(($Script:ImportedModules | Sort-Object -Descending) -join "`n")";
     $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
-        $Local:Module = $_;
-        Invoke-EnvDebug -Message "Removing module $_.";
+        $Private:Module = $_;
+        Invoke-EnvDebug -Message "Removing module $Private:Module.";
 
-        if ($Global:CompiledScript -and $_ -eq '00-Envrionment') {
-            continue;
-        }
+        # if (Test-IsCompiledScript -and ($Private:Module -eq '00-Environment')) {
+        #     Invoke-EnvDebug -Message 'Skipping removal of the environment module.';
+        #     return;
+        # }
 
-        if ($_ -eq '01-Logging') {
+        if ($Local:Module -eq '01-Logging') {
+            Invoke-EnvDebug -Message 'Resetting logging state.';
             $Global:Logging.Loaded = $false;
         }
 
         try {
-            Remove-Module -Name $_ -Force -Verbose:$False -Debug:$False;
-        } catch {
+            Invoke-EnvDebug -Message "Running Remove-Module -Name $Private:Module";
+            Remove-Module -Name "$Private:Module*" -Force -Verbose:$True -Debug:$False;
+
+            # The environment module doesn't get a file created for it.
+            if (($Private:Module -ne '00-Environment') -and (Test-IsCompiledScript)) {
+                Remove-Item -Path ($env:TEMP | Join-Path -ChildPath "$($Private:Module)*");
+            }
+        }
+        catch {
             Invoke-EnvDebug -Message "Failed to remove module $Local:Module";
         }
     };
@@ -317,7 +374,7 @@ function Invoke-RunMain {
         begin {
             # If the script is being restarted, we have already done this.
             if (-not $Global:ScriptRestarted) {
-                foreach ($Local:Param in @('Verbose','Debug')) {
+                foreach ($Local:Param in @('Verbose', 'Debug')) {
                     if ($Invocation.BoundParameters.ContainsKey($Local:Param)) {
                         $Global:Logging[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
                     }
@@ -346,7 +403,8 @@ function Invoke-RunMain {
                     $Local:RunBoundParameters = $Invocation.BoundParameters;
                     & $Main @Local:RunBoundParameters;
                 }
-            } catch {
+            }
+            catch {
                 $Local:CatchingError = $_;
                 switch ($Local:CatchingError.FullyQualifiedErrorId) {
                     'QuickExit' {
@@ -365,26 +423,35 @@ function Invoke-RunMain {
                         Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:CatchingError -DontExit;
                     }
                 }
-            } finally {
+            }
+            finally {
+                [Boolean]$Private:WasCompiled = Test-IsCompiledScript;
+                [Boolean]$Private:WasRestarted = Test-IsRestartedScript;
+                [Boolean]$Private:IsRestarting = Test-IsRestartingScript;
+
                 if (-not $Local:DontImport) {
                     Invoke-Handlers;
                     Invoke-Teardown;
 
                     # There is no point in removing the modules if the script is restarting.
-                    if (-not $Global:ScriptRestarting) {
+                    if (-not (Test-IsRestartingScript)) {
                         Remove-CommonModules;
-                    }
 
-                    if (-not $Global:ScriptRestarting) {
-                        if ($Global:CompiledScript) {
+                        if ($Private:WasCompiled) {
                             Remove-Variable -Scope Global -Name CompiledScript, EmbededModules;
                         }
 
-                        Remove-Variable -Scope Global -Name Logging, ScriptRestarted -ErrorAction SilentlyContinue;
+                        Remove-Variable -Scope Global -Name Logging;
+
+                        # Without this explicit check theres a silent error.
+                        # It has no effect but it annoys me.
+                        if ($Private:WasRestarted) {
+                            Remove-Variable -Scope Global -Name ScriptRestarted;
+                        }
                     }
                 }
 
-                if ($Global:ScriptRestarting) {
+                if ($Private:IsRestarting) {
                     Invoke-EnvVerbose -UnicodePrefix '🔄' -Message 'Restarting script.';
                     Remove-Variable -Scope Global -Name ScriptRestarting;
                     Set-Variable -Scope Global -Name ScriptRestarted -Value $True; # Bread trail for the script to know it's been restarted.
@@ -394,6 +461,7 @@ function Invoke-RunMain {
         }
     }
 
+    Set-StrictMode -Version 3;
     Invoke-Inner `
         -Invocation $Invocation `
         -Main $Main `
