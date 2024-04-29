@@ -19,7 +19,7 @@ param(
     [Switch]$Reset
 )
 
-[String]$Script:WallpaperFolder = 'C:\temp\';
+[String]$Script:WallpaperFolder = $env:ProgramData | Join-Path -ChildPath 'AMT' | Join-Path -ChildPath 'Wallpapers';
 
 function Invoke-EncodeFromFile {
     [CmdletBinding()]
@@ -51,7 +51,7 @@ function Find-FileByHash {
     )
 
     begin { Enter-Scope; }
-    end { Exit-Scope; }
+    end { Exit-Scope -ReturnValue $Local:File.FullName; }
 
     process {
         Invoke-Info "Looking for file with hash $Hash in $Path...";
@@ -60,7 +60,7 @@ function Find-FileByHash {
             [String]$Local:FileHash = Get-BlobCompatableHash -Path:$Local:File.FullName;
             Invoke-Debug "Checking file $($Local:File.FullName) with hash $Local:FileHash...";
             if ($Local:FileHash -eq $Hash) {
-                return $Local:File;
+                return $Local:File.FullName;
             }
         }
 
@@ -105,7 +105,9 @@ function Export-ToFile {
         [System.IO.FileInfo]$Local:TmpFile = New-Item -Path $env:TEMP -Name ([System.IO.Path]::GetTempFileName()) -ItemType File -Force;
         [System.IO.File]::WriteAllBytes($TmpFile, [System.Convert]::FromBase64String($Base64Content));
 
-        return $Path;
+        Set-Permissions -Path $Local:TmpFile;
+
+        return $Local:TmpFile;
     }
 }
 
@@ -120,7 +122,7 @@ function Get-FromBlob {
     )
 
     begin { Enter-Scope; }
-    end { Exit-Scope; }
+    end { Exit-Scope -ReturnValue $Local:OutPath; }
 
     process {
         [String]$Local:Uri = "${Url}?${SasToken}";
@@ -129,16 +131,38 @@ function Get-FromBlob {
         Invoke-RestMethod -Uri:$Local:Uri -Method:HEAD -ResponseHeadersVariable:ResponseHeaders;
         [String]$Local:MD5 = $ResponseHeaders['Content-MD5'];
 
-        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.jpg';
+        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.png';
 
         if ($Local:ExistingFile) {
+            Invoke-Info "Using existing file {$Local:ExistingFile}...";
             return $Local:ExistingFile;
         }
 
-        [String]$Local:OutPath = [System.IO.Path]::Combine($Script:WallpaperFolder, [System.IO.Path]::GetRandomFileName() + '.jpg');
+        [String]$Local:OutPath = $Script:WallpaperFolder | Join-Path -ChildPath ([System.IO.Path]::GetRandomFileName() + '.png');
         Invoke-RestMethod -Uri:$Local:Uri -Method:GET -OutFile:$Local:OutPath;
 
+        Unblock-File -Path $Local:OutPath;
+        Set-Permissions -Path $Local:OutPath;
+
         return $Local:OutPath;
+    }
+}
+
+function Set-Permissions {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Path
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        [System.Security.AccessControl.FileSecurity]$Local:ACL = Get-Acl -Path $Path;
+        $Local:ACL.SetAccessRuleProtection($true, $false);
+        $Local:ACL.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('Users', 'Read', 'Allow')));
+
+        Set-Acl -Path $Path -AclObject $Local:ACL;
     }
 }
 
@@ -154,69 +178,6 @@ function Set-Wallpaper {
     begin {
         Enter-Scope;
 
-        try {
-            Add-Type <#c#> @'
-                using System;
-                using System.Runtime.InteropServices;
-                using Microsoft.Win32;
-                namespace Wallpaper {
-                    public enum Style : int {
-	                    Tile, Center, Stretch, Fill, Fit, Span, NoChange
-                    }
-
-                    public const int SetDesktopWallpaper = 20;
-                    public const int UpdateIniFile = 0x01;
-                    public const int SendWinIniChange = 0x02;
-
-                    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-                    private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fWinIni);
-
-                    public class Setter {
-                        public static void SetWallpaper(bool isCurrent, string path, Wallpaper.Style style) {
-                            // clear current wallpaper and update ini
-                            SystemParametersInfo(SetDesktopWallpaper, 0, "", UpdateIniFile | SendWinIniChange);
-
-                            RegistryKey key = if (isCurrent) {
-                                Registry.CurrentUser.OpenSubKey("Control Panel\\Desktop", true);
-                            } else {
-                                Registry.Users.OpenSubKey("Temp\\Control Panel\\Desktop", true);
-                            }
-
-		                    switch(style) {
-			                    case Style.Tile :
-                                    key.SetValue(@"WallpaperStyle", "0") ;
-                                    key.SetValue(@"TileWallpaper", "1") ;
-                                    break;
-			                    case Style.Center :
-                                    key.SetValue(@"WallpaperStyle", "0") ;
-                                    key.SetValue(@"TileWallpaper", "0") ;
-                                    break;
-			                    case Style.Stretch :
-                                    key.SetValue(@"WallpaperStyle", "2") ;
-                                    key.SetValue(@"TileWallpaper", "0") ;
-                                    break;
-			                    case Style.Fill :
-                                    key.SetValue(@"WallpaperStyle", "10") ;
-                                    key.SetValue(@"TileWallpaper", "0") ;
-                                    break;
-			                    case Style.Fit :
-                                    key.SetValue(@"WallpaperStyle", "6") ;
-                                    key.SetValue(@"TileWallpaper", "0") ;
-                                    break;
-			                    case Style.Span :
-                                    key.SetValue(@"WallpaperStyle", "22") ;
-                                    key.SetValue(@"TileWallpaper", "0") ;
-                                    break;
-			                    case Style.NoChange :
-                                    break;
-		                    }
-		                    key.Close();
-	                    }
-                    }
-                }
-'@
-        } catch {}
-
         $StyleNum = @{
             Tile    = 0
             Center  = 1
@@ -229,25 +190,20 @@ function Set-Wallpaper {
     end { Exit-Scope; }
 
     process {
-        $Local:RegPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP';
+        $Path = $Path.Trim();
+        [String]$Private:RegPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP';
 
         Invoke-Info 'Settings Registry Keys';
-        Set-RegistryKey -Path $Local:RegPath -Key 'DesktopImagePath' -Value $Path -Kind String;
-        Set-RegistryKey -Path $Local:RegPath -Key 'DesktopImageUrl' -Value $Path -Kind String;
-        Set-RegistryKey -Path $Local:RegPath -Key 'DesktopImageStatus' -Value 1 -Kind DWord;
+        Set-RegistryKey -Path $Private:RegPath -Key 'DesktopImagePath' -Value $Path -Kind String;
+        Set-RegistryKey -Path $Private:RegPath -Key 'DesktopImageUrl' -Value $Path -Kind String;
+        Set-RegistryKey -Path $Private:RegPath -Key 'DesktopImageStatus' -Value 1 -Kind DWord;
 
-        $Private:Users = Get-ChildItem -Path ($env:SystemDrive | Join-Path -ChildPath:'Users') -Directory;
-        foreach ($User in $Private:Users) {
-            $Private:isCurrent = $User.Name -eq $env:USERNAME;
-            if (-not $Private:isCurrent) {
-                reg LOAD HKU\Temp "$(Join-Path -Path $User.FullName -ChildPath:'NTUSER.DAT')";
-            }
+        Invoke-OnEachUserHive {
+            param($Hive)
 
-            [Wallpaper.Setter]::SetWallpaper($Path, $StyleNum[$Style]);
-
-            if (-not $Private:isCurrent) {
-                reg UNLOAD HKU\Temp;
-            }
+            [String]$Private:RegPath = "HKCU:\$($Hive.SID)\Control Panel\Desktop";
+            Set-RegistryKey -Path:$Private:RegPath -Key:'Wallpaper' -Value:$Path -Kind:String;
+            Set-RegistryKey -Path:$Private:RegPath -Key:'WallpaperStyle' -Value:$StyleNum[$Style] -Kind:DWord;
         }
 
         Update-PerUserSystemParameters;
@@ -292,14 +248,14 @@ function Get-ReusableFile {
 
     process {
         [System.IO.DirectoryInfo]$Local:WallpaperFolder = Get-Item -Path $Script:WallpaperFolder;
-        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:(Get-FileHash -Path $Path -Algorithm MD5) -Path:$Local:WallpaperFolder -Filter:'*.jpg';
+        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:(Get-FileHash -Path $Path -Algorithm MD5) -Path:$Local:WallpaperFolder -Filter:'*.png';
         if ($Local:ExistingFile) {
             Remove-Item -Path $Path; # Remove the file if it is the same as an existing file.
             $Path = $Local:ExistingFile;
         } else {
             # Enter Loop to ensure unique file name
             do {
-                [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.jpg';
+                [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.png';
                 [System.IO.FileInfo]$Local:NewPath = [System.IO.Path]::Combine($WallpaperFolder.FullName, $FileName);
             } while (Test-Path -Path $Path);
 
@@ -315,20 +271,26 @@ Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Invoke-EnsureAdministrator;
 
+    if (-not (Test-Path -Path $Script:WallpaperFolder)) {
+        New-Item -Path $Script:WallpaperFolder -ItemType Directory -Force;
+    }
+
     switch ($PSCmdlet.ParameterSetName) {
         'Set_Base64' {
             Invoke-Info 'Setting wallpaper...';
 
             [System.IO.FileInfo]$Local:ImagePath = Export-ToFile -Base64Content $Base64Image;
             [System.IO.FileInfo]$Local:ImagePath = Get-ReusableFile -Path $Local:ImagePath;
-            Set-Wallpaper -Path $Local:ImagePath;
+            Set-Wallpaper -Path:$Local:ImagePath;
         }
         'Set_StorageBlob' {
             Invoke-Info 'Setting wallpaper...';
 
             [String]$Local:ImagePath = Get-FromBlob -Url $StorageBlobUrl -SasToken $StorageBlobSasToken;
 
-            Set-Wallpaper -Path $Local:ImagePath;
+            Invoke-Info "Using image from $Local:ImagePath...";
+
+            Set-Wallpaper -Path:$Local:ImagePath;
         }
         'Encode' {
             Invoke-Info 'Encoding image to base64...';
