@@ -165,7 +165,7 @@ function Test-ExplicitlyCalled {
         # } else {
         #     Write-Host 'The script context is unclear.'
         # }
-        return $False;
+        return $True;
     }
 }
 #endregion
@@ -213,7 +213,7 @@ function Import-CommonModules {
             if ($Value -is [ScriptBlock]) {
                 Invoke-EnvDebug -Message "Module $Name is a script block.";
 
-                $Local:ContentHash = $Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes(($Value -as [ScriptBlock]).Ast.Extent.Text)) | ForEach-Object { $_.ToString('x2') } | Join-String;
+                $Local:ContentHash = ($Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes(($Value -as [ScriptBlock]).Ast.Extent.Text)) | ForEach-Object { $_.ToString('x2') }) -join '';
                 $Local:ModuleName = "$Name-$Local:ContentHash.psm1";
                 $Local:ModulePath = ($env:TEMP | Join-Path -ChildPath "$Local:ModuleName");
 
@@ -307,7 +307,7 @@ function Remove-CommonModules {
 
         try {
             Invoke-EnvDebug -Message "Running Remove-Module -Name $Private:Module";
-            Remove-Module -Name "$Private:Module*" -Force -Verbose:$True -Debug:$False;
+            Remove-Module -Name "$Private:Module*" -Force -Verbose:$False -Debug:$False;
 
             # The environment module doesn't get a file created for it.
             if (($Private:Module -ne '00-Environment') -and (Test-IsCompiledScript)) {

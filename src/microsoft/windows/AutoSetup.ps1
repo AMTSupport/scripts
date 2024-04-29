@@ -782,6 +782,7 @@ function Invoke-PhaseCleanup {
 }
 
 # Install the agent and any other required software.
+# TODO :: Maybe use the feature log files to determine whats being installed and if it finished?
 function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PSCustomObject]$InstallInfo) {
     begin { Enter-Scope; }
     end { Exit-Scope -ReturnValue $Local:NextPhase; }

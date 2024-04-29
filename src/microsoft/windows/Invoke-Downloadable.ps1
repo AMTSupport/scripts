@@ -19,7 +19,7 @@ function Get-Executable(
     [String]$ExecutablePattern
 ) {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope; }
 
     process {
         if (-not $ExecutablePattern) {
@@ -27,7 +27,8 @@ function Get-Executable(
             [String]$Local:Executable = $URL.Split('/')[-1];
             Invoke-Info "No executable pattern specified, assuming executable is $Local:Executable";
             Invoke-WebRequest -Uri $URL -OutFile $Local:Executable -UseBasicParsing;
-        } else {
+        }
+        else {
             [String]$Local:OutFolder = $URL.Split('/')[-1].Split('.')[0];
 
             Invoke-Info "Downloading $URL to $Local:OutFolder.zip"
@@ -57,7 +58,7 @@ function Invoke-Exec(
     [String[]]$ExecutableArgs
 ) {
     begin { Enter-Scope -Invocation $MyInvocation; }
-    end { Exit-Scope -Invocation $MyInvocation; }
+    end { Exit-Scope; }
 
     process {
         Start-Process -FilePath "$Executable" -ArgumentList $ExecutableArgs -Wait -NoNewWindow;
