@@ -17,6 +17,59 @@ function Get-HuduApiKey {
     }
 }
 
+function Invoke-HuduRequest {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [String]$Endpoint,
+
+        [Parameter(Mandatory)]
+        [String]$Path,
+
+        [Parameter()]
+        [String[]]$Params,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('GET', 'POST', 'PUT', 'DELETE')]
+        [String]$Method,
+
+        [Parameter()]
+        [String]$Body
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Response; }
+
+    process {
+        [String]$Private:Uri = "https://${Endpoint}/api/v1/${Path}?$(if ($Params) { $Params -join '&' })";
+        [PSCustomObject]$Private:Headers = @{
+            'x-api-key' = Get-HuduApiKey;
+            'Content-Type' = 'application/json';
+        };
+
+        [HashTable]$Local:Arguments = @{
+            Headers = $Private:Headers;
+            Uri = $Private:Uri;
+            Method = $Method;
+        };
+
+        if ($Body && $Method -in @('POST', 'PUT')) {
+            $Local:Arguments.Body = $Body;
+        }
+
+        Invoke-Verbose "Invoking hudu request to $Private:Uri with method $Method";
+
+        try {
+            $Local:Response = Invoke-RestMethod @Local:Arguments;
+        } catch {
+            Invoke-Error 'Failed to get response from hudu; Check your API Key.';
+            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+        }
+
+        return $Local:Response;
+    }
+}
+
 function Get-HuduCompanies {
     [CmdletBinding()]
     param (
@@ -31,18 +84,10 @@ function Get-HuduCompanies {
     end { Exit-Scope -ReturnValue ($Local:Companies | ForEach-Object { $_.name }); }
 
     process {
-        [String]$Local:Uri = "https://$Endpoint/api/v1/companies?page_size=1000";
-        [PSCustomObject]$Local:Headers = @{'x-api-key' = Get-HuduApiKey };
+        $Private:Response = Invoke-HuduRequest -Endpoint:$Endpoint -Path:'companies' -Method:GET -Params:@('page_size=1000');
+        [PSCustomObject[]]$Local:Companies = $Private:Response.companies;
 
-        try {
-            $Local:Response = (Invoke-RestMethod -Headers $Local:Headers -Uri $Local:Uri);
-            [PSCustomObject[]]$Local:Companies = ($Local:Response | ConvertFrom-Json).companies;
-
-            Invoke-Debug "Got $($Local:Companies.Count) companies from hudu.";
-        } catch {
-            Invoke-Error 'Failed to get companies from hudu; Check your API Key.';
-            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-        }
+        Invoke-Debug "Got $($Local:Companies.Count) companies from hudu.";
 
         [Object[]]$Local:Companies = $Local:Companies `
             | Sort-Object -Property name `
@@ -52,4 +97,4 @@ function Get-HuduCompanies {
     }
 }
 
-Export-ModuleMember -Function Get-HuduCompanies;
+Export-ModuleMember -Function Invoke-HuduRequest, Get-HuduCompanies;
