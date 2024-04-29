@@ -33,50 +33,140 @@ Using namespace System.Management.Automation.Language;
 
 [CmdletBinding(SupportsShouldProcess)]
 Param(
-    [Parameter(Mandatory, HelpMessage="The path of the target script to compile a merged version of.")]
-    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Target script file does not exist: {0}")]
-    [ValidateScript({ $_.EndsWith('.ps1') }, ErrorMessage = "Target script file must be a PowerShell script file: {0}")]
+    [Parameter(Mandatory, HelpMessage = 'The path of the target script to compile a merged version of.')]
+    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Target script file does not exist: {0}')]
+    [ValidateScript({ $_.EndsWith('.ps1') }, ErrorMessage = 'Target script file must be a PowerShell script file: {0}')]
     [String[]]$CompileScripts,
 
-    [Parameter(HelpMessage="The folders or files to search for modules to merge into the target script.")]
-    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Module folder does not exist: {0}")]
-    [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Module folder is not a folder: {0}")]
+    [Parameter(HelpMessage = 'The folders or files to search for modules to merge into the target script.')]
+    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Module folder does not exist: {0}')]
+    [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = 'Module folder is not a folder: {0}')]
     [String[]]$Modules = @("$PSScriptRoot\..\src\common"),
 
-    [Parameter(HelpMessage="The root folder to search for modules to merge into the target script.")]
-    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Module root folder does not exist: {0}")]
-    [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Module root folder is not a folder: {0}")]
+    [Parameter(HelpMessage = 'The root folder to search for modules to merge into the target script.')]
+    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Module root folder does not exist: {0}')]
+    [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = 'Module root folder is not a folder: {0}')]
     [String]$ModuleRoot = "$PSScriptRoot\..\src",
 
-    [Parameter(HelpMessage="The folder to write the merged version of the target script to, if not specified the merged version will be written to the console.")]
-    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = "Output file path is invalid: {0}")]
-    [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = "Output file path is not a folder: {0}")]
+    [Parameter(HelpMessage = 'The folder to write the merged version of the target script to, if not specified the merged version will be written to the console.')]
+    [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Output file path is invalid: {0}')]
+    [ValidateScript({ Test-Path $_ -PathType 'Container' }, ErrorMessage = 'Output file path is not a folder: {0}')]
     [String]$Output,
 
-    [Parameter(HelpMessage="If specified, the output file will be overwritten if it already exists.")]
+    [Parameter(HelpMessage = 'If specified, the output file will be overwritten if it already exists.')]
     [Switch]$Force,
 
-    [Parameter(DontShow, HelpMessage="If this was ran from within another script.")]
+    [Parameter(DontShow, HelpMessage = 'If this was ran from within another script.')]
     [Switch]$InnerInvocation
 )
+
+function Find-DeclaredModules {
+    param(
+        [Parameter(Mandatory)]
+        [ScriptBlockAst]$Ast
+    )
+
+    $Private:Modules = @{};
+
+    $Ast.FindAll({ $args[0] -is [UsingStatementAst] -and ($args[0] -as [UsingStatementAst]).UsingStatementKind -eq [UsingStatementKind]::Module }, $True) | ForEach-Object {
+        [UsingStatementAst]$Local:UsingStatement = $_;
+
+        switch ($Local:UsingStatement) {
+            { $_.Name -is [StringConstantExpressionAst] } {
+                $Private:Modules.Add($Local:UsingStatement.Name.Value, @{});
+            }
+            { $_.ModuleSpecification -is [HashtableAst] } {
+                $Private:Table = @{};
+                $Private:Pairs = $_.ModuleSpecification.KeyValuePairs.GetEnumerator();
+                foreach ($Private:Pair in $Private:Pairs) {
+                    $Private:Key = $Private:Pair.Item1.Value;
+                    $Private:Value = Invoke-Expression $Private:Pair.Item2.Extent.Text;
+
+                    $Private:Table.Add($Private:Key, $Private:Value);
+                }
+
+                if (-not $Private:Table.ContainsKey('ModuleName')) {
+                    Write-Error -Message "ModuleSpecification does not contain a 'ModuleName' key.";
+                    return;
+                }
+
+                $Private:Modules.Add($Private:Table['ModuleName'], $Private:Table);
+            }
+            default {
+                Write-Warning -Message "Unknown UsingStatementAst type from: $_";
+            }
+        }
+    }
+
+    return $Private:Modules;
+}
+
+function Update-StartToEndBlock(
+    [Parameter(Mandatory)][String[]]$Lines,
+    [Parameter(Mandatory)][String]$OpenPattern,
+    [Parameter(Mandatory)][String]$ClosePattern,
+    [Parameter(Mandatory)][ScriptBlock]$UpdateBlock
+) {
+    $Local:SkipRanges = @();
+    $Local:Offset = 0;
+    while ($True) {
+        Invoke-Debug "Searching with skip ranges: $($Local:SkipRanges | ForEach-Object { $_.Start..$_.End })"
+
+        ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Lines -OpenPattern $OpenPattern -ClosePattern $ClosePattern -SkipRanges $Local:SkipRanges -Offset $Local:Offset;
+
+        if ($Local:StartIndex -eq -1 -or $Local:EndIndex -eq -1) {
+            break;
+        }
+
+        [String[]]$Private:UpdatingLines = $Lines[$Local:StartIndex..$Local:EndIndex];
+        [String[]]$Private:NewLines = & $UpdateBlock -Lines $Private:UpdatingLines;
+
+        # if ($Local:StartIndex -gt 0) {
+        #     $Lines = $Lines[0..($Local:StartIndex - 1)] + $Private:NewLines + $Lines[($Local:EndIndex + 1)..($Lines.Count - 1)];
+        # } else {
+        #     $Lines = $Private:NewLines + $Lines[($Local:EndIndex + 1)..($Lines.Count - 1)];
+        # }
+
+        $Lines = Update-Range -Lines $Lines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex -UpdatedLines $Private:NewLines;
+        $Local:Offset += $Private:NewLines.Count - $Private:UpdatingLines.Count;
+        $Local:SkipRanges += @{Start = $Local:StartIndex; End = $Local:EndIndex };
+    }
+
+    return $Lines;
+}
 
 function Find-StartToEndBlock(
     [Parameter(Mandatory)][String[]]$Lines,
     [Parameter(Mandatory)][String]$OpenPattern,
-    [Parameter(Mandatory)][String]$ClosePattern
+    [Parameter(Mandatory)][String]$ClosePattern,
+    [Parameter(DontShow)][HashTable[]]$SkipRanges = @(),
+    [Parameter(DontShow)][Int]$Offset = 0
 ) {
-    begin { Enter-Scope -IgnoreParams @('Lines'); }
-    end { Exit-Scope -ReturnValue $Local:StartIndex,$Local:EndIndex; }
+    begin {
+        Enter-Scope -IgnoreParams @('Lines');
+    }
+
+    end { Exit-Scope -ReturnValue $Local:StartIndex, $Local:EndIndex; }
 
     process {
         if (-not $Lines -or $Lines.Count -eq 0) {
-            return -1,-1;
+            return -1, -1;
         }
 
         [Int32]$Local:StartIndex = -1;
         [Int32]$Local:EndIndex = -1;
         [Int32]$Local:OpenLevel = 0;
-        for ($Local:Index = 0; $Local:Index -lt $Lines.Count; $Local:Index++) {
+        :Indexer for ($Local:Index = 0; $Local:Index -lt $Lines.Count; $Local:Index++) {
+            if ($null -ne $SkipRanges -and $SkipRanges.Count -gt 0) {
+                foreach ($Local:SkipRange in $SkipRanges) {
+                    $Private:Start = $Local:SkipRange.Start - $Offset;
+                    $Private:End = $Local:SkipRange.End - $Offset;
+                    if ($Local:Index -ge $Private:Start -and $Local:Index -le $Private:End) {
+                        continue Indexer;
+                    }
+                }
+            }
+
             $Local:Line = $Lines[$Local:Index];
 
             if ($Local:Line -match $OpenPattern) {
@@ -97,7 +187,7 @@ function Find-StartToEndBlock(
             }
         }
 
-        return $Local:StartIndex,$Local:EndIndex;
+        return $Local:StartIndex, $Local:EndIndex;
     }
 }
 
@@ -116,7 +206,7 @@ function Get-ModuleDefinitions {
             Write-Debug -Message "Adding module: $($Local:Module.Name)";
             $Local:Lines = (Get-Content -Raw -Path $Local:Module.FullName) -split "`n" | Where-Object { $_.Trim() };
             if (-not $Local:Lines -or $Local:Lines.Count -eq 0) {
-                Write-Debug -Message "Module content is empty. Skipping...";
+                Write-Debug -Message 'Module content is empty. Skipping...';
                 continue;
             }
 
@@ -149,13 +239,15 @@ function Get-Requirements([Parameter(Mandatory)][String[]]$Lines, [HashTable]$Re
 
             if ($Local:Type -eq 'Modules') {
                 $Local:Value = $Local:Value.Split(',') | ForEach-Object { $_.Trim() };
-            } else {
+            }
+            else {
                 $Local:Value = $Local:Value.Trim();
             }
 
             if ($Local:RequirementsTable[$Local:Type]) {
                 $Local:Requirements[$Local:Type] += $Local:Value;
-            } else {
+            }
+            else {
                 $Local:Requirements.Add($Local:Type, @($Local:Value));
             }
         }
@@ -189,7 +281,8 @@ function Invoke-FixLines(
         ) {
             if ($StartIndex -gt 0) {
                 $Lines = $Lines[0..($StartIndex - 1)] + $Lines[($EndIndex + 1)..($Lines.Count - 1)];
-            } else {
+            }
+            else {
                 $Lines = $Lines[($EndIndex + 1)..($Lines.Count - 1)];
             }
 
@@ -204,7 +297,8 @@ function Invoke-FixLines(
         ) {
             if ($StartIndex -gt 0) {
                 $Lines = $Lines[0..($StartIndex - 1)] + $UpdatedLines + $Lines[($EndIndex + 1)..($Lines.Count - 1)];
-            } else {
+            }
+            else {
                 $Lines = $UpdatedLines + $Lines[($EndIndex + 1)..($Lines.Count - 1)];
             }
 
@@ -226,41 +320,42 @@ $($Lines[$StartIndex..$EndIndex] | Join-String -Separator "`n")
         [String[]]$Local:FixedLines = $Lines;
 
         # Look for any mulitline strings, capture them and trim the whitespace from the start to ensure they are correctly merged.
-        while ($True) {
-            ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:FixedLines -OpenPattern '^.*@"' -ClosePattern '^\s+.*"@';
-            if ($Local:StartIndex -eq -1 -or $Local:EndIndex -eq -1) {
-                Invoke-Debug 'No more multiline strings found';
-                break
-            }
+        $Local:FixedLines = Update-StartToEndBlock -Lines:$Local:FixedLines -OpenPattern '^.*@["'']' -ClosePattern '^\s+.*["'']@' -UpdateBlock {
+            param($Lines);
 
-            Invoke-DebugIndex -Type 'multiline string' -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex;
+            Invoke-DebugIndex -Type 'multiline string' -Lines $Lines -StartIndex 0 -EndIndex ($Lines.Count - 1);
 
+            $Local:StartIndex = 0;
             # If the multiline is not at the start of the content it does not need to be trimmed, so we skip it.
-            if (-not $Local:FixedLines[$Local:StartIndex].StartsWith('@"')) {
+            if (-not $Lines[$Local:StartIndex].StartsWith('@"')) {
                 $Local:StartIndex++;
             }
 
             # Get the multiline indent level from the last line of the string.
             # This is used so we don't remove any whitespace that is part of the actual string formatting.
-            $Local:IndentLevel = $Local:FixedLines[$Local:EndIndex].IndexOf('"@');
+            $Local:IndentLevel = $Lines[-1].IndexOf('"@');
 
             # Trim the leading whitespace from the multiline string.
-            [String[]]$Local:UpdatedLines = $Local:FixedLines[$Local:StartIndex..$Local:EndIndex] | ForEach-Object { $_.Substring($Local:IndentLevel) };
+            [String[]]$Local:UpdatedLines = $Lines[$Local:StartIndex..($Lines.Count - 1)] | ForEach-Object { $_.Substring($Local:IndentLevel) };
+
+            if ($Local:StartIndex -gt 0) {
+                $Local:UpdatedLines = $Lines[0..($Local:StartIndex - 1)] + $Local:UpdatedLines;
+            }
 
             Invoke-Debug "Updated multiline string: `n$($Local:UpdatedLines | Join-String -Separator "`n")";
-            $Local:FixedLines = Update-Range -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex -UpdatedLines $Local:UpdatedLines;
-        };
+            return $Local:UpdatedLines;
+        }
 
         # Remove any Document Blocks from the content
         while ($True) {
             ($Local:StartIndex, $Local:EndIndex) = Find-StartToEndBlock -Lines $Local:FixedLines -OpenPattern '<#' -ClosePattern '#>';
 
             if ($Local:StartIndex -eq -1 -or $Local:EndIndex -eq -1) {
-                Invoke-Debug 'No more comment blocks found';
+                # Invoke-Debug 'No more comment blocks found';
                 break
             }
 
-            Invoke-DebugIndex -Type 'comment block' -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex;
+            # Invoke-DebugIndex -Type 'comment block' -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex;
 
             $Local:FixedLines = Remove-Index -Lines $Local:FixedLines -StartIndex $Local:StartIndex -EndIndex $Local:EndIndex;
         }
@@ -279,7 +374,7 @@ function New-CompiledScript(
     [Parameter(Mandatory)][ValidateNotNull()][HashTable]$ModuleTable,
     [Parameter(Mandatory)][ValidateNotNull()][HashTable]$Requirements
 ) {
-    begin { Enter-Scope -IgnoreParams 'Lines','ModuleTable'; }
+    begin { Enter-Scope -IgnoreParams 'Lines', 'ModuleTable'; }
     end { Exit-Scope; }
 
     process {
@@ -293,12 +388,12 @@ function New-CompiledScript(
         } | Join-String -Separator "`n";
 
         [String]$Local:CmdletBinding = $null;
-        if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(?i)^\s*\[cmdletBinding\(([A-z,=''\s]*)\)\]') {
-            Invoke-Debug -Message 'Found CmdletBinding attribute';
+        if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(?i)^\s*\[CmdletBinding\((.*)\)\]') {
+            # Invoke-Debug -Message 'Found CmdletBinding attribute';
 
             ($Local:ParamStart, $Local:ParamEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '\[' -ClosePattern '\]';
-            Invoke-Debug -Message "Found CmdletBinding attribute at lines $Local:ParamStart to $Local:ParamEnd";
-            Invoke-Debug -Message "CmdletBinding attribute content: $($Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n")";
+            # Invoke-Debug -Message "Found CmdletBinding attribute at lines $Local:ParamStart to $Local:ParamEnd";
+            # Invoke-Debug -Message "CmdletBinding attribute content: $($Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n")";
 
             [String]$Local:CmdletBinding = $Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n";
             [String[]]$Local:FilteredLines = $Local:FilteredLines[($Local:ParamEnd + 1)..($Local:FilteredLines.Count - 1)];
@@ -306,11 +401,11 @@ function New-CompiledScript(
 
         [String]$Local:ParamBlock = $null;
         if ($Local:FilteredLines[0] | Select-String -Quiet -Pattern '(i?)^\s*param\s*\(') {
-            Invoke-Debug -Message 'Found param block';
+            # Invoke-Debug -Message 'Found param block';
 
             ($Local:ParamStart, $Local:ParamEnd) = Find-StartToEndBlock -Lines $Local:FilteredLines -OpenPattern '\(' -ClosePattern '\)';
-            Invoke-Debug -Message "Found param block at lines $Local:ParamStart to $Local:ParamEnd";
-            Invoke-Debug -Message "Param block content: $($Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n")";
+            # Invoke-Debug -Message "Found param block at lines $Local:ParamStart to $Local:ParamEnd";
+            # Invoke-Debug -Message "Param block content: $($Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n")";
 
             [String]$Local:ParamBlock = $Local:FilteredLines[$Local:ParamStart..$Local:ParamEnd] | Join-String -Separator "`n";
             [String[]]$Local:FilteredLines = $Local:FilteredLines[($Local:ParamEnd + 1)..($Local:FilteredLines.Count - 1)];
@@ -338,7 +433,8 @@ function New-CompiledScript(
             if ($Local:ScriptStart -gt 0) {
                 $Local:BeforeMain = $Local:FilteredLines[0..($Local:ScriptStart - 1)];
                 $Local:FilteredLines = $Local:FilteredLines[($Local:ScriptEnd + 1)..($Local:FilteredLines.Count)] + $Local:BeforeMain;
-            } else {
+            }
+            else {
                 $Local:FilteredLines = $Local:FilteredLines[($Local:ScriptEnd + 1)..($Local:FilteredLines.Count)];
             }
 
@@ -383,7 +479,7 @@ $(if ($Local:InvokeMain) {
 }
 
 if (-not $InnerInvocation) {
-    Import-Module $PSScriptRoot/../src/common/00-Environment.psm1 -ErrorAction Stop;
+    Import-Module $PSScriptRoot/../src/common/00-Environment.psm1 -ErrorAction Stop -Global;
 }
 
 function Invoke-Compile {
@@ -425,18 +521,20 @@ function Invoke-Compile {
 Invoke-RunMain $MyInvocation -HideDisclaimer:$InnerInvocation {
     $CompileScripts | ForEach-Object {
         $Local:OutPath = $_;
-        $Local:CompiledScript = $_ | Invoke-Compile;
+        $Local:CompiledScript = Invoke-Compile -ScriptPath $_ -Modules $Modules -ModuleRoot $ModuleRoot;
 
         if (-not $Output) {
             return $Local:CompiledScript;
-        } else {
+        }
+        else {
             [System.IO.FileInfo]$Local:ScriptFile = Get-Item -Path $Local:OutPath;
             [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
             if (Test-Path $Local:OutputFile) {
                 if ($Force -or (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true)) {
                     Invoke-Info 'Output file already exists. Deleting...';
                     Remove-Item -Path $Local:OutputFile -Force | Out-Null;
-                } else {
+                }
+                else {
                     Invoke-Error "Output file already exists: $($Local:OutputFile)";
                     continue
                 }
