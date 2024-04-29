@@ -327,13 +327,19 @@ $($Lines[$StartIndex..$EndIndex] | Join-String -Separator "`n")
 
             $Local:StartIndex = 0;
             # If the multiline is not at the start of the content it does not need to be trimmed, so we skip it.
-            if (-not $Lines[$Local:StartIndex].StartsWith('@"')) {
+            if (-not $Lines[$Local:StartIndex].StartsWith('@"') -and -not $Lines[$Local:StartIndex].StartsWith("@'")) {
                 $Local:StartIndex++;
             }
 
             # Get the multiline indent level from the last line of the string.
             # This is used so we don't remove any whitespace that is part of the actual string formatting.
             $Local:IndentLevel = $Lines[-1].IndexOf('"@');
+            if ($Local:IndentLevel -eq -1) {
+                $Local:IndentLevel = $Lines[-1].IndexOf("'@");
+            }
+
+            Invoke-Debug "Getting indent level from line: $($Lines[-1])";
+            Invoke-Debug "Indent level: $Local:IndentLevel";
 
             # Trim the leading whitespace from the multiline string.
             [String[]]$Local:UpdatedLines = $Lines[$Local:StartIndex..($Lines.Count - 1)] | ForEach-Object { $_.Substring($Local:IndentLevel) };
