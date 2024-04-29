@@ -122,14 +122,17 @@ function Enter-Scope(
     [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo, # Get's the callers invocation info.
 
     [Parameter()]
-    [HashTable]$ArgumentFormatter
+    [HashTable]$ArgumentFormatter,
+
+    [Parameter()]
+    [Switch]$PassThru
 ) {
+    (Get-Stack).Push(@{ Invocation = $Invocation; StopWatch = [System.Diagnostics.Stopwatch]::StartNew(); });
+
     if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
     if ($null -eq $ArgumentFormatter) {
         $ArgumentFormatter = @{};
     }
-
-    (Get-Stack).Push(@{ Invocation = $Invocation; StopWatch = [System.Diagnostics.Stopwatch]::StartNew(); });
 
     [String]$Local:ScopeName = Format-ScopeName -IsExit:$False;
     [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams -ArgumentFormatter:$ArgumentFormatter;
@@ -139,41 +142,42 @@ function Enter-Scope(
         PSColour    = 'Blue';
         PSPrefix    = '❯❯';
         ShouldWrite = $Global:Logging.Verbose;
+        PassThru    = $PassThru;
     } | Invoke-Write;
 }
 
 function Exit-Scope(
-    [Parameter()][ValidateNotNull()]
-    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo,
     [Parameter()]
     [Object]$ReturnValue
 ) {
-    if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
-    if ($null -eq $ArgumentFormatter) {
-        $ArgumentFormatter = @{};
-    }
-
     [System.Diagnostics.Stopwatch]$Local:StopWatch = (Get-StackTop).StopWatch;
     $Local:StopWatch.Stop();
-    [String]$Local:ExecutionTime = "Execution Time: $($Local:StopWatch.ElapsedMilliseconds)ms";
 
-    [String]$Local:ScopeName = Format-ScopeName -IsExit:$True;
-    [String]$Local:ReturnValueFormatted = Format-Variable -Value:$ReturnValue;
+    if ($Global:Logging.Verbose) {
+        if ($null -eq $ArgumentFormatter) {
+            $ArgumentFormatter = @{};
+        }
 
-    [String]$Local:Message = $Local:ScopeName;
-    if ($Local:ExecutionTime) {
-        $Local:Message += "`n$Local:ExecutionTime";
+        [String]$Local:ExecutionTime = "Execution Time: $($Local:StopWatch.ElapsedMilliseconds)ms";
+
+        [String]$Local:ScopeName = Format-ScopeName -IsExit:$True;
+        [String]$Local:ReturnValueFormatted = Format-Variable -Value:$ReturnValue;
+
+        [String]$Local:Message = $Local:ScopeName;
+        if ($Local:ExecutionTime) {
+            $Local:Message += "`n$Local:ExecutionTime";
+        }
+        if ($Local:ReturnValueFormatted) {
+            $Local:Message += "`n$Local:ReturnValueFormatted";
+        }
+
+        @{
+            PSMessage   = $Local:Message;
+            PSColour    = 'Blue';
+            PSPrefix    = '❮❮';
+            ShouldWrite = $Global:Logging.Verbose;
+        } | Invoke-Write;
     }
-    if ($Local:ReturnValueFormatted) {
-        $Local:Message += "`n$Local:ReturnValueFormatted";
-    }
-
-    @{
-        PSMessage   = $Local:Message;
-        PSColour    = 'Blue';
-        PSPrefix    = '❮❮';
-        ShouldWrite = $Global:Logging.Verbose;
-    } | Invoke-Write;
 
     (Get-Stack).Pop() | Out-Null;
 }
