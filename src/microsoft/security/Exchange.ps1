@@ -1,13 +1,12 @@
 #Requires -Modules ExchangeOnlineManagement
 
 Param(
-    [Parameter()]
-    [ValidateSet('MailBox', 'Policies')]
-    [String[]]$Update = @('MailBox', 'Policies')
+    [Parameter(Mandatory)]
+    [ValidateSet('MailBox', 'Policies', 'Outlook')]
+    [String[]]$Update
 )
 
 #region - Mailbox settings
-
 function Enable-MailboxAuditing {
     Set-OrganizationConfig -AuditDisabled $false
     Get-Mailbox | ForEach-Object { Set-Mailbox -AuditEnabled $true -Identity $_.WindowsEmailAddress }
@@ -16,8 +15,13 @@ function Enable-MailboxAuditing {
 function Enable-MailTips {
     Set-OrganizationConfig -MailTipsAllTipsEnabled $true -MailTipsExternalRecipientsTipsEnabled $true -MailTipsGroupMetricsEnabled $true -MailTipsLargeAudienceThreshold '25'
 }
-
 #endregion - Mailbox settings
+
+#region - Outlook settings
+function Disable-OutlookStorageProviders {
+    Set-OwaMailboxPolicy -Identity OwaMailboxPolicy-Default -AdditionalStorageProvidersAvailable $false
+}
+#endregion
 
 #region - Policies
 
@@ -293,6 +297,9 @@ Invoke-RunMain $MyInvocation {
                 Update-AntiPhishPolicy;
                 # Update-SafeAttachmentsPolicy;
                 # Update-SafeLinksPolicy;
+            }
+            'Outlook' {
+                Disable-OutlookStorageProviders;
             }
         }
     }

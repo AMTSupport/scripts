@@ -215,3 +215,73 @@ If a new mailbox was created, please ensure that the user account is correctly d
         return $Local:UserPrincipalName;
     }
 }
+
+<#
+.SYNOPSIS
+    Iterate through every customers tenant and invoke a script block
+
+.DESCRIPTION
+    This function will iterate through every customer tenant and invoke a script block with the tenant as the current scope.
+    This is useful for running scripts that need to be run for every customer.
+
+.PARAMETER ScriptBlock
+    The script block to invoke for each customer tenant.
+
+.EXAMPLE
+    Invoke-ForEachCustomer {
+        Get-AlertsUser;
+    }
+
+.NOTES
+    This is a very powerful function and should be used with caution.
+#>
+function Invoke-ForEachCustomer {
+    param(
+        [Parameter(Mandatory)]
+        [ScriptBlock]$ScriptBlock,
+
+        [Parameter()]
+        [String]$VaultName = 'DelegatedAccessTokens'
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        Invoke-EnsureModule 'PartnerCenter','Az.Accounts','Az.KeyVault';
+
+        Invoke-Info 'Please sign in with the Azure AD account that has access to the Delegated Access Tokens...';
+        Connect-AzAccount -UseDeviceAuthentication;
+
+        Invoke-Info 'Getting Delegated Access Tokens...';
+        [String]$Private:AppilicationID = Get-AzKeyVaultSecret -VaultName $VaultName -Name 'ApplicationID' -AsPlainText;
+        [SecureString]$Private:ApplicationSecret = Get-AzKeyVaultSecret -VaultName $VaultName -Name 'ApplicationSecret';
+        [SecureString]$Private:RefreshToken = Get-AzKeyVaultSecret -VaultName $VaultName -Name 'RefreshToken';
+        # [SecureString]$Private:ExchangeRefreshToken = Get-AzKeyVaultSecret -VaultName $VaultName -Name 'ExchangeRefreshToken';
+        # [SecureString]$Private:AzureRefreshToken = Get-AzKeyVaultSecret -VaultName $VaultName -Name 'AzureRefreshToken';
+
+        Invoke-Info 'Getting Partner Center token...'
+        [System.Management.Automation.PSCredential]$Private:Credential = New-Object System.Management.Automation.PSCredential -ArgumentList $Private:AppilicationID, $Private:ApplicationSecret;
+        $Private:GraphToken = Get-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://graph.microsoft.com/.default' -ServicePrincipal;
+
+        Invoke-Info 'Getting Partner Center customers...';
+        Connect-MgGraph -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
+        $Private:Customers = Get-MgContract -All;
+        Disconnect-MgGraph;
+
+        foreach ($Private:Customer in $Private:Customers) {
+            Invoke-Info 'Getting customer token...';
+            $Private:GraphToken = Get-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://management.azure.com' -ServicePrincipal -TenantId $Private:Customer.TenantId;
+            Invoke-Info 'Connecting to services...';
+            Connect-MgGraph -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
+            Connect-ExchangeOnline -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
+
+            Invoke-Info 'Invoking script block...';
+            Invoke-Command -ScriptBlock $ScriptBlock;
+
+            Invoke-Info 'Disconnecting from services...';
+            Disconnect-MgGraph;
+            Disconnect-ExchangeOnline;
+        }
+    }
+}
