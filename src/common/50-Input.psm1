@@ -56,7 +56,7 @@ function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
     Set-PSReadLineKeyHandler -Chord Ctrl+Enter -ScriptBlock $Private:EnterScriptBlock;
     Set-PSReadLineKeyHandler -Chord Shift+Enter -ScriptBlock $Private:EnterScriptBlock;
 
-    [System.Func[String,Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
+    [System.Func[String, Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
     if ($DontSaveInputs) {
         Set-PSReadLineOption -AddToHistoryHandler {
             Param([String]$Line)
@@ -66,11 +66,11 @@ function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
     }
 
     return @{
-        Enter           = $Local:PreviousEnterFunction;
-        CtrlC           = $Local:PreviousCtrlCFunction;
-        CtrlShift       = $Local:PreviousCtrlEnterFunction;
-        ShiftEnter      = $Local:PreviousShiftEnterFunction;
-        HistoryHandler  = $Local:HistoryHandler;
+        Enter          = $Local:PreviousEnterFunction;
+        CtrlC          = $Local:PreviousCtrlCFunction;
+        CtrlShift      = $Local:PreviousCtrlEnterFunction;
+        ShiftEnter     = $Local:PreviousShiftEnterFunction;
+        HistoryHandler = $Local:HistoryHandler;
     }
 }
 
@@ -157,7 +157,10 @@ function Get-UserInput {
         [Switch]$DontSaveInputs = $AsSecureString,
 
         [Parameter()]
-        [Switch]$SaveInputAsUniqueHistory
+        [Switch]$SaveInputAsUniqueHistory,
+
+        [Parameter()]
+        [Switch]$AllowEmpty
     )
 
     begin { Enter-Scope; Install-Requirements; }
@@ -168,6 +171,15 @@ function Get-UserInput {
         Invoke-Write @Script:WriteStyle -PSMessage $Question;
 
         [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:$DontSaveInputs;
+        if ($SaveInputAsUniqueHistory) {
+            $Local:PreviousHistorySavePath = (Get-PSReadLineOption).HistorySavePath;
+
+            $Local:Hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$Title$Question"));
+            $Local:HashString = [System.BitConverter]::ToString($Local:Hash).Replace('-', '');
+            $Local:HashString = $Local:HashString.Substring(0, [Math]::Min(8, $Local:HashString.Length));
+            $Private:FileLocation = "$env:APPDATA\Roaming\Microsoft\Windows\PowerShell\PSReadLine\UniqueHistory-$Local:HashString.txt";
+            Set-PSReadLineOption -HistorySavePath $Private:FileLocation;
+        }
 
         $Host.UI.RawUI.FlushInputBuffer();
         Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
@@ -175,12 +187,13 @@ function Get-UserInput {
 
         do {
             [String]$Local:UserInput = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
-            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeWithContext($null, [PSVariable]::new('_', $Local:UserInput))))) {
+            if ((-not $AllowEmpty -and -not $Local:UserInput) -or ($Validate -and (-not $Validate.InvokeWithContext($null, [PSVariable]::new('_', $Local:UserInput))))) {
                 $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) {
                     $Private:Value = $Script:ExtraLines + 2;
                     $Script:ExtraLines = 0;
                     $Private:Value;
-                } else {
+                }
+                else {
                     1
                 };
 
@@ -191,7 +204,8 @@ function Get-UserInput {
 
                 $Local:FailedAtLeastOnce = $true;
                 $Script:PressedEnter = $false;
-            } else {
+            }
+            else {
                 Clear-HostLight -Count 1;
                 break;
             }
@@ -201,6 +215,14 @@ function Get-UserInput {
 
         if ($Script:ShouldAbort) {
             throw [System.Management.Automation.PipelineStoppedException]::new();
+        }
+
+        if ($SaveInputAsUniqueHistory) {
+            Set-PSReadLineOption -HistorySavePath $Local:PreviousHistorySavePath;
+        }
+
+        if ($AllowEmpty -and -not $Local:UserInput) {
+            return $null;
         }
 
         if ($AsSecureString) {
@@ -282,7 +304,7 @@ function Get-UserSelection {
 
         [String[]]$Script:ChoicesList = $Choices | ForEach-Object {
             $Formatted = $FormatChoice.InvokeReturnAsIs($_);
-            if (-not $Formatted -or $Formatted -eq "") {
+            if (-not $Formatted -or $Formatted -eq '') {
                 throw [System.ArgumentException]::new('FormatChoice script block must return a non-empty string.');
             }
 
@@ -299,7 +321,8 @@ function Get-UserSelection {
             if ($Script:PreviewingChoices -and $Line -eq $Script:PreviewingInput) {
                 if ($Script:ChoicesGoneThrough -eq $Script:MatchedChoices.Count - 1) {
                     $Script:ChoicesGoneThrough = 0;
-                } else {
+                }
+                else {
                     $Script:ChoicesGoneThrough++;
                 }
 
@@ -319,7 +342,8 @@ function Get-UserSelection {
                 $Script:PreviewingInput = $Script:MatchedChoices[$Script:ChoicesGoneThrough];
 
                 [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices[$Script:ChoicesGoneThrough]);
-            } elseif ($Script:MatchedChoices.Count -eq 1) {
+            }
+            elseif ($Script:MatchedChoices.Count -eq 1) {
                 [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
             }
         }
@@ -334,7 +358,8 @@ function Get-UserSelection {
             if ($Script:PreviewingChoices -and $Line -eq $Script:PreviewingInput) {
                 if ($Script:ChoicesGoneThrough -eq 0) {
                     $Script:ChoicesGoneThrough = $Script:MatchedChoices.Count - 1;
-                } else {
+                }
+                else {
                     $Script:ChoicesGoneThrough--;
                 }
 
@@ -358,7 +383,8 @@ function Get-UserSelection {
             if (-not $Local:Selection -and $Local:FirstRun) {
                 $Local:Selection = $Choices[$DefaultChoice];
                 Clear-HostLight -Count 1;
-            } elseif ($Local:Selection -notin $ChoicesList) {
+            }
+            elseif ($Local:Selection -notin $ChoicesList) {
                 $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
                 Clear-HostLight -Count $Local:ClearLines;
 
@@ -379,7 +405,8 @@ function Get-UserSelection {
         if ($Script:ShouldAbort) {
             if (-not $AllowNone) {
                 throw [System.Management.Automation.PipelineStoppedException]::new();
-            } else {
+            }
+            else {
                 return $null;
             }
         }
@@ -406,7 +433,7 @@ function Get-PopupSelection {
     while (-not $Local:Selection) {
         $Local:Selection = $Items | Out-GridView -Title $Title -PassThru;
         if ((-not $AllowNone) -and (-not $Local:Selection)) {
-            Invoke-Info "No Item was selected, re-running selection...";
+            Invoke-Info 'No Item was selected, re-running selection...';
         }
     }
 
@@ -423,10 +450,10 @@ function Install-Requirements {
 
     # Windows comes pre-installed with PSReadLine 2.0.0, so we need to ensure that we have at least 2.3.0;
     Invoke-EnsureModule @{
-        Name                = 'PSReadLine';
-        MinimumVersion      = '2.3.0';
-        DontRemove          = $True;
-        RestartIfUpdated    = $True;
+        Name             = 'PSReadLine';
+        MinimumVersion   = '2.3.0';
+        DontRemove       = $True;
+        RestartIfUpdated = $True;
     };
 
     $Using = [ScriptBlock]::Create('Using module ''PSReadLine''');
