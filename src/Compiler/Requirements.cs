@@ -12,16 +12,26 @@ namespace Compiler
             StoredRequirements = [];
         }
 
-        public void AddRequirement(object value)
+        public void AddRequirement(Requirement value)
         {
             if (!StoredRequirements.ContainsKey(value.GetType()))
             {
-                StoredRequirements.Add(value.GetType(), new List<object> { value });
+                StoredRequirements.Add(value.GetType(), new List<Requirement> { value });
             }
             else
             {
-                StoredRequirements[value.GetType()].Cast<List<object>>().Add(value);
+                StoredRequirements[value.GetType()].Cast<List<Requirement>>().Add(value);
             }
+        }
+
+        public List<T> GetRequirements<T>()
+        {
+            if (StoredRequirements.ContainsKey(typeof(T)))
+            {
+                return StoredRequirements[typeof(T)].Cast<List<Requirement>>().FindAll(requirement => requirement.CanCast<T>()).Cast<T>().ToList();
+            }
+
+            return [];
         }
 
         // TODO
@@ -38,7 +48,7 @@ namespace Compiler
         public Version Version { get; } = version;
     }
 
-    public class ModuleRequirement(
+    public class ModuleSpec(
         string name,
         Guid? guid = null,
         Version? mimimumVersion = null,
