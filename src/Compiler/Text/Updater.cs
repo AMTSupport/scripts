@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 
-namespace Text.Updater {
+namespace Text.Updater
+{
     public abstract class TextSpanUpdater
     {
         /// <summary>
@@ -137,9 +138,11 @@ namespace Text.Updater {
                     var isMultiLine = match.Value.Contains(Environment.NewLine);
                     var newContent = Updater(match);
 
-                    if (string.IsNullOrWhiteSpace(newContent))
+                    // Remove the entire line if the replacement is empty and the match is the entire line.
+                    if (string.IsNullOrEmpty(newContent) && match.Index == 0 && match.Length == document.Lines[i].Length)
                     {
                         span.RemoveContent(document);
+                        offset--;
                     }
                     else
                     {
