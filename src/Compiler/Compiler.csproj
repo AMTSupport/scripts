@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
 
     <!-- <UseWPF>true</UseWPF> -->
-    <OutputType>Library</OutputType>
+    <!-- <OutputType>Library</OutputType> -->
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Compiler</RootNamespace>
     <AssemblyName>Compiler</AssemblyName>
@@ -58,5 +58,7 @@
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.2" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <PackageReference Include="QuikGraph" Version="2.5.0" />
+    <PackageReference Include="QuikGraph.Graphviz" Version="2.5.0" />
   </ItemGroup>
 </Project>
