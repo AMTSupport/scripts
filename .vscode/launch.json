@@ -5,6 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "C#: Compiler Debug",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/src/compiler/Compiler.csproj"
+        },
+        {
             "name": "PowerShell Run Pester Tests",
             "type": "PowerShell",
             "request": "launch",
