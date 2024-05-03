@@ -41,7 +41,7 @@ namespace Text
             ));
         }
 
-        public void ApplyRangeEdits()
+        public void ApplyEdits()
         {
             VerifyNotAppliedOrError();
 
