@@ -8,6 +8,18 @@ public abstract partial class Module(ModuleSpec moduleSpec)
     public Requirements Requirements { get; } = new Requirements();
 
     public abstract ModuleMatch GetModuleMatchFor(ModuleSpec requirement);
+
+    public abstract string GetContent();
+
+    public string GetInsertableContent()
+    {
+        return $$"""
+        '{{Name}}' = @{
+            Type = '{{ModuleSpec.Type}}';
+            Content = '{{GetContent()}}';
+        };
+        """;
+    }
 }
 
 public enum ModuleMatch

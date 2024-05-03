@@ -23,6 +23,12 @@ namespace Compiler.Module
             throw new NotImplementedException();
         }
 
+        public override string GetContent()
+        {
+            // return the content as the zip files bytes encoded to a string
+            throw new NotImplementedException();
+        }
+
         private static byte[] GetBinaryZip(string name)
         {
             // TODO

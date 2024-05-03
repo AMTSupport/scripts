@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Text;
 using CommandLine;
 
 namespace Compiler
@@ -34,6 +35,11 @@ namespace Compiler
             return [];
         }
 
+        public List<Requirement> GetRequirements()
+        {
+            return StoredRequirements.Values.Cast<List<Requirement>>().SelectMany(requirements => requirements).ToList();
+        }
+
         // TODO
         public bool VerifyRequirements()
         {
@@ -41,32 +47,54 @@ namespace Compiler
         }
     }
 
-    public abstract class Requirement;
-
-    public class VersionRequirement(Version version) : Requirement
+    public abstract record Requirement(bool SupportsMultiple)
     {
-        public Version Version { get; } = version;
+        public abstract string GetInsertableLine();
     }
 
-    public class ModuleSpec(
-        string name,
-        Guid? guid = null,
-        Version? mimimumVersion = null,
-        Version? maximumVersion = null,
-        Version? requiredVersion = null
-        ) : Requirement
+    public record RunAsAdminRequirement() : Requirement(false)
     {
-        public string Name { get; } = name;
-        public Guid? Guid { get; } = guid;
-        public Version? MimimumVersion { get; } = mimimumVersion;
-        public Version? MaximumVersion { get; } = maximumVersion;
-        public Version? RequiredVersion { get; } = requiredVersion;
-        public ModuleType Type { get; } = ModuleType.Downloadable;
+        public override string GetInsertableLine() => "#Requires -RunAsAdministrator";
+    }
 
-        public enum ModuleType
+    public record PSVersionRequirement(Version Version) : Requirement(false)
+    {
+        public override string GetInsertableLine() => $"#Requires -Version {Version}";
+    }
+
+    public record PSEditionRequirement(PSEdition Edition) : Requirement(false)
+    {
+        public override string GetInsertableLine() => $"#Requires -PSEdition {Edition}";
+    }
+
+    public record ModuleSpec(
+        string Name,
+        Guid? Guid = null,
+        Version? MimimumVersion = null,
+        Version? MaximumVersion = null,
+        Version? RequiredVersion = null,
+        ModuleType Type = ModuleType.Downloadable
+    ) : Requirement(true)
+    {
+        public override string GetInsertableLine()
         {
-            Downloadable,
-            Local
+            var sb = new StringBuilder("#Requires -Modules @{");
+
+            sb.Append($"ModuleName = '{Name}';");
+            if (Guid != null) sb.Append($"GUID = {Guid};");
+            if (MimimumVersion != null) sb.Append($"ModuleVersion = '{MimimumVersion}';");
+            if (MaximumVersion != null) sb.Append($"MaximumVersion = '{MaximumVersion}';");
+            if (RequiredVersion != null) sb.Append($"RequiredVersion = '{RequiredVersion}';");
+
+            return sb.ToString();
         }
     }
+
+    public enum ModuleType
+    {
+        Downloadable,
+        Local
+    }
+
+    public enum PSEdition { Desktop, Core }
 }
