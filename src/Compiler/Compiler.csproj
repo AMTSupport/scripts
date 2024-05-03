@@ -7,6 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+
     <!-- <UseWPF>true</UseWPF> -->
     <!-- <OutputType>Library</OutputType> -->
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -14,7 +17,7 @@
     <AssemblyName>Compiler</AssemblyName>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <!-- <PropertyGroup>

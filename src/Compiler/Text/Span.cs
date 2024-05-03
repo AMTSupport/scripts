@@ -1,14 +1,13 @@
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Text
 {
     public class TextSpan(int startingIndex, int startingColumn, int endingIndex, int endingColumn)
     {
-        public int StartingIndex { get; } = startingIndex;
-        public int StartingColumn { get; } = startingColumn;
-        public int EndingIndex { get; } = endingIndex;
-        public int EndingColumn { get; } = endingColumn;
+        public int StartingIndex { get; set; } = startingIndex;
+        public int StartingColumn { get; set; } = startingColumn;
+        public int EndingIndex { get; set; } = endingIndex;
+        public int EndingColumn { get; set; } = endingColumn;
 
         public static TextSpan WrappingEntireDocument(TextDocument document)
         {
@@ -94,7 +93,9 @@ namespace Text
                     {
                         return offset;
                     }
-                } else {
+                }
+                else
+                {
                     document.Lines.RemoveAt(StartingIndex);
                     offset--;
                 }
@@ -125,10 +126,13 @@ namespace Text
             }
             else if (content.Length == 1)
             {
-                if (StartingIndex == EndingIndex) {
+                if (StartingIndex == EndingIndex)
+                {
                     document.Lines.Insert(StartingIndex, firstLineBefore + content[0] + lastLineAfter);
                     offset++;
-                } else {
+                }
+                else
+                {
                     document.Lines.Insert(StartingIndex, firstLineBefore + content[0]);
                     offset++;
 
