@@ -9,26 +9,22 @@ namespace Compiler.Module;
 public partial class LocalFileModule : Module
 {
     public readonly TextEditor Document;
-    private readonly ScriptBlockAst Ast;
+    protected readonly ScriptBlockAst Ast;
 
     public LocalFileModule(string name, string[] lines) : base(new ModuleSpec(name))
     {
         Document = new(new TextDocument(lines));
 
-        Ast = System.Management.Automation.Language.Parser.ParseInput(string.Join("\n", lines), out _, out ParseError[] ParserErrors);
-        if (ParserErrors.Length > 0)
-        {
-            throw new ParseException(ParserErrors);
-        }
+        Ast = GetAstReportingErrors(string.Join(Environment.NewLine, lines));
 
         AstHelper.FindDeclaredModules(Ast).ToList().ForEach(module =>
         {
             Requirements.AddRequirement(new ModuleSpec(
-                name: module.Key,
-                guid: module.Value.TryGetValue("Guid", out object? value) ? Guid.Parse(value.Cast<string>()) : null,
-                mimimumVersion: module.Value.TryGetValue("MinimumVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
-                maximumVersion: module.Value.TryGetValue("MaximumVersion", out object? maximumVersion) ? Version.Parse(maximumVersion.Cast<string>()) : null,
-                requiredVersion: module.Value.TryGetValue("RequiredVersion", out object? requiredVersion) ? Version.Parse(requiredVersion.Cast<string>()) : null
+                Name: module.Key,
+                Guid: module.Value.TryGetValue("Guid", out object? value) ? Guid.Parse(value.Cast<string>()) : null,
+                MimimumVersion: module.Value.TryGetValue("MinimumVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
+                MaximumVersion: module.Value.TryGetValue("MaximumVersion", out object? maximumVersion) ? Version.Parse(maximumVersion.Cast<string>()) : null,
+                RequiredVersion: module.Value.TryGetValue("RequiredVersion", out object? requiredVersion) ? Version.Parse(requiredVersion.Cast<string>()) : null
             ));
         });
 
@@ -40,14 +36,14 @@ public partial class LocalFileModule : Module
             {
                 case "Version":
                     var parsedVersion = Version.Parse(match.Groups["value"].Value)!;
-                    Requirements.AddRequirement(new VersionRequirement(parsedVersion));
+                    Requirements.AddRequirement(new PSVersionRequirement(parsedVersion));
                     break;
                 case "Modules":
                     var modules = match.Groups["value"].Value.Split(',').Select(v => v.Trim()).ToArray();
                     foreach (var module in modules)
                     {
                         Requirements.AddRequirement(new ModuleSpec(
-                            name: module
+                            Name: module
                         ));
                     }
 
@@ -62,12 +58,20 @@ public partial class LocalFileModule : Module
         FixAndCleanLines();
 
         // Check the AST for any issues that have been introduced by the cleanup.
-        Ast = System.Management.Automation.Language.Parser.ParseInput(string.Join("\n", lines), out _, out ParseError[] PostFixupParserErrors);
-        if (PostFixupParserErrors.Length > 0)
+        GetAstReportingErrors(string.Join(Environment.NewLine, lines));
+    }
+
+    private static ScriptBlockAst GetAstReportingErrors(string astContent) {
+        var ast = System.Management.Automation.Language.Parser.ParseInput(astContent, out _, out ParseError[] ParserErrors);
+
+        ParserErrors = [.. ParserErrors.ToList().FindAll(error => !error.ErrorId.Equals("ModuleNotFoundDuringParse"))];
+        if (ParserErrors.Length > 0)
         {
-            Console.WriteLine("There was an issue trying to parse the script after cleanup was applied.");
-            throw new ParseException(PostFixupParserErrors);
+            Console.WriteLine("There was an issue trying to parse the script.");
+            throw new ParseException(ParserErrors);
         }
+
+        return ast;
     }
 
     private void FixAndCleanLines()
@@ -143,4 +147,5 @@ public partial class LocalFileModule : Module
     [GeneratedRegex(@"^\s*")]
     private static partial Regex BeginingWhitespaceMatchRegex();
 
+    public override string GetContent() => Document.GetContent();
 }
