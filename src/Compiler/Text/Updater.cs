@@ -1,8 +1,14 @@
 using System.Text.RegularExpressions;
 using CommandLine;
 
+// TODO :: Ast based updater
 namespace Text.Updater
 {
+    public record SpanUpdateInfo(
+        TextSpan TextSpan,
+        int Offset
+    );
+
     public abstract class TextSpanUpdater
     {
         /// <summary>
@@ -14,7 +20,13 @@ namespace Text.Updater
         /// <returns>
         /// The number of lines changed by the update.
         /// </returns>
-        public abstract int Apply(TextDocument document);
+        public abstract SpanUpdateInfo[] Apply(TextDocument document);
+
+        /// <summary>
+        /// Use informaiton from another update to possibly update this ones variables.
+        /// This can be used to update the starting index of a span after a previous span has been removed.
+        /// </summary>
+        public abstract void PushByUpdate(SpanUpdateInfo updateInfo);
     }
 
     public class PatternUpdater(
@@ -27,8 +39,9 @@ namespace Text.Updater
         public Regex StartingPattern { get; } = startingPattern;
         public Regex EndingPattern { get; } = endingPattern;
 
-        override public int Apply(TextDocument document)
+        override public SpanUpdateInfo[] Apply(TextDocument document)
         {
+            var spanUpdateInfo = new List<SpanUpdateInfo>();
             var skipRanges = new HashSet<Range>();
             var offset = 0;
 
@@ -43,19 +56,17 @@ namespace Text.Updater
                 var updatingLines = document.Lines.Skip(startIndex).Take(endIndex - startIndex + 1).ToArray();
                 var newLines = Updater(updatingLines);
 
+                var thisOffset = newLines.Length - updatingLines.Length;
+                offset += thisOffset;
                 document.Lines = document.Lines.Take(startIndex).Concat(newLines).Concat(document.Lines.Skip(endIndex + 1)).ToList();
-                offset = newLines.Length - updatingLines.Length;
                 skipRanges.Add(new Range(startIndex, endIndex));
-
-                Console.WriteLine($"Updated block from {startIndex} to {endIndex}");
-                Console.WriteLine("Previous content:");
-                Console.WriteLine(string.Join(Environment.NewLine, updatingLines));
-                Console.WriteLine("New content:");
-                Console.WriteLine(string.Join(Environment.NewLine, newLines));
+                spanUpdateInfo.Add(new SpanUpdateInfo(new TextSpan(startIndex, 0, endIndex, 0), thisOffset));
             }
 
-            return offset;
+            return [.. spanUpdateInfo];
         }
+
+        public override void PushByUpdate(SpanUpdateInfo updateInfo) { }
 
         private (int, int) FindStartToEndBlock(
             string[] lines,
@@ -123,8 +134,9 @@ namespace Text.Updater
         public Func<Match, string> Updater { get; } = updater;
         public Regex Pattern { get; } = pattern;
 
-        override public int Apply(TextDocument document)
+        override public SpanUpdateInfo[] Apply(TextDocument document)
         {
+            var spanUpdateInfo = new List<SpanUpdateInfo>();
             var offset = 0;
 
             for (int i = 0; i < document.Lines.Count; i++)
@@ -135,6 +147,7 @@ namespace Text.Updater
                     continue;
                 }
 
+                var thisOffset = 0;
                 foreach (Match match in matches)
                 {
                     var span = new TextSpan(
@@ -151,7 +164,7 @@ namespace Text.Updater
                     if (string.IsNullOrEmpty(newContent) && match.Index == 0 && match.Length == document.Lines[i].Length)
                     {
                         span.RemoveContent(document);
-                        offset--;
+                        thisOffset--;
                     }
                     else
                     {
@@ -159,13 +172,61 @@ namespace Text.Updater
                         span.SetContent(document, [newContent]);
                         if (isMultiLine)
                         {
-                            offset += newContent.Split(Environment.NewLine).Length - 1;
+                            thisOffset += newContent.Split(Environment.NewLine).Length - 1;
                         }
                     }
+
+                    spanUpdateInfo.Add(new SpanUpdateInfo(new(
+                        i,
+                        match.Index,
+                        i,
+                        match.Index + match.Length
+                    ), thisOffset));
+
+                    offset += thisOffset;
                 }
             }
 
-            return offset;
+            return [.. spanUpdateInfo];
+        }
+
+        public override void PushByUpdate(SpanUpdateInfo updateInfo) { }
+    }
+
+    public class ExactUpdater(
+        int startingIndex,
+        int startingColumn,
+        int endingIndex,
+        int endingColumn,
+        Func<string[], string[]> updater
+    ) : TextSpanUpdater
+    {
+        public Func<string[], string[]> Updater = updater;
+        public TextSpan Span { get; } = new TextSpan(startingIndex, startingColumn, endingIndex, endingColumn);
+
+        override public SpanUpdateInfo[] Apply(TextDocument document)
+        {
+            var updatingLines = document.Lines.Skip(Span.StartingIndex).Take(Span.EndingIndex - Span.StartingIndex + 1).ToArray();
+            updatingLines[0] = document.Lines[Span.StartingIndex][Span.StartingColumn..];
+            updatingLines[^1] = document.Lines[Span.EndingIndex][..Span.EndingColumn];
+
+            var newLines = Updater(updatingLines);
+            var offset = Span.SetContent(document, newLines);
+
+            return [new SpanUpdateInfo(Span, offset)];
+        }
+
+        override public void PushByUpdate(SpanUpdateInfo updateInfo)
+        {
+            if (Span.StartingIndex >= updateInfo.TextSpan.StartingIndex)
+            {
+                Span.StartingIndex += updateInfo.Offset;
+            }
+
+            if (Span.EndingIndex >= updateInfo.TextSpan.StartingIndex)
+            {
+                Span.EndingIndex += updateInfo.Offset;
+            }
         }
     }
 }
