@@ -41,13 +41,33 @@ namespace Text
             ));
         }
 
+        public void AddExactEdit(
+            int startingIndex,
+            int startingColumn,
+            int endingIndex,
+            int endingColumn,
+            Func<string[], string[]> updater)
+        {
+            VerifyNotAppliedOrError();
+
+            TextUpdaters.Add(new ExactUpdater(
+                startingIndex,
+                startingColumn,
+                endingIndex,
+                endingColumn,
+                updater
+            ));
+        }
+
         public void ApplyEdits()
         {
             VerifyNotAppliedOrError();
 
+            var spanUpdates = new List<SpanUpdateInfo>();
             foreach (var textUpdater in TextUpdaters)
             {
-                textUpdater.Apply(Document);
+                spanUpdates.ForEach(textUpdater.PushByUpdate);
+                textUpdater.Apply(Document).ToList().ForEach(spanUpdates.Add);
             }
 
             EditApplied = true;
