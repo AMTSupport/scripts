@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CommandLine;
 
 namespace Text.Updater
 {
@@ -73,12 +74,13 @@ namespace Text.Updater
 
             for (int i = offset; i < lines.Length; i++)
             {
+                var clonedLine = lines[i].Clone().Cast<string>()!;
                 if (skipRanges.Any(range => (range.Start.Value + offset) <= i && (range.End.Value + offset) >= i))
                 {
                     continue;
                 }
 
-                var openingMatch = StartingPattern.Matches(lines[i]);
+                var openingMatch = StartingPattern.Matches(clonedLine);
                 if (openingMatch.Count > 0)
                 {
                     if (openLevel == 0)
@@ -89,7 +91,14 @@ namespace Text.Updater
                     openLevel += openingMatch.Count;
                 }
 
-                var closingMatch = EndingPattern.Matches(lines[i]);
+                // If we found at least one startPattern we will want to remove them from the string,
+                // This is so that the endingPattern does not match the same elements, and we can find the correct end.
+                if (openingMatch.Count > 0)
+                {
+                    clonedLine = StartingPattern.Replace(clonedLine, "", openingMatch.Count);
+                }
+
+                var closingMatch = EndingPattern.Matches(clonedLine);
                 if (closingMatch.Count > 0)
                 {
                     openLevel -= closingMatch.Count;

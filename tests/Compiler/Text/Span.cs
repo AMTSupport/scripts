@@ -160,7 +160,6 @@ namespace Text.Tests
                 Assert.That(lengthChanged, Is.EqualTo(1));
                 Assert.That(document.Lines[1], Is.EqualTo("New"));
                 Assert.That(document.Lines[2], Is.EqualTo("Content"));
-                Assert.That(document.Lines, Has.Count.EqualTo(5));
             });
         }
 

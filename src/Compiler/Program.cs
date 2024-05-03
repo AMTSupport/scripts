@@ -49,7 +49,7 @@ class Program
         var graphViz = compiledScript.ModuleGraph.ToGraphviz();
         Console.WriteLine(graphViz);
 
-        compiledScript.Document.ApplyRangeEdits();
+        compiledScript.Document.ApplyEdits();
         return compiledScript.Document.GetContent();
     }
 
