@@ -26,10 +26,6 @@ class Program
     {
         Parser.Default.ParseArguments<Options>(args).WithParsed(o =>
         {
-            // Console.WriteLine($"Verbose: {o.Verbose}");
-            // Console.WriteLine($"Input file: {o.InputFile}");
-            // Console.WriteLine($"Output file: {o.OutputFile}");
-
             if (string.IsNullOrWhiteSpace(o.InputFile))
             {
                 Console.WriteLine("Input file is required");
@@ -44,13 +40,13 @@ class Program
     public static string CompileScript(string inputFile)
     {
         var script = File.ReadAllText(inputFile);
-        var compiledScript = new CompiledScript(Path.GetFileNameWithoutExtension(inputFile), script.Split('\n'));
+        var compiledScript = new CompiledScript(Path.GetFileName(inputFile), script.Split('\n'));
 
         var graphViz = compiledScript.ModuleGraph.ToGraphviz();
         Console.WriteLine(graphViz);
 
         compiledScript.Document.ApplyEdits();
-        return compiledScript.Document.GetContent();
+        return compiledScript.Compile();
     }
 
     public static async void OutputToFile(Options options, string content)
