@@ -107,8 +107,6 @@ function Export-ToFile {
         [System.IO.FileInfo]$Local:TmpFile = New-Item -Path $env:TEMP -Name ([System.IO.Path]::GetTempFileName()) -ItemType File -Force;
         [System.IO.File]::WriteAllBytes($TmpFile, [System.Convert]::FromBase64String($Base64Content));
 
-        Set-Permissions -Path $Local:TmpFile;
-
         return $Local:TmpFile;
     }
 }
@@ -128,6 +126,7 @@ function Get-FromBlob {
 
     process {
         [String]$Local:Uri = "${Url}?${SasToken}";
+        $Local:Uri = [URI]::EscapeUriString($Local:Uri);
 
         Invoke-Debug "Calling HEAD on $Local:Uri to get MD5 hash...";
         $Local:ResponseHeaders = Invoke-WebRequest -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
@@ -144,27 +143,7 @@ function Get-FromBlob {
         Invoke-RestMethod -Uri:$Local:Uri -Method:GET -OutFile:$Local:OutPath;
 
         Unblock-File -Path $Local:OutPath;
-        Set-Permissions -Path $Local:OutPath;
-
         return $Local:OutPath;
-    }
-}
-
-function Set-Permissions {
-    param(
-        [Parameter(Mandatory)]
-        [String]$Path
-    )
-
-    begin { Enter-Scope; }
-    end { Exit-Scope; }
-
-    process {
-        [System.Security.AccessControl.FileSecurity]$Local:ACL = Get-Acl -Path $Path;
-        $Local:ACL.SetAccessRuleProtection($true, $false);
-        $Local:ACL.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('Users', 'Read', 'Allow')));
-
-        Set-Acl -Path $Path -AclObject $Local:ACL;
     }
 }
 
