@@ -232,12 +232,19 @@ function Update-PerUserSystemParameters {
     end { Exit-Scope; }
 
     process {
-        Invoke-EnsureModule 'RunAsUser';
-        Invoke-AsCurrentUser -ScriptBlock {
+        $Local:ScriptBlock = {
             # For some reason, we need to run this multiple times to get it to work
             for ($i = 0; $i -lt 50; $i++) {
                 rundll32.exe user32.dll, UpdatePerUserSystemParameters;
             }
+        }
+
+        if (Test-IsRunningAsSystem) {
+            Invoke-EnsureModule 'RunAsUser';
+            Invoke-AsCurrentUser -ScriptBlock $Local:ScriptBlock;
+        }
+        else {
+            & $Local:ScriptBlock;
         }
     }
 }

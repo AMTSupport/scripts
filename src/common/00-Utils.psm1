@@ -75,18 +75,21 @@ function Get-VarOrSave {
                     if ($Validate.InvokeReturnAsIs($Local:EnvValue)) {
                         Invoke-Debug "Validated environment variable ${VariableName}: $Local:EnvValue";
                         return $Local:EnvValue;
-                    } else {
+                    }
+                    else {
                         Invoke-Error "Failed to validate environment variable ${VariableName}: $Local:EnvValue";
                         [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
                     };
-                } catch {
+                }
+                catch {
                     Invoke-Error "
                     Failed to validate environment variable ${VariableName}: $Local:EnvValue.
                     Due to reason ${$_.Exception.Message}".Trim();
 
                     [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
                 }
-            } else {
+            }
+            else {
                 Invoke-Debug "Found environment variable $VariableName with value $Local:EnvValue";
                 return $Local:EnvValue;
             }
@@ -100,13 +103,16 @@ function Get-VarOrSave {
                     if ($Validate.InvokeReturnAsIs($Local:Value)) {
                         Invoke-Debug "Validated lazy value for environment variable ${VariableName}: $Local:Value";
                         break;
-                    } else {
+                    }
+                    else {
                         Invoke-Error "Failed to validate lazy value for environment variable ${VariableName}: $Local:Value";
                     }
-                } else {
+                }
+                else {
                     break;
                 }
-            } catch {
+            }
+            catch {
                 Invoke-Error "Encountered an error while evalutating LazyValue for ${VariableName}.";
                 return $null;
             }
@@ -138,7 +144,8 @@ function Get-Ast {
                 if (Test-Path -LiteralPath $_) {
                     $Local:Path = Resolve-Path -Path $_;
                     [System.Management.Automation.Language.Parser]::ParseFile($Local:Path.ProviderPath, [ref]$null, [ref]$null)
-                } else {
+                }
+                else {
                     [System.Management.Automation.Language.Parser]::ParseInput($_, [ref]$null, [ref]$null)
                 }
 
@@ -217,11 +224,13 @@ function Get-ReturnType {
                 if ($Local:Variable) {
                     [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Variable.GetType();
                     $Local:ReturnTypes += $Local:ReturnType;
-                } else {
+                }
+                else {
                     Invoke-Warn -Message "Could not resolve the variable: $Local:VariableName.";
                     continue
                 }
-            } else {
+            }
+            else {
                 [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Expression.StaticType;
                 $Local:ReturnTypes += $Local:ReturnType;
             }
@@ -265,9 +274,11 @@ function Test-ReturnType {
         foreach ($Local:ReturnType in $Local:ReturnTypes) {
             if ($ValidTypes -contains $Local:ReturnType) {
                 continue;
-            } elseif ($AllowNull -and $Local:ReturnType -eq [Void]) {
+            }
+            elseif ($AllowNull -and $Local:ReturnType -eq [Void]) {
                 continue;
-            } else {
+            }
+            else {
                 Invoke-Warn -Message "The return type of the AST object is not valid. Expected: $($ValidTypes -join ', '); Actual: $($Local:ReturnType.Name)";
                 return $False;
             }
@@ -303,11 +314,13 @@ function Test-ReturnType {
                     if ($ValidTypes -contains $Local:ReturnType) {
                         continue;
                     }
-                } else {
+                }
+                else {
                     Invoke-Debug -Message "Could not resolve the variable: $Local:VariableName.";
                     continue
                 }
-            } else {
+            }
+            else {
                 [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Expression.StaticType;
                 [String]$Local:TypeName = $Local:ReturnType.Name;
 
@@ -399,7 +412,8 @@ function Install-ModuleFromGitHub {
             $ErrorActionPreference = 'Stop';
 
             Invoke-RestMethod $Local:ZipballUrl -OutFile $Local:OutFile;
-        } catch {
+        }
+        catch {
             Invoke-Error "Failed to download $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
             Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
         }
@@ -414,7 +428,8 @@ function Install-ModuleFromGitHub {
         Invoke-Verbose "Extracting $Local:OutFile to $Local:ExtractDir";
         try {
             Expand-Archive -Path $Local:OutFile -DestinationPath $Local:ExtractDir -Force;
-        } catch {
+        }
+        catch {
             Invoke-Error "Failed to extract $Local:OutFile to $Local:ExtractDir";
             Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
         }
@@ -434,19 +449,22 @@ function Install-ModuleFromGitHub {
 
         if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
             [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem (Join-Path -Path $Local:UnzippedArchive -ChildPath *) -File | Where-Object { $_.Name -like '*.psd1' };
-        } else {
+        }
+        else {
             [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem -Path $Local:UnzippedArchive.FullName -File | Where-Object { $_.Name -like '*.psd1' };
         }
 
         if ($Local:ManifestFiles.Count -eq 0) {
             Invoke-Error "No manifest file found in $($Local:UnzippedArchive.FullName)";
             Invoke-FailedExit -ExitCode 9999;
-        } elseif ($Local:ManifestFiles.Count -gt 1) {
+        }
+        elseif ($Local:ManifestFiles.Count -gt 1) {
             Invoke-Debug "Multiple manifest files found in $($Local:UnzippedArchive.FullName)";
             Invoke-Debug "Manifest files: $($Local:ManifestFiles.FullName -join ', ')";
 
             [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Where-Object { $_.Name -like "$Local:ModuleName*.psd1" } | Select-Object -First 1;
-        } else {
+        }
+        else {
             [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Select-Object -First 1;
             Invoke-Debug "Manifest file: $($Local:ManifestFile.FullName)";
         }
@@ -463,7 +481,8 @@ function Install-ModuleFromGitHub {
 
         if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
             Copy-Item "$(Join-Path -Path $Local:UnzippedArchive -ChildPath *)" $Local:TargetPath -Force -Recurse | Out-Null;
-        } else {
+        }
+        else {
             Copy-Item "$Local:SourcePath\*" $Local:TargetPath -Force -Recurse | Out-Null;
         }
 
@@ -770,16 +789,20 @@ function Wait-Task {
                 $Local:Result = if ($_.PWSH) {
                     try {
                         $_.PWSH.EndInvoke($_)
-                    } catch {
+                    }
+                    catch {
                         #[System.Management.Automation.MethodInvocationException]
                         $_.Exception.InnerException
-                    } finally {
+                    }
+                    finally {
                         $_.PWSH.Dispose()
                     }
-                } elseif ($_.IsFaulted) {
+                }
+                elseif ($_.IsFaulted) {
                     #[System.AggregateException]
                     $_.Exception.InnerException
-                } else {
+                }
+                else {
                     $_.Result
                 }
 
@@ -788,7 +811,8 @@ function Wait-Task {
 
             if ($PassThru) {
                 $Local:Out
-            } else {
+            }
+            else {
                 $Local:Out.Result
             }
         }
@@ -862,7 +886,7 @@ function Start-AsyncTask {
     process {
         [PSCustomObject]$Local:Run = [PSCustomObject]@{
             Input = $_;
-            Job = $null;
+            Job   = $null;
             # Args = $ArgumentList;
             # Parameters = $Parameters;
         };
@@ -872,7 +896,8 @@ function Start-AsyncTask {
 
         if ($null -ne $Local:Run.Input) {
             $Local:Run.Job = $PWSH.BeginInvoke([System.Management.Automation.PSDataCollection[PSObject]]::new([PSObject[]]($Local:Run.Input)));
-        } else {
+        }
+        else {
             $Local:Run.Job = $PWSH.BeginInvoke();
         }
 
@@ -934,5 +959,9 @@ function Set-LazyVariable {
     }
 }
 #endregion
+
+function Test-IsRunningAsSystem {
+    [System.Security.Principal.WindowsIdentity]::GetCurrent().Name -eq 'SYSTEM';
+}
 
 Export-ModuleMember -Function * -Alias *;
