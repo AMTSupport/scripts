@@ -1,12 +1,12 @@
-using System.Reflection;
 using System.Text;
 using CommandLine;
-using Json.More;
-using QuikGraph;
+using NLog;
 using QuikGraph.Graphviz;
 
 class Program
 {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
     public class Options
     {
         [Option('v', "verbose", Required = false, HelpText = "Set output to verbose messages.")]
@@ -26,9 +26,14 @@ class Program
     {
         Parser.Default.ParseArguments<Options>(args).WithParsed(o =>
         {
+            LogManager.Setup().LoadConfiguration(builder =>
+            {
+                builder.ForLogger().FilterMinLevel(LogLevel.Trace).WriteToColoredConsole();
+            });
+
             if (string.IsNullOrWhiteSpace(o.InputFile))
             {
-                Console.WriteLine("Input file is required");
+                Logger.Error("Input file is required");
                 return;
             }
 
