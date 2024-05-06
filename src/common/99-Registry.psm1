@@ -136,10 +136,11 @@ function Remove-RegistryKey {
 function Get-AllSIDs {
     $PatternSID = '(?:S-1-5-21|S-1-12-1)-\d+-\d+\-\d+\-\d+$'
     Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\*' `
-        | Where-Object {$_.PSChildName -match $PatternSID} `
-        | Select-Object @{name="SID";expression={$_.PSChildName}},
-             @{name="UserHive";expression={"$($_.ProfileImagePath)\ntuser.dat"}},
-             @{name="Username";expression={$_.ProfileImagePath -replace '^(.*[\\\/])', ''}};
+    | Where-Object { $_.PSChildName -match $PatternSID } `
+    | Select-Object @{name = 'SID'; expression = { $_.PSChildName } },
+    @{name = 'UserHive'; expression = { "$($_.ProfileImagePath)\ntuser.dat" } },
+    @{name = 'Username'; expression = { $_.ProfileImagePath -replace '^(.*[\\\/])', '' } } `
+    | Where-Object { Test-Path -Path $_.UserHive };
 }
 
 function Get-UnloadedUserHives {
@@ -156,8 +157,8 @@ function Get-UnloadedUserHives {
 
 function Get-LoadedUserHives {
     return Get-ChildItem Registry::HKEY_USERS `
-        | Where-Object { $_.PSChildname -match $PatternSID } `
-        | Select-Object @{name = 'SID'; expression = { $_.PSChildName}};
+    | Where-Object { $_.PSChildname -match $PatternSID } `
+    | Select-Object @{name = 'SID'; expression = { $_.PSChildName } };
 }
 
 function Invoke-OnEachUserHive {
@@ -194,9 +195,10 @@ function Invoke-OnEachUserHive {
             }
 
             try {
-                Invoke-Debug "Executing script block...";
+                Invoke-Debug 'Executing script block...';
                 & $ScriptBlock -Hive $Private:Hive;
-            } finally {
+            }
+            finally {
                 If ($Private:IsUnloadedHive) {
                     Invoke-Debug "Unloading hive '$($Private:Hive.UserHive)'...";
                     [GC]::Collect();
