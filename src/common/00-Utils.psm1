@@ -961,7 +961,7 @@ function Set-LazyVariable {
 #endregion
 
 function Test-IsRunningAsSystem {
-    [System.Security.Principal.WindowsIdentity]::GetCurrent().Name -eq 'SYSTEM';
+    [System.Security.Principal.WindowsIdentity]::GetCurrent().Name -eq 'NT AUTHORITY\SYSTEM';
 }
 
 Export-ModuleMember -Function * -Alias *;
