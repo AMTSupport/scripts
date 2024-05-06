@@ -72,6 +72,15 @@ namespace Text.Tests
         }
 
         [Test]
+        public void AddRegexEdit_ReplaceEachLine()
+        {
+            Editor.AddRegexEdit("^.*$", _ => "Updated content!");
+            Editor.ApplyEdits();
+
+            Assert.That(Editor.GetContent(), Is.EqualTo($"Updated content!{Environment.NewLine}Updated content!{Environment.NewLine}Updated content!{Environment.NewLine}Updated content!"));
+        }
+
+        [Test]
         public void AddRegexEdit_ReplaceAllContent()
         {
             Editor.AddRegexEdit(".*", _ => "Updated content!");
