@@ -1,21 +1,21 @@
-[CmdletBinding(DefaultParameterSetName='Set_Base64')]
+[CmdletBinding(DefaultParameterSetName = 'Set_Base64')]
 param(
-    [Parameter(ParameterSetName='Set_StorageBlob')]
+    [Parameter(ParameterSetName = 'Set_StorageBlob')]
     [String]$StorageBlobUrl,
 
-    [Parameter(ParameterSetName='Set_StorageBlob')]
+    [Parameter(ParameterSetName = 'Set_StorageBlob')]
     [String]$StorageBlobSasToken,
 
-    [Parameter(Mandatory, ParameterSetName='Set_Base64')]
+    [Parameter(Mandatory, ParameterSetName = 'Set_Base64')]
     [ValidateNotNullOrEmpty()]
     [String]$Base64Image,
 
-    [Parameter(Mandatory, ParameterSetName='Encode')]
+    [Parameter(Mandatory, ParameterSetName = 'Encode')]
     [ValidateNotNullOrEmpty()]
     [Alias('PSPath')]
     [String]$Path,
 
-    [Parameter(Mandatory, ParameterSetName='Reset')]
+    [Parameter(Mandatory, ParameterSetName = 'Reset')]
     [Switch]$Reset
 )
 
@@ -81,7 +81,7 @@ function Get-BlobCompatableHash {
     end { Exit-Scope; }
 
     process {
-        [Byte[]]$Private:ByteStream = Get-Content -Path:$Path -Raw -AsByteStream;
+        [Byte[]]$Private:ByteStream = [System.IO.File]::ReadAllBytes($Path);
         [Byte[]]$Private:HashBytes = $Private:Algorithm.ComputeHash($Private:ByteStream);
 
         return [System.Convert]::ToBase64String($Private:HashBytes);
@@ -96,9 +96,11 @@ function Export-ToFile {
         [String]$Base64Content
     )
 
-    begin { Enter-Scope -ArgumentFormatter:@{
-        Base64Content = { $_.Substring(0, 36) + '...' }
-    }}
+    begin {
+        Enter-Scope -ArgumentFormatter:@{
+            Base64Content = { $_.Substring(0, 36) + '...' }
+        }
+    }
     end { Exit-Scope; }
 
     process {
@@ -128,8 +130,8 @@ function Get-FromBlob {
         [String]$Local:Uri = "${Url}?${SasToken}";
 
         Invoke-Debug "Calling HEAD on $Local:Uri to get MD5 hash...";
-        Invoke-RestMethod -Uri:$Local:Uri -Method:HEAD -ResponseHeadersVariable:ResponseHeaders;
-        [String]$Local:MD5 = $ResponseHeaders['Content-MD5'];
+        $Local:ResponseHeaders = Invoke-WebRequest -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
+        [String]$Local:MD5 = $Local:ResponseHeaders['Content-MD5'];
 
         [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.png';
 
@@ -230,9 +232,12 @@ function Update-PerUserSystemParameters {
     end { Exit-Scope; }
 
     process {
-        # For some reason, we need to run this multiple times to get it to work
-        for ($i = 0; $i -lt 50; $i++) {
-            rundll32.exe user32.dll, UpdatePerUserSystemParameters;
+        Invoke-EnsureModule 'RunAsUser';
+        Invoke-AsCurrentUser -ScriptBlock {
+            # For some reason, we need to run this multiple times to get it to work
+            for ($i = 0; $i -lt 50; $i++) {
+                rundll32.exe user32.dll, UpdatePerUserSystemParameters;
+            }
         }
     }
 }
@@ -252,7 +257,8 @@ function Get-ReusableFile {
         if ($Local:ExistingFile) {
             Remove-Item -Path $Path; # Remove the file if it is the same as an existing file.
             $Path = $Local:ExistingFile;
-        } else {
+        }
+        else {
             # Enter Loop to ensure unique file name
             do {
                 [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.png';
