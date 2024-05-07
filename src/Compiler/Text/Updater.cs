@@ -142,16 +142,67 @@ namespace Text.Updater
         public Func<Match, string> Updater { get; } = updater;
         public Regex Pattern { get; } = pattern;
 
+        // TODO - Refactor
         override public SpanUpdateInfo[] Apply(TextDocument document)
         {
             var spanUpdateInfo = new List<SpanUpdateInfo>();
             var offset = 0;
 
             var patternString = Pattern.ToString();
-            if (patternString.StartsWith("^") && patternString.EndsWith("$"))
+            var shoudMatchMultiline = !(patternString.StartsWith('^') || patternString.EndsWith('$'));
+
+            
+
+            if (!(patternString.StartsWith('^') || patternString.EndsWith('$')))
             {
                 var multilinedContent = string.Join(Environment.NewLine, document.Lines);
                 var matches = Pattern.Matches(multilinedContent);
+
+                if (matches.Count == 0)
+                {
+                    return [];
+                }
+
+                var thisOffset = 0;
+                foreach (Match match in matches)
+                {
+                    var startingLineIndex = multilinedContent[..match.Index].Count(c => c == '\n');
+                    var endingLineIndex = multilinedContent[..(match.Index + match.Length)].Count(c => c == '\n');
+
+                    var span = new TextSpan(
+                        startingLineIndex,
+                        match.Index,
+                        endingLineIndex,
+                        match.Index + match.Length
+                    );
+
+                    var isMultiLine = match.Value.Contains(Environment.NewLine);
+                    var newContent = Updater(match);
+
+                    // Remove the entire line if the replacement is empty and the match is the entire line.
+                    if (string.IsNullOrEmpty(newContent) && match.Index == 0 && match.Length == document.Lines[startingLineIndex].Length)
+                    {
+                        span.RemoveContent(document);
+                        thisOffset--;
+                    }
+                    else
+                    {
+                        span.SetContent(document, [newContent]);
+                        if (isMultiLine)
+                        {
+                            thisOffset += newContent.Split(Environment.NewLine).Length - 1;
+                        }
+                    }
+
+                    spanUpdateInfo.Add(new SpanUpdateInfo(new(
+                        startingLineIndex,
+                        match.Index,
+                        endingLineIndex,
+                        match.Index + match.Length
+                    ), thisOffset));
+
+                    offset += thisOffset;
+                }
             }
             else
             {
