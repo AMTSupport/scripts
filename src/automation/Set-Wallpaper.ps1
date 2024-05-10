@@ -125,12 +125,35 @@ function Get-FromBlob {
     end { Exit-Scope -ReturnValue $Local:OutPath; }
 
     process {
-        [String]$Local:Uri = "${Url}?${SasToken}";
-        $Local:Uri = [URI]::EscapeUriString($Local:Uri);
+        [Regex]$Private:Regex = [Regex]::new('(?<key>[A-z]+)=(?<value>[A-z\d-:/+=]+)&?');
+        $Private:Matches = $Private:Regex.Matches($SasToken);
+
+        $Private:Query = [ordered]@{};
+        foreach ($Private:Match in $Private:Matches) {
+            $Private:Key = $Private:Match.Groups['key'].Value;
+            $Private:RawValue = $Private:Match.Groups['value'].Value;
+            $Private:Value = if ($Private:Key -eq 'sig') {
+                [URI]::EscapeDataString($Private:RawValue);
+            }
+            else {
+                $Private:RawValue;
+            }
+
+            $Private:Query[$Private:Match.Groups['key'].Value] = $Private:Value;
+        }
+        $Private:UrlParams = ($Private:Query.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join '&';
+
+        [String]$Local:Uri = "${Url}?${Private:UrlParams}";
 
         Invoke-Debug "Calling HEAD on $Local:Uri to get MD5 hash...";
-        $Local:ResponseHeaders = Invoke-WebRequest -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
-        [String]$Local:MD5 = $Local:ResponseHeaders['Content-MD5'];
+        try {
+            $Local:ResponseHeaders = Invoke-WebRequest -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
+            [String]$Local:MD5 = $Local:ResponseHeaders['Content-MD5'];
+            Assert-NotNull -Object:$Local:MD5 -Message:"Failed to get MD5 hash from $Local:Uri";
+        }
+        catch {
+            Invoke-FailedExit -ExitCode $Script:ERROR_INVALID_HEADERS -FormatArgs @($Local:Uri);
+        }
 
         [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.png';
 
@@ -263,8 +286,10 @@ Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Invoke-EnsureAdministrator;
 
+    $Script:ERROR_INVALID_HEADERS = Register-ExitCode -Description 'Failed to get headers from {0}';
+
     if (-not (Test-Path -Path $Script:WallpaperFolder)) {
-        New-Item -Path $Script:WallpaperFolder -ItemType Directory -Force;
+        $null = New-Item -Path $Script:WallpaperFolder -ItemType Directory -Force;
     }
 
     switch ($PSCmdlet.ParameterSetName) {
