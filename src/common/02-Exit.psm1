@@ -17,7 +17,8 @@ function Invoke-Handlers([switch]$IsFailure) {
         Invoke-Debug -Message "Invoking exit handler '$Local:ExitHandlerName'...";
         try {
             Invoke-Command -ScriptBlock $Local:ExitHandler.Script;
-        } catch {
+        }
+        catch {
             Invoke-Warn "Failed to invoke exit handler '$Local:ExitHandlerName': $_";
         }
     }
@@ -32,7 +33,7 @@ function Invoke-FailedExit {
         [ValidateNotNullOrEmpty()]
         [Int]$ExitCode,
 
-        [Parameter(HelpMessage='The error record that caused the exit, if any.')]
+        [Parameter(HelpMessage = 'The error record that caused the exit, if any.')]
         [System.Management.Automation.ErrorRecord]$ErrorRecord,
 
         [Parameter()]
@@ -40,7 +41,10 @@ function Invoke-FailedExit {
         [Switch]$DontExit,
 
         [Parameter()]
-        [String[]]$FormatArgs
+        [String[]]$FormatArgs,
+
+        [Parameter(DontShow)]
+        [System.Management.Automation.Cmdlet]$CallingCmdlet = $PSCmdlet
     )
 
     [String]$Local:ExitDescription = $Global:ExitCodes[$ExitCode];
@@ -50,6 +54,12 @@ function Invoke-FailedExit {
         }
 
         Invoke-Error $Local:ExitDescription;
+    }
+    elseif ($ExitCode -ne 0 -and $ExitCode -ne 9999) {
+        Invoke-Warn "No exit description found for code '$ExitCode'";
+    }
+    elseif ($ExitCode -lt 1000) {
+        Invoke-FailedExit -ExitCode $Script:INVALID_ERROR_CODE -FormatArgs $ExitCode;
     }
 
     # FIXME - Not getting to correct depth of exception
@@ -62,7 +72,7 @@ function Invoke-FailedExit {
             Invoke-Debug "Getting inner exception... (Current: $Local:DeepestException)";
             Invoke-Debug "Inner exception: $($Local:DeepestException.InnerException)";
             if (-not $Local:DeepestException.InnerException.ErrorRecord) {
-                Invoke-Debug "Inner exception has no error record, breaking to keep the current exceptions information...";
+                Invoke-Debug 'Inner exception has no error record, breaking to keep the current exceptions information...';
                 break;
             }
 
@@ -79,7 +89,8 @@ function Invoke-FailedExit {
 
         if ($Local:DeepestInvocationInfo) {
             Format-Error -InvocationInfo $Local:DeepestInvocationInfo -Message $Local:DeepestMessage;
-        } elseif ($Local:DeepestMessage) {
+        }
+        elseif ($Local:DeepestMessage) {
             Invoke-Error -Message $Local:DeepestMessage;
         }
     }
@@ -92,7 +103,8 @@ function Invoke-FailedExit {
 
         if ($null -eq $Local:DeepestException.ErrorRecord.CategoryInfo.Category) {
             [System.Management.Automation.ErrorCategory]$Local:Catagory = [System.Management.Automation.ErrorCategory]::NotSpecified;
-        } else {
+        }
+        else {
             [System.Management.Automation.ErrorCategory]$Local:Catagory = $Local:DeepestException.ErrorRecord.CategoryInfo.Category;
         }
 
@@ -103,7 +115,12 @@ function Invoke-FailedExit {
             $ExitCode
         );
 
-        throw $Local:ErrorRecord;
+        if ($Local:DeepestException.ErrorRecord) {
+            $Global:Error.Add($ErrorRecord);
+            $Global:Error.Add($Local:DeepestException.ErrorRecord);
+        }
+
+        $CallingCmdlet.ThrowTerminatingError($Local:ErrorRecord);
     }
 }
 
@@ -157,7 +174,8 @@ function Register-ExitHandler {
     if ($Global:ExitHandlers[$Local:TrimmedName]) {
         Invoke-Warn "Exit handler '$Local:TrimmedName' already registered, overwriting...";
         $Global:ExitHandlers[$Local:TrimmedName] = $Local:Value;
-    } else {
+    }
+    else {
         $Global:ExitHandlers.add($Local:TrimmedName, $Local:Value);
     }
 }
@@ -181,5 +199,7 @@ function Register-ExitCode {
 
     return $Local:ExitCode;
 }
+
+$Script:INVALID_ERROR_CODE = Register-ExitCode -Description 'Invalid error code {0}, codes must be greater than 1000';
 
 Export-ModuleMember -Function Invoke-Handlers, Invoke-FailedExit, Invoke-QuickExit, Register-ExitHandler, Register-ExitCode, Restart-Script;
