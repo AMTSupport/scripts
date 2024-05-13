@@ -410,10 +410,13 @@ function Invoke-RunMain {
                     'QuickExit' {
                         Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
                     }
+                    # TODO - Remove the error from the record.
                     'FailedExit' {
-                        [Int16]$Local:ExitCode = $_.TargetObject;
+                        [Int]$Local:ExitCode = $Local:CatchingError.TargetObject;
                         Invoke-EnvVerbose -Message "Script exited with an error code of $Local:ExitCode.";
                         $LASTEXITCODE = $Local:ExitCode;
+
+                        $Global:Error.Remove($Local:CatchingError);
                     }
                     'RestartScript' {
                         $Global:ScriptRestarting = $True;
