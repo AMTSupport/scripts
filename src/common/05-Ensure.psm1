@@ -161,7 +161,7 @@ function Invoke-EnsureModule {
             #region Local Variables
             $Local:InstallArgs = @{
                 AllowClobber = $true;
-                Scope        = 'CurrentUser';
+                Scope        = if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { 'AllUsers' } else { 'CurrentUser' };
                 Force        = $true;
             };
 
