@@ -12,34 +12,6 @@ Param(
     [String[]]$BaseHiddenUsers = @('localadmin', 'nt authority\system', 'administrator', 'AzureAD\Admin', 'AzureAD\AdminO365')
 )
 
-
-#region - ASDI Functions
-
-# function Is-AzureADUser([ADSI]$User) {
-#     begin { Enter-Scope $MyInvocation }
-
-#     process {
-#         $Result = $false
-#         $User = $User.psbase
-#         $User = $User.InvokeGet('objectSid')
-#         $User = New-Object System.Security.Principal.SecurityIdentifier($User, 0)
-#         $User = $User.Translate([System.Security.Principal.NTAccount])
-#         $User = $User.Value
-
-#         if ($User.StartsWith('AzureAD\')) {
-#             $Result = $true
-#         }
-
-#         Invoke-Info $Result;
-
-#         return $Result
-#     }
-
-#     end { Exit-Scope $MyInvocation $Result }
-# }
-
-#endregion - ASDI Functions
-
 #region - Admin Functions
 
 function Get-FilteredUsers(
@@ -80,7 +52,8 @@ function Get-FilteredUsers(
 
                 (-not $Local:Exception) -or ($Local:Exception.Computers -contains $env:COMPUTERNAME)
             };
-        } else {
+        }
+        else {
             [HashTable[]]$Local:FilteredMembers = $Local:Members;
         }
 
@@ -98,7 +71,7 @@ function Remove-Admins(
     [Parameter(Mandatory)]
     [HashTable[]]$Users
 ) {
-    begin { Enter-Scope -Formatter @{ Group = { $_.Name }; } }
+    begin { Enter-Scope -ArgumentFormatter @{ Group = { $_.Name }; } }
     end { Exit-Scope -ReturnValue $RemovedUsers; }
 
     process {
@@ -126,13 +99,13 @@ function Get-LocalUsers {
     Get-CimInstance Win32_UserAccount | Where-Object { $_.Disabled -eq $false }
 }
 
-function Get-LocalGroupMembers([Parameter(Mandatory)][String]$Group) {
-    $Users = (Get-CimInstance Win32_Group -Filter "Name='$Group'" | Get-CimAssociatedInstance | Where-Object { $_.Disabled -eq $false })
-    return $Users
-}
+# function Get-LocalGroupMembers([Parameter(Mandatory)][String]$Group) {
+#     $Users = (Get-CimInstance Win32_Group -Filter "Name='$Group'" | Get-CimAssociatedInstance | Where-Object { $_.Disabled -eq $false })
+#     return $Users
+# }
 
 function Get-LocalUserGroups([Parameter(Mandatory)][String]$Username) {
-    $Groups = (Get-CimInstance Win32_UserAccount -Filter "Name='$Username'" | Get-CimAssociatedInstance -ResultClassName Win32_Group)
+    $Groups = (Get-CimInstance Win32_UserAccount -Filter "Name='$Username'" | Get-CimAssociatedInstance -ResultClassName Win32_Group -OperationTimeoutSec 10)
     return $Groups
 }
 
@@ -189,14 +162,15 @@ function Get-ProcessedExceptions(
                 }
 
                 return @{
-                    Name = $Split[1];
+                    Name   = $Split[1];
                     Domain = $Split[0];
                 };
-            } else {
+            }
+            else {
                 Invoke-Debug "No domain specified for [$Name], using local domain";
 
                 return @{
-                    Name = $Name;
+                    Name   = $Name;
                     Domain = $env:COMPUTERNAME;
                 };
             }
@@ -216,11 +190,12 @@ function Get-ProcessedExceptions(
                 [String]$Local:UserName = $Local:Split[0];
 
                 if ($Local:Split.Count -eq 2) {
-                    Invoke-Debug "Is a scoped exception";
+                    Invoke-Debug 'Is a scoped exception';
 
                     [String[]]$Local:Computers = if ($Local:Split[1].Contains(',')) {
                         $Local:Split[1].Split(',');
-                    } else {
+                    }
+                    else {
                         @($Local:Split[1])
                     }
 
@@ -230,11 +205,13 @@ function Get-ProcessedExceptions(
                     $Local:Exception | Add-Member -MemberType NoteProperty -Name Computers -Value $Local:Computers;
 
                     return $Local:Exception;
-                } else {
+                }
+                else {
                     Invoke-Error "Invalid format for exception [$_]";
                     Invoke-FailedExit -ExitCode 1003;
                 }
-            } else {
+            }
+            else {
                 Invoke-Debug "Exception for [$Local:Exception] is not scoped";
 
                 [HashTable]$Local:Exception = Split-NameAndDomain -Name $Local:Exception;
@@ -252,7 +229,8 @@ Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
     if ($NoModify) {
         Invoke-Info 'Running in WhatIf mode, no changes will be made.';
-    } else {
+    }
+    else {
         Invoke-EnsureAdministrator;
     }
 
