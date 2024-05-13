@@ -147,7 +147,7 @@ function Get-FromBlob {
 
         Invoke-Debug "Calling HEAD on $Local:Uri to get MD5 hash...";
         try {
-            $Local:ResponseHeaders = Invoke-WebRequest -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
+            $Local:ResponseHeaders = Invoke-WebRequest -UseBasicParsingInst -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
             [String]$Local:MD5 = $Local:ResponseHeaders['Content-MD5'];
             Assert-NotNull -Object:$Local:MD5 -Message:"Failed to get MD5 hash from $Local:Uri";
         }
