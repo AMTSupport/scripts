@@ -1,5 +1,14 @@
 #Requires -Version 5.1
 
+#region - Caching
+
+$Script:InitialisedAllGroups = $False;
+$Script:CachedGroups;
+$Script:InitialisedAllUsers = $False;
+$Script:CachedUsers;
+
+#endregion
+
 #region - Private Functions
 
 function Local:Get-ObjectByInputOrName(
@@ -7,24 +16,33 @@ function Local:Get-ObjectByInputOrName(
     [ValidateNotNullOrEmpty()]
     [ValidateScript({ $_ -is [String] -or $_ -is [ADSI] })]
     [Object]$InputObject,
-
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [String]$SchemaClassName,
-
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [ScriptBlock]$GetByName
 ) {
-    begin { Enter-Scope; }
+    begin {
+        Enter-Scope -ArgumentFormatter @{
+            InputObject = { "$($_.Name) of type $($_.SchemaClassName)" };
+        };
+    }
     end { Exit-Scope -ReturnValue $Local:Value; }
 
     process {
+        if ($InputObject -is [String] -and $InputObject -eq '') {
+            Write-Error 'An empty string was supplied, this is not a valid object.' -Category InvalidArgument;
+        }
+
         if ($InputObject -is [String]) {
             [ADSI]$Local:Value = $GetByName.InvokeReturnAsIs();
-        } elseif ($InputObject.SchemaClassName -ne $SchemaClassName) {
+        }
+        elseif ($InputObject.SchemaClassName -ne $SchemaClassName) {
+            Write-Host "$($InputObject.SchemaClassName)"
             Write-Error "The supplied object is not a $SchemaClassName." -TargetObject $InputObject -Category InvalidArgument;
-        } else {
+        }
+        else {
             [ADSI]$Local:Value = $InputObject;
         }
 
@@ -32,12 +50,18 @@ function Local:Get-ObjectByInputOrName(
     }
 }
 
-function Local:Get-GroupByInputOrName([Object]$InputObject) {
-    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'Group' -GetByName { Get-Group $Using:InputObject; };
+function Get-GroupByInputOrName([Object]$InputObject) {
+    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'Group' -GetByName { Get-Group $InputObject; };
 }
 
-function Local:Get-UserByInputOrName([Object]$InputObject) {
-    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'User' -GetByName { Get-User $Using:InputObject; };
+function Get-UserByInputOrName([Object]$InputObject) {
+    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'User' -GetByName {
+        if (-not ($InputObject.Contains('/'))) {
+            $InputObject = "$env:COMPUTERNAME/$InputObject";
+        }
+
+        Get-User $InputObject;
+    };
 }
 
 #endregion
@@ -84,11 +108,25 @@ function Get-Group(
 
     process {
         if (-not $Name) {
-            [ADSI]$Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
-            $Local:Value = $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' };
+            Invoke-Debug 'Getting all groups...'
+            if (-not $Script:InitialisedAllGroups) {
+                Invoke-Debug 'Initialising all groups...';
+                $Script:CachedGroups = @{};
+                [ADSI]$Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
+                $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' } | ForEach-Object { $Script:CachedGroups[$_.Name] = $_; };
+                $Script:InitialisedAllGroups = $True;
+            }
+
+            $Local:Value = $Script:CachedGroups.Values;
         }
         else {
-            [ADSI]$Local:Value = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
+            Invoke-Debug "Getting group $Name...";
+            if (-not $Script:InitialisedAllGroups -or -not $Script:CachedGroups[$Name]) {
+                [ADSI]$Local:Group = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
+                $Script:CachedGroups[$Name] = $Local:Group;
+            }
+
+            $Local:Value = $Script:CachedGroups[$Name];
         }
 
         return $Local:Value;
@@ -131,15 +169,16 @@ function Get-MembersOfGroup(
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject:$Group;
 
         $Group.Invoke('Members') `
-            | ForEach-Object { [ADSI]$_ } `
-            | Where-Object {
-                if ($_.Parent.Length -gt 8) {
-                    $_.Parent.Substring(8) -ne 'NT AUTHORITY'
-                } else {
-                    # This is a in-built user, skip it.
-                    $False
-                }
-            };
+        | ForEach-Object { [ADSI]$_ } `
+        | Where-Object {
+            if ($_.Parent.Length -gt 8) {
+                $_.Parent.Substring(8) -ne 'NT AUTHORITY'
+            }
+            else {
+                # This is a in-built user, skip it.
+                $False
+            }
+        };
     }
 }
 
@@ -156,13 +195,13 @@ function Get-MembersOfGroup(
 .PARAMETER Group
     The group to test if the user is a member of.
 
-.PARAMETER Username
-    The username to test if they are a member of the group.
+.PARAMETER User
+    The user to test if they are a member of the group.
 
 .EXAMPLE
     This will test if the user localadmin is a member of the Administrators group.
     ```
-    Test-MemberOfGroup -Group (Get-Group -Name 'Administrators') -Username 'localadmin';
+    Test-MemberOfGroup -Group (Get-Group -Name 'Administrators') -User 'localadmin';
     ```
 
 .NOTES
@@ -174,15 +213,23 @@ function Test-MemberOfGroup(
     [Object]$Group,
 
     [Parameter(Mandatory)]
-    [Object]$Username
+    [Object]$User
 ) {
-    begin { Enter-Scope; }
+    begin {
+        Enter-Scope -ArgumentFormatter @{
+            Group = { $_.Name + $_.SchemaClassName };
+            User  = { $_.Name + $_.SchemaClassName };
+        };
+    }
     end { Exit-Scope -ReturnValue $Local:User; }
 
     process {
+        Invoke-Debug 'Getting group';
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
-        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+        Invoke-Debug 'Getting user';
+        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $User;
 
+        Invoke-Debug 'Testing if user is a member of group...';
         return $Local:Group.Invoke('IsMember', $Local:User.Path);
     }
 }
@@ -200,13 +247,13 @@ function Test-MemberOfGroup(
 .PARAMETER Group
     The group to add the user to.
 
-.PARAMETER Username
-    The username to add to the group.
+.PARAMETER User
+    The user to add to the group.
 
 .EXAMPLE
     This will add the user localadmin to the Administrators group.
     ```
-    Add-MemberToGroup -Group (Get-Group -Name 'Administrators') -Username 'localadmin';
+    Add-MemberToGroup -Group (Get-Group -Name 'Administrators') -User 'localadmin';
     ```
 
 .NOTES
@@ -220,17 +267,17 @@ function Add-MemberToGroup(
 
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
-    [Object]$Username
+    [Object]$User
 ) {
     begin { Enter-Scope; }
     end { Exit-Scope; }
 
     process {
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
-        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $User;
 
-        if (Test-MemberOfGroup -Group $Local:Group -Username $Local:User) {
-            Invoke-Verbose "User $Username is already a member of group $Group.";
+        if (Test-MemberOfGroup -Group $Local:Group -User $Local:User) {
+            Invoke-Verbose "User $User is already a member of group $Group.";
             return $False;
         }
 
@@ -249,7 +296,6 @@ function Add-MemberToGroup(
     This function will remove a user from a group.
 
 .OUTPUTS
-
 #>
 function Remove-MemberFromGroup(
     [Parameter(Mandatory)]
@@ -267,7 +313,7 @@ function Remove-MemberFromGroup(
         [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
         [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Member;
 
-        if (-not (Test-MemberOfGroup -Group $Local:Group -Username $Local:User)) {
+        if (-not (Test-MemberOfGroup -Group $Local:Group -User $Local:User)) {
             Invoke-Verbose "User $Member is not a member of group $Group.";
             return $False;
         }
@@ -283,26 +329,71 @@ function Remove-MemberFromGroup(
 
 #region - User Functions
 
+# FIXME
 function Get-User(
     [Parameter(HelpMessage = 'The name of the user to retrieve, if not specified all users will be returned.')]
     [ValidateNotNullOrEmpty()]
     [String]$Name
 ) {
     begin { Enter-Scope; }
-    end { Exit-Scope -ReturnValue $Local:Value; }
+    # end { Exit-Scope -ReturnValue $Local:Value; }
 
     process {
         if (-not $Name) {
-            [ADSI]$Local:Users = [ADSI]"WinNT://$env:COMPUTERNAME";
-            $Local:Value = $Local:Users.Children | Where-Object { $_.SchemaClassName -eq 'User' };
+            if (-not $Script:InitialisedAllUsers) {
+                $Script:CachedUsers = @{};
+                [ADSI]$Local:Users = [ADSI]"WinNT://$env:COMPUTERNAME";
+                $Local:Users.Children | Where-Object { $_.SchemaClassName -eq 'User' } | ForEach-Object { $Script:CachedUsers[$_.Name] = $_; };
+                $Script:InitialisedAllUsers = $True;
+            }
+
+            $Local:Value = $Script:CachedUsers;
         }
         else {
-            [ADSI]$Local:Value = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,user";
-        }
+            $null = Get-User;
+            if (-not $Script:InitialisedAllUsers -or -not $Script:CachedUsers[$Name]) {
+                $Script:CachedUsers = @{};
+                [ADSI]$Local:User = [ADSI]"WinNT://$Name,user";
+                $Script:CachedUsers[$Name] = $Local:User;
+            }
 
+            $Local:Value = $Script:CachedUsers[$Name];
+            $Global:CachedUsers = $Script:CachedUsers;
+        }
         return $Local:Value;
     }
 }
+
+function Get-UserGroups(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [Object]$User
+) {
+    begin { Enter-Scope; }
+    end { Exit-Scope -ReturnValue $Local:UserGroups; }
+
+    process {
+        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $User;
+        [String]$Local:Domain = $Local:User.Path.Split('/')[0];
+        [String]$Local:Username = $Local:User.Path.Split('/')[1];
+        Get-WmiObject -Class Win32_GroupUser `
+        | Where-Object { $_.PartComponent -match "Domain=""$Domain"",Name=""$Username""" } `
+        | ForEach-Object { [WMI]$_.GroupComponent };
+
+        # [ADSI]$Local:User = Get-UserByInputOrName -InputObject $User;
+        # [ADSI[]]$Local:Groups = Get-Group;
+
+        # [ADSI[]]$Local:UserGroups = @();
+        # foreach ($Local:Group in $Local:Groups) {
+        #     if (Test-MemberOfGroup -Group $Local:Group -User $Local:User) {
+        #         $Local:UserGroups += $Local:Group;
+        #     }
+        # }
+
+        return $Local:UserGroups;
+    }
+}
+
 
 #endregion
 
@@ -324,13 +415,14 @@ function Format-ADSIUser(
             };
 
             return $Local:Value;
-        } else {
+        }
+        else {
             [String]$Local:Path = $User.Path.Substring(8); # Remove the WinNT:// prefix
             [String[]]$Local:PathParts = $Local:Path.Split('/');
 
             # The username is always last followed by the domain.
             [HashTable]$Local:Value = @{
-                Name = $Local:PathParts[$Local:PathParts.Count - 1]
+                Name   = $Local:PathParts[$Local:PathParts.Count - 1]
                 Domain = $Local:PathParts[$Local:PathParts.Count - 2]
             };
 
@@ -342,4 +434,4 @@ function Format-ADSIUser(
 
 #endregion
 
-Export-ModuleMember -Function Get-User, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser;
+Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
