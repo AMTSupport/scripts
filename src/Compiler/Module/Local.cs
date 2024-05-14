@@ -2,6 +2,7 @@ using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Text.RegularExpressions;
 using CommandLine;
+using Compiler.Requirements;
 using Text;
 
 namespace Compiler.Module;
@@ -22,7 +23,7 @@ public partial class LocalFileModule : Module
             Requirements.AddRequirement(new ModuleSpec(
                 Name: module.Key,
                 Guid: module.Value.TryGetValue("Guid", out object? value) ? Guid.Parse(value.Cast<string>()) : null,
-                MimimumVersion: module.Value.TryGetValue("MinimumVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
+                MinimumVersion: module.Value.TryGetValue("MinimumVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
                 MaximumVersion: module.Value.TryGetValue("MaximumVersion", out object? maximumVersion) ? Version.Parse(maximumVersion.Cast<string>()) : null,
                 RequiredVersion: module.Value.TryGetValue("RequiredVersion", out object? requiredVersion) ? Version.Parse(requiredVersion.Cast<string>()) : null
             ));
@@ -61,7 +62,8 @@ public partial class LocalFileModule : Module
         GetAstReportingErrors(string.Join(Environment.NewLine, lines));
     }
 
-    private static ScriptBlockAst GetAstReportingErrors(string astContent) {
+    private static ScriptBlockAst GetAstReportingErrors(string astContent)
+    {
         var ast = System.Management.Automation.Language.Parser.ParseInput(astContent, out _, out ParseError[] ParserErrors);
 
         ParserErrors = [.. ParserErrors.ToList().FindAll(error => !error.ErrorId.Equals("ModuleNotFoundDuringParse"))];
@@ -147,5 +149,9 @@ public partial class LocalFileModule : Module
     [GeneratedRegex(@"^\s*")]
     private static partial Regex BeginingWhitespaceMatchRegex();
 
-    public override string GetContent() => Document.GetContent();
+    public override string GetContent() => $$"""
+    {
+        {{Document.GetContent()}}
+    }
+    """;
 }
