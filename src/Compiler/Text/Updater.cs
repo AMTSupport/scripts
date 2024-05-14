@@ -151,7 +151,7 @@ namespace Text.Updater
             var patternString = Pattern.ToString();
             var shoudMatchMultiline = !(patternString.StartsWith('^') || patternString.EndsWith('$'));
 
-            
+
 
             if (!(patternString.StartsWith('^') || patternString.EndsWith('$')))
             {
@@ -283,13 +283,13 @@ namespace Text.Updater
                 return [];
             }
 
-            if (Span.StartingIndex >= Span.EndingIndex)
+            if (Span.StartingIndex > Span.EndingIndex)
             {
                 Logger.Error($"Starting index must be less than ending index, got {Span.StartingIndex} and {Span.EndingIndex}.");
                 return [];
             }
 
-            if (Span.StartingIndex == Span.EndingIndex && Span.StartingColumn >= Span.EndingColumn)
+            if (Span.StartingIndex == Span.EndingIndex && Span.StartingColumn > Span.EndingColumn)
             {
                 Logger.Error($"Starting column must be less than ending column, got {Span.StartingColumn} and {Span.EndingColumn}.");
                 return [];
@@ -315,13 +315,13 @@ namespace Text.Updater
             var endingLine = document.Lines[Span.EndingIndex];
             switch ((startingLine, endingLine))
             {
-                case var (start, _) when Span.StartingColumn >= start.Length:
+                case var (start, _) when Span.StartingColumn > start.Length:
                     Logger.Error($"Starting column must be less than the length of the line, got index {Span.StartingColumn} for length {start.Length}.");
                     return [];
-                case var (_, end) when Span.EndingColumn >= end.Length:
+                case var (_, end) when Span.EndingColumn > end.Length:
                     Logger.Error($"Ending column must be less than the length of the line, got index {Span.EndingColumn} for length {end.Length}.");
                     return [];
-                case var _ when Span.StartingIndex == Span.EndingIndex && Span.StartingColumn >= Span.EndingColumn:
+                case var _ when Span.StartingIndex == Span.EndingIndex && Span.StartingColumn > Span.EndingColumn:
                     Logger.Error($"Starting column must be less than ending column, got index {Span.StartingColumn} for length {Span.EndingColumn}.");
                     return [];
             }
