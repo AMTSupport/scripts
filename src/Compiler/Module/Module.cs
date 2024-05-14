@@ -1,3 +1,5 @@
+using Compiler.Requirements;
+
 namespace Compiler.Module;
 
 public abstract partial class Module(ModuleSpec moduleSpec)
@@ -5,7 +7,7 @@ public abstract partial class Module(ModuleSpec moduleSpec)
     public string Name => ModuleSpec.Name;
     public Version Version => ModuleSpec.RequiredVersion ?? new Version(0, 0, 0, 0);
     public ModuleSpec ModuleSpec { get; } = moduleSpec;
-    public Requirements Requirements { get; } = new Requirements();
+    public Requirements.Requirements Requirements { get; } = new();
 
     public abstract ModuleMatch GetModuleMatchFor(ModuleSpec requirement);
 
@@ -13,12 +15,14 @@ public abstract partial class Module(ModuleSpec moduleSpec)
 
     public string GetInsertableContent()
     {
+#pragma warning disable IDE0071 // Simplify interpolation
         return $$"""
         '{{Name}}' = @{
             Type = '{{ModuleSpec.Type}}';
-            Content = '{{GetContent()}}';
+            Content = {{GetContent().PadLeft(4)}};
         };
         """;
+#pragma warning restore IDE0071 // Simplify interpolation
     }
 }
 

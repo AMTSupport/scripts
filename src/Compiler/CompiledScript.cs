@@ -1,7 +1,7 @@
 using System.Management.Automation.Language;
 using System.Text;
-using Compiler;
 using Compiler.Module;
+using Compiler.Requirements;
 using QuikGraph;
 
 class CompiledScript : LocalFileModule
@@ -162,7 +162,7 @@ class CompiledScript : LocalFileModule
         }
 
         PSEditionRequirement? foundPSEdition = null;
-        ResolvedModules.SelectMany(module => module.Value.Requirements.GetRequirements<PSEditionRequirement>())
+        ResolvedModules.Values.SelectMany(module => module.Requirements.GetRequirements<PSEditionRequirement>())
             .ToList()
             .ForEach(edition =>
             {
@@ -195,7 +195,7 @@ class CompiledScript : LocalFileModule
 
         var table = new StringBuilder();
         table.AppendLine("$Global:EmbeddedModules = @{");
-        ResolvedModules.ToList().ForEach(module => table.AppendLine(module.Value.GetInsertableContent()));
+        ResolvedModules.ToList().ForEach(module => table.AppendLine(module.Value.GetInsertableContent().PadLeft(4)));
         table.AppendLine("};");
 
         return table.ToString();
