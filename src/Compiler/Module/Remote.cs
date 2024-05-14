@@ -1,3 +1,5 @@
+using Compiler.Requirements;
+
 namespace Compiler.Module
 {
     public class RemoteModule(string name, byte[] bytes) : Module(new ModuleSpec(name))
