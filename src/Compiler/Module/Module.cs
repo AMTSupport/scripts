@@ -11,18 +11,17 @@ public abstract partial class Module(ModuleSpec moduleSpec)
 
     public abstract ModuleMatch GetModuleMatchFor(ModuleSpec requirement);
 
-    public abstract string GetContent();
+    public abstract string GetContent(int indent = 0);
 
-    public string GetInsertableContent()
+    public string GetInsertableContent(int indent = 0)
     {
-#pragma warning disable IDE0071 // Simplify interpolation
+        var indentStr = new string(' ', indent);
         return $$"""
-        '{{Name}}' = @{
-            Type = '{{ModuleSpec.Type}}';
-            Content = {{GetContent().PadLeft(4)}};
-        };
+        {{indentStr}}'{{Name}}' = @{
+        {{indentStr}}    Type = '{{ModuleSpec.Type}}';
+        {{indentStr}}    Content = {{GetContent(indent + 4)}};
+        {{indentStr}}};
         """;
-#pragma warning restore IDE0071 // Simplify interpolation
     }
 }
 

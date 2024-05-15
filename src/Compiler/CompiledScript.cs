@@ -71,7 +71,7 @@ class CompiledScript : LocalFileModule
 
         script.AppendLine(GetModuleTable());
 
-        script.AppendLine(Document.GetContent());
+        script.AppendLine(Document.GetContent(0));
 
         return script.ToString();
     }
@@ -126,6 +126,11 @@ class CompiledScript : LocalFileModule
 
         localModules.ForEach(module =>
         {
+            if (module == this)
+            {
+                return;
+            }
+
             ResolvedModules.Add(module.Name, module);
         });
 
@@ -192,10 +197,9 @@ class CompiledScript : LocalFileModule
 
     private string GetModuleTable()
     {
-
         var table = new StringBuilder();
         table.AppendLine("$Global:EmbeddedModules = @{");
-        ResolvedModules.ToList().ForEach(module => table.AppendLine(module.Value.GetInsertableContent().PadLeft(4)));
+        ResolvedModules.ToList().ForEach(module => table.AppendLine(module.Value.GetInsertableContent(4)));
         table.AppendLine("};");
 
         return table.ToString();
