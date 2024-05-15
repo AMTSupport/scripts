@@ -78,7 +78,7 @@ public partial class LocalFileModule : Module
 
     private void FixAndCleanLines()
     {
-        // Multiline Strings
+        // Fix indentation for Multiline Strings
         Document.AddPatternEdit(
             @"^.*@[""']",
             @"^\s+.*[""']@",
@@ -149,9 +149,13 @@ public partial class LocalFileModule : Module
     [GeneratedRegex(@"^\s*")]
     private static partial Regex BeginingWhitespaceMatchRegex();
 
-    public override string GetContent() => $$"""
+    public override string GetContent(int indent = 0)
     {
-        {{Document.GetContent()}}
+        var indentStr = new string(' ', indent);
+        return $$"""
+        {
+        {{Document.GetContent(indent + 4)}}
+        {{indentStr}}}
+        """;
     }
-    """;
 }

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using CommandLine;
 using NLog;
 using Text.Updater;
 
@@ -80,14 +81,16 @@ namespace Text
             EditApplied = true;
         }
 
-        public string GetContent()
+        public string GetContent(int indent = 0)
         {
             if (!EditApplied)
             {
                 throw new Exception("Cannot get content from a document that has not had its edits applied.");
             }
 
-            return string.Join(Environment.NewLine, Document.Lines);
+            var indentString = new string(' ', indent);
+            var lines = Document.Lines.Select(line => $"{indentString}{line}");
+            return string.Join(Environment.NewLine, lines);
         }
 
         private void VerifyNotAppliedOrError()
