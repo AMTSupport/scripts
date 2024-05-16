@@ -27,15 +27,28 @@ public abstract partial class Module(ModuleSpec moduleSpec)
 
 public enum ModuleMatch
 {
-    // This module is an exact match for the requirement
-    Exact,
+    /// <summary>
+    /// This module matches the requirements and doesn't have any additional restrictions.
+    /// </summary>
+    Same,
 
-    // This module is a higher version than the requirement
-    Above,
+    /// <summary>
+    /// This module fulfills the requirements, but has a stricter scope.
+    /// </summary>
+    Stricter,
 
-    // This module has a version that makes it incompatible with the requirement
+    /// <summary>
+    /// This module fulfills the requirements, but has a looser scope.
+    /// </summary>
+    Looser,
+
+    /// <summary>
+    /// This module has incompatible restrictions.
+    /// </summary>
     Incompatible,
 
-    // This module does not match the requirement
+    /// <summary>
+    /// This module does not match the requirements.
+    /// </summary>
     None
 }
