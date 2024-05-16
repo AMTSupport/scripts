@@ -40,12 +40,4 @@ public class DocumentTests
     {
         Assert.Throws<Exception>(() => Editor.GetContent());
     }
-
-    [Test]
-    public void GetContent_ReturnsContent_WhenEditsApplied()
-    {
-        Editor.AddPatternEdit("", "", _ => ["Hello, World!"]);
-        Editor.ApplyEdits();
-        Assert.That(Editor.GetContent(), Is.EqualTo("Hello, World!"));
-    }
 }

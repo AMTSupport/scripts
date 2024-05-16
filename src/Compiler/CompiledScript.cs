@@ -60,7 +60,7 @@ class CompiledScript : LocalFileModule
     {
         var script = new StringBuilder();
 
-        Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Module.ModuleSpec).ToList().ForEach(requirement =>
+        Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Requirements.ModuleSpec).ToList().ForEach(requirement =>
         {
             script.AppendLine(requirement.GetInsertableLine());
         });
@@ -87,7 +87,7 @@ class CompiledScript : LocalFileModule
         while (iterating.TryDequeue(out Module? current) && current != null)
         {
             Logger.Debug($"Resolving requirements for {current.Name}");
-            if (localModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Exact) || downloadableModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Exact))
+            if (localModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Same) || downloadableModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Same))
             {
                 Logger.Debug($"Skipping {current.Name} because it is already resolved.");
                 continue;
