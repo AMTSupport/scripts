@@ -147,12 +147,13 @@ function Get-FromBlob {
 
         Invoke-Debug "Calling HEAD on $Local:Uri to get MD5 hash...";
         try {
-            $Local:ResponseHeaders = Invoke-WebRequest -UseBasicParsingInst -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
+            $Local:ResponseHeaders = Invoke-WebRequest -UseBasicParsing -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
+            Invoke-Debug "Response Headers: $Local:ResponseHeaders";
             [String]$Local:MD5 = $Local:ResponseHeaders['Content-MD5'];
             Assert-NotNull -Object:$Local:MD5 -Message:"Failed to get MD5 hash from $Local:Uri";
         }
         catch {
-            Invoke-FailedExit -ExitCode $Script:ERROR_INVALID_HEADERS -FormatArgs @($Local:Uri);
+            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:ERROR_INVALID_HEADERS -FormatArgs @($Local:Uri);
         }
 
         [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.png';
