@@ -40,7 +40,7 @@
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
             "program": "${workspaceFolder}/Output/Debug/Compiler.dll",
-            "args": ["-i", "utils/test.ps1"],
+            "args": ["-i", ".\\utils\\test.ps1", "-v", "-o", "test.ps1", "-f"],
             "cwd": "${workspaceFolder}",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
             "console": "internalConsole",

@@ -2,10 +2,12 @@ using System.Management.Automation.Language;
 using System.Text;
 using Compiler.Module;
 using Compiler.Requirements;
+using NLog;
 using QuikGraph;
 
 class CompiledScript : LocalFileModule
 {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     public readonly AdjacencyGraph<ModuleSpec, Edge<ModuleSpec>> ModuleGraph = new();
     public readonly Dictionary<string, Module> ResolvedModules = [];
     public readonly ParamBlockAst ScriptParamBlockAst;
@@ -58,7 +60,7 @@ class CompiledScript : LocalFileModule
     {
         var script = new StringBuilder();
 
-        Requirements.GetRequirements().ForEach(requirement =>
+        Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Module.ModuleSpec).ToList().ForEach(requirement =>
         {
             script.AppendLine(requirement.GetInsertableLine());
         });
@@ -84,30 +86,38 @@ class CompiledScript : LocalFileModule
         var iterating = new Queue<Module>([this]);
         while (iterating.TryDequeue(out Module? current) && current != null)
         {
+            Logger.Debug($"Resolving requirements for {current.Name}");
             if (localModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Exact) || downloadableModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Exact))
             {
+                Logger.Debug($"Skipping {current.Name} because it is already resolved.");
                 continue;
             }
 
             switch (current)
             {
                 case LocalFileModule local:
+                    Logger.Debug($"Adding {local.Name} to local modules.");
                     localModules.Add(local);
                     break;
                 case RemoteModule remote:
+                    Logger.Debug($"Adding {remote.Name} to downloadable modules.");
                     downloadableModules.Add(remote);
                     break;
             }
 
             if (!ModuleGraph.ContainsVertex(current.ModuleSpec))
             {
+                Logger.Debug($"Adding {current.Name} to module graph.");
                 ModuleGraph.AddVertex(current.ModuleSpec);
             }
 
+            Logger.Debug($"Adding edge from {ModuleSpec.Name} to {current.ModuleSpec.Name}.");
             ModuleGraph.AddEdge(new Edge<ModuleSpec>(ModuleSpec, current.ModuleSpec));
 
             current.Requirements.GetRequirements<ModuleSpec>().ForEach(module =>
             {
+                Logger.Debug($"Adding {module.Name} to the queue.");
+
                 Module? resolved = null;
                 var resolvedPath = Path.GetFullPath(module.Name);
                 if (File.Exists(resolvedPath))
