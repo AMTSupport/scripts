@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
-using CommandLine;
 using NLog;
 using Text.Updater;
 
@@ -35,13 +34,21 @@ namespace Text
 
         public void AddRegexEdit(
             [StringSyntax("Regex")] string pattern,
-            Func<Match, string> updater)
+            Func<Match, string> updater
+        ) => AddRegexEdit(pattern, false, updater);
+
+        public void AddRegexEdit(
+            [StringSyntax("Regex")] string pattern,
+            bool matchAgainstEntireDocument,
+            Func<Match, string> updater
+        )
         {
             VerifyNotAppliedOrError();
 
             Logger.Debug($"Adding regex updater for pattern: {pattern}");
             TextUpdaters.Add(new RegexUpdater(
-                new Regex(pattern),
+                pattern,
+                matchAgainstEntireDocument,
                 updater
             ));
         }
@@ -90,7 +97,7 @@ namespace Text
 
             var indentString = new string(' ', indent);
             var lines = Document.Lines.Select(line => $"{indentString}{line}");
-            return string.Join(Environment.NewLine, lines);
+            return string.Join('\n', lines);
         }
 
         private void VerifyNotAppliedOrError()

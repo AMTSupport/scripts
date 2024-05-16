@@ -16,7 +16,7 @@ public partial class LocalFileModule : Module
     {
         Document = new(new TextDocument(lines));
 
-        Ast = GetAstReportingErrors(string.Join(Environment.NewLine, lines));
+        Ast = GetAstReportingErrors(string.Join('\n', lines));
 
         AstHelper.FindDeclaredModules(Ast).ToList().ForEach(module =>
         {
@@ -59,7 +59,7 @@ public partial class LocalFileModule : Module
         FixAndCleanLines();
 
         // Check the AST for any issues that have been introduced by the cleanup.
-        GetAstReportingErrors(string.Join(Environment.NewLine, lines));
+        GetAstReportingErrors(string.Join('\n', lines));
     }
 
     private static ScriptBlockAst GetAstReportingErrors(string astContent)
@@ -132,7 +132,7 @@ public partial class LocalFileModule : Module
         // Local files have nothing but a name.
         if (ModuleSpec.Name == requirement.Name)
         {
-            return ModuleMatch.Exact;
+            return ModuleMatch.Same;
         }
 
         return ModuleMatch.None;

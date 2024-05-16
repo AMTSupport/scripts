@@ -1,3 +1,4 @@
+using System.DirectoryServices.AccountManagement;
 using System.Text.RegularExpressions;
 using CommandLine;
 using NLog;
@@ -133,125 +134,101 @@ namespace Text.Updater
     }
 
     public class RegexUpdater(
-        Regex pattern,
+        string pattern,
+        bool matchAgainstEntireDocument,
         Func<Match, string> updater
     ) : TextSpanUpdater
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
         public Func<Match, string> Updater { get; } = updater;
-        public Regex Pattern { get; } = pattern;
+        public Regex Pattern
+        {
+            get
+            {
+                if (matchAgainstEntireDocument)
+                {
+                    return new Regex(pattern, RegexOptions.Multiline | RegexOptions.Singleline);
+                }
+                else
+                {
+                    return new Regex(pattern, RegexOptions.Multiline);
+                }
+            }
+        }
 
         // TODO - Refactor
+        /// <summary>
+        /// Applies the specified pattern to the given text document and returns an array of <see cref="SpanUpdateInfo"/> objects.
+        /// </summary>
+        /// <param name="document">The text document to apply the pattern to.</param>
+        /// <returns>An array of <see cref="SpanUpdateInfo"/> objects representing the updates made to the document.</returns>
         override public SpanUpdateInfo[] Apply(TextDocument document)
         {
             var spanUpdateInfo = new List<SpanUpdateInfo>();
             var offset = 0;
 
             var patternString = Pattern.ToString();
-            var shoudMatchMultiline = !(patternString.StartsWith('^') || patternString.EndsWith('$'));
+            var multilinedContent = string.Join('\n', document.Lines);
+            var matches = Pattern.Matches(multilinedContent);
 
-
-
-            if (!(patternString.StartsWith('^') || patternString.EndsWith('$')))
+            if (matches.Count == 0)
             {
-                var multilinedContent = string.Join(Environment.NewLine, document.Lines);
-                var matches = Pattern.Matches(multilinedContent);
-
-                if (matches.Count == 0)
-                {
-                    return [];
-                }
-
-                var thisOffset = 0;
-                foreach (Match match in matches)
-                {
-                    var startingLineIndex = multilinedContent[..match.Index].Count(c => c == '\n');
-                    var endingLineIndex = multilinedContent[..(match.Index + match.Length)].Count(c => c == '\n');
-
-                    var span = new TextSpan(
-                        startingLineIndex,
-                        match.Index,
-                        endingLineIndex,
-                        match.Index + match.Length
-                    );
-
-                    var isMultiLine = match.Value.Contains(Environment.NewLine);
-                    var newContent = Updater(match);
-
-                    // Remove the entire line if the replacement is empty and the match is the entire line.
-                    if (string.IsNullOrEmpty(newContent) && match.Index == 0 && match.Length == document.Lines[startingLineIndex].Length)
-                    {
-                        span.RemoveContent(document);
-                        thisOffset--;
-                    }
-                    else
-                    {
-                        span.SetContent(document, [newContent]);
-                        if (isMultiLine)
-                        {
-                            thisOffset += newContent.Split(Environment.NewLine).Length - 1;
-                        }
-                    }
-
-                    spanUpdateInfo.Add(new SpanUpdateInfo(new(
-                        startingLineIndex,
-                        match.Index,
-                        endingLineIndex,
-                        match.Index + match.Length
-                    ), thisOffset));
-
-                    offset += thisOffset;
-                }
+                return [];
             }
-            else
+
+            var thisOffset = 0;
+            foreach (Match match in matches)
             {
-                for (int i = 0; i < document.Lines.Count; i++)
+                // Skip empty matches those nasty bastards, praise rust for not having this issue.
+                if (match.Length == 0 && match.Value == "")
                 {
-                    var matches = Pattern.Matches(document.Lines[i]);
-                    if (matches.Count == 0)
+                    continue;
+                }
+
+                var startingLineIndex = multilinedContent[..match.Index].Count(c => c == '\n');
+                var endingLineIndex = multilinedContent[..(match.Index + (match.Length - 1))].Count(c => c == '\n');
+                var isMultiLine = matchAgainstEntireDocument && match.Value.Contains('\n');
+
+                int startingColumn;
+                int endingColumn;
+                // if (isMultiLine)
+                // {
+                    startingColumn = document.Lines[startingLineIndex].IndexOf(match.Value);
+                    endingColumn = match.Index + (match.Length - 1) - multilinedContent[..match.Index].LastIndexOf('\n');
+                // }
+                // else
+                // {
+                //     startingColumn = match.Index;
+                //     endingColumn = match.Index + (match.Length - 1);
+                // }
+
+                var span = new TextSpan(
+                    startingLineIndex,
+                    startingColumn,
+                    endingLineIndex,
+                    endingColumn
+                );
+
+                var newContent = Updater(match);
+
+                // Remove the entire line if the replacement is empty and the match is the entire line.
+                if (string.IsNullOrEmpty(newContent) && match.Index == 0 && match.Length == document.Lines[startingLineIndex].Length)
+                {
+                    span.RemoveContent(document);
+                    thisOffset--;
+                }
+                else
+                {
+                    span.SetContent(document, [newContent]);
+                    if (isMultiLine)
                     {
-                        continue;
-                    }
-
-                    var thisOffset = 0;
-                    foreach (Match match in matches)
-                    {
-                        var span = new TextSpan(
-                            i,
-                            match.Index,
-                            i,
-                            match.Index + match.Length
-                        );
-
-                        var isMultiLine = match.Value.Contains(Environment.NewLine);
-                        var newContent = Updater(match);
-
-                        // Remove the entire line if the replacement is empty and the match is the entire line.
-                        if (string.IsNullOrEmpty(newContent) && match.Index == 0 && match.Length == document.Lines[i].Length)
-                        {
-                            span.RemoveContent(document);
-                            thisOffset--;
-                        }
-                        else
-                        {
-                            span.SetContent(document, [newContent]);
-                            if (isMultiLine)
-                            {
-                                thisOffset += newContent.Split(Environment.NewLine).Length - 1;
-                            }
-                        }
-
-                        spanUpdateInfo.Add(new SpanUpdateInfo(new(
-                            i,
-                            match.Index,
-                            i,
-                            match.Index + match.Length
-                        ), thisOffset));
-
-                        offset += thisOffset;
+                        thisOffset += newContent.Split('\n').Length - 1;
                     }
                 }
+
+                spanUpdateInfo.Add(new SpanUpdateInfo(span, thisOffset));
+                offset += thisOffset;
             }
 
             return [.. spanUpdateInfo];

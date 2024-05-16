@@ -1,13 +1,20 @@
+using System.Management.Automation;
 using System.Text;
+using JetBrains.Annotations;
 
 namespace Text
 {
-    public class TextSpan(int startingIndex, int startingColumn, int endingIndex, int endingColumn)
+    public class TextSpan(
+        [NonNegativeValue] int startingIndex,
+        [NonNegativeValue] int startingColumn,
+        [NonNegativeValue] int endingIndex,
+        [NonNegativeValue] int endingColumn
+    )
     {
-        public int StartingIndex { get; set; } = startingIndex;
-        public int StartingColumn { get; set; } = startingColumn;
-        public int EndingIndex { get; set; } = endingIndex;
-        public int EndingColumn { get; set; } = endingColumn;
+        [ValidateRange(0, int.MaxValue)] public int StartingIndex { get; set; } = startingIndex;
+        [ValidateRange(0, int.MaxValue)] public int StartingColumn { get; set; } = startingColumn;
+        [ValidateRange(0, int.MaxValue)] public int EndingIndex { get; set; } = endingIndex;
+        [ValidateRange(0, int.MaxValue)] public int EndingColumn { get; set; } = endingColumn;
 
         public static TextSpan WrappingEntireDocument(TextDocument document)
         {
@@ -77,13 +84,13 @@ namespace Text
         public int SetContent(TextDocument document, string[] content)
         {
             var offset = 0;
-            var lastLineAfter = document.Lines[EndingIndex][EndingColumn..];
             var firstLineBefore = document.Lines[StartingIndex][..StartingColumn];
+            var lastLineAfter = document.Lines[EndingIndex][EndingColumn..];
 
             if (StartingIndex == EndingIndex)
             {
                 // If the span is a single line and we took nothing from the line before or after, remove the line, since it will be empty.
-                if (string.IsNullOrEmpty(firstLineBefore) || string.IsNullOrEmpty(lastLineAfter))
+                if (string.IsNullOrEmpty(firstLineBefore) && string.IsNullOrEmpty(lastLineAfter))
                 {
                     document.Lines.RemoveAt(StartingIndex);
                     offset--;
