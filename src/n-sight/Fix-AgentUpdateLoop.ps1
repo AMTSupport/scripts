@@ -63,7 +63,7 @@ function createLogFileAndWorkingDirectory () {
         } catch {
             $errorMessage = "We have failed to create the folder $($logFilePath) which is the working directory of the script. Error thrown was: $($error[0])."
             writeToLog E $errorMessage
-            exit 1
+            exit 0
         }
     } else {
         writeToLog V "Logfile Directory $($script:logFilePath) has been created."
@@ -75,7 +75,7 @@ function createLogFileAndWorkingDirectory () {
     } catch {
         $errorMessage = "We have failed to create the file $script:logFileName which is logfile the script logs to. Error thrown was: $($error[0])."
         writeToLog E $errorMessage
-        exit 1
+        exit 0
     }
 }
 
@@ -84,7 +84,7 @@ function stopService () {
         $service = get-service -name "Advanced Monitoring Agent" -ErrorAction stop
     } catch {
         writeToLog E "The Advanced Monitoring Agent service doesn't exist. Therefore this script will exit."
-        exit 1
+        exit 0
     }
 
     $script:existingStartType = ($service | Select-Object -Property StartType).StartType
@@ -117,7 +117,7 @@ function killProcesses () {
         Start-Sleep -Seconds 3;
         $process = get-process -ProcessName winagent -ErrorAction Stop
         writeToLog E "winagent.exe is still running. This device will need manual intervention."
-        exit 1
+        exit 0
     } catch {
         writeToLog V "winagent.exe isn't running. Moving on."
     }
@@ -128,7 +128,7 @@ function killProcesses () {
         writeToLog V "_new_winagent.exe is still running. Attempting to stop."
         $process | Stop-Process -Force
         writeToLog E "_new_winagent.exe is still running. This device will need manual intervention."
-        exit 1
+        exit 0
     } catch {
         writeToLog V "Process _new_winagent.exe isn't running. Moving on."
     }
@@ -137,7 +137,7 @@ function killProcesses () {
         $service = get-service -name "Advanced Monitoring Agent"
         if($service.status -ne "Stopped") {
             writeToLog E "The service is in state $($service.status) after the processes were stopped. This shouldn't happen."
-            exit 1
+            exit 0
         } else {
             writeToLog V "The service is stopped."
         }
@@ -181,7 +181,7 @@ function restartAgentService () {
         $service = get-service -name "Advanced Monitoring Agent" -ErrorAction stop
     } catch {
         writeToLog E "The Advanced Monitoring Agent service doesn't exist. Even though it existed the last time we checked. This is a very rare edge case where the Agent has probably been uninstalled in this window."
-        exit 1
+        exit 0
     }
     writeToLog V "Setting Service Startup Type to $script:existingStartType."
     $service | Set-Service -StartupType $script:existingStartType
