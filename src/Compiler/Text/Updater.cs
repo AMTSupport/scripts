@@ -190,13 +190,16 @@ namespace Text.Updater
                 var endingLineIndex = multilinedContent[..(match.Index + (match.Length - 1))].Count(c => c == '\n');
                 var isMultiLine = matchAgainstEntireDocument && match.Value.Contains('\n');
 
+                var endingColumn = match.Index + (match.Length - 1) - multilinedContent[..match.Index].LastIndexOf('\n');
                 int startingColumn;
-                int endingColumn;
-                // if (isMultiLine)
-                // {
+                if (isMultiLine)
+                {
+                    startingColumn = match.Index;
+                }
+                else
+                {
                     startingColumn = document.Lines[startingLineIndex].IndexOf(match.Value);
-                    endingColumn = match.Index + (match.Length - 1) - multilinedContent[..match.Index].LastIndexOf('\n');
-                // }
+                }
                 // else
                 // {
                 //     startingColumn = match.Index;
