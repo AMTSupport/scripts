@@ -127,6 +127,8 @@ function killProcesses () {
         $process = get-process -ProcessName _new_winagent -ErrorAction Stop
         writeToLog V "_new_winagent.exe is still running. Attempting to stop."
         $process | Stop-Process -Force
+        Start-Sleep -Seconds 3;
+        $process = get-process -ProcessName _new_winagent -ErrorAction Stop
         writeToLog E "_new_winagent.exe is still running. This device will need manual intervention."
         exit 0
     } catch {
