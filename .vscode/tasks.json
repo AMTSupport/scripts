@@ -36,6 +36,16 @@
                 "${workspaceFolder}/scripts.sln"
             ],
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Generate coverage stats",
+            "command": "reportgenerator",
+            "type": "shell",
+            "args": [
+                "-reports:${workspaceFolder}/YourUnitTestProjectFolder/lcov.info",
+                "-targetdir:${workspaceFolder}/YourUnitTestProjectFolder/covstats"
+            ],
+            "problemMatcher": []
         }
     ]
 }
