@@ -135,6 +135,19 @@ function killProcesses () {
         writeToLog V "Process _new_winagent.exe isn't running. Moving on."
     }
 
+    try {
+        writeToLog V "Checking if process _new_setup.exe is still running."
+        $process = get-process -ProcessName _new_setup -ErrorAction Stop
+        writeToLog V "_new_setup.exe is still running. Attempting to stop."
+        $process | Stop-Process -Force
+        Start-Sleep -Seconds 3;
+        $process = get-process -ProcessName _new_setup -ErrorAction Stop
+        writeToLog E "_new_setup.exe is still running. This device will need manual intervention."
+        exit 0
+    } catch {
+        writeToLog V "Process _new_setup.exe isn't running. Moving on."
+    }
+
     if($script:needToCheckServiceAfterKillingProcesses) {
         $service = get-service -name "Advanced Monitoring Agent"
         if($service.status -ne "Stopped") {
