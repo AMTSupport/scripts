@@ -133,12 +133,15 @@ function Get-FromBlob {
             $Private:Key = $Private:Match.Groups['key'].Value;
             $Private:RawValue = $Private:Match.Groups['value'].Value;
             $Private:Value = if ($Private:Key -eq 'sig') {
+                Invoke-Info "Applying URI encoding to $Private:RawValue...";
                 [URI]::EscapeDataString($Private:RawValue);
             }
             else {
+                Invoke-Info "Decoding $Private:RawValue...";
                 $Private:RawValue;
             }
 
+            Invoke-Info "Setting $Private:Key to $Private:Value...";
             $Private:Query[$Private:Match.Groups['key'].Value] = $Private:Value;
         }
         $Private:UrlParams = ($Private:Query.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value -Replace '\\','')" }) -join '&';
@@ -244,6 +247,8 @@ function Update-PerUserSystemParameters {
         }
 
         if (Test-IsRunningAsSystem) {
+            Install-PackageProvider NuGet -MinimumVersion 2.8.5.201 -Force;
+            Set-PSRepository PSGallery -InstallationPolicy Trusted;
             Invoke-EnsureModule 'RunAsUser';
             Invoke-AsCurrentUser -ScriptBlock $Local:ScriptBlock;
         }
