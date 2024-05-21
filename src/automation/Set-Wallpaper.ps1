@@ -141,7 +141,7 @@ function Get-FromBlob {
 
             $Private:Query[$Private:Match.Groups['key'].Value] = $Private:Value;
         }
-        $Private:UrlParams = ($Private:Query.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join '&';
+        $Private:UrlParams = ($Private:Query.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value -Replace '\\','')" }) -join '&';
 
         [String]$Local:Uri = "${Url}?${Private:UrlParams}";
 
@@ -209,6 +209,7 @@ function Set-Wallpaper {
             [String]$Private:RegPath = "HKCU:\$($Hive.SID)\Control Panel\Desktop";
             Set-RegistryKey -Path:$Private:RegPath -Key:'Wallpaper' -Value:$Path -Kind:String;
             Set-RegistryKey -Path:$Private:RegPath -Key:'WallpaperStyle' -Value:$StyleNum[$Style] -Kind:DWord;
+            Set-RegistryKey -Path:$Private:RegPath -Key:'TileWallpaper' -Value:0 -Kind:DWord;
         }
 
         Update-PerUserSystemParameters;
