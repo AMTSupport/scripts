@@ -1,0 +1,1822 @@
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\CompiledScript.cs
+FN:59,System.String CompiledScript::Compile()
+FNDA:0,System.String CompiledScript::Compile()
+DA:60,0
+DA:61,0
+DA:63,0
+DA:64,0
+DA:65,0
+DA:66,0
+DA:68,0
+DA:69,0
+DA:70,0
+DA:71,0
+DA:72,0
+DA:74,0
+DA:76,0
+DA:78,0
+DA:79,0
+FN:81,System.Void CompiledScript::ResolveRequirements()
+FNDA:0,System.Void CompiledScript::ResolveRequirements()
+DA:82,0
+DA:83,0
+DA:84,0
+DA:86,0
+DA:87,0
+DA:88,0
+DA:89,0
+DA:90,0
+DA:91,0
+DA:92,0
+DA:93,0
+DA:96,0
+DA:99,0
+DA:100,0
+DA:101,0
+DA:103,0
+DA:104,0
+DA:105,0
+DA:108,0
+DA:109,0
+DA:110,0
+DA:111,0
+DA:112,0
+DA:114,0
+DA:115,0
+DA:117,0
+DA:118,0
+DA:119,0
+DA:120,0
+DA:121,0
+DA:122,0
+DA:123,0
+DA:124,0
+DA:125,0
+DA:126,0
+DA:127,0
+DA:128,0
+DA:129,0
+DA:130,0
+DA:131,0
+DA:132,0
+DA:133,0
+DA:134,0
+DA:135,0
+DA:137,0
+DA:138,0
+DA:139,0
+DA:140,0
+DA:141,0
+DA:142,0
+DA:143,0
+DA:144,0
+DA:145,0
+DA:162,0
+DA:163,0
+DA:164,0
+DA:165,0
+DA:166,0
+DA:167,0
+DA:168,0
+DA:169,0
+DA:170,0
+DA:171,0
+DA:172,0
+DA:174,0
+DA:175,0
+DA:176,0
+DA:177,0
+DA:179,0
+DA:180,0
+DA:181,0
+DA:182,0
+DA:183,0
+DA:184,0
+DA:185,0
+DA:186,0
+DA:187,0
+DA:188,0
+DA:189,0
+DA:190,0
+DA:192,0
+DA:193,0
+DA:194,0
+DA:195,0
+DA:197,0
+DA:198,0
+DA:199,0
+DA:200,0
+DA:201,0
+DA:202,0
+DA:203,0
+DA:204,0
+DA:205,0
+DA:206,0
+BRDA:87,82,0,0
+BRDA:87,82,1,0
+BRDA:87,101,0,0
+BRDA:90,159,0,0
+BRDA:90,159,1,0
+BRDA:90,187,0,0
+BRDA:90,187,1,0
+BRDA:96,257,0,0
+BRDA:96,257,1,0
+BRDA:96,270,1,0
+BRDA:96,270,0,0
+BRDA:108,396,0,0
+BRDA:108,396,1,0
+BRDA:87,101,1,0
+BRDA:163,810,1,0
+BRDA:165,783,1,0
+BRDA:167,741,0,0
+BRDA:167,741,1,0
+BRDA:167,768,0,0
+BRDA:167,768,1,0
+BRDA:165,783,0,0
+BRDA:163,810,0,0
+BRDA:174,840,0,0
+BRDA:174,840,1,0
+BRDA:192,950,0,0
+BRDA:192,950,1,0
+BRDA:139,12,0,0
+BRDA:139,12,1,0
+BRDA:184,7,0,0
+BRDA:184,7,1,0
+BRDA:186,40,0,0
+BRDA:186,40,1,0
+BRDA:201,27,0,0
+BRDA:201,27,1,0
+BRDA:123,55,0,0
+BRDA:123,55,1,0
+FN:208,System.String CompiledScript::GetModuleTable()
+FNDA:0,System.String CompiledScript::GetModuleTable()
+DA:209,0
+DA:210,0
+DA:211,0
+DA:212,0
+DA:213,0
+DA:215,0
+DA:216,0
+FN:32,System.Void CompiledScript::<.ctor>b__4_1(System.Management.Automation.Language.AttributeAst)
+FNDA:0,System.Void CompiledScript::<.ctor>b__4_1(System.Management.Automation.Language.AttributeAst)
+DA:33,0
+DA:34,0
+DA:35,0
+DA:36,0
+DA:37,0
+DA:38,0
+DA:39,0
+DA:40,0
+DA:41,0
+FN:47,System.Void CompiledScript::<.ctor>b__4_3(System.Management.Automation.Language.Ast)
+FNDA:0,System.Void CompiledScript::<.ctor>b__4_3(System.Management.Automation.Language.Ast)
+DA:48,0
+DA:49,0
+DA:50,0
+DA:51,0
+DA:52,0
+DA:53,0
+DA:54,0
+DA:55,0
+DA:56,0
+FN:10,System.Void CompiledScript::.ctor(System.String,System.String[])
+FNDA:0,System.Void CompiledScript::.ctor(System.String,System.String[])
+DA:11,0
+DA:12,0
+DA:15,0
+DA:16,0
+DA:18,0
+DA:19,0
+DA:20,0
+DA:21,0
+DA:24,0
+DA:25,0
+DA:26,0
+DA:27,0
+DA:28,0
+DA:29,0
+DA:30,0
+DA:31,0
+DA:32,0
+DA:43,0
+DA:46,0
+DA:47,0
+DA:57,0
+BRDA:18,93,1,0
+BRDA:18,93,0,0
+BRDA:46,8,0,0
+BRDA:46,8,1,0
+FN:9,System.Void CompiledScript::.cctor()
+FNDA:0,System.Void CompiledScript::.cctor()
+DA:10,0
+LF:156
+LH:0
+BRF:40
+BRH:0
+FNF:7
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Program.cs
+FN:25,System.Void Program::Main(System.String[])
+FNDA:0,System.Void Program::Main(System.String[])
+DA:26,0
+DA:27,0
+DA:28,0
+DA:29,0
+DA:30,0
+DA:31,0
+DA:32,0
+DA:33,0
+DA:34,0
+DA:35,0
+DA:36,0
+DA:37,0
+DA:38,0
+DA:39,0
+DA:40,0
+DA:41,0
+DA:42,0
+DA:43,0
+BRDA:34,56,0,0
+BRDA:34,56,1,0
+FN:45,System.String Program::CompileScript(System.String)
+FNDA:0,System.String Program::CompileScript(System.String)
+DA:46,0
+DA:47,0
+DA:48,0
+DA:50,0
+DA:51,0
+DA:53,0
+DA:54,0
+DA:55,0
+FN:7,System.Void Program::.cctor()
+FNDA:0,System.Void Program::.cctor()
+DA:8,0
+FN:12,System.Boolean Program/Options::get_Verbose()
+FNDA:0,System.Boolean Program/Options::get_Verbose()
+DA:13,0
+FN:15,System.String Program/Options::get_InputFile()
+FNDA:0,System.String Program/Options::get_InputFile()
+DA:16,0
+FN:18,System.String Program/Options::get_OutputFile()
+FNDA:0,System.String Program/Options::get_OutputFile()
+DA:19,0
+FN:21,System.Boolean Program/Options::get_Force()
+FNDA:0,System.Boolean Program/Options::get_Force()
+DA:22,0
+FN:57,System.Void Program/<OutputToFile>d__4::MoveNext()
+FNDA:0,System.Void Program/<OutputToFile>d__4::MoveNext()
+DA:58,0
+DA:59,0
+DA:60,0
+DA:62,0
+DA:63,0
+DA:67,0
+DA:68,0
+DA:71,0
+DA:72,0
+DA:73,0
+DA:75,0
+DA:76,0
+DA:77,0
+DA:79,0
+DA:80,0
+DA:82,0
+DA:83,0
+DA:84,0
+DA:87,0
+DA:88,0
+DA:89,0
+DA:90,0
+BRDA:59,36,0,0
+BRDA:59,36,1,0
+BRDA:67,94,0,0
+BRDA:72,125,0,0
+BRDA:76,151,0,0
+BRDA:76,151,1,0
+BRDA:72,125,1,0
+BRDA:79,196,0,0
+BRDA:79,196,1,0
+BRDA:67,94,1,0
+LF:53
+LH:0
+BRF:12
+BRH:0
+FNF:8
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\obj\Debug\System.Text.RegularExpressions.Generator\System.Text.RegularExpressions.Generator.RegexGenerator\RegexGenerator.g.cs
+FN:69,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0::.ctor()
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0::.ctor()
+DA:70,0
+DA:71,0
+DA:72,0
+DA:73,0
+DA:74,0
+DA:75,0
+DA:76,0
+DA:77,0
+DA:78,0
+DA:79,0
+DA:80,0
+FN:66,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0::.cctor()
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0::.cctor()
+DA:67,0
+FN:85,System.Text.RegularExpressions.RegexRunner System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory::CreateInstance()
+FNDA:0,System.Text.RegularExpressions.RegexRunner System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory::CreateInstance()
+DA:86,0
+FN:93,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::Scan(System.ReadOnlySpan`1<System.Char>)
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::Scan(System.ReadOnlySpan`1<System.Char>)
+DA:94,0
+DA:96,0
+DA:97,0
+DA:98,0
+DA:99,0
+DA:100,0
+BRDA:96,8,0,0
+BRDA:96,8,1,0
+BRDA:96,25,0,0
+BRDA:96,25,1,0
+FN:105,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::TryFindNextPossibleStartingPosition(System.ReadOnlySpan`1<System.Char>)
+FNDA:0,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::TryFindNextPossibleStartingPosition(System.ReadOnlySpan`1<System.Char>)
+DA:106,0
+DA:107,0
+DA:110,0
+DA:111,0
+DA:113,0
+DA:114,0
+DA:115,0
+DA:117,0
+DA:120,0
+DA:121,0
+DA:122,0
+BRDA:110,26,0,0
+BRDA:113,35,0,0
+BRDA:113,35,1,0
+BRDA:110,26,1,0
+FN:127,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::TryMatchAtCurrentPosition(System.ReadOnlySpan`1<System.Char>)
+FNDA:0,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::TryMatchAtCurrentPosition(System.ReadOnlySpan`1<System.Char>)
+DA:128,0
+DA:129,0
+DA:130,0
+DA:131,0
+DA:132,0
+DA:133,0
+DA:134,0
+DA:135,0
+DA:138,0
+DA:139,0
+DA:140,0
+DA:141,0
+DA:145,0
+DA:146,0
+DA:147,0
+DA:148,0
+DA:149,0
+DA:150,0
+DA:152,0
+DA:153,0
+DA:154,0
+DA:157,0
+DA:158,0
+DA:159,0
+DA:160,0
+DA:164,0
+DA:165,0
+DA:166,0
+DA:167,0
+DA:170,0
+DA:171,0
+DA:172,0
+DA:173,0
+DA:174,0
+DA:175,0
+DA:177,0
+DA:178,0
+DA:179,0
+DA:180,0
+DA:183,0
+DA:184,0
+DA:185,0
+DA:187,0
+DA:188,0
+DA:191,0
+DA:192,0
+DA:193,0
+DA:194,0
+DA:199,0
+DA:200,0
+DA:201,0
+DA:205,0
+DA:207,0
+DA:208,0
+DA:209,0
+DA:210,0
+DA:211,0
+DA:213,0
+DA:214,0
+DA:215,0
+DA:216,0
+DA:219,0
+DA:220,0
+DA:222,0
+DA:223,0
+DA:224,0
+DA:226,0
+DA:227,0
+DA:229,0
+DA:230,0
+DA:231,0
+DA:232,0
+DA:234,0
+DA:235,0
+DA:236,0
+DA:237,0
+DA:239,0
+DA:240,0
+DA:242,0
+DA:243,0
+DA:246,0
+DA:248,0
+DA:250,0
+DA:251,0
+DA:253,0
+DA:257,0
+DA:258,0
+DA:259,0
+DA:263,0
+DA:264,0
+DA:265,0
+DA:276,0
+BRDA:138,41,0,0
+BRDA:138,41,1,0
+BRDA:147,107,1,0
+BRDA:147,83,0,0
+BRDA:147,83,1,0
+BRDA:147,107,0,0
+BRDA:157,150,0,0
+BRDA:157,150,1,0
+BRDA:172,210,0,0
+BRDA:172,210,1,0
+BRDA:177,232,0,0
+BRDA:177,232,1,0
+BRDA:191,286,0,0
+BRDA:191,286,1,0
+BRDA:191,311,0,0
+BRDA:191,311,1,0
+BRDA:208,369,0,0
+BRDA:208,369,1,0
+BRDA:213,391,0,0
+BRDA:213,391,1,0
+BRDA:229,456,0,0
+BRDA:229,456,1,0
+BRDA:234,480,0,0
+BRDA:234,480,1,0
+BRDA:257,550,0,0
+BRDA:257,560,0,0
+BRDA:257,560,1,0
+BRDA:257,550,1,0
+BRDA:257,588,0,0
+BRDA:257,588,1,0
+FN:269,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::<TryMatchAtCurrentPosition>g__UncaptureUntil|2_0(System.Int32)
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__RequiresStatementRegex_0/RunnerFactory/Runner::<TryMatchAtCurrentPosition>g__UncaptureUntil|2_0(System.Int32)
+DA:270,0
+DA:271,0
+DA:272,0
+DA:273,0
+DA:274,0
+DA:275,0
+BRDA:271,23,1,0
+BRDA:271,23,0,0
+FN:289,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1::.ctor()
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1::.ctor()
+DA:290,0
+DA:291,0
+DA:292,0
+DA:293,0
+DA:294,0
+DA:295,0
+DA:296,0
+DA:297,0
+DA:298,0
+FN:286,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1::.cctor()
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1::.cctor()
+DA:287,0
+FN:303,System.Text.RegularExpressions.RegexRunner System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory::CreateInstance()
+FNDA:0,System.Text.RegularExpressions.RegexRunner System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory::CreateInstance()
+DA:304,0
+FN:311,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory/Runner::Scan(System.ReadOnlySpan`1<System.Char>)
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory/Runner::Scan(System.ReadOnlySpan`1<System.Char>)
+DA:312,0
+DA:314,0
+DA:315,0
+DA:316,0
+DA:317,0
+DA:318,0
+BRDA:314,8,0,0
+BRDA:314,8,1,0
+BRDA:314,25,0,0
+BRDA:314,25,1,0
+FN:323,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory/Runner::TryFindNextPossibleStartingPosition(System.ReadOnlySpan`1<System.Char>)
+FNDA:0,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory/Runner::TryFindNextPossibleStartingPosition(System.ReadOnlySpan`1<System.Char>)
+DA:324,0
+DA:325,0
+DA:328,0
+DA:329,0
+DA:330,0
+DA:334,0
+DA:335,0
+DA:336,0
+BRDA:328,14,0,0
+BRDA:328,14,1,0
+FN:341,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory/Runner::TryMatchAtCurrentPosition(System.ReadOnlySpan`1<System.Char>)
+FNDA:0,System.Boolean System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__BeginingWhitespaceMatchRegex_1/RunnerFactory/Runner::TryMatchAtCurrentPosition(System.ReadOnlySpan`1<System.Char>)
+DA:342,0
+DA:343,0
+DA:344,0
+DA:345,0
+DA:348,0
+DA:349,0
+DA:350,0
+DA:354,0
+DA:355,0
+DA:356,0
+DA:357,0
+DA:358,0
+DA:359,0
+DA:361,0
+DA:362,0
+DA:363,0
+DA:366,0
+DA:367,0
+DA:368,0
+DA:369,0
+BRDA:348,25,0,0
+BRDA:348,25,1,0
+BRDA:356,80,1,0
+BRDA:356,56,0,0
+BRDA:356,56,1,0
+BRDA:356,80,0,0
+FN:379,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__Utilities::.cctor()
+FNDA:0,System.Void System.Text.RegularExpressions.Generated.<RegexGenerator_g>F519C13F00B9FA720409C05E8D83BA9D3B1F845AA7A92F2DA40D13CD914EA47FD__Utilities::.cctor()
+DA:380,0
+DA:383,0
+BRDA:380,17,0,0
+BRDA:380,17,1,0
+FN:27,System.Text.RegularExpressions.Regex Compiler.Module.LocalFileModule::RequiresStatementRegex()
+FNDA:0,System.Text.RegularExpressions.Regex Compiler.Module.LocalFileModule::RequiresStatementRegex()
+DA:28,0
+FN:45,System.Text.RegularExpressions.Regex Compiler.Module.LocalFileModule::BeginingWhitespaceMatchRegex()
+FNDA:0,System.Text.RegularExpressions.Regex Compiler.Module.LocalFileModule::BeginingWhitespaceMatchRegex()
+DA:46,0
+LF:177
+LH:0
+BRF:54
+BRH:0
+FNF:16
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Text\Document.cs
+FN:9,System.Collections.Generic.List`1<System.String> Text.TextDocument::get_Lines()
+FNDA:162,System.Collections.Generic.List`1<System.String> Text.TextDocument::get_Lines()
+DA:10,162
+FN:7,System.Void Text.TextDocument::.ctor(System.String[])
+FNDA:23,System.Void Text.TextDocument::.ctor(System.String[])
+DA:8,23
+FN:16,Text.TextDocument Text.TextEditor::get_Document()
+FNDA:19,Text.TextDocument Text.TextEditor::get_Document()
+DA:17,19
+FN:17,System.Collections.Generic.List`1<Text.Updater.TextSpanUpdater> Text.TextEditor::get_TextUpdaters()
+FNDA:22,System.Collections.Generic.List`1<Text.Updater.TextSpanUpdater> Text.TextEditor::get_TextUpdaters()
+DA:18,22
+FN:18,System.Boolean Text.TextEditor::get_EditApplied()
+FNDA:39,System.Boolean Text.TextEditor::get_EditApplied()
+DA:19,39
+FN:24,System.Void Text.TextEditor::AddPatternEdit(System.String,System.String,System.Func`2<System.String[],System.String[]>)
+FNDA:4,System.Void Text.TextEditor::AddPatternEdit(System.String,System.String,System.Func`2<System.String[],System.String[]>)
+DA:25,4
+DA:26,4
+DA:28,3
+DA:29,3
+DA:30,3
+DA:31,3
+DA:32,3
+DA:33,3
+FN:37,System.Void Text.TextEditor::AddRegexEdit(System.String,System.Func`2<System.Text.RegularExpressions.Match,System.String>)
+FNDA:3,System.Void Text.TextEditor::AddRegexEdit(System.String,System.Func`2<System.Text.RegularExpressions.Match,System.String>)
+DA:38,3
+FN:44,System.Void Text.TextEditor::AddRegexEdit(System.String,System.Boolean,System.Func`2<System.Text.RegularExpressions.Match,System.String>)
+FNDA:3,System.Void Text.TextEditor::AddRegexEdit(System.String,System.Boolean,System.Func`2<System.Text.RegularExpressions.Match,System.String>)
+DA:45,3
+DA:46,3
+DA:48,2
+DA:49,2
+DA:50,2
+DA:51,2
+DA:52,2
+DA:53,2
+DA:54,2
+FN:61,System.Void Text.TextEditor::AddExactEdit(System.Int32,System.Int32,System.Int32,System.Int32,System.Func`2<System.String[],System.String[]>)
+FNDA:0,System.Void Text.TextEditor::AddExactEdit(System.Int32,System.Int32,System.Int32,System.Int32,System.Func`2<System.String[],System.String[]>)
+DA:62,0
+DA:63,0
+DA:65,0
+DA:66,0
+DA:67,0
+DA:68,0
+DA:69,0
+DA:70,0
+DA:71,0
+DA:72,0
+DA:73,0
+FN:75,System.Void Text.TextEditor::ApplyEdits()
+FNDA:9,System.Void Text.TextEditor::ApplyEdits()
+DA:76,9
+DA:77,9
+DA:79,8
+DA:80,8
+DA:81,34
+DA:82,5
+DA:83,5
+DA:84,5
+DA:85,5
+DA:86,5
+DA:88,8
+DA:89,8
+BRDA:81,155,1,5
+BRDA:81,155,0,8
+FN:91,System.String Text.TextEditor::GetContent(System.Int32)
+FNDA:6,System.String Text.TextEditor::GetContent(System.Int32)
+DA:92,6
+DA:93,6
+DA:94,1
+DA:95,1
+DA:98,5
+DA:99,21
+DA:100,5
+DA:101,5
+BRDA:93,18,0,1
+BRDA:93,18,1,5
+FN:103,System.Void Text.TextEditor::VerifyNotAppliedOrError()
+FNDA:16,System.Void Text.TextEditor::VerifyNotAppliedOrError()
+DA:104,16
+DA:105,16
+DA:106,3
+DA:107,3
+DA:109,13
+BRDA:105,9,0,3
+BRDA:105,9,1,13
+FN:12,System.Void Text.TextEditor::.ctor(Text.TextDocument)
+FNDA:9,System.Void Text.TextEditor::.ctor(Text.TextDocument)
+DA:13,9
+FN:14,System.Void Text.TextEditor::.cctor()
+FNDA:1,System.Void Text.TextEditor::.cctor()
+DA:15,1
+LF:61
+LH:50
+BRF:6
+BRH:6
+FNF:14
+FNH:13
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Text\Span.cs
+FN:13,System.Int32 Text.TextSpan::get_StartingIndex()
+FNDA:136,System.Int32 Text.TextSpan::get_StartingIndex()
+DA:14,136
+FN:14,System.Int32 Text.TextSpan::get_StartingColumn()
+FNDA:52,System.Int32 Text.TextSpan::get_StartingColumn()
+DA:15,52
+FN:15,System.Int32 Text.TextSpan::get_EndingIndex()
+FNDA:98,System.Int32 Text.TextSpan::get_EndingIndex()
+DA:16,98
+FN:16,System.Int32 Text.TextSpan::get_EndingColumn()
+FNDA:52,System.Int32 Text.TextSpan::get_EndingColumn()
+DA:17,52
+FN:19,Text.TextSpan Text.TextSpan::WrappingEntireDocument(Text.TextDocument)
+FNDA:4,Text.TextSpan Text.TextSpan::WrappingEntireDocument(Text.TextDocument)
+DA:20,4
+DA:21,4
+DA:22,4
+FN:24,System.Boolean Text.TextSpan::Contains(System.Int32,System.Int32)
+FNDA:1,System.Boolean Text.TextSpan::Contains(System.Int32,System.Int32)
+DA:25,1
+DA:26,1
+DA:27,0
+DA:28,0
+DA:31,1
+DA:32,0
+DA:33,0
+DA:36,1
+DA:37,0
+DA:38,0
+DA:41,1
+DA:42,1
+BRDA:26,8,0,1
+BRDA:26,8,1,0
+BRDA:26,24,0,0
+BRDA:26,24,1,1
+BRDA:31,38,0,0
+BRDA:31,38,1,1
+BRDA:31,54,0,0
+BRDA:31,54,1,1
+BRDA:36,68,0,0
+BRDA:36,68,1,1
+BRDA:36,84,0,0
+BRDA:36,84,1,1
+FN:44,System.String Text.TextSpan::GetContent(Text.TextDocument)
+FNDA:6,System.String Text.TextSpan::GetContent(Text.TextDocument)
+DA:45,6
+DA:46,6
+DA:47,4
+DA:48,4
+DA:49,4
+DA:50,4
+DA:53,0
+DA:54,0
+DA:55,0
+DA:58,0
+DA:61,2
+DA:62,2
+DA:63,8
+DA:64,2
+DA:65,2
+DA:66,2
+DA:67,2
+DA:69,2
+DA:70,6
+BRDA:46,17,0,4
+BRDA:48,29,0,4
+BRDA:48,29,1,0
+BRDA:48,66,0,4
+BRDA:48,66,1,0
+BRDA:53,110,0,0
+BRDA:53,110,1,0
+BRDA:46,17,1,2
+BRDA:63,284,1,2
+BRDA:63,284,0,2
+FN:84,System.Int32 Text.TextSpan::SetContent(Text.TextDocument,System.String[])
+FNDA:17,System.Int32 Text.TextSpan::SetContent(Text.TextDocument,System.String[])
+DA:85,17
+DA:86,17
+DA:87,17
+DA:88,17
+DA:90,17
+DA:91,16
+DA:93,16
+DA:94,13
+DA:95,13
+DA:96,13
+DA:99,13
+DA:100,1
+DA:101,1
+DA:103,12
+DA:105,3
+DA:106,3
+DA:107,3
+DA:108,3
+DA:109,15
+DA:111,1
+DA:113,10
+DA:114,4
+DA:115,4
+DA:116,4
+DA:117,4
+DA:118,1
+DA:120,16
+DA:121,0
+DA:122,0
+DA:123,0
+DA:124,0
+DA:125,0
+DA:126,0
+DA:128,0
+DA:129,0
+DA:130,0
+DA:131,0
+DA:132,0
+DA:133,0
+DA:134,16
+DA:135,15
+DA:136,15
+DA:137,14
+DA:138,14
+DA:139,14
+DA:140,14
+DA:142,1
+DA:143,1
+DA:144,1
+DA:146,1
+DA:147,0
+DA:148,0
+DA:149,0
+DA:150,0
+DA:151,1
+DA:152,15
+DA:154,1
+DA:155,1
+DA:156,1
+DA:159,4
+DA:160,1
+DA:161,1
+DA:162,1
+DA:163,1
+DA:165,1
+DA:166,1
+DA:168,16
+DA:169,17
+BRDA:90,95,0,16
+BRDA:93,104,0,14
+BRDA:93,104,1,2
+BRDA:93,119,0,13
+BRDA:99,153,0,1
+BRDA:99,153,1,12
+BRDA:93,119,1,3
+BRDA:90,95,1,1
+BRDA:113,252,1,4
+BRDA:113,252,0,1
+BRDA:120,264,0,0
+BRDA:122,280,0,0
+BRDA:122,280,1,0
+BRDA:128,320,0,0
+BRDA:128,320,1,0
+BRDA:120,264,1,16
+BRDA:134,365,0,15
+BRDA:136,389,0,14
+BRDA:136,389,1,1
+BRDA:146,472,0,0
+BRDA:146,472,1,1
+BRDA:134,365,1,1
+BRDA:159,590,1,1
+BRDA:159,590,0,1
+FN:171,System.Int32 Text.TextSpan::RemoveContent(Text.TextDocument)
+FNDA:1,System.Int32 Text.TextSpan::RemoveContent(Text.TextDocument)
+DA:172,1
+DA:173,1
+DA:174,1
+FN:6,System.Void Text.TextSpan::.ctor(System.Int32,System.Int32,System.Int32,System.Int32)
+FNDA:28,System.Void Text.TextSpan::.ctor(System.Int32,System.Int32,System.Int32,System.Int32)
+DA:7,28
+DA:8,28
+DA:9,28
+DA:10,28
+DA:11,28
+DA:12,28
+LF:115
+LH:89
+BRF:46
+BRH:30
+FNF:10
+FNH:10
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Text\Updater.cs
+FN:9,Text.TextSpan Text.Updater.SpanUpdateInfo::get_TextSpan()
+FNDA:0,Text.TextSpan Text.Updater.SpanUpdateInfo::get_TextSpan()
+DA:10,0
+FN:10,System.Int32 Text.Updater.SpanUpdateInfo::get_Offset()
+FNDA:0,System.Int32 Text.Updater.SpanUpdateInfo::get_Offset()
+DA:11,0
+FN:8,System.Void Text.Updater.SpanUpdateInfo::.ctor(Text.TextSpan,System.Int32)
+FNDA:11,System.Void Text.Updater.SpanUpdateInfo::.ctor(Text.TextSpan,System.Int32)
+DA:9,11
+DA:12,11
+FN:41,System.Func`2<System.String[],System.String[]> Text.Updater.PatternUpdater::get_Updater()
+FNDA:6,System.Func`2<System.String[],System.String[]> Text.Updater.PatternUpdater::get_Updater()
+DA:42,6
+FN:42,System.Text.RegularExpressions.Regex Text.Updater.PatternUpdater::get_StartingPattern()
+FNDA:21,System.Text.RegularExpressions.Regex Text.Updater.PatternUpdater::get_StartingPattern()
+DA:43,21
+FN:43,System.Text.RegularExpressions.Regex Text.Updater.PatternUpdater::get_EndingPattern()
+FNDA:18,System.Text.RegularExpressions.Regex Text.Updater.PatternUpdater::get_EndingPattern()
+DA:44,18
+FN:46,Text.Updater.SpanUpdateInfo[] Text.Updater.PatternUpdater::Apply(Text.TextDocument)
+FNDA:3,Text.Updater.SpanUpdateInfo[] Text.Updater.PatternUpdater::Apply(Text.TextDocument)
+DA:47,3
+DA:48,3
+DA:49,3
+DA:50,3
+DA:52,6
+DA:53,6
+DA:54,6
+DA:55,6
+DA:56,3
+DA:57,3
+DA:60,3
+DA:61,3
+DA:63,3
+DA:64,3
+DA:65,3
+DA:66,3
+DA:67,3
+DA:68,3
+DA:70,3
+DA:71,3
+BRDA:55,56,0,3
+BRDA:55,56,1,3
+BRDA:55,70,0,3
+BRDA:55,70,1,3
+FN:73,System.Void Text.Updater.PatternUpdater::PushByUpdate(Text.Updater.SpanUpdateInfo)
+FNDA:0,System.Void Text.Updater.PatternUpdater::PushByUpdate(Text.Updater.SpanUpdateInfo)
+DA:74,0
+DA:75,0
+DA:76,0
+FN:82,System.ValueTuple`2<System.Int32,System.Int32> Text.Updater.PatternUpdater::FindStartToEndBlock(System.String[],System.Int32,System.Collections.Generic.HashSet`1<System.Range>)
+FNDA:6,System.ValueTuple`2<System.Int32,System.Int32> Text.Updater.PatternUpdater::FindStartToEndBlock(System.String[],System.Int32,System.Collections.Generic.HashSet`1<System.Range>)
+DA:83,6
+DA:84,6
+DA:85,2
+DA:86,2
+DA:89,4
+DA:90,4
+DA:91,4
+DA:93,42
+DA:94,20
+DA:95,20
+DA:96,25
+DA:97,5
+DA:98,5
+DA:101,15
+DA:102,15
+DA:103,3
+DA:104,3
+DA:105,3
+DA:106,3
+DA:107,3
+DA:109,3
+DA:110,3
+DA:114,15
+DA:115,3
+DA:116,3
+DA:117,3
+DA:119,15
+DA:120,15
+DA:121,3
+DA:122,3
+DA:124,3
+DA:125,3
+DA:126,3
+DA:127,3
+DA:129,0
+DA:130,12
+DA:132,4
+DA:133,6
+BRDA:84,21,0,4
+BRDA:84,32,0,4
+BRDA:84,21,1,2
+BRDA:84,32,1,2
+BRDA:84,46,0,2
+BRDA:84,46,1,4
+BRDA:93,370,1,20
+BRDA:96,153,0,5
+BRDA:96,153,1,15
+BRDA:102,190,0,3
+BRDA:104,201,0,3
+BRDA:104,201,1,3
+BRDA:102,190,1,15
+BRDA:114,238,0,3
+BRDA:114,238,1,15
+BRDA:120,298,0,3
+BRDA:124,319,0,3
+BRDA:124,319,1,0
+BRDA:120,298,1,12
+BRDA:93,370,0,4
+BRDA:96,33,0,5
+BRDA:96,33,1,0
+FN:33,System.Void Text.Updater.PatternUpdater::.ctor(System.Text.RegularExpressions.Regex,System.Text.RegularExpressions.Regex,System.Func`2<System.String[],System.String[]>)
+FNDA:3,System.Void Text.Updater.PatternUpdater::.ctor(System.Text.RegularExpressions.Regex,System.Text.RegularExpressions.Regex,System.Func`2<System.String[],System.String[]>)
+DA:34,3
+DA:35,3
+DA:36,3
+DA:37,3
+DA:38,3
+FN:39,System.Void Text.Updater.PatternUpdater::.cctor()
+FNDA:0,System.Void Text.Updater.PatternUpdater::.cctor()
+DA:40,0
+FN:143,System.Func`2<System.Text.RegularExpressions.Match,System.String> Text.Updater.RegexUpdater::get_Updater()
+FNDA:10,System.Func`2<System.Text.RegularExpressions.Match,System.String> Text.Updater.RegexUpdater::get_Updater()
+DA:144,10
+FN:147,System.Text.RegularExpressions.Regex Text.Updater.RegexUpdater::get_Pattern()
+FNDA:4,System.Text.RegularExpressions.Regex Text.Updater.RegexUpdater::get_Pattern()
+DA:148,4
+DA:149,4
+DA:150,0
+DA:151,0
+DA:154,4
+DA:155,4
+DA:157,4
+BRDA:149,9,0,0
+BRDA:149,9,1,4
+FN:166,Text.Updater.SpanUpdateInfo[] Text.Updater.RegexUpdater::Apply(Text.TextDocument)
+FNDA:2,Text.Updater.SpanUpdateInfo[] Text.Updater.RegexUpdater::Apply(Text.TextDocument)
+DA:167,2
+DA:168,2
+DA:169,2
+DA:171,2
+DA:172,2
+DA:173,2
+DA:175,2
+DA:176,0
+DA:177,0
+DA:180,2
+DA:181,30
+DA:182,12
+DA:184,12
+DA:185,4
+DA:186,4
+DA:189,94
+DA:190,142
+DA:191,8
+DA:193,8
+DA:195,8
+DA:196,0
+DA:197,0
+DA:198,0
+DA:200,8
+DA:201,8
+DA:202,8
+DA:209,8
+DA:210,8
+DA:211,8
+DA:212,8
+DA:213,8
+DA:214,8
+DA:216,8
+DA:219,8
+DA:220,0
+DA:221,0
+DA:222,0
+DA:223,0
+DA:225,8
+DA:226,8
+DA:227,8
+DA:228,0
+DA:229,0
+DA:230,0
+DA:231,8
+DA:233,8
+DA:234,8
+DA:235,8
+DA:237,2
+DA:238,2
+BRDA:175,63,0,0
+BRDA:175,63,1,2
+BRDA:181,567,1,12
+BRDA:184,118,0,4
+BRDA:184,118,1,8
+BRDA:184,144,0,4
+BRDA:184,144,1,8
+BRDA:191,272,0,0
+BRDA:191,272,1,8
+BRDA:195,340,0,0
+BRDA:195,340,1,8
+BRDA:219,421,0,0
+BRDA:219,430,0,0
+BRDA:219,421,1,8
+BRDA:219,430,1,8
+BRDA:219,466,0,0
+BRDA:219,466,1,8
+BRDA:227,514,0,0
+BRDA:227,514,1,8
+BRDA:181,567,0,2
+FN:240,System.Void Text.Updater.RegexUpdater::PushByUpdate(Text.Updater.SpanUpdateInfo)
+FNDA:0,System.Void Text.Updater.RegexUpdater::PushByUpdate(Text.Updater.SpanUpdateInfo)
+DA:241,0
+DA:242,0
+DA:243,0
+FN:135,System.Void Text.Updater.RegexUpdater::.ctor(System.String,System.Boolean,System.Func`2<System.Text.RegularExpressions.Match,System.String>)
+FNDA:2,System.Void Text.Updater.RegexUpdater::.ctor(System.String,System.Boolean,System.Func`2<System.Text.RegularExpressions.Match,System.String>)
+DA:136,2
+DA:137,2
+DA:138,2
+DA:139,2
+DA:140,2
+FN:141,System.Void Text.Updater.RegexUpdater::.cctor()
+FNDA:0,System.Void Text.Updater.RegexUpdater::.cctor()
+DA:142,0
+FN:256,Text.TextSpan Text.Updater.ExactUpdater::get_Span()
+FNDA:0,Text.TextSpan Text.Updater.ExactUpdater::get_Span()
+DA:257,0
+FN:259,Text.Updater.SpanUpdateInfo[] Text.Updater.ExactUpdater::Apply(Text.TextDocument)
+FNDA:0,Text.Updater.SpanUpdateInfo[] Text.Updater.ExactUpdater::Apply(Text.TextDocument)
+DA:260,0
+DA:261,0
+DA:262,0
+DA:263,0
+DA:266,0
+DA:267,0
+DA:268,0
+DA:269,0
+DA:272,0
+DA:273,0
+DA:274,0
+DA:275,0
+DA:278,0
+DA:281,0
+DA:282,0
+DA:283,0
+DA:284,0
+DA:285,0
+DA:286,0
+DA:287,0
+DA:288,0
+DA:289,0
+DA:290,0
+DA:291,0
+DA:294,0
+DA:295,0
+DA:296,0
+DA:298,0
+DA:299,0
+DA:300,0
+DA:301,0
+DA:302,0
+DA:303,0
+DA:304,0
+DA:305,0
+DA:306,0
+DA:311,0
+DA:312,0
+DA:313,0
+DA:314,0
+DA:315,0
+DA:316,0
+DA:318,0
+DA:319,0
+DA:320,0
+DA:321,0
+DA:323,0
+DA:324,0
+DA:325,0
+DA:327,0
+DA:328,0
+BRDA:261,13,0,0
+BRDA:261,13,1,0
+BRDA:261,49,0,0
+BRDA:261,49,1,0
+BRDA:266,92,0,0
+BRDA:266,92,1,0
+BRDA:272,234,0,0
+BRDA:272,234,1,0
+BRDA:272,267,0,0
+BRDA:272,267,1,0
+BRDA:278,396,1,0
+BRDA:278,396,0,0
+BRDA:283,440,1,0
+BRDA:283,440,0,0
+BRDA:286,499,1,0
+BRDA:286,499,0,0
+BRDA:289,648,1,0
+BRDA:289,648,0,0
+BRDA:298,872,0,0
+BRDA:298,872,1,0
+BRDA:301,1007,1,0
+BRDA:301,1007,0,0
+BRDA:304,1146,0,0
+BRDA:304,1170,1,0
+BRDA:304,1146,1,0
+BRDA:304,1170,0,0
+BRDA:311,1319,0,0
+BRDA:311,1319,1,0
+FN:330,System.Void Text.Updater.ExactUpdater::PushByUpdate(Text.Updater.SpanUpdateInfo)
+FNDA:0,System.Void Text.Updater.ExactUpdater::PushByUpdate(Text.Updater.SpanUpdateInfo)
+DA:331,0
+DA:332,0
+DA:334,0
+DA:335,0
+DA:336,0
+DA:337,0
+DA:338,0
+DA:340,0
+DA:341,0
+DA:342,0
+DA:343,0
+DA:344,0
+DA:345,0
+BRDA:334,93,0,0
+BRDA:334,93,1,0
+BRDA:340,266,0,0
+BRDA:340,266,1,0
+FN:245,System.Void Text.Updater.ExactUpdater::.ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Func`2<System.String[],System.String[]>)
+FNDA:0,System.Void Text.Updater.ExactUpdater::.ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Func`2<System.String[],System.String[]>)
+DA:246,0
+DA:247,0
+DA:248,0
+DA:249,0
+DA:250,0
+DA:251,0
+DA:252,0
+DA:256,0
+FN:253,System.Void Text.Updater.ExactUpdater::.cctor()
+FNDA:0,System.Void Text.Updater.ExactUpdater::.cctor()
+DA:254,0
+LF:215
+LH:116
+BRF:80
+BRH:38
+FNF:22
+FNH:11
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\AstHelper.cs
+FN:8,System.Collections.Generic.Dictionary`2<System.String,System.Collections.Generic.Dictionary`2<System.String,System.Object>> Compiler.AstHelper::FindDeclaredModules(System.Management.Automation.Language.Ast)
+FNDA:0,System.Collections.Generic.Dictionary`2<System.String,System.Collections.Generic.Dictionary`2<System.String,System.Object>> Compiler.AstHelper::FindDeclaredModules(System.Management.Automation.Language.Ast)
+DA:9,0
+DA:10,0
+DA:12,0
+DA:13,0
+DA:14,0
+DA:16,0
+DA:17,0
+DA:18,0
+DA:20,0
+DA:21,0
+DA:22,0
+DA:23,0
+DA:24,0
+DA:25,0
+DA:26,0
+DA:27,0
+DA:28,0
+DA:30,0
+DA:31,0
+DA:32,0
+DA:35,0
+DA:36,0
+DA:37,0
+DA:38,0
+DA:39,0
+DA:42,0
+DA:43,0
+DA:44,0
+DA:45,0
+DA:47,0
+DA:48,0
+DA:49,0
+DA:50,0
+DA:51,0
+DA:53,0
+DA:55,0
+DA:56,0
+DA:58,0
+DA:60,0
+DA:61,0
+BRDA:12,547,1,0
+BRDA:14,83,1,0
+BRDA:16,97,1,0
+BRDA:16,97,0,0
+BRDA:20,141,1,0
+BRDA:23,247,1,0
+BRDA:23,247,0,0
+BRDA:30,267,0,0
+BRDA:30,267,1,0
+BRDA:35,469,1,0
+BRDA:37,326,0,0
+BRDA:37,326,1,0
+BRDA:42,346,0,0
+BRDA:42,346,1,0
+BRDA:42,375,0,0
+BRDA:42,375,1,0
+BRDA:47,412,0,0
+BRDA:47,412,1,0
+BRDA:47,441,0,0
+BRDA:47,441,1,0
+BRDA:35,469,0,0
+BRDA:14,83,0,0
+BRDA:20,141,0,0
+BRDA:12,547,0,0
+BRDA:12,8,0,0
+BRDA:12,8,1,0
+LF:40
+LH:0
+BRF:26
+BRH:0
+FNF:1
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Requirements\ModuleSpec.cs
+FN:8,System.String Compiler.Requirements.ModuleSpec::get_Name()
+FNDA:49,System.String Compiler.Requirements.ModuleSpec::get_Name()
+DA:9,49
+FN:9,System.Nullable`1<System.Guid> Compiler.Requirements.ModuleSpec::get_Guid()
+FNDA:94,System.Nullable`1<System.Guid> Compiler.Requirements.ModuleSpec::get_Guid()
+DA:10,94
+FN:10,System.Version Compiler.Requirements.ModuleSpec::get_MinimumVersion()
+FNDA:124,System.Version Compiler.Requirements.ModuleSpec::get_MinimumVersion()
+DA:11,124
+FN:11,System.Version Compiler.Requirements.ModuleSpec::get_MaximumVersion()
+FNDA:111,System.Version Compiler.Requirements.ModuleSpec::get_MaximumVersion()
+DA:12,111
+FN:12,System.Version Compiler.Requirements.ModuleSpec::get_RequiredVersion()
+FNDA:46,System.Version Compiler.Requirements.ModuleSpec::get_RequiredVersion()
+DA:13,46
+FN:13,Compiler.Requirements.ModuleType Compiler.Requirements.ModuleSpec::get_Type()
+FNDA:0,Compiler.Requirements.ModuleType Compiler.Requirements.ModuleSpec::get_Type()
+DA:14,0
+FN:19,Compiler.Requirements.ModuleSpec Compiler.Requirements.ModuleSpec::MergeSpecs(Compiler.Requirements.ModuleSpec[])
+FNDA:0,Compiler.Requirements.ModuleSpec Compiler.Requirements.ModuleSpec::MergeSpecs(Compiler.Requirements.ModuleSpec[])
+DA:20,0
+DA:21,0
+DA:22,0
+DA:23,0
+DA:25,0
+DA:26,0
+DA:27,0
+DA:28,0
+DA:29,0
+DA:30,0
+DA:31,0
+DA:33,0
+DA:34,0
+DA:35,0
+DA:36,0
+DA:37,0
+DA:39,0
+DA:40,0
+DA:41,0
+DA:43,0
+DA:45,0
+DA:46,0
+BRDA:25,503,1,0
+BRDA:27,53,0,0
+BRDA:27,62,0,0
+BRDA:27,62,1,0
+BRDA:27,53,1,0
+BRDA:27,87,0,0
+BRDA:27,87,1,0
+BRDA:33,248,0,0
+BRDA:33,257,0,0
+BRDA:33,257,1,0
+BRDA:33,248,1,0
+BRDA:33,282,0,0
+BRDA:33,282,1,0
+BRDA:39,443,0,0
+BRDA:39,452,0,0
+BRDA:39,452,1,0
+BRDA:39,443,1,0
+BRDA:39,477,0,0
+BRDA:39,477,1,0
+BRDA:25,503,0,0
+FN:48,System.String Compiler.Requirements.ModuleSpec::GetInsertableLine()
+FNDA:5,System.String Compiler.Requirements.ModuleSpec::GetInsertableLine()
+DA:49,5
+DA:50,5
+DA:52,5
+DA:53,9
+DA:54,5
+DA:55,7
+DA:56,6
+DA:57,5
+DA:59,5
+DA:60,5
+BRDA:53,91,0,4
+BRDA:53,91,1,5
+BRDA:54,195,0,2
+BRDA:54,195,1,3
+BRDA:55,258,0,2
+BRDA:55,258,1,5
+BRDA:56,338,0,1
+BRDA:56,338,1,5
+FN:62,Compiler.Module.ModuleMatch Compiler.Requirements.ModuleSpec::CompareTo(Compiler.Requirements.ModuleSpec)
+FNDA:22,Compiler.Module.ModuleMatch Compiler.Requirements.ModuleSpec::CompareTo(Compiler.Requirements.ModuleSpec)
+DA:63,22
+DA:64,22
+DA:65,22
+DA:67,22
+DA:68,22
+DA:69,22
+DA:71,2
+DA:73,3
+DA:74,3
+DA:76,5
+DA:77,5
+DA:78,12
+DA:79,2
+DA:80,2
+DA:81,10
+DA:82,3
+DA:83,3
+DA:86,22
+DA:88,5
+DA:90,2
+DA:91,2
+DA:93,4
+DA:94,4
+DA:95,11
+DA:96,3
+DA:97,3
+DA:98,8
+DA:99,2
+DA:100,2
+DA:103,23
+DA:104,22
+DA:106,20
+DA:108,14
+DA:109,4
+DA:110,2
+DA:111,1
+DA:112,0
+DA:114,1
+DA:115,1
+DA:116,1
+DA:118,2
+DA:119,2
+DA:120,2
+DA:121,1
+DA:122,0
+DA:126,19
+DA:127,22
+DA:128,19
+DA:130,5
+DA:131,22
+BRDA:64,20,0,0
+BRDA:64,20,1,22
+BRDA:65,44,0,21
+BRDA:65,61,0,21
+BRDA:65,93,0,0
+BRDA:65,93,1,21
+BRDA:65,105,0,0
+BRDA:65,105,1,21
+BRDA:65,44,1,1
+BRDA:65,61,1,1
+BRDA:65,136,0,0
+BRDA:65,136,1,22
+BRDA:69,183,0,5
+BRDA:69,183,1,17
+BRDA:69,196,0,3
+BRDA:69,211,1,5
+BRDA:69,211,0,12
+BRDA:78,234,1,2
+BRDA:78,234,0,10
+BRDA:81,259,1,3
+BRDA:69,196,1,22
+BRDA:81,259,0,22
+BRDA:86,301,0,7
+BRDA:86,301,1,15
+BRDA:86,314,0,2
+BRDA:86,329,1,4
+BRDA:86,329,0,11
+BRDA:95,352,1,3
+BRDA:95,352,0,8
+BRDA:98,377,1,2
+BRDA:86,314,1,22
+BRDA:98,377,0,22
+BRDA:103,397,0,17
+BRDA:103,411,0,12
+BRDA:103,397,1,10
+BRDA:103,411,1,10
+BRDA:103,437,0,1
+BRDA:103,437,1,21
+BRDA:104,458,0,15
+BRDA:104,472,0,12
+BRDA:104,458,1,9
+BRDA:104,472,1,9
+BRDA:104,498,0,1
+BRDA:104,498,1,20
+BRDA:106,541,0,18
+BRDA:106,541,1,2
+BRDA:106,554,0,4
+BRDA:109,588,0,3
+BRDA:109,588,1,2
+BRDA:109,603,1,2
+BRDA:106,569,1,1
+BRDA:111,624,0,1
+BRDA:111,624,1,0
+BRDA:111,639,1,0
+BRDA:111,639,0,1
+BRDA:109,603,0,2
+BRDA:106,569,0,1
+BRDA:121,676,1,0
+BRDA:106,554,1,18
+BRDA:121,676,0,18
+BRDA:126,691,0,1
+BRDA:126,691,1,17
+BRDA:127,702,0,5
+BRDA:127,702,1,12
+BRDA:128,713,0,7
+BRDA:128,713,1,5
+FN:14,System.Void Compiler.Requirements.ModuleSpec::.ctor(System.String,System.Nullable`1<System.Guid>,System.Version,System.Version,System.Version,Compiler.Requirements.ModuleType)
+FNDA:49,System.Void Compiler.Requirements.ModuleSpec::.ctor(System.String,System.Nullable`1<System.Guid>,System.Version,System.Version,System.Version,Compiler.Requirements.ModuleType)
+DA:15,49
+FN:16,System.Void Compiler.Requirements.ModuleSpec::.cctor()
+FNDA:0,System.Void Compiler.Requirements.ModuleSpec::.cctor()
+DA:17,0
+LF:90
+LH:64
+BRF:94
+BRH:67
+FNF:11
+FNH:8
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Requirements\PSEdition.cs
+FN:2,Compiler.Requirements.PSEdition Compiler.Requirements.PSEditionRequirement::get_Edition()
+FNDA:0,Compiler.Requirements.PSEdition Compiler.Requirements.PSEditionRequirement::get_Edition()
+DA:3,0
+FN:4,System.String Compiler.Requirements.PSEditionRequirement::GetInsertableLine()
+FNDA:0,System.String Compiler.Requirements.PSEditionRequirement::GetInsertableLine()
+DA:5,0
+LF:2
+LH:0
+BRF:0
+BRH:0
+FNF:2
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Requirements\PSVersion.cs
+FN:2,System.Version Compiler.Requirements.PSVersionRequirement::get_Version()
+FNDA:0,System.Version Compiler.Requirements.PSVersionRequirement::get_Version()
+DA:3,0
+FN:4,System.String Compiler.Requirements.PSVersionRequirement::GetInsertableLine()
+FNDA:0,System.String Compiler.Requirements.PSVersionRequirement::GetInsertableLine()
+DA:5,0
+LF:2
+LH:0
+BRF:0
+BRH:0
+FNF:2
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Requirements\Requirements.cs
+FN:7,System.Collections.Hashtable Compiler.Requirements.Requirements::get_StoredRequirements()
+FNDA:0,System.Collections.Hashtable Compiler.Requirements.Requirements::get_StoredRequirements()
+DA:8,0
+FN:15,System.Void Compiler.Requirements.Requirements::AddRequirement(Compiler.Requirements.Requirement)
+FNDA:0,System.Void Compiler.Requirements.Requirements::AddRequirement(Compiler.Requirements.Requirement)
+DA:16,0
+DA:17,0
+DA:18,0
+DA:19,0
+DA:20,0
+DA:22,0
+DA:23,0
+DA:24,0
+DA:25,0
+BRDA:17,23,0,0
+BRDA:17,23,1,0
+FN:27,System.Collections.Generic.List`1<T> Compiler.Requirements.Requirements::GetRequirements()
+FNDA:0,System.Collections.Generic.List`1<T> Compiler.Requirements.Requirements::GetRequirements()
+DA:28,0
+DA:29,0
+DA:30,0
+DA:31,0
+DA:34,0
+DA:35,0
+BRDA:29,24,0,0
+BRDA:31,59,0,0
+BRDA:31,59,1,0
+BRDA:29,24,1,0
+FN:37,System.Collections.Generic.List`1<Compiler.Requirements.Requirement> Compiler.Requirements.Requirements::GetRequirements()
+FNDA:0,System.Collections.Generic.List`1<Compiler.Requirements.Requirement> Compiler.Requirements.Requirements::GetRequirements()
+DA:38,0
+DA:39,0
+DA:40,0
+FN:43,System.Boolean Compiler.Requirements.Requirements::VerifyRequirements()
+FNDA:0,System.Boolean Compiler.Requirements.Requirements::VerifyRequirements()
+DA:44,0
+DA:45,0
+DA:46,0
+FN:9,System.Void Compiler.Requirements.Requirements::.ctor()
+FNDA:0,System.Void Compiler.Requirements.Requirements::.ctor()
+DA:10,0
+DA:11,0
+DA:12,0
+DA:13,0
+FN:48,System.Boolean Compiler.Requirements.Requirement::get_SupportsMultiple()
+FNDA:49,System.Boolean Compiler.Requirements.Requirement::get_SupportsMultiple()
+DA:49,49
+LF:27
+LH:1
+BRF:6
+BRH:0
+FNF:7
+FNH:1
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Requirements\RunAsAdmin.cs
+FN:4,System.String Compiler.Requirements.RunAsAdminRequirement::GetInsertableLine()
+FNDA:0,System.String Compiler.Requirements.RunAsAdminRequirement::GetInsertableLine()
+DA:5,0
+FN:2,System.Void Compiler.Requirements.RunAsAdminRequirement::.ctor()
+FNDA:0,System.Void Compiler.Requirements.RunAsAdminRequirement::.ctor()
+DA:3,0
+LF:2
+LH:0
+BRF:0
+BRH:0
+FNF:2
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Module\Local.cs
+FN:65,System.Management.Automation.Language.ScriptBlockAst Compiler.Module.LocalFileModule::GetAstReportingErrors(System.String)
+FNDA:0,System.Management.Automation.Language.ScriptBlockAst Compiler.Module.LocalFileModule::GetAstReportingErrors(System.String)
+DA:66,0
+DA:67,0
+DA:69,0
+DA:70,0
+DA:71,0
+DA:72,0
+DA:73,0
+DA:76,0
+DA:77,0
+BRDA:70,67,0,0
+BRDA:70,67,1,0
+FN:79,System.Void Compiler.Module.LocalFileModule::FixAndCleanLines()
+FNDA:0,System.Void Compiler.Module.LocalFileModule::FixAndCleanLines()
+DA:80,0
+DA:82,0
+DA:83,0
+DA:84,0
+DA:85,0
+DA:86,0
+DA:87,0
+DA:88,0
+DA:89,0
+DA:90,0
+DA:91,0
+DA:92,0
+DA:93,0
+DA:94,0
+DA:95,0
+DA:96,0
+DA:97,0
+DA:98,0
+DA:99,0
+DA:100,0
+DA:101,0
+DA:102,0
+DA:103,0
+DA:104,0
+DA:105,0
+DA:106,0
+DA:107,0
+DA:108,0
+DA:109,0
+DA:110,0
+DA:111,0
+DA:115,0
+DA:116,0
+DA:117,0
+DA:118,0
+DA:121,0
+DA:124,0
+DA:127,0
+DA:128,0
+BRDA:91,34,0,0
+BRDA:91,34,1,0
+BRDA:91,52,0,0
+BRDA:91,52,1,0
+BRDA:102,12,0,0
+BRDA:102,12,1,0
+FN:130,Compiler.Module.ModuleMatch Compiler.Module.LocalFileModule::GetModuleMatchFor(Compiler.Requirements.ModuleSpec)
+FNDA:0,Compiler.Module.ModuleMatch Compiler.Module.LocalFileModule::GetModuleMatchFor(Compiler.Requirements.ModuleSpec)
+DA:131,0
+DA:133,0
+DA:134,0
+DA:135,0
+DA:138,0
+DA:139,0
+BRDA:133,25,0,0
+BRDA:133,25,1,0
+FN:141,Compiler.Module.LocalFileModule Compiler.Module.LocalFileModule::FromFile(System.String)
+FNDA:0,Compiler.Module.LocalFileModule Compiler.Module.LocalFileModule::FromFile(System.String)
+DA:142,0
+DA:143,0
+DA:144,0
+FN:152,System.String Compiler.Module.LocalFileModule::GetContent(System.Int32)
+FNDA:0,System.String Compiler.Module.LocalFileModule::GetContent(System.Int32)
+DA:153,0
+DA:154,0
+DA:155,0
+DA:156,0
+DA:157,0
+DA:158,0
+DA:159,0
+DA:160,0
+FN:21,System.Void Compiler.Module.LocalFileModule::<.ctor>b__2_0(System.Collections.Generic.KeyValuePair`2<System.String,System.Collections.Generic.Dictionary`2<System.String,System.Object>>)
+FNDA:0,System.Void Compiler.Module.LocalFileModule::<.ctor>b__2_0(System.Collections.Generic.KeyValuePair`2<System.String,System.Collections.Generic.Dictionary`2<System.String,System.Object>>)
+DA:22,0
+DA:23,0
+DA:24,0
+DA:25,0
+DA:26,0
+DA:27,0
+DA:28,0
+DA:29,0
+DA:30,0
+BRDA:23,33,0,0
+BRDA:23,33,1,0
+BRDA:23,82,0,0
+BRDA:23,82,1,0
+BRDA:23,117,0,0
+BRDA:23,117,1,0
+BRDA:23,152,0,0
+BRDA:23,152,1,0
+FN:14,System.Void Compiler.Module.LocalFileModule::.ctor(System.String,System.String[])
+FNDA:0,System.Void Compiler.Module.LocalFileModule::.ctor(System.String,System.String[])
+DA:15,0
+DA:16,0
+DA:17,0
+DA:19,0
+DA:21,0
+DA:32,0
+DA:33,0
+DA:34,0
+DA:36,0
+DA:39,0
+DA:40,0
+DA:41,0
+DA:43,0
+DA:44,0
+DA:45,0
+DA:46,0
+DA:47,0
+DA:48,0
+DA:49,0
+DA:51,0
+DA:53,0
+DA:54,0
+DA:55,0
+DA:56,0
+DA:59,0
+DA:62,0
+DA:63,0
+BRDA:32,444,1,0
+BRDA:36,195,0,0
+BRDA:36,195,1,0
+BRDA:36,209,1,0
+BRDA:44,403,1,0
+BRDA:36,209,0,0
+BRDA:44,403,0,0
+BRDA:32,444,0,0
+LF:101
+LH:0
+BRF:26
+BRH:0
+FNF:7
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Module\Module.cs
+FN:6,System.String Compiler.Module.Module::get_Name()
+FNDA:0,System.String Compiler.Module.Module::get_Name()
+DA:7,0
+FN:7,System.Version Compiler.Module.Module::get_Version()
+FNDA:0,System.Version Compiler.Module.Module::get_Version()
+DA:8,0
+BRDA:8,12,0,0
+BRDA:8,12,1,0
+FN:8,Compiler.Requirements.ModuleSpec Compiler.Module.Module::get_ModuleSpec()
+FNDA:0,Compiler.Requirements.ModuleSpec Compiler.Module.Module::get_ModuleSpec()
+DA:9,0
+FN:9,Compiler.Requirements.Requirements Compiler.Module.Module::get_Requirements()
+FNDA:0,Compiler.Requirements.Requirements Compiler.Module.Module::get_Requirements()
+DA:10,0
+FN:16,System.String Compiler.Module.Module::GetInsertableContent(System.Int32)
+FNDA:0,System.String Compiler.Module.Module::GetInsertableContent(System.Int32)
+DA:17,0
+DA:18,0
+DA:19,0
+DA:20,0
+DA:21,0
+DA:22,0
+DA:23,0
+DA:24,0
+DA:25,0
+FN:4,System.Void Compiler.Module.Module::.ctor(Compiler.Requirements.ModuleSpec)
+FNDA:0,System.Void Compiler.Module.Module::.ctor(Compiler.Requirements.ModuleSpec)
+DA:5,0
+LF:14
+LH:0
+BRF:2
+BRH:0
+FNF:6
+FNH:0
+end_of_record
+SF:C:\Users\JamesDraycott\OneDrive - AMT\Documents\Repos\scripts\src\Compiler\Module\Remote.cs
+FN:6,System.Byte[] Compiler.Module.RemoteModule::get_Bytes()
+FNDA:0,System.Byte[] Compiler.Module.RemoteModule::get_Bytes()
+DA:7,0
+FN:12,Compiler.Module.RemoteModule Compiler.Module.RemoteModule::FromModuleRequirement(Compiler.Requirements.ModuleSpec)
+FNDA:0,Compiler.Module.RemoteModule Compiler.Module.RemoteModule::FromModuleRequirement(Compiler.Requirements.ModuleSpec)
+DA:13,0
+DA:18,0
+DA:20,0
+DA:21,0
+FN:23,Compiler.Module.ModuleMatch Compiler.Module.RemoteModule::GetModuleMatchFor(Compiler.Requirements.ModuleSpec)
+FNDA:0,Compiler.Module.ModuleMatch Compiler.Module.RemoteModule::GetModuleMatchFor(Compiler.Requirements.ModuleSpec)
+DA:24,0
+DA:25,0
+FN:28,System.String Compiler.Module.RemoteModule::GetContent(System.Int32)
+FNDA:0,System.String Compiler.Module.RemoteModule::GetContent(System.Int32)
+DA:29,0
+DA:31,0
+FN:34,System.Byte[] Compiler.Module.RemoteModule::GetBinaryZip(System.String)
+FNDA:0,System.Byte[] Compiler.Module.RemoteModule::GetBinaryZip(System.String)
+DA:35,0
+DA:37,0
+DA:38,0
+FN:4,System.Void Compiler.Module.RemoteModule::.ctor(System.String,System.Byte[])
+FNDA:0,System.Void Compiler.Module.RemoteModule::.ctor(System.String,System.Byte[])
+DA:5,0
+LF:13
+LH:0
+BRF:0
+BRH:0
+FNF:6
+FNH:0
+end_of_record

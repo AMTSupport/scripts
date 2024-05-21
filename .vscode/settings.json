@@ -15,5 +15,6 @@
     "powershell.pester.codeLens": false,
     "powershell.scriptAnalysis.settingsPath": "PSScriptAnalyzerSettings.psd1",
     "poshProTools.ignoredPaths": "compiled",
-    "pester.testFilePath": ["tests/*.[tT]ests.[pP][sS]1"]
+    "pester.testFilePath": ["tests/*.[tT]ests.[pP][sS]1"],
+    "markiscodecoverage.searchCriteria": "tests\\Compiler\\Coverage/coverage.info"
 }

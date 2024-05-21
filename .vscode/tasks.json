@@ -39,11 +39,13 @@
         },
         {
             "label": "Generate coverage stats",
-            "command": "reportgenerator",
+            "command": "dotnet",
             "type": "shell",
             "args": [
-                "-reports:${workspaceFolder}/YourUnitTestProjectFolder/lcov.info",
-                "-targetdir:${workspaceFolder}/YourUnitTestProjectFolder/covstats"
+                "test",
+                "/p:CollectCoverage=true",
+                "/p:CoverletOutput=Coverage/",
+                "/p:CoverletOutputFormat=lcov"
             ],
             "problemMatcher": []
         }
