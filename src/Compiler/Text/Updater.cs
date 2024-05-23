@@ -1,4 +1,5 @@
-using System.DirectoryServices.AccountManagement;
+using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Contracts;
 using System.Text.RegularExpressions;
 using CommandLine;
 using NLog;
@@ -34,6 +35,7 @@ namespace Text.Updater
     public class PatternUpdater(
         Regex startingPattern,
         Regex endingPattern,
+        UpdateOptions options,
         Func<string[], string[]> updater
     ) : TextSpanUpdater
     {
@@ -70,6 +72,7 @@ namespace Text.Updater
             return [.. spanUpdateInfo];
         }
 
+        [Pure, ExcludeFromCodeCoverage(Justification = "Does nothing in this context.")]
         public override void PushByUpdate(SpanUpdateInfo updateInfo)
         {
             Logger.Debug($"No need to update pattern updater.");
@@ -135,7 +138,7 @@ namespace Text.Updater
 
     public class RegexUpdater(
         string pattern,
-        bool matchAgainstEntireDocument,
+        UpdateOptions options,
         Func<Match, string> updater
     ) : TextSpanUpdater
     {
@@ -146,7 +149,7 @@ namespace Text.Updater
         {
             get
             {
-                if (matchAgainstEntireDocument)
+                if (options.HasFlag(UpdateOptions.MatchEntireDocument))
                 {
                     return new Regex(pattern, RegexOptions.Multiline | RegexOptions.Singleline);
                 }
@@ -177,7 +180,6 @@ namespace Text.Updater
                 return [];
             }
 
-            var thisOffset = 0;
             foreach (Match match in matches)
             {
                 // Skip empty matches those nasty bastards, praise rust for not having this issue.
@@ -186,25 +188,25 @@ namespace Text.Updater
                     continue;
                 }
 
-                var startingLineIndex = multilinedContent[..match.Index].Count(c => c == '\n');
-                var endingLineIndex = multilinedContent[..(match.Index + (match.Length - 1))].Count(c => c == '\n');
-                var isMultiLine = matchAgainstEntireDocument && match.Value.Contains('\n');
+                var thisOffset = 0;
+                var multilineEndingIndex = match.Index + match.Length;
+                var contentBeforeThisLine = multilinedContent[..multilineEndingIndex].LastIndexOf('\n');
+                var startingLineIndex = multilinedContent[..match.Index].Count(c => c == '\n') + offset;
+                var endingLineIndex = multilinedContent[..multilineEndingIndex].Count(c => c == '\n') + offset;
+                var isMultiLine = options.HasFlag(UpdateOptions.MatchEntireDocument) && match.Value.Contains('\n');
 
-                var endingColumn = match.Index + (match.Length - 1) - multilinedContent[..match.Index].LastIndexOf('\n');
                 int startingColumn;
+                int endingColumn;
                 if (isMultiLine)
                 {
                     startingColumn = match.Index;
+                    endingColumn = multilineEndingIndex - (contentBeforeThisLine + 1);
                 }
                 else
                 {
-                    startingColumn = document.Lines[startingLineIndex].IndexOf(match.Value);
+                    startingColumn = match.Index - (contentBeforeThisLine + 1);
+                    endingColumn = match.Length;
                 }
-                // else
-                // {
-                //     startingColumn = match.Index;
-                //     endingColumn = match.Index + (match.Length - 1);
-                // }
 
                 var span = new TextSpan(
                     startingLineIndex,
@@ -216,14 +218,13 @@ namespace Text.Updater
                 var newContent = Updater(match);
 
                 // Remove the entire line if the replacement is empty and the match is the entire line.
-                if (string.IsNullOrEmpty(newContent) && match.Index == 0 && match.Length == document.Lines[startingLineIndex].Length)
+                if (string.IsNullOrEmpty(newContent) && startingColumn == 0 && match.Length == document.Lines[startingLineIndex].Length)
                 {
-                    span.RemoveContent(document);
-                    thisOffset--;
+                    thisOffset += span.RemoveContent(document);
                 }
                 else
                 {
-                    span.SetContent(document, [newContent]);
+                    span.SetContent(document, options, [newContent]);
                     if (isMultiLine)
                     {
                         thisOffset += newContent.Split('\n').Length - 1;
@@ -237,6 +238,7 @@ namespace Text.Updater
             return [.. spanUpdateInfo];
         }
 
+        [Pure, ExcludeFromCodeCoverage(Justification = "Does nothing in this context.")]
         public override void PushByUpdate(SpanUpdateInfo updateInfo)
         {
             Logger.Debug($"No need to update regex updater.");
@@ -248,6 +250,7 @@ namespace Text.Updater
         int startingColumn,
         int endingIndex,
         int endingColumn,
+        UpdateOptions options,
         Func<string[], string[]> updater
     ) : TextSpanUpdater
     {
@@ -312,16 +315,17 @@ namespace Text.Updater
             {
                 var updatingLine = document.Lines[Span.StartingIndex][Span.StartingColumn..Span.EndingColumn];
                 newLines = Updater([updatingLine]);
-                offset = Span.SetContent(document, newLines);
+                offset = Span.SetContent(document, options, newLines);
             }
             else
             {
                 var updatingLines = document.Lines.Skip(Span.StartingIndex).Take(Span.EndingIndex - Span.StartingIndex + 1).ToArray();
+                // Trim the starting and ending lines to the correct columns.
                 updatingLines[0] = document.Lines[Span.StartingIndex][Span.StartingColumn..];
                 updatingLines[^1] = document.Lines[Span.EndingIndex][..Span.EndingColumn];
 
                 newLines = Updater(updatingLines);
-                offset = Span.SetContent(document, newLines);
+                offset = Span.SetContent(document, options, newLines);
             }
 
             return [new SpanUpdateInfo(Span, offset)];

@@ -18,59 +18,76 @@ namespace Text
         public List<TextSpanUpdater> TextUpdaters { get; set; } = [];
         public bool EditApplied { get; set; } = false;
 
+        public void AddEdit(Func<TextSpanUpdater> updater)
+        {
+            VerifyNotAppliedOrError();
+            Logger.Debug($"Adding {updater.GetType().Name} with spec {updater}");
+            TextUpdaters.Add(updater());
+        }
+
         public void AddPatternEdit(
             [StringSyntax("Regex")] string openingPattern,
             [StringSyntax("Regex")] string closingPattern,
-            Func<string[], string[]> updater)
-        {
-            VerifyNotAppliedOrError();
+            Func<string[], string[]> updater
+        ) => AddPatternEdit(openingPattern, closingPattern, UpdateOptions.None, updater);
 
-            TextUpdaters.Add(new PatternUpdater(
-                new Regex(openingPattern),
-                new Regex(closingPattern),
-                updater
-            ));
-        }
+        public void AddPatternEdit(
+            [StringSyntax("Regex")] string openingPattern,
+            [StringSyntax("Regex")] string closingPattern,
+            UpdateOptions options,
+            Func<string[], string[]> updater
+        ) => AddEdit(() => new PatternUpdater(
+            new Regex(openingPattern),
+            new Regex(closingPattern),
+            options,
+            updater
+        ));
 
         public void AddRegexEdit(
             [StringSyntax("Regex")] string pattern,
             Func<Match, string> updater
-        ) => AddRegexEdit(pattern, false, updater);
+        ) => AddRegexEdit(pattern, UpdateOptions.None, updater);
 
         public void AddRegexEdit(
             [StringSyntax("Regex")] string pattern,
-            bool matchAgainstEntireDocument,
+            UpdateOptions options,
             Func<Match, string> updater
-        )
-        {
-            VerifyNotAppliedOrError();
-
-            Logger.Debug($"Adding regex updater for pattern: {pattern}");
-            TextUpdaters.Add(new RegexUpdater(
-                pattern,
-                matchAgainstEntireDocument,
-                updater
-            ));
-        }
+        ) => AddEdit(() => new RegexUpdater(
+            pattern,
+            options,
+            updater
+        ));
 
         public void AddExactEdit(
             int startingIndex,
             int startingColumn,
             int endingIndex,
             int endingColumn,
-            Func<string[], string[]> updater)
-        {
-            VerifyNotAppliedOrError();
+            Func<string[], string[]> updater
+        ) => AddExactEdit(
+            startingIndex,
+            startingColumn,
+            endingIndex,
+            endingColumn,
+            UpdateOptions.None,
+            updater
+        );
 
-            Logger.Debug($"Adding exact updater for range: {startingIndex}, {startingColumn}, {endingIndex}, {endingColumn}");
-            TextUpdaters.Add(new ExactUpdater(
-                startingIndex,
-                startingColumn,
-                endingIndex,
-                endingColumn,
-                updater
-            ));
-        }
+        public void AddExactEdit(
+            int startingIndex,
+            int startingColumn,
+            int endingIndex,
+            int endingColumn,
+            UpdateOptions options,
+            Func<string[], string[]> updater
+        ) => AddEdit(() => new ExactUpdater(
+            startingIndex,
+            startingColumn,
+            endingIndex,
+            endingColumn,
+            options,
+            updater
+        ));
 
         public void ApplyEdits()
         {

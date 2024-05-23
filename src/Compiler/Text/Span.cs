@@ -1,9 +1,21 @@
 using System.Management.Automation;
 using System.Text;
 using JetBrains.Annotations;
+using Text.Updater;
 
 namespace Text
 {
+    /// <summary>
+    /// Specifies the options for updating a document.
+    /// </summary>
+    [Flags]
+    public enum UpdateOptions
+    {
+        None = 0,
+        MatchEntireDocument = 1,
+        InsertInline = 2
+    }
+
     public class TextSpan(
         [NonNegativeValue] int startingIndex,
         [NonNegativeValue] int startingColumn,
@@ -59,10 +71,10 @@ namespace Text
             }
 
             var builder = new StringBuilder();
-            builder.AppendLine(document.Lines[StartingIndex][StartingColumn..]);
+            builder.Append(document.Lines[StartingIndex][StartingColumn..] + '\n');
             for (int i = StartingIndex + 1; i < EndingIndex; i++)
             {
-                builder.AppendLine(document.Lines[i]);
+                builder.Append(document.Lines[i] + '\n');
             }
             builder.Append(document.Lines[EndingIndex][..EndingColumn]);
 
@@ -81,7 +93,7 @@ namespace Text
         /// <returns>
         /// The number of lines added or removed by the update.
         /// </returns>
-        public int SetContent(TextDocument document, string[] content)
+        public int SetContent(TextDocument document, UpdateOptions options, string[] content)
         {
             var offset = 0;
             var firstLineBefore = document.Lines[StartingIndex][..StartingColumn];
@@ -89,22 +101,13 @@ namespace Text
 
             if (StartingIndex == EndingIndex)
             {
-                // If the span is a single line and we took nothing from the line before or after, remove the line, since it will be empty.
-                if (string.IsNullOrEmpty(firstLineBefore) && string.IsNullOrEmpty(lastLineAfter))
-                {
-                    document.Lines.RemoveAt(StartingIndex);
-                    offset--;
+                document.Lines.RemoveAt(StartingIndex);
+                offset--;
 
-                    // Short circuit if the new content is empty, there will be no need to update the document.
-                    if (content.Length == 0)
-                    {
-                        return offset;
-                    }
-                }
-                else
+                // Short circuit if the new content is empty, there will be no need to update the document.
+                if (string.IsNullOrEmpty(firstLineBefore) && string.IsNullOrEmpty(lastLineAfter) && content.Length == 0)
                 {
-                    document.Lines.RemoveAt(StartingIndex);
-                    offset--;
+                    return offset;
                 }
             }
             else
@@ -117,60 +120,143 @@ namespace Text
                 }
             }
 
-            if (content.Length == 0)
+
+
+
+            if (options.HasFlag(UpdateOptions.InsertInline))
             {
+                var lineContent = new StringBuilder();
+
                 if (!string.IsNullOrEmpty(firstLineBefore))
                 {
-                    document.Lines.Insert(StartingIndex, firstLineBefore);
-                    offset++;
+                    lineContent.Append(firstLineBefore);
+                }
+
+                if (content.Length > 1)
+                {
+                    lineContent.Append(content[0]);
+
+                    document.Lines.InsertRange(StartingIndex, content.Skip(1));
+                    offset += content.Length - 1;
+                }
+                else
+                {
+                    lineContent.Append(content[0]);
                 }
 
                 if (!string.IsNullOrEmpty(lastLineAfter))
                 {
-                    document.Lines.Insert(EndingIndex + offset, lastLineAfter);
-                    offset++;
-                }
-            }
-            else if (content.Length == 1)
-            {
-                if (StartingIndex == EndingIndex)
-                {
-                    document.Lines.Insert(StartingIndex, firstLineBefore + content[0] + lastLineAfter);
-                    offset++;
-                }
-                else
-                {
-                    document.Lines.Insert(StartingIndex, firstLineBefore + content[0]);
-                    offset++;
-
-                    if (!string.IsNullOrEmpty(lastLineAfter))
+                    if (StartingIndex != EndingIndex)
                     {
-                        document.Lines.Insert(EndingIndex + offset, lastLineAfter);
+                        document.Lines.Insert(StartingIndex + content.Length, lastLineAfter);
                         offset++;
                     }
+                    else
+                    {
+                        lineContent.Append(lastLineAfter);
+                    }
                 }
+
+                document.Lines.Insert(StartingIndex, lineContent.ToString());
+                offset++;
             }
             else
             {
-                document.Lines.Insert(StartingIndex, firstLineBefore + content[0]);
-                offset++;
-
-                // Add the new content.
-                for (int i = 1; i < content.Length; i++)
+                var insertingAfterStartingIndex = false;
+                if (!string.IsNullOrEmpty(firstLineBefore))
                 {
-                    document.Lines.Insert(StartingIndex + i, content[i]);
+                    document.Lines.Insert(StartingIndex, firstLineBefore);
+                    insertingAfterStartingIndex = true;
                     offset++;
                 }
 
-                document.Lines.Insert(EndingIndex + offset, content[^1] + lastLineAfter);
+                if (content.Length > 0)
+                {
+                    document.Lines.InsertRange(StartingIndex + (insertingAfterStartingIndex ? 1 : 0), content);
+                    offset += content.Length;
+                }
+
+                if (!string.IsNullOrEmpty(lastLineAfter))
+                {
+                    document.Lines.Insert(EndingIndex + offset + 1, lastLineAfter);
+                    offset++;
+                }
             }
+
+            // if (content.Length == 0)
+            // {
+            // if (!string.IsNullOrEmpty(firstLineBefore))
+            // {
+            //     document.Lines.Insert(StartingIndex, firstLineBefore);
+            //     offset++;
+            // }
+
+            // if (!string.IsNullOrEmpty(lastLineAfter))
+            // {
+            //     document.Lines.Insert(EndingIndex + offset, lastLineAfter);
+            //     offset++;
+            // }
+            // }
+            // else if (content.Length == 1)
+            // {
+            //     if (StartingIndex == EndingIndex)
+            //     {
+            //         if (options.HasFlag(UpdateOptions.InsertInline))
+            //         {
+            //             document.Lines.Insert(StartingIndex, firstLineBefore + content[0] + lastLineAfter);
+            //             offset++;
+            //         }
+            //         else
+            //         {
+            //             if (!string.IsNullOrEmpty(firstLineBefore))
+            //             {
+            //                 document.Lines.Insert(StartingIndex, firstLineBefore + content[0]);
+            //                 offset++;
+            //             }
+
+            //             document.Lines.Insert(StartingIndex + 1, content[0]);
+            //             offset++;
+
+            //             if (!string.IsNullOrEmpty(lastLineAfter))
+            //             {
+            //                 document.Lines.Insert(StartingIndex + 2, lastLineAfter);
+            //                 offset++;
+            //             }
+            //         }
+            //     }
+            //     else
+            //     {
+            //         document.Lines.Insert(StartingIndex, firstLineBefore + content[0]);
+            //         offset++;
+
+            //         if (!string.IsNullOrEmpty(lastLineAfter))
+            //         {
+            //             document.Lines.Insert(EndingIndex + offset, lastLineAfter);
+            //             offset++;
+            //         }
+            //     }
+            // }
+            // else
+            // {
+            //     for (int i = 0; i < content.Length; i++)
+            //     {
+            //         string lineContent = i switch
+            //         {
+            //             var index when index == 0 => firstLineBefore + content.First(),
+            //             var index when index == content.Length - 1 => content.Last() + lastLineAfter,
+            //             _ => content[i],
+            //         };
+            //         document.Lines.Insert(StartingIndex + i, lineContent);
+            //         offset++;
+            //     }
+            // }
 
             return offset;
         }
 
         public int RemoveContent(TextDocument document)
         {
-            return SetContent(document, []);
+            return SetContent(document, UpdateOptions.None, []);
         }
     }
 }

@@ -76,14 +76,14 @@ public class RegexTests
         Assert.That(Editor.GetContent(), Is.EqualTo($"Updated content!\nUpdated content!\nUpdated content!\nUpdated content!"));
     }
 
-    // [Test]
-    // public void AddRegexEdit_ReplaceAllContent()
-    // {
-    //     Editor.AddRegexEdit(".*", true, _ => "Updated content!");
-    //     Editor.ApplyEdits();
+    [Test]
+    public void AddRegexEdit_ReplaceAllContent()
+    {
+        Editor.AddRegexEdit(".*", UpdateOptions.MatchEntireDocument, _ => "Updated content!");
+        Editor.ApplyEdits();
 
-    //     Assert.That(Editor.GetContent(), Is.EqualTo("Updated content!"));
-    // }
+        Assert.That(Editor.GetContent(), Is.EqualTo("Updated content!"));
+    }
 
     [Test]
     public void AddRegexEdit_UseContentToUpdate()
@@ -102,14 +102,14 @@ public class RegexTests
         ])));
     }
 
-    // [Test]
-    // public void AddRegexEdit_ReplaceContentWithEmpty()
-    // {
-    //     Editor.AddRegexEdit(".*", _ => "");
-    //     Editor.ApplyEdits();
+    [Test, TestCase(UpdateOptions.None), TestCase(UpdateOptions.MatchEntireDocument)]
+    public void AddRegexEdit_ReplaceContentWithEmpty(UpdateOptions options)
+    {
+        Editor.AddRegexEdit(".*", options, _ => "");
+        Editor.ApplyEdits();
 
-    //     Assert.That(Editor.GetContent(), Is.EqualTo(""));
-    // }
+        Assert.That(Editor.GetContent(), Is.EqualTo(""));
+    }
 }
 
 [TestFixture]
@@ -121,7 +121,7 @@ public class ExactTests
     [SetUp]
     public void SetUp()
     {
-        Editor = new TextEditor(new(lines));
+        Editor = new TextEditor(new(LINES));
     }
 
     [Test]
@@ -138,14 +138,14 @@ public class ExactTests
     {
         Editor.AddExactEdit(0, 0, 3, 9, content =>
         {
-            return content.Select(multilinedContent => multilinedContent + " Updated content!").ToArray();
+            return content.Select(line => line + " Updated content!").ToArray();
         });
         Editor.ApplyEdits();
 
         Assert.That(Editor.GetContent(), Is.EqualTo(string.Join('\n', [
-            "Hello,",
-            "World!",
-            "I'm the",
+            "Hello, Updated content!",
+            "World! Updated content!",
+            "I'm the Updated content!",
             "Document! Updated content!"
         ])));
     }
@@ -159,7 +159,7 @@ public class ExactTests
         Func<string[], string[]> content
     )
     {
-        Editor.AddExactEdit(0, 0, 3, 9, content);
+        Editor.AddExactEdit(startingIndex, startingColumn, endingIndex, endingColumn, content);
         Editor.ApplyEdits();
 
         return Editor.GetContent();
@@ -169,9 +169,10 @@ public class ExactTests
     {
         get
         {
-            yield return new TestCaseData(0, 0, 3, 9, _ => []).Returns(string.Empty).SetName("Replace all content with empty");
-            yield return new TestCaseData(0, 0, 3, 9, _ => [""]).Returns(string.Join('\n', lines.Skip(1)));
-            yield return new TestCaseData(0, 0, 3, 9, _ => ["", "", "", ""]).Returns("");
+            yield return new TestCaseData(0, 0, 3, 9, (Func<string[], string[]>)(_ => [])).Returns(string.Empty).SetName("Replace all content with empty");
+            yield return new TestCaseData(1, 0, 3, 9, (Func<string[], string[]>)(_ => [])).Returns("Hello,").SetName("Replace all content with empty except first line");
+            yield return new TestCaseData(0, 0, 2, 7, (Func<string[], string[]>)(_ => [])).Returns("Document!").SetName("Replace all content with empty except last line");
+            // yield return new TestCaseData(0, 0, 3, 9, (Func<string[], string[]>) (_ => ["", "", "", ""])).Returns("");
         }
     }
 }

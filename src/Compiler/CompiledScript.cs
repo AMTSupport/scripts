@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation.Language;
 using System.Text;
 using Compiler.Module;

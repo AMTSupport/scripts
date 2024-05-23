@@ -1,6 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Compiler.Module;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using NLog;
 
 namespace Compiler.Requirements;
@@ -66,7 +66,8 @@ public record ModuleSpec(
 
         var isStricter = false;
         var isLooser = false;
-        switch ((MinimumVersion, other.MinimumVersion)) {
+        switch ((MinimumVersion, other.MinimumVersion))
+        {
             case (null, null):
                 break;
             case (null, _):
@@ -83,7 +84,8 @@ public record ModuleSpec(
                 break;
         }
 
-        switch ((MaximumVersion, other.MaximumVersion)) {
+        switch ((MaximumVersion, other.MaximumVersion))
+        {
             case (null, null):
                 break;
             case (null, _):
@@ -103,12 +105,13 @@ public record ModuleSpec(
         if (MinimumVersion != null && other.MaximumVersion != null && MinimumVersion > other.MaximumVersion) return ModuleMatch.Incompatible;
         if (other.MinimumVersion != null && MaximumVersion != null && other.MinimumVersion > MaximumVersion) return ModuleMatch.Incompatible;
 
-        switch ((RequiredVersion, other.RequiredVersion)) {
+        switch ((RequiredVersion, other.RequiredVersion))
+        {
             case (null, null):
                 break;
             case (null, var b) when b < MinimumVersion || b > MaximumVersion:
                 return ModuleMatch.Incompatible;
-            case (var a, null) when a < other.MinimumVersion || a > other.MaximumVersion:
+            case (var a, null) when  a < other.MinimumVersion || a > other.MaximumVersion:
                 return ModuleMatch.Incompatible;
             case (_, null):
                 isStricter = true;
@@ -129,5 +132,8 @@ public record ModuleSpec(
 
         return ModuleMatch.Same;
     }
+
+    [ExcludeFromCodeCoverage(Justification = "Just a bool flag.")]
+    public override bool IsCompatibleWith(Requirement other) => true;
 }
 
