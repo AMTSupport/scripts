@@ -1,5 +1,6 @@
 using Compiler.Module;
 using Compiler.Requirements;
+using Newtonsoft.Json;
 using System.Collections;
 
 namespace Compiler.Test.Requirements;
@@ -132,7 +133,6 @@ public class TestData
                 guid,
                 new Version("1.0.0")
             )).Returns(ModuleMatch.Same).SetName("Same match because both are technically stricter");
-
             #endregion
 
             #region Looser matches
@@ -326,6 +326,41 @@ public class TestData
                 null,
                 null,
                 new Version("0.5.0")
+            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version lower than minimum version");
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
+                RequiredVersion: new Version("1.0.0")
+            ), new ModuleSpec(
+                "MyModule",
+                guid,
+                RequiredVersion: new Version("1.0.1")
+            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of different required version");
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
+                null,
+                null,
+                new Version("2.5.0")
+            ), new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0")
+            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version higher than maximum version");
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
+                null,
+                null,
+                new Version("0.5.0")
+            ), new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0")
             )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version lower than minimum version");
             #endregion
         }

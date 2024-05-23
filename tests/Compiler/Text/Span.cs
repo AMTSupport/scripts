@@ -1,3 +1,4 @@
+using System.Collections;
 using Text;
 
 namespace Compiler.Test.Text;
@@ -50,7 +51,7 @@ public class TextSpanTests
     {
         var span = TextSpan.WrappingEntireDocument(document);
         string content = span.GetContent(document);
-        Assert.That(content, Is.EqualTo($"Hello,{Environment.NewLine}World!{Environment.NewLine}I'm the{Environment.NewLine}Document!"));
+        Assert.That(content, Is.EqualTo($"Hello,\nWorld!\nI'm the\nDocument!"));
     }
 
     [Test]
@@ -96,14 +97,14 @@ public class TextSpanTests
         var span = new TextSpan(1, 0, 2, lines[2].Length);
         var content = span.GetContent(document);
 
-        Assert.That(content, Is.EqualTo($"World!{Environment.NewLine}I'm the"));
+        Assert.That(content, Is.EqualTo($"World!\nI'm the"));
     }
 
     [Test]
     public void SetContent_UpdatesLinesWithNewContent()
     {
         var span = TextSpan.WrappingEntireDocument(document);
-        int lengthChanged = span.SetContent(document, ["New Content"]);
+        int lengthChanged = span.SetContent(document, UpdateOptions.None, ["New Content"]);
 
         Assert.Multiple(() =>
         {
@@ -118,7 +119,7 @@ public class TextSpanTests
     public void SetContent_UpdateMiddleLine()
     {
         var span = new TextSpan(1, 0, 1, lines[1].Length);
-        int lengthChanged = span.SetContent(document, ["New Content"]);
+        int lengthChanged = span.SetContent(document, UpdateOptions.None, ["New Content"]);
 
         Assert.Multiple(() =>
         {
@@ -131,11 +132,12 @@ public class TextSpanTests
     public void SetContent_UpdateFirstLine()
     {
         var span = new TextSpan(0, 0, 0, lines[0].Length);
-        int lengthChanged = span.SetContent(document, ["New Content"]);
+        int lengthChanged = span.SetContent(document, UpdateOptions.None, ["New Content"]);
 
         Assert.Multiple(() =>
         {
-            Assert.That(lengthChanged, Is.EqualTo(0));
+            Assert.That(lengthChanged, Is.EqualTo(expected: 0));
+            Assert.That(document.Lines, Has.Count.EqualTo(4));
             Assert.That(document.Lines[0], Is.EqualTo("New Content"));
         });
     }
@@ -144,7 +146,7 @@ public class TextSpanTests
     public void SetContent_UpdateLastLine()
     {
         var span = new TextSpan(3, 0, 3, lines[^1].Length);
-        int lengthChanged = span.SetContent(document, ["New Content"]);
+        int lengthChanged = span.SetContent(document, UpdateOptions.None, ["New Content"]);
 
         Assert.Multiple(() =>
         {
@@ -157,7 +159,7 @@ public class TextSpanTests
     public void SetContent_InsertsNewLines()
     {
         var span = new TextSpan(1, 0, 1, lines[1].Length);
-        int lengthChanged = span.SetContent(document, ["New", "Content"]);
+        int lengthChanged = span.SetContent(document, UpdateOptions.None, ["New", "Content"]);
 
         Assert.Multiple(() =>
         {
@@ -171,9 +173,9 @@ public class TextSpanTests
     public void SetContent_AppendAndPrependColumns()
     {
         var spanStart = new TextSpan(0, lines[0].Length - 1, 0, lines[0].Length - 1);
-        int lengthChangedStart = spanStart.SetContent(document, [" beautiful"]);
+        int lengthChangedStart = spanStart.SetContent(document, UpdateOptions.InsertInline, [" beautiful"]);
         var spanEnd = new TextSpan(lines.Length - 1, 0, lines.Length - 1, 0);
-        int lengthChangedEnd = spanEnd.SetContent(document, ["Awesome "]);
+        int lengthChangedEnd = spanEnd.SetContent(document, UpdateOptions.InsertInline, ["Awesome "]);
 
         Assert.Multiple(() =>
         {
@@ -188,7 +190,7 @@ public class TextSpanTests
     public void SetContent_UpdateMiddleOfLines()
     {
         var span = new TextSpan(lines.Length - 2, 3, lines.Length - 2, 3);
-        int lengthChanged = span.SetContent(document, [" not"]);
+        int lengthChanged = span.SetContent(document, UpdateOptions.InsertInline, [" not"]);
 
         Assert.Multiple(() =>
         {
@@ -209,5 +211,49 @@ public class TextSpanTests
             Assert.That(document.Lines[0], Is.EqualTo("World!"));
             Assert.That(document.Lines, Has.Count.EqualTo(3));
         });
+    }
+
+    [TestCaseSource(typeof(TestData), nameof(TestData.ContainsTestCases))]
+    public bool ContainsTest(int index, int column)
+    {
+        var span = new TextSpan(0, 2, 2, 6);
+
+        return span.Contains(index, column);
+    }
+
+    [TestCaseSource(typeof(TestData), nameof(TestData.GetContentTestCases))]
+    public string GetContentTest(int startIdx, int startCol, int endIdx, int endCol)
+    {
+        var span = new TextSpan(startIdx, startCol, endIdx, endCol);
+
+        return span.GetContent(document);
+    }
+
+    public static class TestData
+    {
+        public static IEnumerable ContainsTestCases
+        {
+            get
+            {
+                yield return new TestCaseData(1, 4).Returns(true).SetName("Index and column are within span");
+                yield return new TestCaseData(0, 2).Returns(true).SetName("Index and column are at the start of the span");
+                yield return new TestCaseData(3, 2).Returns(false).SetName("Index is outside the span");
+                yield return new TestCaseData(2, 7).Returns(false).SetName("Column is outside the span");
+                yield return new TestCaseData(2, 6).Returns(true).SetName("Index and column are at the end of the span");
+                yield return new TestCaseData(0, 1).Returns(false).SetName("Index is at the start and column is outside the span");
+            }
+        }
+
+        public static IEnumerable GetContentTestCases
+        {
+            get
+            {
+                yield return new TestCaseData(0, 0, 0, 0).Returns(string.Empty).SetName("Empty span");
+                yield return new TestCaseData(0, 0, 2, 3).Returns("Hello,\nWorld!\nI'm").SetName("Multiple lines with partial content");
+                yield return new TestCaseData(0, 0, 3, 9).Returns("Hello,\nWorld!\nI'm the\nDocument!").SetName("Entire document");
+                yield return new TestCaseData(1, 0, 1, 6).Returns("World!").SetName("Single line");
+                yield return new TestCaseData(1, 0, 2, 7).Returns("World!\nI'm the").SetName("Multiple lines");
+            }
+        }
     }
 }

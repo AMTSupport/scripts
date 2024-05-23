@@ -7,7 +7,7 @@ public abstract partial class Module(ModuleSpec moduleSpec)
     public string Name => ModuleSpec.Name;
     public Version Version => ModuleSpec.RequiredVersion ?? new Version(0, 0, 0, 0);
     public ModuleSpec ModuleSpec { get; } = moduleSpec;
-    public Requirements.Requirements Requirements { get; } = new();
+    public RequirementGroup Requirements { get; } = new();
 
     public abstract ModuleMatch GetModuleMatchFor(ModuleSpec requirement);
 
