@@ -1,10 +1,12 @@
-using System.Reflection;
+using System.Collections;
+using System.Text.RegularExpressions;
 using Text;
+using Text.Updater;
 
 namespace Compiler.Test.Text;
 
 [TestFixture]
-public class DocumentTests
+public partial class DocumentTests
 {
     private TextEditor Editor;
 
@@ -12,20 +14,6 @@ public class DocumentTests
     public void SetUp()
     {
         Editor = new TextEditor(new TextDocument([]));
-    }
-
-    [Test]
-    public void AddPaternEdit_ThrowsException_WhenAlreadyApplied()
-    {
-        Editor.ApplyEdits();
-        Assert.Throws<Exception>(() => Editor.AddPatternEdit("", "", _ => _));
-    }
-
-    [Test]
-    public void AddRegexEdit_ThrowsException_WhenAlreadyApplied()
-    {
-        Editor.ApplyEdits();
-        Assert.Throws<Exception>(() => Editor.AddRegexEdit("", _ => ""));
     }
 
     [Test]
@@ -39,5 +27,28 @@ public class DocumentTests
     public void GetContent_ThrowsException_WhenEditsNotApplied()
     {
         Assert.Throws<Exception>(() => Editor.GetContent());
+    }
+
+    [Test]
+    public void AddEdits_ThrowsException_WhenAlreadyApplied()
+    {
+        Editor.ApplyEdits();
+        Assert.Throws<Exception>(() => Editor.AddExactEdit(0, 0, 0, 0, _ => _));
+    }
+
+    public static partial class TestData
+    {
+        public static IEnumerable CaseForEachUpdaterType
+        {
+            get
+            {
+                yield return new TestCaseData(new PatternUpdater(TestRegex(), TestRegex(), UpdateOptions.None, _ => [])).SetCategory("PatternUpdater");
+                yield return new TestCaseData(new RegexUpdater(".*", UpdateOptions.None, _ => "")).SetCategory("RegexUpdater");
+                yield return new TestCaseData(new ExactUpdater(0, 0, 0, 0, UpdateOptions.None, _ => [])).SetCategory("ExactUpdater");
+            }
+        }
+
+        [GeneratedRegex(".*")]
+        private static partial Regex TestRegex();
     }
 }
