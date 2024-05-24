@@ -361,6 +361,34 @@ public class TextSpanTests
         });
     }
 
+    [Test]
+    public void SetContent_InsertsContentAtEndOfLastString_WhenInlineModeAndContentIsLargerThan1()
+    {
+        var document = new TextDocument(["Hello, World!"]);
+
+        var span = new TextSpan(0, 0, 0, 0);
+        var offset = span.SetContent(document, UpdateOptions.InsertInline, ["New", "Super cool", "This is a cool "]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(offset, Is.EqualTo(2));
+            Assert.That(document.Lines, Has.Count.EqualTo(3));
+            Assert.That(document.Lines[0], Is.EqualTo("New"));
+            Assert.That(document.Lines[1], Is.EqualTo("Super cool"));
+            Assert.That(document.Lines[2], Is.EqualTo("This is a cool Hello, World!"));
+        });
+    }
+
+    [Test]
+    public void GetContent_ContentFromMiddleOfLines_AndPartialLine() {
+        var document = new TextDocument(["Starting", "Hello, World!", "Ending"]);
+
+        var span = new TextSpan(1, 0, 1, 5);
+        var content = span.GetContent(document);
+
+        Assert.That(content, Is.EqualTo("Hello"));
+    }
+
     public static class TestData
     {
         public static IEnumerable ContainsTestCases
