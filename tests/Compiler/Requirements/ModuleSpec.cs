@@ -23,6 +23,23 @@ public class ModuleSpecTests
         var moduleMatch = moduleSpec1.CompareTo(moduleSpec2);
         return moduleMatch;
     }
+
+    [TestCaseSource(typeof(TestData), nameof(TestData.MergeSpecCases))]
+    public ModuleSpec MergeSpec(
+        ModuleSpec baseModuleSpec,
+        ModuleSpec[] otherModuleSpecs
+    )
+    {
+        var mergedSpec = baseModuleSpec.MergeSpecs(otherModuleSpecs);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(mergedSpec.IsCompatibleWith(baseModuleSpec), Is.True);
+            otherModuleSpecs.ToList().ForEach(otherModuleSpecs => Assert.That(mergedSpec.IsCompatibleWith(otherModuleSpecs), Is.True));
+        });
+
+        return mergedSpec;
+    }
 }
 
 public class TestData
@@ -363,6 +380,153 @@ public class TestData
                 new Version("1.0.0")
             )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version lower than minimum version");
             #endregion
+        }
+    }
+
+    public static IEnumerable MergeSpecCases
+    {
+        get
+        {
+            var guid = Guid.NewGuid();
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule"
+            ), Array.Empty<ModuleSpec>()).SetName("No additional specs").Returns(new ModuleSpec(
+                "MyModule"
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule"
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid
+                )
+            }).SetName("Same name").Returns(new ModuleSpec(
+                "MyModule",
+                guid
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule"
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid,
+                    new Version("1.0.0")
+                )
+            }).SetName("Same name and guid").Returns(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0")
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule"
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid,
+                    new Version("1.0.0"),
+                    new Version("2.0.0")
+                )
+            }).SetName("Same name, Update guid, minimum, and maximum version").Returns(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0")
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid,
+                    new Version("1.0.0"),
+                    new Version("2.0.0")
+                )
+            }).SetName("Same name and guid, Update minimum, and maximum version").Returns(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0")
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0")
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid,
+                    RequiredVersion: new Version("1.5.0")
+                )
+            }).SetName("Update required version").Returns(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0"),
+                new Version("1.5.0")
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0")
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid,
+                    new Version("1.5.0")
+                )
+            }).SetName("Update minimum version").Returns(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.5.0"),
+                new Version("2.0.0")
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0")
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid,
+                    MaximumVersion: new Version("1.5.0")
+                )
+            }).SetName("Update maximum version").Returns(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("1.5.0")
+            ));
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.0.0"),
+                new Version("2.0.0")
+            ), new ModuleSpec[] {
+                new(
+                    "MyModule",
+                    guid,
+                    new Version("1.5.0"),
+                    new Version("1.8.0")
+                )
+            }).SetName("Update minimum and maximum version").Returns(new ModuleSpec(
+                "MyModule",
+                guid,
+                new Version("1.5.0"),
+                new Version("1.8.0")
+            ));
         }
     }
 }

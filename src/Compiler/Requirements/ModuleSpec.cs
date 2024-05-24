@@ -16,14 +16,22 @@ public record ModuleSpec(
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
 
+    // TODO - Maybe use IsCompatibleWith to do some other check stuff
     public ModuleSpec MergeSpecs(ModuleSpec[] merge)
     {
+        var guid = Guid;
         var minVersion = MinimumVersion;
         var maxVersion = MaximumVersion;
         var reqVersion = RequiredVersion;
 
         foreach (var match in merge)
         {
+            if (match.Guid != null && guid == null)
+            {
+                Logger.Debug($"Merging {Name} with {match.Name} - {Guid} -> {match.Guid}");
+                guid = match.Guid;
+            }
+
             if (match.MinimumVersion != null && (minVersion == null || match.MinimumVersion > minVersion))
             {
                 Logger.Debug($"Merging {Name} with {match.Name} - {minVersion} -> {match.MinimumVersion}");
@@ -36,13 +44,14 @@ public record ModuleSpec(
                 maxVersion = match.MaximumVersion;
             }
 
-            if (match.RequiredVersion != null && (reqVersion == null || match.RequiredVersion > reqVersion))
+            if (match.RequiredVersion != null && reqVersion == null)
             {
-                throw new Exception("Cannot merge requirements with different required versions");
+                Logger.Debug($"Merging {Name} with {match.Name} - {RequiredVersion} -> {match.RequiredVersion}");
+                reqVersion = match.RequiredVersion;
             }
         }
 
-        return new ModuleSpec(Name, Guid, minVersion, maxVersion, reqVersion, Type);
+        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion, Type);
     }
 
     public override string GetInsertableLine()
@@ -111,7 +120,7 @@ public record ModuleSpec(
                 break;
             case (null, var b) when b < MinimumVersion || b > MaximumVersion:
                 return ModuleMatch.Incompatible;
-            case (var a, null) when  a < other.MinimumVersion || a > other.MaximumVersion:
+            case (var a, null) when a < other.MinimumVersion || a > other.MaximumVersion:
                 return ModuleMatch.Incompatible;
             case (_, null):
                 isStricter = true;
