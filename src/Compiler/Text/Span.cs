@@ -120,9 +120,6 @@ namespace Text
                 }
             }
 
-
-
-
             if (options.HasFlag(UpdateOptions.InsertInline))
             {
                 var lineContent = new StringBuilder();
@@ -146,10 +143,9 @@ namespace Text
 
                 if (!string.IsNullOrEmpty(lastLineAfter))
                 {
-                    if (StartingIndex != EndingIndex)
+                    if (StartingIndex != EndingIndex || content.Length > 1)
                     {
-                        document.Lines.Insert(StartingIndex + content.Length, lastLineAfter);
-                        offset++;
+                        document.Lines[EndingIndex + offset] += lastLineAfter;
                     }
                     else
                     {
@@ -182,74 +178,6 @@ namespace Text
                     offset++;
                 }
             }
-
-            // if (content.Length == 0)
-            // {
-            // if (!string.IsNullOrEmpty(firstLineBefore))
-            // {
-            //     document.Lines.Insert(StartingIndex, firstLineBefore);
-            //     offset++;
-            // }
-
-            // if (!string.IsNullOrEmpty(lastLineAfter))
-            // {
-            //     document.Lines.Insert(EndingIndex + offset, lastLineAfter);
-            //     offset++;
-            // }
-            // }
-            // else if (content.Length == 1)
-            // {
-            //     if (StartingIndex == EndingIndex)
-            //     {
-            //         if (options.HasFlag(UpdateOptions.InsertInline))
-            //         {
-            //             document.Lines.Insert(StartingIndex, firstLineBefore + content[0] + lastLineAfter);
-            //             offset++;
-            //         }
-            //         else
-            //         {
-            //             if (!string.IsNullOrEmpty(firstLineBefore))
-            //             {
-            //                 document.Lines.Insert(StartingIndex, firstLineBefore + content[0]);
-            //                 offset++;
-            //             }
-
-            //             document.Lines.Insert(StartingIndex + 1, content[0]);
-            //             offset++;
-
-            //             if (!string.IsNullOrEmpty(lastLineAfter))
-            //             {
-            //                 document.Lines.Insert(StartingIndex + 2, lastLineAfter);
-            //                 offset++;
-            //             }
-            //         }
-            //     }
-            //     else
-            //     {
-            //         document.Lines.Insert(StartingIndex, firstLineBefore + content[0]);
-            //         offset++;
-
-            //         if (!string.IsNullOrEmpty(lastLineAfter))
-            //         {
-            //             document.Lines.Insert(EndingIndex + offset, lastLineAfter);
-            //             offset++;
-            //         }
-            //     }
-            // }
-            // else
-            // {
-            //     for (int i = 0; i < content.Length; i++)
-            //     {
-            //         string lineContent = i switch
-            //         {
-            //             var index when index == 0 => firstLineBefore + content.First(),
-            //             var index when index == content.Length - 1 => content.Last() + lastLineAfter,
-            //             _ => content[i],
-            //         };
-            //         document.Lines.Insert(StartingIndex + i, lineContent);
-            //         offset++;
-            //     }
-            // }
 
             return offset;
         }
