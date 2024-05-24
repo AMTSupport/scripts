@@ -22,30 +22,19 @@ public class PSVersionTests
         return line;
     }
 
-    [Test]
-    public void IsCompatible_WithOtherVersions()
+    [TestCaseSource(typeof(TestData), nameof(TestData.CompatabilityCases))]
+    public bool IsCompatible_WithOtherVersions(
+        PSVersionRequirement current,
+        PSVersionRequirement otherVersion
+    )
     {
-        var desktop = new PSEditionRequirement(PSEdition.Desktop);
-        var core = new PSEditionRequirement(PSEdition.Core);
-
         Assert.Multiple(() =>
         {
-            Assert.That(desktop.IsCompatibleWith(core), Is.False);
-            Assert.That(core.IsCompatibleWith(desktop), Is.False);
+            Assert.That(current, Is.Not.Null);
+            Assert.That(otherVersion, Is.Not.Null);
         });
-    }
 
-    [Test, TestCaseSource(typeof(TestData), nameof(TestData.CaseForOtherRequirements))]
-    public void IsCompatible_WithAnyOtherRequirementType(Requirement other)
-    {
-        var desktop = new PSEditionRequirement(PSEdition.Desktop);
-        var core = new PSEditionRequirement(PSEdition.Core);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(desktop.IsCompatibleWith(other), Is.True);
-            Assert.That(core.IsCompatibleWith(other), Is.True);
-        });
+        return current.IsCompatibleWith(otherVersion);
     }
 
     public static class TestData
@@ -60,13 +49,44 @@ public class PSVersionTests
             }
         }
 
-        public static IEnumerable CaseForOtherRequirements
+        public static IEnumerable CompatabilityCases
         {
             get
             {
-                yield return new TestCaseData(new ModuleSpec("TestModule")).SetCategory("ModuleSpec");
-                yield return new TestCaseData(new PSVersionRequirement(new Version(7, 0))).SetCategory("PSVersionRequirement");
-                yield return new TestCaseData(new RunAsAdminRequirement()).SetCategory("RunAsAdminRequirement");
+                yield return new TestCaseData(
+                    new PSVersionRequirement(new Version(7, 0)),
+                    new PSVersionRequirement(new Version(7, 0))
+                ).SetName("Same version").Returns(true);
+
+                yield return new TestCaseData(
+                    new PSVersionRequirement(new Version(7, 0)),
+                    new PSVersionRequirement(new Version(6, 0))
+                ).SetName("If new version is below current, isn't compatable").Returns(false);
+
+                yield return new TestCaseData(
+                    new PSVersionRequirement(new Version(6, 0)),
+                    new PSVersionRequirement(new Version(7, 0))
+                ).SetName("If current version is below new, is compatable").Returns(true);
+
+                yield return new TestCaseData(
+                    new PSVersionRequirement(new Version(7, 0)),
+                    new PSVersionRequirement(new Version(4, 0))
+                ).SetName("If new version is below 4, isn't compatable").Returns(false);
+
+                yield return new TestCaseData(
+                    new PSVersionRequirement(new Version(4, 0)),
+                    new PSVersionRequirement(new Version(7, 0))
+                ).SetName("If current version is below 4, isn't compatable").Returns(false);
+
+                yield return new TestCaseData(
+                    new PSVersionRequirement(new Version(3, 0)),
+                    new PSVersionRequirement(new Version(4, 0))
+                ).SetName("If both versions are below 4, is compatable").Returns(true);
+
+                yield return new TestCaseData(
+                    new PSVersionRequirement(new Version(4, 0)),
+                    new PSVersionRequirement(new Version(4, 0))
+                ).SetName("If both versions are 4, is compatable").Returns(true);
             }
         }
     }
