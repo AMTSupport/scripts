@@ -16,7 +16,7 @@ public class PSVersionTests
         {
             Assert.That(line, Is.Not.Null);
             Assert.That(line, Is.Not.Empty);
-            Assert.That(line, Does.StartWith("#Requires -PSEdition"));
+            Assert.That(line, Does.StartWith("#Requires -Version"));
         });
 
         return line;
@@ -54,9 +54,9 @@ public class PSVersionTests
         {
             get
             {
-                yield return new TestCaseData(new Version(7, 0)).SetCategory("OnlyMajor").Returns("#Requires -PSEdition 7");
-                yield return new TestCaseData(new Version(7, 3)).SetCategory("MajorAndMinor").Returns("#Requires -PSEdition 7.3");
-                yield return new TestCaseData(new Version(7, 3, 1)).SetCategory("MajorMinorAndRevision").Returns("#Requires -PSEdition 7.3.1");
+                yield return new TestCaseData(new Version(7, 0)).SetCategory("OnlyMajor").Returns("#Requires -Version 7");
+                yield return new TestCaseData(new Version(7, 3)).SetCategory("MajorAndMinor").Returns("#Requires -Version 7.3");
+                yield return new TestCaseData(new Version(7, 3, 1)).SetCategory("MajorMinorAndRevision").Returns("#Requires -Version 7.3.1");
             }
         }
 
