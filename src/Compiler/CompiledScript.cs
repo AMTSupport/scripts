@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation.Language;
 using System.Text;
 using Compiler.Module;
@@ -6,11 +5,13 @@ using Compiler.Requirements;
 using NLog;
 using QuikGraph;
 
-class CompiledScript : LocalFileModule
+namespace Compiler;
+
+public class CompiledScript : LocalFileModule
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     public readonly AdjacencyGraph<ModuleSpec, Edge<ModuleSpec>> ModuleGraph = new();
-    public readonly Dictionary<string, Module> ResolvedModules = [];
+    public readonly Dictionary<string, Module.Module> ResolvedModules = [];
     public readonly ParamBlockAst ScriptParamBlockAst;
 
     public CompiledScript(string name, string[] lines) : base(name, lines)
@@ -22,25 +23,7 @@ class CompiledScript : LocalFileModule
         }
 
         // Extract the param block and its attributes from the script and store it in a variable so we can place it at the top of the script later.
-        ScriptParamBlockAst = Ast.ParamBlock;
-        Document.AddExactEdit(
-            ScriptParamBlockAst.Extent.StartLineNumber - 1,
-            ScriptParamBlockAst.Extent.StartColumnNumber - 1,
-            ScriptParamBlockAst.Extent.EndLineNumber - 1,
-            ScriptParamBlockAst.Extent.EndColumnNumber - 1,
-            lines => []
-        );
-        ScriptParamBlockAst.Attributes.ToList().ForEach(attribute =>
-        {
-            Document.AddExactEdit(
-                attribute.Extent.StartLineNumber - 1,
-                attribute.Extent.StartColumnNumber - 1,
-                attribute.Extent.EndLineNumber - 1,
-                attribute.Extent.EndColumnNumber - 1,
-                lines => []
-            );
-        });
-
+        ScriptParamBlockAst = ExtractParameterBlock();
         ResolveRequirements();
 
         // Remove all the using statmenets from the script.
@@ -79,13 +62,39 @@ class CompiledScript : LocalFileModule
         return script.ToString();
     }
 
+    public ParamBlockAst ExtractParameterBlock()
+    {
+        var scriptParamBlockAst = Ast.ParamBlock;
+
+        Document.AddExactEdit(
+            ScriptParamBlockAst.Extent.StartLineNumber - 1,
+            ScriptParamBlockAst.Extent.StartColumnNumber - 1,
+            ScriptParamBlockAst.Extent.EndLineNumber - 1,
+            ScriptParamBlockAst.Extent.EndColumnNumber - 1,
+            lines => []
+        );
+
+        ScriptParamBlockAst.Attributes.ToList().ForEach(attribute =>
+        {
+            Document.AddExactEdit(
+                attribute.Extent.StartLineNumber - 1,
+                attribute.Extent.StartColumnNumber - 1,
+                attribute.Extent.EndLineNumber - 1,
+                attribute.Extent.EndColumnNumber - 1,
+                lines => []
+            );
+        });
+
+        return scriptParamBlockAst;
+    }
+
     private void ResolveRequirements()
     {
         var localModules = new List<LocalFileModule>();
         var downloadableModules = new List<RemoteModule>();
 
-        var iterating = new Queue<Module>([this]);
-        while (iterating.TryDequeue(out Module? current) && current != null)
+        var iterating = new Queue<Module.Module>([this]);
+        while (iterating.TryDequeue(out Module.Module? current) && current != null)
         {
             Logger.Debug($"Resolving requirements for {current.Name}");
             if (localModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Same) || downloadableModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Same))
@@ -119,7 +128,7 @@ class CompiledScript : LocalFileModule
             {
                 Logger.Debug($"Adding {module.Name} to the queue.");
 
-                Module? resolved = null;
+                Module.Module? resolved = null;
                 var resolvedPath = Path.GetFullPath(module.Name);
                 if (File.Exists(resolvedPath))
                 {

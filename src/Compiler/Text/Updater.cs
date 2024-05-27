@@ -59,14 +59,21 @@ namespace Text.Updater
                     break;
                 }
 
-                var updatingLines = document.Lines.Skip(startIndex).Take(endIndex - startIndex + 1).ToArray();
+                var span = new TextSpan(
+                    startIndex,
+                    0,
+                    endIndex,
+                    document.Lines[endIndex].Length
+                );
+
+                var updatingLines = document.Lines[startIndex..(endIndex + 1)].ToArray();
                 var newLines = Updater(updatingLines);
 
-                var thisOffset = newLines.Length - updatingLines.Length;
+                var thisOffset = span.SetContent(document, options, Updater(document.Lines.Skip(startIndex).Take(endIndex - startIndex + 1).ToArray()));
+
                 offset += thisOffset;
-                document.Lines = document.Lines.Take(startIndex).Concat(newLines).Concat(document.Lines.Skip(endIndex + 1)).ToList();
                 skipRanges.Add(new Range(startIndex, endIndex));
-                spanUpdateInfo.Add(new SpanUpdateInfo(new TextSpan(startIndex, 0, endIndex, 0), thisOffset));
+                spanUpdateInfo.Add(new SpanUpdateInfo(span, thisOffset));
             }
 
             return [.. spanUpdateInfo];
@@ -171,7 +178,6 @@ namespace Text.Updater
             var spanUpdateInfo = new List<SpanUpdateInfo>();
             var offset = 0;
 
-            var patternString = Pattern.ToString();
             var multilinedContent = string.Join('\n', document.Lines);
             var matches = Pattern.Matches(multilinedContent);
 
@@ -190,7 +196,7 @@ namespace Text.Updater
 
                 var thisOffset = 0;
                 var multilineEndingIndex = match.Index + match.Length;
-                var contentBeforeThisLine = multilinedContent[..multilineEndingIndex].LastIndexOf('\n');
+                var contentBeforeThisLine = multilinedContent[..match.Index].LastIndexOf('\n');
                 var startingLineIndex = multilinedContent[..match.Index].Count(c => c == '\n') + offset;
                 var endingLineIndex = multilinedContent[..multilineEndingIndex].Count(c => c == '\n') + offset;
                 var isMultiLine = options.HasFlag(UpdateOptions.MatchEntireDocument) && match.Value.Contains('\n');
