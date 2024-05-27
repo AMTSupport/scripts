@@ -78,6 +78,9 @@ public partial class LocalFileModule : Module
 
     private void FixAndCleanLines()
     {
+        // Remove empty lines
+        Document.AddRegexEdit(@"^\s*$", _ => { return string.Empty; });
+
         // Fix indentation for Multiline Strings
         Document.AddPatternEdit(
             @"^.*@[""']",
@@ -122,9 +125,6 @@ public partial class LocalFileModule : Module
 
         // Comments at the end of a line, after some code.
         Document.AddRegexEdit(@"\s*#.*$", _ => { return string.Empty; });
-
-        // Remove empty lines
-        Document.AddRegexEdit(@"^\s*$", _ => { return string.Empty; });
     }
 
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement)
