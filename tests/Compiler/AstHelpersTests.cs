@@ -1,4 +1,4 @@
-using System.Management.Automation;
+namespace Compiler.Test;
 
 [TestFixture]
 public class AstHelpersTests
