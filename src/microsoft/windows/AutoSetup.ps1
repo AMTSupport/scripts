@@ -20,8 +20,8 @@
 [CmdletBinding(SupportsShouldProcess)]
 Param (
     [Parameter()]
-    [ValidateSet("SetupWindows", "Configure", "Cleanup", "Install", "Update", "Finish")]
-    [String]$Phase = "Configure",
+    [ValidateSet('SetupWindows', 'Configure', 'Cleanup', 'Install', 'Update', 'Finish')]
+    [String]$Phase = 'Configure',
 
     [Parameter(DontShow)]
     [ValidateLength(32, 32)]
@@ -29,7 +29,7 @@ Param (
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
-    [String]$Endpoint = "system-monitor.com",
+    [String]$Endpoint = 'system-monitor.com',
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
@@ -41,7 +41,7 @@ Param (
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
-    [String]$TaskName = "SetupScheduledTask",
+    [String]$TaskName = 'SetupScheduledTask',
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
@@ -74,7 +74,7 @@ function Get-SoapResponse(
 
     process {
         [String]$Local:ContentType = "text/xml;charset=`"utf-8`"";
-        [String]$Local:Method = "GET"
+        [String]$Local:Method = 'GET'
 
         $Local:Response = Invoke-RestMethod -Uri $Uri -ContentType $Local:ContentType -Method $Local:Method
         [System.Xml.XmlElement]$Local:ParsedResponse = $Local:Response.result
@@ -113,11 +113,58 @@ function Get-FormattedName2Id(
     }
 }
 
+function Update-ToWin11(
+    [bool]$Queue = $True,
+    [bool]$Force = $False
+) {
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        $Private:OSVersion = [System.Environment]::OSVersion.Version;
+        if ($Private:OSVersion.Major -ne 10) {
+            return;
+        }
+        Invoke-Debug 'Windows 10 detected, continuing...';
+
+        $Private:Manufacturer = (Get-WmiObject -Class Win32_ComputerSystem).Manufacturer;
+        $Private:UserWantsToUpgrade = Get-UserConfirmation 'Upgrade windows' 'Do you want to upgrade to Windows 11?' $True;
+
+        if (-not $Private:UserWantsToUpgrade) {
+            Invoke-Info 'User chose not to upgrade to Windows 11.';
+            return;
+        }
+
+        $Private:OutputFile = "$env:TEMP\Windows11InstallationAssistant.exe";
+        Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2171764' -OutFile $Private:OutputFile -UseBasicParsing;
+        Unblock-File -Path $Private:OutputFile;
+
+        Invoke-Info 'Starting Windows 11 upgrade, this will take a while with no progress bar...';
+        try {
+            # TODO - Maybe use the processes resource monitor to determine if its downloading, copying or what?
+            Start-Process -FilePath $Private:OutputFile -ArgumentList '/QuietInstall /SkipEULA /auto upgrade /NoRestartUI /ShowProgressInTaskBarIcon' -Wait;
+
+            if ($Queue) {
+                Invoke-Info 'Windows 11 upgrade completed successfully, rebooting now...';
+                Add-QueuedTask -QueuePhase $Phase -ForceReboot:$True;
+            }
+            else {
+                Invoke-Info 'Windows 11 upgrade completed successfully, please reboot to continue...';
+            }
+        }
+        catch {
+            Invoke-Error 'Failed to start Windows 11 upgrade';
+            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+        }
+    }
+}
+
 #endregion - Utility Functions
 
 #region - Environment Setup
 
 # If the script isn't located in the temp folder, copy it there and run it from there.
+# Also treat this as an indication that the computer hasn't rebooted yet and restart.
 function Invoke-EnsureLocalScript {
     begin { Enter-Scope; }
     end { Exit-Scope; }
@@ -130,19 +177,24 @@ function Invoke-EnsureLocalScript {
         $Local:TempPath | Assert-NotNull -Message "Temp path was null, this really shouldn't happen.";
 
         if ($Local:ScriptPath -ne $Local:TempPath) {
-            Invoke-Info "Copying script to temp folder...";
+            Invoke-Info 'Copying script to temp folder...';
             [String]$Local:Into = "$Local:TempPath\$($MyInvocation.PSCommandPath | Split-Path -Leaf)";
 
             try {
                 Copy-Item -Path $MyInvocation.PSCommandPath -Destination $Local:Into -Force;
-            } catch {
-                Invoke-Error "Failed to copy script to temp folder";
+            }
+            catch {
+                Invoke-Error 'Failed to copy script to temp folder';
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
             }
 
-            Add-QueuedTask -QueuePhase $Phase -ScriptPath $Local:Into;
-            Invoke-Info 'Exiting original process due to script being copied to temp folder...';
-            Invoke-QuickExit;
+            if ($PSCmdlet.ShouldProcess('Running script from temp folder')) {
+                (Get-RebootFlag).Set($null);
+
+                Add-QueuedTask -QueuePhase $Phase -ScriptPath $Local:Into;
+                Invoke-Info 'Exiting original process due to script being copied to temp folder...';
+                Invoke-QuickExit;
+            }
         }
     }
 }
@@ -180,7 +232,8 @@ function Invoke-EnsureSetupInfo {
                 Invoke-Info "Saving install info to $($InstallInfo.Path)...";
                 try {
                     $InstallInfo | ConvertTo-Json | Set-Content -Path:$($InstallInfo.Path) -Force;
-                } catch {
+                }
+                catch {
                     Invoke-Error "There was an issue saving the install info to $Local:File";
                     Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
                 }
@@ -190,7 +243,8 @@ function Invoke-EnsureSetupInfo {
         If (Test-Path $Local:File) {
             try {
                 [PSCustomObject]$Local:InstallInfo = Get-Content -Path $Local:File -Raw | ConvertFrom-Json;
-            } catch {
+            }
+            catch {
                 Invoke-Error "There was an issue reading the install info from $Local:File";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
             }
@@ -222,7 +276,7 @@ function Invoke-EnsureSetupInfo {
 
         Invoke-TestOrGet -InstallInfo:$Local:InstallInfo -Key 'DeviceName' -GetBlock {
             # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
-            Get-UserInput -Title "Device Name" -Question "Enter a name for this device"
+            Get-UserInput -Title 'Device Name' -Question 'Enter a name for this device'
         };
 
         return $Local:InstallInfo;
@@ -248,7 +302,8 @@ function Remove-QueuedTask {
                 $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
                 Invoke-Verbose -Message "Removed scheduled task [$TaskName]...";
             }
-        } catch {
+        }
+        catch {
             Invoke-Verbose -Message "Scheduled task [$TaskName] does not exist, skipping removal...";
             return;
         }
@@ -257,10 +312,10 @@ function Remove-QueuedTask {
 
 function Add-QueuedTask(
     [Parameter(Mandatory)]
-    [ValidateSet("Configure", "Cleanup", "Install", "Update", "Finish")]
+    [ValidateSet('Configure', 'Cleanup', 'Install', 'Update', 'Finish')]
     [String]$QueuePhase,
 
-    [Parameter(HelpMessage="The path of the script to run when the task is triggered.")]
+    [Parameter(HelpMessage = 'The path of the script to run when the task is triggered.')]
     [ValidateNotNullOrEmpty()]
     [String]$ScriptPath = $MyInvocation.PSCommandPath,
 
@@ -293,10 +348,10 @@ function Add-QueuedTask(
         [Int]$Local:RecursionLevel = if ($Phase -eq $QueuePhase) { $RecursionLevel + 1 } else { 0 };
         [String[]]$Local:AdditionalArgs = @("-Phase $QueuePhase", "-RecursionLevel $Local:RecursionLevel");
         if ($WhatIfPreference) {
-            $Local:AdditionalArgs += "-WhatIf";
+            $Local:AdditionalArgs += '-WhatIf';
         }
-        if ($VerbosePreference -ne "SilentlyContinue") {
-            $Local:AdditionalArgs += "-Verbose";
+        if ($VerbosePreference -ne 'SilentlyContinue') {
+            $Local:AdditionalArgs += '-Verbose';
         }
 
         $Local:Action = New-ScheduledTaskAction `
@@ -320,14 +375,14 @@ function Add-QueuedTask(
                 -Activity 'Reboot' `
                 -StatusMessage 'Rebooting in {0} seconds...' `
                 -TimeoutScript {
-                    Invoke-Info 'Rebooting now...';
+                Invoke-Info 'Rebooting now...';
                     (Get-RunningFlag).Remove();
                     (Get-RebootFlag).Remove();
-                    Restart-Computer -Force;
-                } `
+                Restart-Computer -Force;
+            } `
                 -CancelScript {
-                    Invoke-Info 'Reboot cancelled, please reboot to continue.';
-                };
+                Invoke-Info 'Reboot cancelled, please reboot to continue.';
+            };
         }
     }
 }
@@ -344,12 +399,13 @@ function Invoke-Phase_SetupWindows {
         $Local:WindowsVersion = [System.Environment]::OSVersion.Version;
         switch ($Local:WindowsVersion.Major) {
             10 {
-                Invoke-Info "Windows 10 detected, continuing...";
+                Invoke-Info 'Windows 10 detected, continuing...';
                 [String]$Local:Manufacturer = (Get-WmiObject -Class Win32_ComputerSystem).Manufacturer;
 
-                if ($Local:Manufacturer -eq "HP") {
-                    Invoke-Info "HP device detected, continuing...";
-                } else {
+                if ($Local:Manufacturer -eq 'HP') {
+                    Invoke-Info 'HP device detected, continuing...';
+                }
+                else {
                     Invoke-Error "This script is only supported on HP devices, not $($Local:Manufacturer)";
                     Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
                 }
@@ -372,26 +428,26 @@ function Invoke-Phase_SetupWindows {
                 [Int]$Local:SetupPID = Get-Process -Name WWAHost | Select-Object -ExpandProperty Id -First 1;
 
                 if ($null -eq $Local:SetupPID) {
-                    Invoke-Error "Failed to find the Windows Setup process";
+                    Invoke-Error 'Failed to find the Windows Setup process';
                     Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
                 }
 
                 [Microsoft.VisualBasic.Interaction]::AppActivate($Local:SetupPID) | Out-Null;
 
                 [String[]]$Local:ScreenSteps = @(
-                    "{TAB}{ENTER}",
-                    "{DOWN}{ENTER}{ENTER}",
-                    "{TAB}{TAB}{TAB}{ENTER}",
-                    "{TAB}{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}",
-                    "{TAB}{TAB}{TAB}{TAB}{ENTER}",
-                    "localadmin{ENTER}{ENTER}",
-                    "{TAB}{TAB}{TAB} {TAB} {TAB} {TAB} {TAB}{TAB}{ENTER}", # Nope
-                    "+{TAB}{ENTER}"
+                    '{TAB}{ENTER}',
+                    '{DOWN}{ENTER}{ENTER}',
+                    '{TAB}{TAB}{TAB}{ENTER}',
+                    '{TAB}{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}',
+                    '{TAB}{TAB}{TAB}{TAB}{ENTER}',
+                    'localadmin{ENTER}{ENTER}',
+                    '{TAB}{TAB}{TAB} {TAB} {TAB} {TAB} {TAB}{TAB}{ENTER}', # Nope
+                    '+{TAB}{ENTER}'
                 );
 
                 switch ($Local:Manufacturer) {
-                    "HP" {
-                        $Local:ScreenSteps += "{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}{TAB}{TAB}{TAB}{TAB}{ENTER}"
+                    'HP' {
+                        $Local:ScreenSteps += '{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}{TAB}{TAB}{TAB}{TAB}{ENTER}'
                     }
                     default {
                         # Do nothing.
@@ -420,18 +476,19 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
     end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
-        $InstallInfo | Assert-NotNull -Message "Install info was null";
+        $InstallInfo | Assert-NotNull -Message 'Install info was null';
 
         #region - Device Name
         [String]$Local:DeviceName = $InstallInfo.DeviceName;
-        $Local:DeviceName | Assert-NotNull -Message "Device name was null";
+        $Local:DeviceName | Assert-NotNull -Message 'Device name was null';
 
         [String]$Local:ExistingName = $env:COMPUTERNAME;
-        $Local:ExistingName | Assert-NotNull -Message "Existing name was null"; # TODO :: Alternative method of getting existing name if $env:COMPUTERNAME is null
+        $Local:ExistingName | Assert-NotNull -Message 'Existing name was null'; # TODO :: Alternative method of getting existing name if $env:COMPUTERNAME is null
 
         if ($Local:ExistingName -eq $Local:DeviceName) {
             Invoke-Info "Device name is already set to $Local:DeviceName.";
-        } else {
+        }
+        else {
             Invoke-Info "Device name is not set to $Local:DeviceName, setting it now...";
             Rename-Computer -NewName $Local:DeviceName;
             (Get-RebootFlag).Set($null);
@@ -439,22 +496,23 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
         #endregion - Device Name
 
         #region - Auto-Login
-        [String]$Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+        [String]$Local:RegKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon';
         try {
-            $ErrorActionPreference = "Stop";
+            $ErrorActionPreference = 'Stop';
 
-            Set-ItemProperty -Path $Local:RegKey -Name "AutoAdminLogon" -Value 1 | Out-Null;
-            Set-ItemProperty -Path $Local:RegKey -Name "DefaultUserName" -Value "localadmin" | Out-Null;
-            Set-ItemProperty -Path $Local:RegKey -Name "DefaultPassword" -Value "" | Out-Null;
+            Set-ItemProperty -Path $Local:RegKey -Name 'AutoAdminLogon' -Value 1 | Out-Null;
+            Set-ItemProperty -Path $Local:RegKey -Name 'DefaultUserName' -Value 'localadmin' | Out-Null;
+            Set-ItemProperty -Path $Local:RegKey -Name 'DefaultPassword' -Value '' | Out-Null;
 
             Invoke-Info 'Auto-login registry keys set.';
-        } catch {
-            Invoke-Error "Failed to set auto-login registry keys";
+        }
+        catch {
+            Invoke-Error 'Failed to set auto-login registry keys';
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_REGISTRY;
         }
         #endregion - Auto-Login
 
-        [String]$Local:NextPhase = "Cleanup";
+        [String]$Local:NextPhase = 'Cleanup';
         return $Local:NextPhase;
     }
 }
@@ -464,6 +522,23 @@ function Invoke-PhaseCleanup {
     end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
+        # function Invoke-Info {
+        #     Param([String]$Message) Write-Host -ForegroundColor Green "INFO: $Message";
+        # }
+        # function Invoke-Error {
+        #     Param([String]$Message) Write-Host -ForegroundColor Red "ERROR: $Message";
+        # }
+        # function Invoke-Verbose {
+        #     Param([String]$Message) Write-Host -ForegroundColor Yellow "VERBOSE: $Message";
+        # }
+        # function Invoke-Warn {
+        #     Param([String]$Message) Write-Host -ForegroundColor Yellow "WARN: $Message";
+        # }
+        # function Invoke-Debug {
+        #     Param([String]$Message) Write-Host -ForegroundColor Cyan "DEBUG: $Message";
+        # }
+        # function Enter-Scope { }
+        # function Exit-Scope { }
         function Invoke-Progress {
             Param(
                 [Parameter(Mandatory)][ValidateNotNull()]
@@ -480,16 +555,17 @@ function Invoke-PhaseCleanup {
 
             [String]$Local:ProgressActivity = $MyInvocation.MyCommand.Name;
 
-            Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Getting items..." -PercentComplete 0;
+            Write-Progress -Activity $Local:ProgressActivity -CurrentOperation 'Getting items...' -PercentComplete 0;
             Write-Debug 'Getting items';
             [Object[]]$Local:InputItems = $GetItems.InvokeReturnAsIs();
             Write-Progress -Activity $Local:ProgressActivity -PercentComplete 10;
 
             if ($null -eq $Local:InputItems -or $Local:InputItems.Count -eq 0) {
-                Write-Progress -Activity $Local:ProgressActivity -Status "No items found." -PercentComplete 100 -Completed;
+                Write-Progress -Activity $Local:ProgressActivity -Status 'No items found.' -PercentComplete 100 -Completed;
                 Invoke-Debug 'No Items found';
                 return;
-            } else {
+            }
+            else {
                 Write-Progress -Activity $Local:ProgressActivity -Status "Processing $($Local:InputItems.Count) items...";
                 Invoke-Debug "Processing $($Local:InputItems.Count) items...";
             }
@@ -504,18 +580,21 @@ function Invoke-PhaseCleanup {
                 Write-Progress -Activity $Local:ProgressActivity -CurrentOperation "Processing item [$Local:ItemName]..." -PercentComplete $Local:PercentComplete;
 
                 try {
-                    $ErrorActionPreference = "Stop";
+                    $ErrorActionPreference = 'Stop';
                     $ProcessItem.InvokeReturnAsIs($Local:Item);
-                } catch {
+                }
+                catch {
                     Invoke-Warn "Failed to process item [$Local:ItemName]";
                     Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                     try {
-                        $ErrorActionPreference = "Stop";
+                        $ErrorActionPreference = 'Stop';
 
                         if ($null -eq $FailedProcessItem) {
                             $Local:FailedItems.Add($Local:Item);
-                        } else { $FailedProcessItem.InvokeReturnAsIs($Local:Item); }
-                    } catch {
+                        }
+                        else { $FailedProcessItem.InvokeReturnAsIs($Local:Item); }
+                    }
+                    catch {
                         Invoke-Warn "Failed to process item [$Local:ItemName] in failed process item block";
                     }
                 }
@@ -537,7 +616,7 @@ function Invoke-PhaseCleanup {
             end { Exit-Scope; }
 
             process {
-                [String[]]$Services = @("HotKeyServiceUWP", "HPAppHelperCap", "HP Comm Recover", "HPDiagsCap", "HotKeyServiceUWP", "LanWlanWwanSwitchingServiceUWP", "HPNetworkCap", "HPSysInfoCap", "HP TechPulse Core");
+                [String[]]$Services = @('HotKeyServiceUWP', 'HPAppHelperCap', 'HP Comm Recover', 'HPDiagsCap', 'HotKeyServiceUWP', 'LanWlanWwanSwitchingServiceUWP', 'HPNetworkCap', 'HPSysInfoCap', 'HP TechPulse Core');
 
                 Invoke-Info "Disabling $($Services.Count) services...";
                 Invoke-Progress -GetItems { $Services; } -ProcessItem {
@@ -547,7 +626,8 @@ function Invoke-PhaseCleanup {
                         $ErrorActionPreference = 'Stop';
 
                         $Local:Instance = Get-Service -Name $ServiceName;
-                    } catch {
+                    }
+                    catch {
                         Invoke-Warn "Skipped service $ServiceName as it isn't installed.";
                     }
 
@@ -560,7 +640,8 @@ function Invoke-PhaseCleanup {
                                 $Local:Instance | Stop-Service -Force -Confirm:$false;
                                 Invoke-Info "Stopped service $Local:Instance";
                             }
-                        } catch {
+                        }
+                        catch {
                             Invoke-Info -Message "Failed to stop $Local:Instance";
                         }
 
@@ -572,7 +653,8 @@ function Invoke-PhaseCleanup {
                                 $Local:Instance | Set-Service -StartupType Disabled -Confirm:$false;
                                 Invoke-Info "Disabled service $ServiceName";
                             }
-                        } catch {
+                        }
+                        catch {
                             Invoke-Warn "Failed to disable $ServiceName";
                             Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                         }
@@ -607,44 +689,45 @@ function Invoke-PhaseCleanup {
                 );
 
                 [String[]]$UninstallablePrograms = @(
-                    "HP Device Access Manager"
-                    "HP Client Security Manager"
-                    "HP Connection Optimizer"
-                    "HP Documentation"
-                    "HP MAC Address Manager"
-                    "HP Notifications"
-                    "HP System Info HSA Service"
-                    "HP Security Update Service"
-                    "HP System Default Settings"
-                    "HP Sure Click"
-                    "HP Sure Click Security Browser"
-                    "HP Sure Run"
-                    "HP Sure Run Module"
-                    "HP Sure Recover"
-                    "HP Sure Sense"
-                    "HP Sure Sense Installer"
-                    "HP Wolf Security"
-                    "HP Wolf Security - Console"
-                    "HP Wolf Security Application Support for Sure Sense"
-                    "HP Wolf Security Application Support for Windows"
+                    'HP Device Access Manager'
+                    'HP Client Security Manager'
+                    'HP Connection Optimizer'
+                    'HP Documentation'
+                    'HP MAC Address Manager'
+                    'HP Notifications'
+                    'HP System Info HSA Service'
+                    'HP Security Update Service'
+                    'HP System Default Settings'
+                    'HP Sure Click'
+                    'HP Sure Click Security Browser'
+                    'HP Sure Run'
+                    'HP Sure Run Module'
+                    'HP Sure Recover'
+                    'HP Sure Sense'
+                    'HP Sure Sense Installer'
+                    'HP Wolf Security'
+                    'HP Wolf Security - Console'
+                    'HP Wolf Security Application Support for Sure Sense'
+                    'HP Wolf Security Application Support for Windows'
                 );
 
                 Invoke-Progress `
                     -GetItems { Get-Package | Where-Object { $UninstallablePrograms -contains $_.Name -or $Programs -contains $_.Name } } `
                     -GetItemName { Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program) $Program.Name; } `
                     -ProcessItem {
-                        Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program)
+                    Param([Microsoft.PackageManagement.Packaging.SoftwareIdentity]$Program)
 
-                        $Local:Product = Get-CimInstance -Query "SELECT * FROM Win32_Product WHERE Name = '$($Program.Name)'";
-                        if (-not $Local:Product) {
-                            throw "Can't find MSI Package for program [$($Program.Name)]";
-                        } else {
-                            if ($PSCmdlet.ShouldProcess("Removing MSI program [$($Local:Product.Name)]")) {
-                                msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
-                                Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
-                            }
+                    $Local:Product = Get-CimInstance -Query "SELECT * FROM Win32_Product WHERE Name = '$($Program.Name)'";
+                    if (-not $Local:Product) {
+                        throw "Can't find MSI Package for program [$($Program.Name)]";
+                    }
+                    else {
+                        if ($PSCmdlet.ShouldProcess("Removing MSI program [$($Local:Product.Name)]")) {
+                            msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
+                            Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
                         }
-                    };
+                    }
+                };
             }
         }
         function Remove-ProvisionedPackages_HP {
@@ -655,7 +738,7 @@ function Invoke-PhaseCleanup {
             end { Exit-Scope; }
 
             process {
-                [String]$HPIdentifier = "AD2F1837";
+                [String]$HPIdentifier = 'AD2F1837';
 
                 Invoke-Progress -GetItems { Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
@@ -667,6 +750,7 @@ function Invoke-PhaseCleanup {
                 }
             }
         }
+        # FIXME - After updating to win11 there is a new package that needs to be removed, how fun.
         function Remove-AppxPackages_HP {
             [CmdletBinding(SupportsShouldProcess)]
             param()
@@ -675,7 +759,7 @@ function Invoke-PhaseCleanup {
             end { Exit-Scope; }
 
             process {
-                [String]$HPIdentifier = "AD2F1837";
+                [String]$HPIdentifier = 'AD2F1837';
 
                 Invoke-Progress -GetItems { Get-AppxPackage -AllUsers | Where-Object { $_.Name -match "^$HPIdentifier" } } -ProcessItem {
                     Param($Package)
@@ -701,20 +785,21 @@ function Invoke-PhaseCleanup {
                     -GetItems { Get-WindowsDriver -Online | Where-Object { $_.ProviderName -eq 'HP Inc.' -and $_.OriginalFileName -notlike '*\hpsfuservice.inf' }; } `
                     -GetItemName { Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver) $Driver.OriginalFileName.ToString(); } `
                     -ProcessItem {
-                        Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver)
-                        [String]$Local:FileName = $Driver.OriginalFileName.ToString();
+                    Param([Microsoft.Dism.Commands.BasicDriverObject]$Driver)
+                    [String]$Local:FileName = $Driver.OriginalFileName.ToString();
 
-                        try {
-                            $ErrorActionPreference = 'Stop';
+                    try {
+                        $ErrorActionPreference = 'Stop';
 
-                            if ($PSCmdlet.ShouldProcess("Uninstalling driver [$Local:FileName]")) {
-                                pnputil /delete-driver $Local:FileName /uninstall /force | Out-Null;
-                                Invoke-Info "Removed driver: [$Local:FileName]";
-                            }
-                        } catch {
-                            Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
+                        if ($PSCmdlet.ShouldProcess("Uninstalling driver [$Local:FileName]")) {
+                            pnputil /delete-driver $Local:FileName /uninstall /force | Out-Null;
+                            Invoke-Info "Removed driver: [$Local:FileName]";
                         }
-                    };
+                    }
+                    catch {
+                        Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
+                    }
+                };
 
                 # Once the drivers are gone lets disable installation of 'drivers' for these HP 'devices' (typically automatic via Windows Update)
                 # SWC\HPA000C = HP Device Health Service
@@ -723,7 +808,7 @@ function Invoke-PhaseCleanup {
                 # ACPI\HPIC000C = HP Application Driver
                 @{
                     'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs' = @{
-                        KIND = 'String';
+                        KIND   = 'String';
                         Values = @{
                             1 = 'SWC\HPA000C'
                             2 = 'SWC\HPIC000C'
@@ -731,10 +816,10 @@ function Invoke-PhaseCleanup {
                             4 = 'ACPI\HPIC000C'
                         };
                     };
-                    'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions' = @{
-                        KIND = 'DWORD';
+                    'HKLM:\Software\Policies\Microsoft\Windows\DeviceInstall\Restrictions'               = @{
+                        KIND   = 'DWORD';
                         Values = @{
-                            DenyDeviceIDs = 1;
+                            DenyDeviceIDs            = 1;
                             DenyDeviceIDsRetroactive = 1;
                         };
                     };
@@ -746,7 +831,8 @@ function Invoke-PhaseCleanup {
                         if ($PSCmdlet.ShouldProcess("Creating registry path [$Local:RegistryPath]")) {
                             New-Item -Path $Local:RegistryPath -Force | Out-Null;
                         }
-                    } else {
+                    }
+                    else {
                         Invoke-Info "Registry path [$Local:RegistryPath] already exists, skipping creation...";
                     }
 
@@ -760,7 +846,8 @@ function Invoke-PhaseCleanup {
                                 New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
                                 Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
                             }
-                        } else {
+                        }
+                        else {
                             Invoke-Info "Registry value [$Local:ValueName] already exists in path [$Local:RegistryPath], skipping creation...";
                         }
                     }
@@ -776,7 +863,7 @@ function Invoke-PhaseCleanup {
 
         (Get-RebootFlag).Set($null);
 
-        [String]$Local:NextPhase = "Install";
+        [String]$Local:NextPhase = 'Install';
         return $Local:NextPhase;
     }
 }
@@ -788,12 +875,12 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
     end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
-        [String]$Local:AgentServiceName = "Advanced Monitoring Agent";
-        [String]$Local:NextPhase = "Update";
+        [String]$Local:AgentServiceName = 'Advanced Monitoring Agent';
+        [String]$Local:NextPhase = 'Update';
 
         # Check if the agent is already installed and running.
         if (Get-Service -Name $Local:AgentServiceName -ErrorAction SilentlyContinue) {
-            Invoke-Info "Agent is already installed, skipping installation...";
+            Invoke-Info 'Agent is already installed, skipping installation...';
             return $Local:NextPhase;
         }
 
@@ -804,31 +891,34 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
 
             Invoke-Info "Downloading agent from [$Local:Uri]";
             try {
-                $ErrorActionPreference = "Stop";
+                $ErrorActionPreference = 'Stop';
                 Invoke-WebRequest -Uri $Local:Uri -OutFile 'agent.zip' -UseBasicParsing;
-            } catch {
+            }
+            catch {
                 Invoke-Error "Failed to download agent from [$Local:Uri]";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_DOWNLOAD;
             }
 
-            Invoke-Info "Expanding archive...";
+            Invoke-Info 'Expanding archive...';
             try {
-                $ErrorActionPreference = "Stop";
+                $ErrorActionPreference = 'Stop';
 
                 Expand-Archive -Path 'agent.zip' -DestinationPath $PWD -Force | Out-Null;
-            } catch {
-                Invoke-Error "Failed to expand archive";
+            }
+            catch {
+                Invoke-Error 'Failed to expand archive';
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_EXPAND;
             }
 
-            Invoke-Info "Finding agent executable...";
+            Invoke-Info 'Finding agent executable...';
             try {
                 $ErrorActionPreference = 'Stop';
 
                 [String]$Local:OutputExe = Get-ChildItem -Path $PWD -Filter '*.exe' -File;
-                $Local:OutputExe | Assert-NotNull -Message "Failed to find agent executable";
-            } catch {
-                Invoke-Info "Failed to find agent executable";
+                $Local:OutputExe | Assert-NotNull -Message 'Failed to find agent executable';
+            }
+            catch {
+                Invoke-Info 'Failed to find agent executable';
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_FIND;
             }
 
@@ -840,7 +930,8 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
                 $Local:Installer.ExitCode | Assert-Equals -Expected 0 -Message "Agent installer failed with exit code [$($Local:Installer.ExitCode)]";
 
                 (Get-RebootFlag).Set($null);
-            } catch {
+            }
+            catch {
                 Invoke-Error "Failed to install agent from [$Local:OutputExe]";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_INSTALL;
             }
@@ -860,8 +951,9 @@ function Invoke-PhaseUpdate {
     end { Exit-Scope -ReturnValue $Local:NextPhase; }
 
     process {
-        [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { "Finish" } else { "Update" };
+        [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { 'Finish' } else { 'Update' };
 
+        Invoke-EnsureModule -Modules @('PSWindowsUpdate');
         Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false | Out-Null;
         (Get-RebootFlag).Set($null);
 
@@ -877,15 +969,16 @@ function Invoke-PhaseFinish {
         [String]$Local:NextPhase = $null;
 
         #region - Remove localadmin Auto-Login
-        $Local:RegKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+        $Local:RegKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon';
         try {
-            $ErrorActionPreference = "Stop";
+            $ErrorActionPreference = 'Stop';
 
-            Remove-ItemProperty -Path $Local:RegKey -Name "AutoAdminLogon" -Force -ErrorAction Stop;
-            Remove-ItemProperty -Path $Local:RegKey -Name "DefaultUserName" -Force -ErrorAction Stop;
-            Remove-ItemProperty -Path $Local:RegKey -Name "DefaultPassword" -Force -ErrorAction Stop;
-        } catch {
-            Invoke-Error "Failed to remove auto-login registry keys";
+            Remove-ItemProperty -Path $Local:RegKey -Name 'AutoAdminLogon' -Force -ErrorAction Stop;
+            Remove-ItemProperty -Path $Local:RegKey -Name 'DefaultUserName' -Force -ErrorAction Stop;
+            Remove-ItemProperty -Path $Local:RegKey -Name 'DefaultPassword' -Force -ErrorAction Stop;
+        }
+        catch {
+            Invoke-Error 'Failed to remove auto-login registry keys';
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_REGISTRY;
         }
         #endregion - Remove localadmin Auto-Login
@@ -908,9 +1001,10 @@ Invoke-RunMain $MyInvocation {
 
     # Ensure only one process is running at a time.
     If ((Get-RunningFlag).IsRunning()) {
-        Invoke-Error "The script is already running in another session, exiting...";
+        Invoke-Error 'The script is already running in another session, exiting...';
         Exit $Script:ALREADY_RUNNING;
-    } else {
+    }
+    else {
         (Get-RunningFlag).Set($null);
         Remove-QueuedTask;
     }
@@ -920,14 +1014,30 @@ Invoke-RunMain $MyInvocation {
         return;
     }
 
-    # TODO Restart computer on first boot to ensure correct time is returned.
-
     Invoke-EnsureLocalScript;
-    # There is an issue with the CimInstance LastBootUpTime where it returns the incorrect time on first boot.
-    # To work around this if there was previously no connecting and we have just connected we can assume its a new setup, and force a reboot to ensure the correct time is returned.
-    # TODO - Find a better way to determine if this is a first boot.
+
     $Local:PossibleFirstBoot = Invoke-EnsureNetwork -Name $NetworkName -Password $NetworkPassword;
-    Invoke-EnsureModule -Modules @('PSWindowsUpdate');
+
+    $Local:CurrentReadLine = Get-Module 'PSReadLine';
+    if ($null -eq $Local:CurrentReadLine -or $Local:CurrentReadLine.Version -lt [Version]::Parse('2.1.0')) {
+        Invoke-Info 'Updating PSReadLine module';
+
+        $null = Install-PackageProvider NuGet -MinimumVersion 2.8.5.201 -Force;
+        $null = Set-PSRepository PSGallery -InstallationPolicy Trusted;
+        $null = Install-Module -Name 'PSReadLine' -MinimumVersion '2.3.4' -Force;
+        try {
+            $null = Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force -ErrorAction SilentlyContinue;
+        }
+        catch {
+            # It actually did succeed, but it throws an error.
+        }
+
+        Add-QueuedTask -QueuePhase $Phase -ForceReboot:$False;
+        Invoke-QuickExit;
+    }
+
+    Update-ToWin11;
+
     $Local:InstallInfo = Invoke-EnsureSetupInfo;
 
     # Queue this phase to run again if a restart is required by one of the environment setups.
@@ -944,7 +1054,7 @@ Invoke-RunMain $MyInvocation {
 
     # Should only happen when we are done and there is nothing else to queue.
     if (-not $Local:NextPhase) {
-        Invoke-Info "No next phase was returned, exiting...";
+        Invoke-Info 'No next phase was returned, exiting...';
         return
     }
 
