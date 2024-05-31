@@ -1,7 +1,7 @@
 using System.Management.Automation;
 using System.Text;
 using JetBrains.Annotations;
-using Text.Updater;
+using NLog;
 
 namespace Text
 {
@@ -23,6 +23,8 @@ namespace Text
         [NonNegativeValue] int endingColumn
     )
     {
+        private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
+
         [ValidateRange(0, int.MaxValue)] public int StartingIndex { get; set; } = startingIndex;
         [ValidateRange(0, int.MaxValue)] public int StartingColumn { get; set; } = startingColumn;
         [ValidateRange(0, int.MaxValue)] public int EndingIndex { get; set; } = endingIndex;
@@ -93,11 +95,53 @@ namespace Text
         /// <returns>
         /// The number of lines added or removed by the update.
         /// </returns>
-        public int SetContent(TextDocument document, UpdateOptions options, string[] content)
+        public int SetContent(
+            [NotNull] TextDocument document,
+            [NotNull] UpdateOptions options,
+            [NotNull] string[] content
+        )
         {
+            if (StartingIndex < 0 || StartingIndex >= document.Lines.Count)
+            {
+                Logger.Error("Starting index {0} is out of range for document with {1} lines", StartingIndex, document.Lines.Count);
+                throw new ArgumentOutOfRangeException(nameof(StartingIndex));
+            }
+
+            if (EndingIndex < 0 || EndingIndex >= document.Lines.Count)
+            {
+                Logger.Error("Ending index {0} is out of range for document with {1} lines", EndingIndex, document.Lines.Count);
+                throw new ArgumentOutOfRangeException(nameof(EndingIndex));
+            }
+
+            if (StartingIndex > EndingIndex)
+            {
+                Logger.Error("Starting index {0} is greater than ending index {1}", StartingIndex, EndingIndex);
+                throw new ArgumentOutOfRangeException(nameof(StartingIndex));
+            }
+
+            if (StartingIndex == EndingIndex && StartingColumn > EndingColumn)
+            {
+                Logger.Error("Starting column {0} is greater than ending column {1} on the same line", StartingColumn, EndingColumn);
+                throw new ArgumentOutOfRangeException(nameof(StartingColumn));
+            }
+
+            var startingLine = document.Lines[StartingIndex];
+            if (startingLine.Length < StartingColumn)
+            {
+                Logger.Error("Starting column {0} is out of range for line with {1} characters", StartingColumn, startingLine.Length);
+                throw new ArgumentOutOfRangeException(nameof(StartingColumn));
+            }
+
+            var endingLine = document.Lines[EndingIndex];
+            if (endingLine.Length < EndingColumn)
+            {
+                Logger.Error("Ending column {0} is out of range for line with {1} characters", EndingColumn, endingLine.Length);
+                throw new ArgumentOutOfRangeException(nameof(EndingColumn));
+            }
+
             var offset = 0;
-            var firstLineBefore = document.Lines[StartingIndex][..StartingColumn];
-            var lastLineAfter = document.Lines[EndingIndex][EndingColumn..];
+            var firstLineBefore = startingLine[..StartingColumn];
+            var lastLineAfter = endingLine[EndingColumn..];
 
             if (StartingIndex == EndingIndex)
             {

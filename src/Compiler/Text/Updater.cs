@@ -188,25 +188,20 @@ namespace Text.Updater
 
             foreach (Match match in matches)
             {
-                // Skip empty matches those nasty bastards, praise rust for not having this issue.
-                if (match.Length == 0 && match.Value == "")
-                {
-                    continue;
-                }
-
                 var thisOffset = 0;
                 var multilineEndingIndex = match.Index + match.Length;
-                var contentBeforeThisLine = multilinedContent[..match.Index].LastIndexOf('\n');
+                var contentBeforeThisLine = multilinedContent[..match.Index].LastIndexOf(value: '\n');
+                var isMultiLine = options.HasFlag(UpdateOptions.MatchEntireDocument) && match.Value.Contains('\n');
                 var startingLineIndex = multilinedContent[..match.Index].Count(c => c == '\n') + offset;
                 var endingLineIndex = multilinedContent[..multilineEndingIndex].Count(c => c == '\n') + offset;
-                var isMultiLine = options.HasFlag(UpdateOptions.MatchEntireDocument) && match.Value.Contains('\n');
 
                 int startingColumn;
                 int endingColumn;
                 if (isMultiLine)
                 {
                     startingColumn = match.Index;
-                    endingColumn = multilineEndingIndex - (contentBeforeThisLine + 1);
+                    // endingColumn = multilineEndingIndex - (contentBeforeThisLine + 1);
+                    endingColumn = multilineEndingIndex - (multilinedContent[match.Index..match.Length].LastIndexOf('\n') + 1);
                 }
                 else
                 {

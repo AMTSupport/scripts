@@ -79,7 +79,7 @@ public class RegexTests
     [Test]
     public void AddRegexEdit_ReplaceAllContent()
     {
-        Editor.AddRegexEdit(".*", UpdateOptions.MatchEntireDocument, _ => "Updated content!");
+        Editor.AddRegexEdit(".+", UpdateOptions.MatchEntireDocument, _ => "Updated content!");
         Editor.ApplyEdits();
 
         Assert.That(Editor.GetContent(), Is.EqualTo("Updated content!"));
