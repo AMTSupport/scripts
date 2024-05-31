@@ -1,11 +1,15 @@
 {
     "recommendations": [
-        "pspester.pester-test",
-        "markis.code-coverage",
         "editorconfig.editorconfig",
+        "formulahendry.code-runner",
+        "ironmansoftware.powershellprotools",
+        "markis.code-coverage",
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "ms-vscode.powershell",
+        "pspester.pester-test",
         "ruschaaf.extended-embedded-languages",
         "tylerleonhardt.vscode-inline-values-powershell",
-        "ironmansoftware.powershellprotools",
-        "ms-vscode.powershell"
+        "vadimcn.vscode-lldb",
     ]
 }
