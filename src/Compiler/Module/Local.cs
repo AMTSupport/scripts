@@ -81,6 +81,18 @@ public partial class LocalFileModule : Module
         // Remove empty lines
         Document.AddRegexEdit(@"^\s*$", _ => { return string.Empty; });
 
+        // Document Blocks
+        Document.AddPatternEdit(
+            @"^\s*<#",
+            @"^\s*#>",
+            (lines) => { return []; });
+
+        // Entire Line Comments
+        Document.AddRegexEdit(@"^\s*#.*$", _ => { return string.Empty; });
+
+        // Comments at the end of a line, after some code.
+        Document.AddRegexEdit(@"(?!\n)\s*#.*$", _ => { return string.Empty; });
+
         // Fix indentation for Multiline Strings
         Document.AddPatternEdit(
             @"^.*@[""']",
@@ -112,19 +124,6 @@ public partial class LocalFileModule : Module
 
                 return updatedLines.ToArray();
             });
-
-
-        // Document Blocks
-        Document.AddPatternEdit(
-            @"^\s*<#",
-            @"^\s*#>",
-            (lines) => { return []; });
-
-        // Entire Line Comments
-        Document.AddRegexEdit(@"^\s*#.*$", _ => { return string.Empty; });
-
-        // Comments at the end of a line, after some code.
-        Document.AddRegexEdit(@"\s*#.*$", _ => { return string.Empty; });
     }
 
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement)
