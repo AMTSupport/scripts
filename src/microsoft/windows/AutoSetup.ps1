@@ -113,24 +113,62 @@ function Get-FormattedName2Id(
     }
 }
 
+function Test-ConfigValueOrSave {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Key,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [ScriptBlock]$GetBlock,
+
+        [Parameter(Mandatory)]
+        [PSCustomObject]$InstallInfo
+    )
+
+    Invoke-Info "Testing for $Key in install info...";
+    Invoke-Info "Install Info: $($InstallInfo | ConvertTo-Json)";
+
+    if (-not ($InstallInfo.PSObject.Properties.Name -contains $Key)) {
+        $Value = $GetBlock.InvokeWithContext($null, [PSVariable]::new('_', $InstallInfo));
+        Invoke-Info "Adding $Key to install info with value $Value...";
+        $InstallInfo | Add-Member -MemberType NoteProperty -Name:$Key -Value:$Value;
+
+        Invoke-Info "Saving install info to $($InstallInfo.Path)...";
+        try {
+            $InstallInfo | ConvertTo-Json | Set-Content -Path:$($InstallInfo.Path) -Force;
+        }
+        catch {
+            Invoke-Error "There was an issue saving the install info to $Local:File";
+            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
+        }
+    }
+}
+
 function Update-ToWin11(
-    [bool]$Queue = $True,
-    [bool]$Force = $False
+    [bool]$Queue = $True
 ) {
     begin { Enter-Scope; }
     end { Exit-Scope; }
 
     process {
-        $Private:OSVersion = [System.Environment]::OSVersion.Version;
+        [String]$Private:OSCaption = (Get-CimInstance -Query 'select caption from win32_operatingsystem' | Select-Object -Property Caption).Caption;
+        [Int]$Private:OSVersion = $Private:OSCaption -replace '(\d+)', '$1';
+
         if ($Private:OSVersion.Major -ne 10) {
             return;
         }
+
         Invoke-Debug 'Windows 10 detected, continuing...';
 
-        $Private:Manufacturer = (Get-WmiObject -Class Win32_ComputerSystem).Manufacturer;
-        $Private:UserWantsToUpgrade = Get-UserConfirmation 'Upgrade windows' 'Do you want to upgrade to Windows 11?' $True;
+        # $Private:Manufacturer = (Get-WmiObject -Class Win32_ComputerSystem).Manufacturer;
+        $Private:InstallInfo = Get-InstallInfo -GetOnly;
+        Test-ConfigValueOrSave -InstallInfo:$Private:InstallInfo -Key 'UpgradeToWin11' -GetBlock {
+            Get-UserConfirmation 'Upgrade windows' 'Do you want to upgrade to Windows 11?' $True;
+        };
 
-        if (-not $Private:UserWantsToUpgrade) {
+        if (-not $Private:InstallInfo.UpgradeToWin11) {
             Invoke-Info 'User chose not to upgrade to Windows 11.';
             return;
         }
@@ -142,7 +180,7 @@ function Update-ToWin11(
         Invoke-Info 'Starting Windows 11 upgrade, this will take a while with no progress bar...';
         try {
             # TODO - Maybe use the processes resource monitor to determine if its downloading, copying or what?
-            Start-Process -FilePath $Private:OutputFile -ArgumentList '/QuietInstall /SkipEULA /auto upgrade /NoRestartUI /ShowProgressInTaskBarIcon' -Wait;
+            Start-Process -FilePath $Private:OutputFile -ArgumentList '/QuietInstall /SkipEULA /auto upgrade /NoRestartUI /UninstallUponUpgrade' -Wait;
 
             if ($Queue) {
                 Invoke-Info 'Windows 11 upgrade completed successfully, rebooting now...';
@@ -199,46 +237,16 @@ function Invoke-EnsureLocalScript {
     }
 }
 
-# Get all required user input for the rest of the script to run automatically.
-function Invoke-EnsureSetupInfo {
+function Get-InstallInfo(
+    [Parameter(HelpMessage = 'Don''t prompt user for any questions, instead only return what is already saved in the install info.')]
+    [ValidateNotNullOrEmpty()]
+    [Switch]$GetOnly
+) {
     begin { Enter-Scope; }
-    end { Exit-Scope; }
+    end { Exit-Scope -ReturnValue $Local:InstallInfo; }
 
     process {
         [String]$Local:File = "$($env:TEMP)\InstallInfo.json";
-
-        function Invoke-TestOrGet {
-            param(
-                [Parameter(Mandatory)]
-                [ValidateNotNullOrEmpty()]
-                [String]$Key,
-
-                [Parameter(Mandatory)]
-                [ValidateNotNullOrEmpty()]
-                [ScriptBlock]$GetBlock,
-
-                [Parameter(Mandatory)]
-                [PSCustomObject]$InstallInfo
-            )
-
-            Invoke-Info "Testing for $Key in install info...";
-            Invoke-Info "Install Info: $($InstallInfo | ConvertTo-Json)";
-
-            if (-not ($InstallInfo.PSObject.Properties.Name -contains $Key)) {
-                $Value = $GetBlock.InvokeWithContext($null, [PSVariable]::new('_', $InstallInfo));
-                Invoke-Info "Adding $Key to install info with value $Value...";
-                $InstallInfo | Add-Member -MemberType NoteProperty -Name:$Key -Value:$Value;
-
-                Invoke-Info "Saving install info to $($InstallInfo.Path)...";
-                try {
-                    $InstallInfo | ConvertTo-Json | Set-Content -Path:$($InstallInfo.Path) -Force;
-                }
-                catch {
-                    Invoke-Error "There was an issue saving the install info to $Local:File";
-                    Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
-                }
-            }
-        }
 
         If (Test-Path $Local:File) {
             try {
@@ -254,7 +262,11 @@ function Invoke-EnsureSetupInfo {
             [PSCustomObject]$Local:InstallInfo = @{ Path = $Local:File; };
         }
 
-        Invoke-TestOrGet -InstallInfo:$Local:InstallInfo -Key 'ClientId' -GetBlock {
+        if ($GetOnly) {
+            return $Local:InstallInfo;
+        }
+
+        Test-ConfigValueOrSave -InstallInfo:$Local:InstallInfo -Key 'ClientId' -GetBlock {
             $Local:Clients = (Get-SoapResponse -Uri (Get-BaseUrl 'list_clients')).items.client;
             $Local:Clients | Assert-NotNull -Message 'Failed to get clients from N-Able';
 
@@ -264,7 +276,7 @@ function Invoke-EnsureSetupInfo {
             (Get-PopupSelection -Items $Local:FormattedClients -Title 'Please select a Client').Id;
         };
 
-        Invoke-TestOrGet -InstallInfo:$Local:InstallInfo -Key 'SiteId' -GetBlock {
+        Test-ConfigValueOrSave -InstallInfo:$Local:InstallInfo -Key 'SiteId' -GetBlock {
             $Local:Sites = (Get-SoapResponse -Uri "$(Get-BaseUrl 'list_sites')&clientid=$($_.ClientId)").items.site;
             $Local:Sites | Assert-NotNull -Message 'Failed to get sites from N-Able';
 
@@ -274,7 +286,7 @@ function Invoke-EnsureSetupInfo {
             (Get-PopupSelection -Items $Local:FormattedSites -Title 'Please select a Site').Id;
         };
 
-        Invoke-TestOrGet -InstallInfo:$Local:InstallInfo -Key 'DeviceName' -GetBlock {
+        Test-ConfigValueOrSave -InstallInfo:$Local:InstallInfo -Key 'DeviceName' -GetBlock {
             # TODO - Show a list of devices for the selected client so the user can confirm they're using the correct naming convention
             Get-UserInput -Title 'Device Name' -Question 'Enter a name for this device'
         };
@@ -1009,15 +1021,16 @@ Invoke-RunMain $MyInvocation {
         Remove-QueuedTask;
     }
 
+    # TODO - Find a way to queue the next phase after the setup is complete.
     if ($Phase -eq 'SetupWindows') {
         Invoke-Phase_SetupWindows;
         return;
     }
 
     Invoke-EnsureLocalScript;
+    Invoke-EnsureNetwork -Name $NetworkName -Password $NetworkPassword;
 
-    $Local:PossibleFirstBoot = Invoke-EnsureNetwork -Name $NetworkName -Password $NetworkPassword;
-
+    # FIXME - Temporary fix
     $Local:CurrentReadLine = Get-Module 'PSReadLine';
     if ($null -eq $Local:CurrentReadLine -or $Local:CurrentReadLine.Version -lt [Version]::Parse('2.1.0')) {
         Invoke-Info 'Updating PSReadLine module';
@@ -1038,7 +1051,7 @@ Invoke-RunMain $MyInvocation {
 
     Update-ToWin11;
 
-    $Local:InstallInfo = Invoke-EnsureSetupInfo;
+    $Local:InstallInfo = Get-InstallInfo;
 
     # Queue this phase to run again if a restart is required by one of the environment setups.
     Add-QueuedTask -QueuePhase $Phase -OnlyOnRebootRequired -ForceReboot:$Local:PossibleFirstBoot;
