@@ -2,6 +2,7 @@ using System.Management.Automation.Language;
 using System.Text;
 using Compiler.Module;
 using Compiler.Requirements;
+using Microsoft.CodeAnalysis;
 using NLog;
 using QuikGraph;
 
@@ -12,7 +13,7 @@ public class CompiledScript : LocalFileModule
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     public readonly AdjacencyGraph<ModuleSpec, Edge<ModuleSpec>> ModuleGraph = new();
     public readonly Dictionary<string, Module.Module> ResolvedModules = [];
-    public readonly ParamBlockAst ScriptParamBlockAst;
+    public readonly ParamBlockAst? ScriptParamBlockAst;
 
     public CompiledScript(string name, string[] lines) : base(name, lines)
     {
@@ -49,11 +50,15 @@ public class CompiledScript : LocalFileModule
             script.AppendLine(requirement.GetInsertableLine());
         });
 
-        ScriptParamBlockAst.Attributes.ToList().ForEach(attribute =>
+        if (ScriptParamBlockAst != null)
         {
-            script.AppendLine(attribute.Extent.Text);
-        });
-        script.AppendLine(ScriptParamBlockAst.Extent.Text);
+            ScriptParamBlockAst.Attributes.ToList().ForEach(attribute =>
+            {
+                script.AppendLine(attribute.Extent.Text);
+            });
+
+            script.AppendLine(ScriptParamBlockAst.Extent.Text);
+        }
 
         script.AppendLine(GetModuleTable());
 
@@ -62,19 +67,24 @@ public class CompiledScript : LocalFileModule
         return script.ToString();
     }
 
-    public ParamBlockAst ExtractParameterBlock()
+    public ParamBlockAst? ExtractParameterBlock()
     {
         var scriptParamBlockAst = Ast.ParamBlock;
 
+        if (scriptParamBlockAst == null)
+        {
+            return null;
+        }
+
         Document.AddExactEdit(
-            ScriptParamBlockAst.Extent.StartLineNumber - 1,
-            ScriptParamBlockAst.Extent.StartColumnNumber - 1,
-            ScriptParamBlockAst.Extent.EndLineNumber - 1,
-            ScriptParamBlockAst.Extent.EndColumnNumber - 1,
+            scriptParamBlockAst.Extent.StartLineNumber - 1,
+            scriptParamBlockAst.Extent.StartColumnNumber - 1,
+            scriptParamBlockAst.Extent.EndLineNumber - 1,
+            scriptParamBlockAst.Extent.EndColumnNumber - 1,
             lines => []
         );
 
-        ScriptParamBlockAst.Attributes.ToList().ForEach(attribute =>
+        scriptParamBlockAst.Attributes.ToList().ForEach(attribute =>
         {
             Document.AddExactEdit(
                 attribute.Extent.StartLineNumber - 1,
