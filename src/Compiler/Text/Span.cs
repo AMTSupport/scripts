@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation;
 using System.Text;
 using JetBrains.Annotations;
@@ -16,6 +18,7 @@ namespace Text
         InsertInline = 2
     }
 
+    [DebuggerDisplay("{toString()}")]
     public class TextSpan(
         [NonNegativeValue] int startingIndex,
         [NonNegativeValue] int startingColumn,
@@ -23,16 +26,24 @@ namespace Text
         [NonNegativeValue] int endingColumn
     )
     {
-        private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
+        [ExcludeFromCodeCoverage(Justification = "Logging")]
+        private static Logger Logger { get => LogManager.GetCurrentClassLogger(); }
 
-        [ValidateRange(0, int.MaxValue)] public int StartingIndex { get; set; } = startingIndex;
-        [ValidateRange(0, int.MaxValue)] public int StartingColumn { get; set; } = startingColumn;
-        [ValidateRange(0, int.MaxValue)] public int EndingIndex { get; set; } = endingIndex;
-        [ValidateRange(0, int.MaxValue)] public int EndingColumn { get; set; } = endingColumn;
+        [ValidateRange(0, int.MaxValue)] public int StartingIndex = startingIndex;
+        [ValidateRange(0, int.MaxValue)] public int StartingColumn = startingColumn;
+        [ValidateRange(0, int.MaxValue)] public int EndingIndex = endingIndex;
+        [ValidateRange(0, int.MaxValue)] public int EndingColumn = endingColumn;
 
-        public static TextSpan WrappingEntireDocument(TextDocument document)
+        public static TextSpan WrappingEntireDocument(TextDocument document) => WrappingEntireDocument([.. document.Lines]);
+
+        public static TextSpan WrappingEntireDocument(string[] lines)
         {
-            return new TextSpan(0, 0, document.Lines.Count - 1, document.Lines[^1].Length);
+            if (lines.Length == 0)
+            {
+                return new TextSpan(0, 0, 0, 0);
+            }
+
+            return new TextSpan(0, 0, lines.Length - 1, lines[^1].Length);
         }
 
         public bool Contains(int index, int column)
@@ -55,13 +66,27 @@ namespace Text
             return true;
         }
 
-        public string GetContent(TextDocument document)
+        public string GetContent(TextDocument document) => GetContent([.. document.Lines]);
+
+        [Pure]
+        public string GetContent(string[] lines)
         {
+            if (lines.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            if (StartingIndex < 0 || StartingIndex >= lines.Length)
+            {
+                Logger.Error("Starting index {0} is out of range for document with {1} lines", StartingIndex, lines.Length);
+                throw new ArgumentOutOfRangeException(nameof(StartingIndex));
+            }
+
             if (StartingIndex == EndingIndex)
             {
-                if (StartingColumn == 0 && EndingColumn == document.Lines[StartingIndex].Length)
+                if (StartingColumn == 0 && EndingColumn == lines[StartingIndex].Length)
                 {
-                    return document.Lines[StartingIndex];
+                    return lines[StartingIndex];
                 }
 
                 if (StartingColumn == EndingColumn)
@@ -69,16 +94,16 @@ namespace Text
                     return string.Empty;
                 }
 
-                return document.Lines[StartingIndex][StartingColumn..EndingColumn];
+                return lines[StartingIndex][StartingColumn..EndingColumn];
             }
 
             var builder = new StringBuilder();
-            builder.Append(document.Lines[StartingIndex][StartingColumn..] + '\n');
+            builder.Append(lines[StartingIndex][StartingColumn..] + '\n');
             for (int i = StartingIndex + 1; i < EndingIndex; i++)
             {
-                builder.Append(document.Lines[i] + '\n');
+                builder.Append(lines[i] + '\n');
             }
-            builder.Append(document.Lines[EndingIndex][..EndingColumn]);
+            builder.Append(lines[EndingIndex][..EndingColumn]);
 
             return builder.ToString();
         }
@@ -96,47 +121,47 @@ namespace Text
         /// The number of lines added or removed by the update.
         /// </returns>
         public int SetContent(
-            [NotNull] TextDocument document,
-            [NotNull] UpdateOptions options,
-            [NotNull] string[] content
+            ref List<string> lines,
+            UpdateOptions options,
+            string[] content
         )
         {
-            if (StartingIndex < 0 || StartingIndex >= document.Lines.Count)
+            if (StartingIndex < 0 || StartingIndex >= lines.Count)
             {
-                Logger.Error("Starting index {0} is out of range for document with {1} lines", StartingIndex, document.Lines.Count);
-                throw new ArgumentOutOfRangeException(nameof(StartingIndex));
+                Logger.Error("Starting index {0} is out of range for document with {1} lines", StartingIndex, lines.Count);
+                throw new ArgumentOutOfRangeException(nameof(StartingIndex), $"Starting index {StartingIndex} is out of range for document with {lines.Count} lines");
             }
 
-            if (EndingIndex < 0 || EndingIndex >= document.Lines.Count)
+            if (EndingIndex < 0 || EndingIndex >= lines.Count)
             {
-                Logger.Error("Ending index {0} is out of range for document with {1} lines", EndingIndex, document.Lines.Count);
-                throw new ArgumentOutOfRangeException(nameof(EndingIndex));
+                Logger.Error("Ending index {0} is out of range for document with {1} lines", EndingIndex, lines.Count);
+                throw new ArgumentOutOfRangeException(nameof(EndingIndex), $"Ending index {EndingIndex} is out of range for document with {lines.Count} lines");
             }
 
             if (StartingIndex > EndingIndex)
             {
                 Logger.Error("Starting index {0} is greater than ending index {1}", StartingIndex, EndingIndex);
-                throw new ArgumentOutOfRangeException(nameof(StartingIndex));
+                throw new ArgumentOutOfRangeException(nameof(StartingIndex), $"Starting index {StartingIndex} is greater than ending index {EndingIndex}");
             }
 
             if (StartingIndex == EndingIndex && StartingColumn > EndingColumn)
             {
                 Logger.Error("Starting column {0} is greater than ending column {1} on the same line", StartingColumn, EndingColumn);
-                throw new ArgumentOutOfRangeException(nameof(StartingColumn));
+                throw new ArgumentOutOfRangeException(nameof(StartingColumn), $"Starting column {StartingColumn} is greater than ending column {EndingColumn} on the same line");
             }
 
-            var startingLine = document.Lines[StartingIndex];
+            var startingLine = lines[StartingIndex];
             if (startingLine.Length < StartingColumn)
             {
                 Logger.Error("Starting column {0} is out of range for line with {1} characters", StartingColumn, startingLine.Length);
-                throw new ArgumentOutOfRangeException(nameof(StartingColumn));
+                throw new ArgumentOutOfRangeException(nameof(StartingColumn), $"Starting column {StartingColumn} is out of range for line with {startingLine.Length} characters. Line: {startingLine}");
             }
 
-            var endingLine = document.Lines[EndingIndex];
+            var endingLine = lines[EndingIndex];
             if (endingLine.Length < EndingColumn)
             {
                 Logger.Error("Ending column {0} is out of range for line with {1} characters", EndingColumn, endingLine.Length);
-                throw new ArgumentOutOfRangeException(nameof(EndingColumn));
+                throw new ArgumentOutOfRangeException(nameof(EndingColumn), $"Ending column {EndingColumn} is out of range for line with {endingLine.Length} characters. Line: {endingLine}");
             }
 
             var offset = 0;
@@ -145,7 +170,7 @@ namespace Text
 
             if (StartingIndex == EndingIndex)
             {
-                document.Lines.RemoveAt(StartingIndex);
+                lines.RemoveAt(StartingIndex);
                 offset--;
 
                 // Short circuit if the new content is empty, there will be no need to update the document.
@@ -159,7 +184,7 @@ namespace Text
                 // Remove all lines in the span to get a clean slate.
                 for (int i = StartingIndex; i <= EndingIndex; i++)
                 {
-                    document.Lines.RemoveAt(StartingIndex);
+                    lines.RemoveAt(StartingIndex);
                     offset--;
                 }
             }
@@ -177,7 +202,7 @@ namespace Text
                 {
                     lineContent.Append(content[0]);
 
-                    document.Lines.InsertRange(StartingIndex, content.Skip(1));
+                    lines.InsertRange(StartingIndex, content.Skip(1));
                     offset += content.Length - 1;
                 }
                 else
@@ -189,7 +214,7 @@ namespace Text
                 {
                     if (StartingIndex != EndingIndex || content.Length > 1)
                     {
-                        document.Lines[EndingIndex + offset] += lastLineAfter;
+                        lines[EndingIndex + offset] += lastLineAfter;
                     }
                     else
                     {
@@ -197,7 +222,7 @@ namespace Text
                     }
                 }
 
-                document.Lines.Insert(StartingIndex, lineContent.ToString());
+                lines.Insert(StartingIndex, lineContent.ToString());
                 offset++;
             }
             else
@@ -205,20 +230,20 @@ namespace Text
                 var insertingAfterStartingIndex = false;
                 if (!string.IsNullOrEmpty(firstLineBefore))
                 {
-                    document.Lines.Insert(StartingIndex, firstLineBefore);
+                    lines.Insert(StartingIndex, firstLineBefore);
                     insertingAfterStartingIndex = true;
                     offset++;
                 }
 
                 if (content.Length > 0)
                 {
-                    document.Lines.InsertRange(StartingIndex + (insertingAfterStartingIndex ? 1 : 0), content);
+                    lines.InsertRange(StartingIndex + (insertingAfterStartingIndex ? 1 : 0), content);
                     offset += content.Length;
                 }
 
                 if (!string.IsNullOrEmpty(lastLineAfter))
                 {
-                    document.Lines.Insert(EndingIndex + offset + 1, lastLineAfter);
+                    lines.Insert(EndingIndex + offset + 1, lastLineAfter);
                     offset++;
                 }
             }
@@ -226,9 +251,26 @@ namespace Text
             return offset;
         }
 
-        public int RemoveContent(TextDocument document)
+        public int RemoveContent(ref List<string> lines)
         {
-            return SetContent(document, UpdateOptions.None, []);
+            return SetContent(ref lines, UpdateOptions.None, []);
         }
+
+        public override bool Equals(object? obj)
+        {
+            if (obj is TextSpan span)
+            {
+                return span.StartingIndex == StartingIndex &&
+                       span.StartingColumn == StartingColumn &&
+                       span.EndingIndex == EndingIndex &&
+                       span.EndingColumn == EndingColumn;
+            }
+
+            return false;
+        }
+
+        public override int GetHashCode() => HashCode.Combine(StartingIndex, StartingColumn, EndingIndex, EndingColumn);
+
+        public override string ToString() => $"({StartingIndex}, {StartingColumn}) - ({EndingIndex}, {EndingColumn})";
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Text.RegularExpressions;
+using Compiler.Module;
 using Text;
 using Text.Updater;
 
@@ -33,9 +34,9 @@ public class CompiledScriptTest
         Write-Host 'Hello, World!';
 
         Write-Host @"
-            This is a multiline string!
-            It can have multiple lines!
-    @";
+    This is a multiline string!
+    It can have multiple lines!
+    "@;
 
         # Write-Error 'This is an error message!' -Category InvalidOperation;
         Invoke-FailedExit 1050;
@@ -54,14 +55,15 @@ public class CompiledScriptTest
 
     [TestCaseSource(typeof(TestData), nameof(TestData.TestCases))]
     public string Test(
-        TextSpanUpdater updater
+        TextSpanUpdater updater,
+        string content
     )
     {
-        var document = new TextEditor(new TextDocument(TEST_SCRIPT.Split('\n')))!;
+        var document = new TextEditor(new TextDocument(content.Split('\n')))!;
         document.AddEdit(() => updater);
 
-        document.ApplyEdits();
-        return document.GetContent();
+        var compiled = CompiledDocument.FromBuilder(document);
+        return compiled.GetContent();
     }
 
     [TestCaseSource(typeof(TestData), nameof(TestData.ExtractParameterBlockCases))]
@@ -126,8 +128,8 @@ public class CompiledScriptTest
             {
                 yield return new TestCaseData(
                     new PatternUpdater(
-                        new Regex(@"^\s*<#"),
-                        new Regex(@"^\s*#>"),
+                        LocalFileModule.MultilineStringOpenRegex(),
+                        LocalFileModule.MultilineStringCloseRegex(),
                         UpdateOptions.None,
                         (lines) =>
                         {
@@ -156,235 +158,110 @@ public class CompiledScriptTest
 
                             return updatedLines.ToArray();
                         }
-                    )
+                    ),
+                    """
+                                    Write-Host @"
+                            This is a multiline string!
+                            It can have multiple lines!
+                            "@;
+                    """
                 ).Returns("""
-                #Requires -Version 5.1
-
-                Using module ../src/common/00-Environment.psm1;
-                # Using module @{
-                #     ModuleName      = 'PSReadLine';
-                #     RequiredVersion = '2.3.5';
-                # }
-
-                <#
-                    Making some random documentation for the module here!!
-                #>
-                [CmdletBinding()]
-                param(
-                    [Parameter()]
-                    [string]$Name
-                )
-
-                Set-StrictMode -Version 3;
-
-                Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-                Invoke-RunMain $MyInvocation {
-                    Write-Host 'Hello, World!';
-
-                    Write-Host @"
-                        This is a multiline string!
-                        It can have multiple lines!
-                @";
-
-                    # Write-Error 'This is an error message!' -Category InvalidOperation;
-                    Invoke-FailedExit 1050;
-
-                    # Random comment
-                    $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
-                    if ($Restart) {
-                        Write-Host 'Restarting script...';
-                        Restart-Script; # Comment at the end of a line!!
-                    }
-                    else {
-                        Write-Host 'Exiting script...';
-                    };
-                }
-                """).SetName("Test_UpdatesMultilineString");
-
-                // FIXME - This captures the newline if previous line was empty
-                // Fixing with a negative lookbehind assertion, but this is a hacky solution
-                yield return new TestCaseData(
-                    new RegexUpdater(
-                        @"^(?!\n)\s*#.*$",
-                        UpdateOptions.None,
-                        _ => string.Empty
-                    )
-                ).Returns("""
-
-                Using module ../src/common/00-Environment.psm1;
-
-                <#
-                    Making some random documentation for the module here!!
-                [CmdletBinding()]
-                param(
-                    [Parameter()]
-                    [string]$Name
-                )
-
-                Set-StrictMode -Version 3;
-
-                Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-                Invoke-RunMain $MyInvocation {
-                    Write-Host 'Hello, World!';
-
-                    Write-Host @"
-                        This is a multiline string!
-                        It can have multiple lines!
-                @";
-
-                    Invoke-FailedExit 1050;
-
-                    $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
-                    if ($Restart) {
-                        Write-Host 'Restarting script...';
-                        Restart-Script; # Comment at the end of a line!!
-                    }
-                    else {
-                        Write-Host 'Exiting script...';
-                    };
-                }
-                """).SetName("Test_RemovesEntireLineComments");
+                        Write-Host @"
+                This is a multiline string!
+                It can have multiple lines!
+                "@;
+                """).SetName("Fix Indentation for Multiline Strings");
 
                 yield return new TestCaseData(
                     new RegexUpdater(
-                        @"^\s*$",
+                        LocalFileModule.EntireLineCommentRegex(),
                         UpdateOptions.None,
-                        _ => string.Empty
-                    )
-                ).Returns("""
-                #Requires -Version 5.1
-                Using module ../src/common/00-Environment.psm1;
-                # Using module @{
-                #     ModuleName      = 'PSReadLine';
-                #     RequiredVersion = '2.3.5';
-                # }
-                <#
-                    Making some random documentation for the module here!!
-                #>
-                [CmdletBinding()]
-                param(
-                    [Parameter()]
-                    [string]$Name
-                )
-                Set-StrictMode -Version 3;
-                Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-                Invoke-RunMain $MyInvocation {
+                        _ => null
+                    ),
+                    """
+                    # Comment
                     Write-Host 'Hello, World!';
-                    Write-Host @"
-                        This is a multiline string!
-                        It can have multiple lines!
-                @";
-                    # Write-Error 'This is an error message!' -Category InvalidOperation;
-                    Invoke-FailedExit 1050;
-                    # Random comment
-                    $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
-                    if ($Restart) {
-                        Write-Host 'Restarting script...';
-                        Restart-Script; # Comment at the end of a line!!
-                    }
-                    else {
-                        Write-Host 'Exiting script...';
-                    };
-                }
-                """).SetName("Test_RemovesEmptyLines");
+                    Write-Host 'Goodbye, World!'; # Comment
+                    """
+                ).Returns("""
+                Write-Host 'Hello, World!';
+                Write-Host 'Goodbye, World!'; # Comment
+                """).SetName("Removes Entire Line Comments");
+
+                yield return new TestCaseData(
+                    new RegexUpdater(
+                        LocalFileModule.EntireEmptyLineRegex(),
+                        UpdateOptions.None,
+                        _ => null
+                    ),
+                    """
+                    Write-Host 'Hello, World!';
+
+                    Write-Host 'Goodbye, World!';
+
+
+                    # Comment
+
+
+                    """
+                ).Returns("""
+                Write-Host 'Hello, World!';
+                Write-Host 'Goodbye, World!';
+                # Comment
+                """).SetName("Remove Empty Lines");
 
                 yield return new TestCaseData(
                     new PatternUpdater(
-                        new Regex(@"^\s*<#"),
-                        new Regex(@"^\s*#>"),
+                        LocalFileModule.DocumentationStartRegex(),
+                        LocalFileModule.DocumentationEndRegex(),
                         UpdateOptions.None,
                         _ => []
-                    )
-                ).Returns("""
-                #Requires -Version 5.1
-
-                Using module ../src/common/00-Environment.psm1;
-                # Using module @{
-                #     ModuleName      = 'PSReadLine';
-                #     RequiredVersion = '2.3.5';
-                # }
-
-                [CmdletBinding()]
-                param(
-                    [Parameter()]
-                    [string]$Name
-                )
-
-                Set-StrictMode -Version 3;
-
-                Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-                Invoke-RunMain $MyInvocation {
-                    Write-Host 'Hello, World!';
-
-                    Write-Host @"
-                        This is a multiline string!
-                        It can have multiple lines!
-                @";
-
-                    # Write-Error 'This is an error message!' -Category InvalidOperation;
-                    Invoke-FailedExit 1050;
-
-                    # Random comment
-                    $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
-                    if ($Restart) {
-                        Write-Host 'Restarting script...';
-                        Restart-Script; # Comment at the end of a line!!
+                    ),
+                    """
+                    <#
+                    .SYNOPSIS
+                        This is a document block
+                    #>
+                    function foo {
+                        Write-Host 'Hello, World!';
                     }
-                    else {
-                        Write-Host 'Exiting script...';
-                    };
+                    """
+                ).Returns("""
+                function foo {
+                    Write-Host 'Hello, World!';
                 }
-                """).SetName("Test_RemovesMultilineComments");
+                """).SetName("Remove Document Blocks");
 
                 yield return new TestCaseData(
                     new RegexUpdater(
-                        @"(?!\n)\s*#.*$",
+                        LocalFileModule.EndOfLineComment(),
                         UpdateOptions.None,
-                        _ => string.Empty
-                    )
-                ).Returns("""
-                #Requires -Version 5.1
+                        _ => null
+                    ),
+                    """
+                    Write-Host 'Hello, World!'; # Comment
+                    Write-Host 'Goodbye, World!'; # Comment
 
-                Using module ../src/common/00-Environment.psm1;
-                # Using module @{
-                #     ModuleName      = 'PSReadLine';
-                #     RequiredVersion = '2.3.5';
-                # }
+                    <#
+                    .SYNOPSIS
+                        This is a document block
+                    #>
+                    function foo {
+                        Write-Host 'Hello, World!';
+                    }
+                    """
+                ).Returns("""
+                Write-Host 'Hello, World!';
+                Write-Host 'Goodbye, World!';
 
                 <#
-                    Making some random documentation for the module here!!
+                .SYNOPSIS
+                    This is a document block
                 #>
-                [CmdletBinding()]
-                param(
-                    [Parameter()]
-                    [string]$Name
-                )
-
-                Set-StrictMode -Version 3;
-
-                Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-                Invoke-RunMain $MyInvocation {
+                function foo {
                     Write-Host 'Hello, World!';
-
-                    Write-Host @"
-                        This is a multiline string!
-                        It can have multiple lines!
-                @";
-
-                    # Write-Error 'This is an error message!' -Category InvalidOperation;
-                    Invoke-FailedExit 1050;
-
-                    # Random comment
-                    $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
-                    if ($Restart) {
-                        Write-Host 'Restarting script...';
-                        Restart-Script;
-                    }
-                    else {
-                        Write-Host 'Exiting script...';
-                    };
                 }
-                """).SetName("Test_RemovesCommentsAtEndOfLine");
+                """).SetName("Remove Comments at the end of a line, after some code");
             }
         }
     }
