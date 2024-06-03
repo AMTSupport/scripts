@@ -79,24 +79,24 @@ public partial class LocalFileModule : Module
     private void FixAndCleanLines()
     {
         // Remove empty lines
-        Document.AddRegexEdit(@"^\s*$", _ => { return string.Empty; });
+        Document.AddRegexEdit(EntireEmptyLineRegex(), _ => { return null; });
 
         // Document Blocks
         Document.AddPatternEdit(
-            @"^\s*<#",
-            @"^\s*#>",
+            DocumentationStartRegex(),
+            DocumentationEndRegex(),
             (lines) => { return []; });
 
         // Entire Line Comments
-        Document.AddRegexEdit(@"^\s*#.*$", _ => { return string.Empty; });
+        Document.AddRegexEdit(EntireLineCommentRegex(), _ => { return null; });
 
         // Comments at the end of a line, after some code.
-        Document.AddRegexEdit(@"(?!\n)\s*#.*$", _ => { return string.Empty; });
+        Document.AddRegexEdit(EndOfLineComment(), _ => { return null; });
 
         // Fix indentation for Multiline Strings
         Document.AddPatternEdit(
-            @"^.*@[""']",
-            @"^\s+.*[""']@",
+            MultilineStringOpenRegex(),
+            MultilineStringCloseRegex(),
             (lines) =>
             {
                 var startIndex = 0;
@@ -150,11 +150,33 @@ public partial class LocalFileModule : Module
 
     public override string GetContent(int indent = 0)
     {
+        var compiled = CompiledDocument.FromBuilder(Document);
         var indentStr = new string(' ', indent);
         return $$"""
         {
-        {{Document.GetContent(indent + 4)}}
+        {{compiled.GetContent(indent + 4)}}
         {{indentStr}}}
         """;
     }
+
+    [GeneratedRegex(@"^(?!\n)*$")]
+    public static partial Regex EntireEmptyLineRegex();
+
+    [GeneratedRegex(@"^\s*<#")]
+    public static partial Regex DocumentationStartRegex();
+
+    [GeneratedRegex(@"^\s*#>")]
+    public static partial Regex DocumentationEndRegex();
+
+    [GeneratedRegex(@"^(?!\n)\s*#.*$")]
+    public static partial Regex EntireLineCommentRegex();
+
+    [GeneratedRegex(@"(?!\n)\s*(?<!<)#(?!>).*$")]
+    public static partial Regex EndOfLineComment();
+
+    [GeneratedRegex(@"^.*@[""']")]
+    public static partial Regex MultilineStringOpenRegex();
+
+    [GeneratedRegex(@"^\s+.*[""']@")]
+    public static partial Regex MultilineStringCloseRegex();
 }
