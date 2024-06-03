@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using Text;
 
 namespace Compiler.Test.Text;
@@ -6,51 +8,58 @@ namespace Compiler.Test.Text;
 [TestFixture]
 public class PatternTests
 {
-    private string[] lines;
-    private TextEditor Editor;
+    private readonly string[] LINES = [
+        "@\"",
+        "Doing cool stuff with this multiline string!",
+        "",
+        "This is the end of the string!",
+        "\"@"
+    ];
 
-    [SetUp]
-    public void SetUp()
+    [TestCaseSource(typeof(TestData), nameof(TestData.AddPatternEditCases))]
+    public string AddPatternEdit(
+        [StringSyntax("Regex")] string openingPattern,
+        [StringSyntax("Regex")] string closingPattern,
+        UpdateOptions options,
+        Func<string[], string[]> updater
+    )
     {
-        lines = [
-            "@\"",
-            "Doing cool stuff with this multiline string!",
-            "",
-            "This is the end of the string!",
-            "\"@"
-        ];
+        var editor = new TextEditor(new(LINES));
 
-        Editor = new TextEditor(new(lines));
+        editor.AddPatternEdit(new Regex(openingPattern), new Regex(closingPattern), options, updater);
+        var compiled = CompiledDocument.FromBuilder(editor);
+
+        return compiled.GetContent();
     }
 
-    [Test]
-    public void AddPatternEdit_ReplaceAllContent()
+    public static class TestData
     {
-        Editor.AddPatternEdit(openingPattern: "@\"", "\"@", _ => ["Updated content!"]);
-        Editor.ApplyEdits();
-
-        Assert.That(Editor.GetContent(), Is.EqualTo("Updated content!"));
-    }
-
-    [Test]
-    public void AddPatternEdit_UseContentToUpdate()
-    {
-        Editor.AddPatternEdit("@\"", "\"@", content =>
+        public static IEnumerable AddPatternEditCases
         {
-            return content.Select(line => line + "Updated content!").ToArray();
-        });
-        Editor.ApplyEdits();
+            get
+            {
+                yield return new TestCaseData("@\"", "\"@", UpdateOptions.None, (Func<string[], string[]>)(_ => [])).Returns(string.Empty).SetName("Replace all content with empty string");
+                yield return new TestCaseData("@\"", "\"@", UpdateOptions.None, (Func<string[], string[]>)(_ => ["Updated content!"])).Returns("Updated content!").SetName("Replace all content with 'Updated content'");
+                yield return new TestCaseData("@\"", "\"@", UpdateOptions.None, (Func<string[], string[]>)(content => content.Select((line, index) =>
+                {
+                    if (index > 0 && index < content.Length - 1)
+                    {
+                        return line + "Updated content!";
+                    }
+                    else
+                    {
+                        return line;
+                    }
+                }).ToArray())).Returns(string.Join('\n', [
+                    "@\"",
+                    "Doing cool stuff with this multiline string!Updated content!",
+                    "Updated content!",
+                    "This is the end of the string!Updated content!",
+                    "\"@"
+                ])).SetName("Prepend 'Updated content' to each line except first and last");
+            }
 
-        Assert.That(Editor.GetContent(), Is.EqualTo($"@\"Updated content!\nDoing cool stuff with this multiline string!Updated content!\nUpdated content!\nThis is the end of the string!Updated content!\n\"@Updated content!"));
-    }
-
-    [Test]
-    public void AddPatternEdit_ReplaceContentWithEmpty()
-    {
-        Editor.AddPatternEdit("@\"", "\"@", _ => ["@\"", "\"@"]);
-        Editor.ApplyEdits();
-
-        Assert.That(Editor.GetContent(), Is.EqualTo($"@\"\n\"@"));
+        }
     }
 }
 
@@ -59,56 +68,39 @@ public class RegexTests
 {
     public static readonly string[] LINES = ["Hello,", "World!", "I'm the", "Document!"];
 
-    private TextEditor Editor;
-
-    [SetUp]
-    public void SetUp()
+    [TestCaseSource(typeof(TestData), nameof(TestData.AddRegexEditCases))]
+    public string AddRegexEdit(
+        [StringSyntax("Regex")] string pattern,
+        UpdateOptions options,
+        Func<Match, string> updater
+    )
     {
-        Editor = new TextEditor(new(LINES));
+        var editor = new TextEditor(new(LINES));
+
+        editor.AddRegexEdit(new Regex(pattern), options, updater);
+        var compiled = CompiledDocument.FromBuilder(editor);
+
+        return compiled.GetContent();
     }
 
-    [Test]
-    public void AddRegexEdit_ReplaceEachLine()
+    public static class TestData
     {
-        Editor.AddRegexEdit("^.*$", _ => "Updated content!");
-        Editor.ApplyEdits();
-
-        Assert.That(Editor.GetContent(), Is.EqualTo($"Updated content!\nUpdated content!\nUpdated content!\nUpdated content!"));
-    }
-
-    [Test]
-    public void AddRegexEdit_ReplaceAllContent()
-    {
-        Editor.AddRegexEdit(".+", UpdateOptions.MatchEntireDocument, _ => "Updated content!");
-        Editor.ApplyEdits();
-
-        Assert.That(Editor.GetContent(), Is.EqualTo("Updated content!"));
-    }
-
-    [Test]
-    public void AddRegexEdit_UseContentToUpdate()
-    {
-        Editor.AddRegexEdit(".*", match =>
+        public static IEnumerable AddRegexEditCases
         {
-            return match.Value + " Updated content!";
-        });
-        Editor.ApplyEdits();
+            get
+            {
+                yield return new TestCaseData(".+", UpdateOptions.MatchEntireDocument, (Func<Match, string>)(_ => string.Empty)).Returns(string.Empty).SetName("Replace all content with empty string");
+                yield return new TestCaseData(".+", UpdateOptions.None, (Func<Match, string>)(_ => string.Empty)).Returns("\n\n\n").SetName("Replace each line with empty string");
 
-        Assert.That(Editor.GetContent(), Is.EqualTo(string.Join('\n', [
-            "Hello, Updated content!",
-            "World! Updated content!",
-            "I'm the Updated content!",
-            "Document! Updated content!"
-        ])));
-    }
-
-    [Test, TestCase(UpdateOptions.None), TestCase(UpdateOptions.MatchEntireDocument)]
-    public void AddRegexEdit_ReplaceContentWithEmpty(UpdateOptions options)
-    {
-        Editor.AddRegexEdit(".*", options, _ => "");
-        Editor.ApplyEdits();
-
-        Assert.That(Editor.GetContent(), Is.EqualTo(""));
+                yield return new TestCaseData(".+", UpdateOptions.MatchEntireDocument, (Func<Match, string>)(_ => "Updated Content")).Returns("Updated Content").SetName("Replace all content with 'Updated Content'");
+                yield return new TestCaseData(".+", UpdateOptions.None, (Func<Match, string>)(m => m.Value + " Updated Content")).Returns(string.Join('\n', [
+                    "Hello, Updated Content",
+                    "World! Updated Content",
+                    "I'm the Updated Content",
+                    "Document! Updated Content"
+                ])).SetName("Prepend 'Updated Content' to each line");
+            }
+        }
     }
 }
 
@@ -128,9 +120,9 @@ public class ExactTests
     public void AddExactEdit_AllContentWithOneLine()
     {
         Editor.AddExactEdit(0, 0, 3, 9, _ => ["Updated content!"]);
-        Editor.ApplyEdits();
+        var compiled = CompiledDocument.FromBuilder(Editor);
 
-        Assert.That(Editor.GetContent(), Is.EqualTo("Updated content!"));
+        Assert.That(compiled.GetContent(), Is.EqualTo("Updated content!"));
     }
 
     [Test]
@@ -140,9 +132,9 @@ public class ExactTests
         {
             return content.Select(line => line + " Updated content!").ToArray();
         });
-        Editor.ApplyEdits();
+        var compiled = CompiledDocument.FromBuilder(Editor);
 
-        Assert.That(Editor.GetContent(), Is.EqualTo(string.Join('\n', [
+        Assert.That(compiled.GetContent(), Is.EqualTo(string.Join('\n', [
             "Hello, Updated content!",
             "World! Updated content!",
             "I'm the Updated content!",
@@ -160,9 +152,9 @@ public class ExactTests
     )
     {
         Editor.AddExactEdit(startingIndex, startingColumn, endingIndex, endingColumn, content);
-        Editor.ApplyEdits();
+        var compiled = CompiledDocument.FromBuilder(Editor);
 
-        return Editor.GetContent();
+        return compiled.GetContent();
     }
 
     public static IEnumerable ReplaceContentWithEmptyCases
