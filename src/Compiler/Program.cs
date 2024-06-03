@@ -51,7 +51,6 @@ class Program
         var graphViz = compiledScript.ModuleGraph.ToGraphviz();
         Console.WriteLine(graphViz);
 
-        compiledScript.Document.ApplyEdits();
         return compiledScript.Compile();
     }
 
