@@ -5,6 +5,7 @@ using Compiler.Requirements;
 using Microsoft.CodeAnalysis;
 using NLog;
 using QuikGraph;
+using Text;
 
 namespace Compiler;
 
@@ -31,13 +32,27 @@ public class CompiledScript : LocalFileModule
         var usingStatements = Ast.FindAll(ast => ast is UsingStatementAst usingStatment && usingStatment.UsingStatementKind == UsingStatementKind.Module, false).ToList();
         usingStatements.ForEach(usingStatement =>
         {
-            Document.AddExactEdit(
+            // Remove the ; if it is at the end of the line.
+            if (false)
+            {
+                Document.AddExactEdit(
+                    usingStatement.Extent.EndLineNumber - 1,
+                    usingStatement.Extent.EndColumnNumber - 1,
+                    usingStatement.Extent.EndLineNumber - 1,
+                    usingStatement.Extent.EndColumnNumber,
+                    lines => []
+                );
+            }
+            else
+            {
+                Document.AddExactEdit(
                 usingStatement.Extent.StartLineNumber - 1,
                 usingStatement.Extent.StartColumnNumber - 1,
                 usingStatement.Extent.EndLineNumber - 1,
                 usingStatement.Extent.EndColumnNumber - 1,
                 lines => []
-            );
+                );
+            }
         });
     }
 
@@ -62,7 +77,8 @@ public class CompiledScript : LocalFileModule
 
         script.AppendLine(GetModuleTable());
 
-        script.AppendLine(Document.GetContent(0));
+        var compiled = CompiledDocument.FromBuilder(Document);
+        script.AppendLine(compiled.GetContent(0));
 
         return script.ToString();
     }

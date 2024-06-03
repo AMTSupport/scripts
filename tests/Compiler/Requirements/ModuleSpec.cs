@@ -1,6 +1,5 @@
 using Compiler.Module;
 using Compiler.Requirements;
-using Newtonsoft.Json;
 using System.Collections;
 
 namespace Compiler.Test.Requirements;
