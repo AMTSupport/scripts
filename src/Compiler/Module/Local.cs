@@ -142,12 +142,6 @@ public partial class LocalFileModule : Module
         return new LocalFileModule(path, File.ReadAllLines(path));
     }
 
-    [GeneratedRegex(@"^\s*#Requires -(?<type>[A-Z]+) (?<value>.+)$")]
-    private static partial Regex RequiresStatementRegex();
-
-    [GeneratedRegex(@"^\s*")]
-    private static partial Regex BeginingWhitespaceMatchRegex();
-
     public override string GetContent(int indent = 0)
     {
         var compiled = CompiledDocument.FromBuilder(Document);
@@ -158,6 +152,12 @@ public partial class LocalFileModule : Module
         {{indentStr}}}
         """;
     }
+
+    [GeneratedRegex(@"^\s*#Requires -(?<type>[A-Z]+) (?<value>.+)$")]
+    private static partial Regex RequiresStatementRegex();
+
+    [GeneratedRegex(@"^\s*")]
+    private static partial Regex BeginingWhitespaceMatchRegex();
 
     [GeneratedRegex(@"^(?!\n)*$")]
     public static partial Regex EntireEmptyLineRegex();
