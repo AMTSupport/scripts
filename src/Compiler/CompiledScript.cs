@@ -29,9 +29,14 @@ public class CompiledScript : LocalFileModule
         ResolveRequirements();
 
         // Remove all the using statmenets from the script.
-        var usingStatements = Ast.FindAll(ast => ast is UsingStatementAst usingStatment && usingStatment.UsingStatementKind == UsingStatementKind.Module, false).ToList();
+        var usingStatements = Ast.FindAll(ast => ast is UsingStatementAst usingStatment && (usingStatment.UsingStatementKind == UsingStatementKind.Module || usingStatment.UsingStatementKind == UsingStatementKind.Namespace), false).Cast<UsingStatementAst>().ToList();
         usingStatements.ForEach(usingStatement =>
         {
+            if (usingStatement.UsingStatementKind == UsingStatementKind.Namespace)
+            {
+                Requirements.AddRequirement(new UsingNamespace(usingStatement.Name.Value));
+            }
+
             // Remove the ; if it is at the end of the line.
             if (false)
             {
