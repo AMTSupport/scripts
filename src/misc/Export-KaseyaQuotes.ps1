@@ -3,7 +3,11 @@ param(
     [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, HelpMessage = 'Where to save the output file.')]
     [Alias('PSPath')]
     [ValidateNotNullOrEmpty()]
-    [String]$OutputPath
+    [String]$OutputPath,
+
+    [String]$InputDataPath,
+
+    [Switch]$RawData
 )
 
 function Invoke-ApiRequest {
@@ -104,93 +108,121 @@ function Invoke-ApiRequest {
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    if ($null -eq $Global:Quotes) {
-        $Global:Quotes = Invoke-ApiRequest -Location 'quote' -PaginatedQuery;
+    if ($null -ne $InputDataPath) {
+        $Local:RawContent = Get-Content -Path $InputDataPath;
+        if ($null -eq $Local:RawContent) {
+            Invoke-Error "The input data file at '$InputDataPath' could not be found.";
+            Invoke-FailedExit -ExitCode 9999;
+        }
+
+        $InputData = $Local:RawContent | ConvertFrom-Json -AsHashtable;
     }
 
-    if ($null -eq $Global:QuoteLines) {
-        $Global:QuoteLines = Invoke-ApiRequest -Location 'quoteline' -PaginatedQuery;
-    }
-
-    if ($null -eq $Global:SalesOrders) {
-        $Global:SalesOrders = Invoke-ApiRequest -Location 'salesorder' -PaginatedQuery;
-    }
-
-    if ($null -eq $Global:SalesOrderLines) {
-        $Global:SalesOrderLines = Invoke-ApiRequest -Location 'salesorderline' -PaginatedQuery;
-    }
-
-    if ($null -eq $Global:SalesOrderPayments) {
-        $Global:SalesOrderPayments = Invoke-ApiRequest -Location 'salesorderpayment' -PaginatedQuery;
-    }
-
-    if ($null -eq $Global:Products) {
-        $Global:Products = @{};
-    }
-
-    foreach ($Local:SalesOrderLine in $Global:SalesOrderLines) {
-        [String]$Local:ProductId = $Local:SalesOrderLine.ProductId;
-        if (-not $Global:Products.ContainsKey($Local:ProductId)) {
-            $Global:Products[$Local:ProductId] = Invoke-ApiRequest -Location "product/$Local:ProductId";
+    function Set-InputOrLazy([String]$VariableName, [ScriptBlock]$LazyBlock) {
+        if ($null -eq (Get-Variable -Scope Global -Name $VariableName -ValueOnly -ErrorAction SilentlyContinue)) {
+            if ($null -ne $InputData -and $InputData.ContainsKey($VariableName)) {
+                Set-Variable -Scope Global -Name $VariableName -Value $InputData[$VariableName];
+            }
+            else {
+                Set-Variable -Scope Global -Name $VariableName -Value (&$LazyBlock);
+            }
         }
     }
 
-    if ($null -eq $Global:Brands) {
-        $Global:Brands = @{};
-    }
+    Set-InputOrLazy -VariableName 'Quotes' -LazyBlock { Invoke-ApiRequest -Location 'quote' -PaginatedQuery };
+    Set-InputOrLazy -VariableName 'QuoteLines' -LazyBlock { Invoke-ApiRequest -Location 'quoteline' -PaginatedQuery };
+    Set-InputOrLazy -VariableName 'SalesOrders' -LazyBlock { Invoke-ApiRequest -Location 'salesorder' -PaginatedQuery };
+    Set-InputOrLazy -VariableName 'SalesOrderLines' -LazyBlock { Invoke-ApiRequest -Location 'salesorderline' -PaginatedQuery };
+    Set-InputOrLazy -VariableName 'SalesOrderPayments' -LazyBlock { Invoke-ApiRequest -Location 'salesorderpayment' -PaginatedQuery };
 
-    foreach ($Local:Product in $Global:Products.Values) {
-        [String]$Local:BrandId = $Local:Product.BrandId;
-        if (-not $Global:Brands.ContainsKey($Local:BrandId)) {
-            $Global:Brands[$Local:BrandId] = Invoke-ApiRequest -Location "brand/$Local:BrandId";
-        }
-    }
-
-    if ($null -eq $Global:Categories) {
-        $Global:Categories = @{};
-    }
-
-    foreach ($Local:Product in $Global:Products.Values) {
-        [String]$Local:CategoryId = $Local:Product.CategoryId;
-        if (-not $Global:Categories.ContainsKey($Local:CategoryId)) {
-            $Global:Categories[$Local:CategoryId] = Invoke-ApiRequest -Location "category/$Local:CategoryId";
-        }
-    }
-
-    if ($null -eq $Global:Customers) {
-        $Global:Customers = @{};
-    }
-
-
-    if ($null -eq $Global:QuoteSections) {
-        $Global:QuoteSections = @{};
-    }
-
-    if ($null -eq $Global:QuoteLines) {
-        $Global:QuoteLines = @{};
-    }
-
-    foreach ($Local:Quote in $Global:Quotes) {
-        [String]$Local:CustomerId = $Local:Quote.customerId;
-        if (-not $Global:Customers.ContainsKey($Local:CustomerId)) {
-            $Global:Customers[$Local:CustomerId] = Invoke-ApiRequest -Location "customer/$Local:CustomerId";
+    Set-InputOrLazy -VariableName 'Products' -LazyBlock {
+        $Local:Products = @{};
+        foreach ($Local:SalesOrderLine in $Global:SalesOrderLines) {
+            [String]$Local:ProductId = $Local:SalesOrderLine.ProductId;
+            if (-not $Local:Products.ContainsKey($Local:ProductId)) {
+                $Local:Products[$Local:ProductId] = Invoke-ApiRequest -Location "product/$Local:ProductId";
+            }
         }
 
-        [String]$Local:QuoteId = $Local:Quote.id;
-        if (-not $Global:QuoteSections.ContainsKey($Local:QuoteId)) {
-            $Global:QuoteSections[$Local:QuoteId] = Invoke-ApiRequest -Location 'quotesection' -Parameters @{ quoteId = $Local:QuoteId };
+        $Local:Products;
+    };
+
+    Set-InputOrLazy -VariableName 'Brands' -LazyBlock {
+        $Local:Brands = @{};
+        foreach ($Local:Product in $Global:Products.Values) {
+            [String]$Local:BrandId = $Local:Product.BrandId;
+            if (-not $Local:Brands.ContainsKey($Local:BrandId)) {
+                $Local:Brands[$Local:BrandId] = Invoke-ApiRequest -Location "brand/$Local:BrandId";
+            }
         }
+
+        $Local:Brands;
+    };
+
+    Set-InputOrLazy -VariableName 'Categories' -LazyBlock {
+        $Local:Categories = @{};
+        foreach ($Local:Product in $Global:Products.Values) {
+            [String]$Local:CategoryId = $Local:Product.CategoryId;
+            if (-not $Local:Categories.ContainsKey($Local:CategoryId)) {
+                $Local:Categories[$Local:CategoryId] = Invoke-ApiRequest -Location "category/$Local:CategoryId";
+            }
+        }
+
+        $Local:Categories;
+    };
+
+    Set-InputOrLazy -VariableName 'Customers' -LazyBlock {
+        $Local:Customers = @{};
+        foreach ($Local:Quote in $Global:Quotes) {
+            [String]$Local:CustomerId = $Local:Quote.customerId;
+            if (-not $Local:Customers.ContainsKey($Local:CustomerId)) {
+                $Local:Customers[$Local:CustomerId] = Invoke-ApiRequest -Location "customer/$Local:CustomerId";
+            }
+        }
+
+        $Local:Customers;
+    };
+
+    Set-InputOrLazy -VariableName 'QuoteSections' -LazyBlock {
+        $Local:QuoteSections = @{};
+        foreach ($Local:Quote in $Global:Quotes) {
+            [String]$Local:QuoteId = $Local:Quote.id;
+            if (-not $Local:QuoteSections.ContainsKey($Local:QuoteId)) {
+                $Local:QuoteSections[$Local:QuoteId] = Invoke-ApiRequest -Location 'quotesection' -Parameters @{ quoteId = $Local:QuoteId };
+            }
+        }
+
+        $Local:QuoteSections;
+    };
+
+    Set-InputOrLazy -VariableName 'QuoteLines' -LazyBlock {
+        $Local:QuoteLines = @{};
+        foreach ($Local:QuoteSection in $Local:QuoteSections) {
+            [String]$Local:QuoteId = $Local:QuoteSection.QuoteId;
+            if (-not $Local:QuoteLines.ContainsKey($Local:QuoteId)) {
+                $Local:QuoteLines[$Local:QuoteId] = Invoke-ApiRequest -Location 'quoteline' -Parameters @{ quoteId = $Local:QuoteId };
+            }
+        }
+
+        $Local:QuoteLines;
     }
 
-    foreach ($Local:QuoteSection in $Global:QuoteSections) {
-        [String]$Local:QuoteId = $Local:QuoteSection.QuoteId;
-        if (-not $Global:QuoteLines.ContainsKey($Local:QuoteId)) {
-            $Global:QuoteLines[$Local:QuoteId] = Invoke-ApiRequest -Location 'quoteline' -Parameters @{ quoteId = $Local:QuoteId };
-        }
+    if ($RawData) {
+        @{
+            Quotes             = $Global:Quotes;
+            QuoteLines         = $Global:QuoteLines;
+            SalesOrders        = $Global:SalesOrders;
+            SalesOrderLines    = $Global:SalesOrderLines;
+            SalesOrderPayments = $Global:SalesOrderPayments;
+            Products           = $Global:Products;
+            Brands             = $Global:Brands;
+            Categories         = $Global:Categories;
+            Customers          = $Global:Customers;
+            QuoteSections      = $Global:QuoteSections;
+        } | ConvertTo-Json -Depth 9 | Out-File -FilePath $OutputPath -Force;
     }
-
-    @{
-        Quotes = $Global:Quotes | ForEach-Object {
+    else {
+        $Global:Quotes | ForEach-Object {
             $Local:RawQuote = $_;
             $Local:Quote = $Local:RawQuote | Select-Object -Property id, salesOrderId, quoteNumber, title, expiryDate, createdDate, modifiedDate, privateNote;
 
@@ -252,7 +284,7 @@ Invoke-RunMain $MyInvocation {
             }
 
             $Local:Quote;
-        };
+        } | ConvertTo-Json -Depth 9 | Out-File -FilePath $OutputPath -Force;
 
         # Product = @{
         #     Meta     = @{
@@ -280,5 +312,6 @@ Invoke-RunMain $MyInvocation {
         #     $Local:Product = $_;
         #     $Local:Product | Select-Object -Property * #id, productNumber, manufacturerPartNumber, title, price, retailPrice;
         # };
-    } | ConvertTo-Json -Depth 9 | Out-File -FilePath $OutputPath -Force;
+        # }
+    }
 };
