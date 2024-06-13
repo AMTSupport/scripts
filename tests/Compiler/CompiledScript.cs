@@ -73,7 +73,7 @@ public class CompiledScriptTest
     )
     {
         var scriptLines = scriptText.Split('\n');
-        var script = new CompiledScript("test", scriptLines);
+        var script = new CompiledScript("test", new("test"), new(scriptLines));
 
         var result = script.ExtractParameterBlock();
 

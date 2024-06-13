@@ -1,6 +1,7 @@
 using System.Text;
 using CommandLine;
 using Compiler;
+using Compiler.Requirements;
 using NLog;
 using QuikGraph.Graphviz;
 
@@ -45,8 +46,7 @@ class Program
 
     public static string CompileScript(string inputFile)
     {
-        var script = File.ReadAllText(inputFile);
-        var compiledScript = new CompiledScript(Path.GetFileName(inputFile), script.Split(Environment.NewLine));
+        var compiledScript = new CompiledScript(Path.GetFullPath(inputFile));
 
         var graphViz = compiledScript.ModuleGraph.ToGraphviz();
         Console.WriteLine(graphViz);
