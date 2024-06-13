@@ -30,7 +30,7 @@ public class RequirementGroup
     {
         if (StoredRequirements.ContainsKey(typeof(T)))
         {
-            return StoredRequirements[typeof(T)].Cast<List<Requirement>>().FindAll(requirement => requirement.CanCast<T>()).Cast<T>().ToList();
+            return StoredRequirements[typeof(T)].Cast<List<Requirement>>().FindAll(requirement => requirement is T).Cast<T>().ToList();
         }
 
         return [];

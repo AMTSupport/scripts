@@ -10,8 +10,7 @@ public record ModuleSpec(
     Guid? Guid = null,
     Version? MinimumVersion = null,
     Version? MaximumVersion = null,
-    Version? RequiredVersion = null,
-    ModuleType Type = ModuleType.Downloadable
+    Version? RequiredVersion = null
 ) : Requirement(true)
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
@@ -51,7 +50,7 @@ public record ModuleSpec(
             }
         }
 
-        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion, Type);
+        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion);
     }
 
     public override string GetInsertableLine()

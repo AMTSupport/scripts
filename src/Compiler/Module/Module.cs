@@ -18,7 +18,7 @@ public abstract partial class Module(ModuleSpec moduleSpec)
         var indentStr = new string(' ', indent);
         return $$"""
         {{indentStr}}'{{Name}}' = @{
-        {{indentStr}}    Type = '{{ModuleSpec.Type}}';
+        {{indentStr}}    Type = '{{GetType().Name}}';
         {{indentStr}}    Content = {{GetContent(indent + 4)}};
         {{indentStr}}};
         """;
