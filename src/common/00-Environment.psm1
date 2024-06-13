@@ -1,3 +1,5 @@
+Using module ./00-PSStyle.psm1;
+
 [System.Boolean]$Global:ScriptRestarted = $False;
 [System.Boolean]$Global:ScriptRestarting = $False;
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
@@ -213,18 +215,31 @@ function Import-CommonModules {
         process {
             Invoke-EnvDebug -Message "Importing module $Name.";
 
-            if ($Value -is [ScriptBlock]) {
-                Invoke-EnvDebug -Message "Module $Name is a script block.";
+            if ($Value -is [Hashtable]) {
+                Invoke-EnvDebug -Message "Module $Name is a hash table";
 
-                $Local:ContentHash = ($Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes(($Value -as [ScriptBlock]).Ast.Extent.Text)) | ForEach-Object { $_.ToString('x2') }) -join '';
-                $Local:ModuleName = "$Name-$Local:ContentHash.psm1";
-                $Local:ModulePath = ($env:TEMP | Join-Path -ChildPath "$Local:ModuleName");
+                $Local:ContentHash = ($Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value)) | ForEach-Object { $_.ToString('x2') }) -join '';
+                if ($Value.Type -eq 'LocalFileModule') {
+                    $Local:ModuleName = "$Name-$Local:ContentHash.psm1";
+                    $Local:ModulePath = ($env:TEMP | Join-Path -ChildPath "$Local:ModuleName");
 
-                if (-not (Test-Path $Private:ModulePath)) {
-                    Set-Content -Path $Private:ModulePath -Value $Value.ToString();
+                    if (-not (Test-Path $Private:ModulePath)) {
+                        Set-Content -Path $Private:ModulePath -Value $Value.ToString();
+                    }
+
+                    Import-Module -Name $Private:ModulePath -Global -Force -Verbose:$False -Debug:$False;
                 }
+                elseif ($Value.Type -eq 'RemoteModule') {
+                    # Convert from Base64 to raw bytes
+                    # Then output them into a zip file so we can expand it
+                    $Local:Bytes = [System.Convert]::FromBase64String($Value.Content);
+                    $Local:ZipPath = ($env:TEMP | Join-Path -ChildPath "$Name-$Local:ContentHash.zip");
 
-                Import-Module -Name $Private:ModulePath -Global -Force -Verbose:$False -Debug:$False;
+                    [System.IO.File]::WriteAllBytes($Local:ZipPath, $Local:Bytes);
+                    Expand-Archive -Path $Local:ZipPath -DestinationPath $env:TEMP -Force;
+
+                    Import-Module -Name "$env:TEMP/$Name" -Global -Force -Verbose:$False -Debug:$False;
+                }
             } else {
                 Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
 

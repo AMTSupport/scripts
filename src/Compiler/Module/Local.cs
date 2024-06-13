@@ -140,6 +140,9 @@ public partial class LocalFileModule : Module
 
                 return updatedLines.ToArray();
             });
+
+        Document.AddRegexEdit(new(@"(?smi)^Import-Module\s(?:\$PSScriptRoot)?(?:[/\\\.]*(?:(?:src|common)[/\\])+)00-Environment\.psm1;?\s*$"), match => null);
+        Document.AddRegexEdit(new(@"^Invoke-RunMain\s+(?:\$MyInvocation)?\s+(?<block>{.+})"), UpdateOptions.MatchEntireDocument, match => match.Groups["block"].Value);
     }
 
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement)
@@ -171,9 +174,10 @@ public partial class LocalFileModule : Module
         var compiled = CompiledDocument.FromBuilder(Document);
         var indentStr = new string(' ', indent);
         return $$"""
-        {
+        <#ps1#> @'
         {{compiled.GetContent(indent + 4)}}
-        {{indentStr}}}
+        {{indentStr}}
+        '@
         """;
     }
 

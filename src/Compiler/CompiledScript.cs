@@ -31,10 +31,6 @@ public class CompiledScript : LocalFileModule
         TextDocument document
     ) : base(path, moduleSpec, document)
     {
-        // Extract the param block and its attributes from the script and store it in a variable so we can place it at the top of the script later.
-        ScriptParamBlockAst = ExtractParameterBlock();
-        ResolveRequirements();
-
         // Remove all the using statmenets from the script.
         var usingStatements = Ast.FindAll(ast => ast is UsingStatementAst usingStatment && (usingStatment.UsingStatementKind == UsingStatementKind.Module || usingStatment.UsingStatementKind == UsingStatementKind.Namespace), false).Cast<UsingStatementAst>().ToList();
         usingStatements.ForEach(usingStatement =>
@@ -44,28 +40,21 @@ public class CompiledScript : LocalFileModule
                 Requirements.AddRequirement(new UsingNamespace(usingStatement.Name.Value));
             }
 
-            // Remove the ; if it is at the end of the line.
-            if (false)
-            {
-                Document.AddExactEdit(
-                    usingStatement.Extent.EndLineNumber - 1,
-                    usingStatement.Extent.EndColumnNumber - 1,
-                    usingStatement.Extent.EndLineNumber - 1,
-                    usingStatement.Extent.EndColumnNumber,
-                    lines => []
-                );
-            }
-            else
-            {
-                Document.AddExactEdit(
-                usingStatement.Extent.StartLineNumber - 1,
-                usingStatement.Extent.StartColumnNumber - 1,
-                usingStatement.Extent.EndLineNumber - 1,
-                usingStatement.Extent.EndColumnNumber - 1,
-                lines => []
-                );
-            }
+            // TODO - Remove the ; if it is at the end of the line
+            Document.AddExactEdit(
+            usingStatement.Extent.StartLineNumber - 1,
+            usingStatement.Extent.StartColumnNumber - 1,
+            usingStatement.Extent.EndLineNumber - 1,
+            usingStatement.Extent.EndColumnNumber - 1,
+            lines => []
+            );
         });
+
+        // Requirements.AddRequirement(new ModuleSpec("./src/common/00-Environment.ps1"));
+
+        // Extract the param block and its attributes from the script and store it in a variable so we can place it at the top of the script later.
+        ScriptParamBlockAst = ExtractParameterBlock();
+        ResolveRequirements();
     }
 
     public string Compile()
@@ -179,30 +168,8 @@ public class CompiledScript : LocalFileModule
             });
         }
 
-        localModules.ForEach(module =>
-        {
-            if (module == this)
-            {
-                return;
-            }
-
-            ResolvedModules.Add(module.Name, module);
-        });
-
-        // foreach (var module in downloadableModules)
-        // {
-        //     if (!ResolvedModules.TryGetValue(module.Name, out Module? value))
-        //     {
-        //         ResolvedModules.Add(module.Name, module);
-        //         continue;
-        //     }
-
-        //     var existingModule = value;
-        //     if (existingModule.Version < module.Version)
-        //     {
-        //         ResolvedModules[module.Name] = module;
-        //     }
-        // }
+        localModules.FindAll(module => module != this).ForEach(module => ResolvedModules.Add(module.Name, module));
+        downloadableModules.ForEach(module => ResolvedModules.Add(module.Name, module));
 
         PSVersionRequirement? highestPSVersion = null;
         foreach (var module in ResolvedModules.Values)
