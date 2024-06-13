@@ -3,23 +3,39 @@ using System.Management.Automation.Language;
 using System.Text.RegularExpressions;
 using CommandLine;
 using Compiler.Requirements;
+using NLog;
 using Text;
 
 namespace Compiler.Module;
 
 public partial class LocalFileModule : Module
 {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     public readonly TextEditor Document;
     protected readonly ScriptBlockAst Ast;
+    public readonly string FilePath;
 
-    public LocalFileModule(string name, string[] lines) : base(new ModuleSpec(name))
+    public LocalFileModule(string path) : this(
+        path,
+        new ModuleSpec(Path.GetFileNameWithoutExtension(path)),
+        new TextDocument(File.ReadAllLines(path))
+    )
+    { }
+
+    public LocalFileModule(
+        string path,
+        ModuleSpec moduleSpec,
+        TextDocument document
+    ) : base(moduleSpec)
     {
-        Document = new(new TextDocument(lines));
-
-        Ast = GetAstReportingErrors(string.Join('\n', lines));
+        FilePath = path;
+        Document = new TextEditor(document);
+        Ast = GetAstReportingErrors(string.Join('\n', Document.Document.Lines));
 
         AstHelper.FindDeclaredModules(Ast).ToList().ForEach(module =>
         {
+            Logger.Debug($"Found module: {module.Key}");
+
             Requirements.AddRequirement(new ModuleSpec(
                 Name: module.Key,
                 Guid: module.Value.TryGetValue("Guid", out object? value) ? Guid.Parse(value.Cast<string>()) : null,
@@ -29,7 +45,7 @@ public partial class LocalFileModule : Module
             ));
         });
 
-        foreach (var match in lines.SelectMany(line => RequiresStatementRegex().Matches(line).Cast<Match>()))
+        foreach (var match in Document.Document.Lines.SelectMany(line => RequiresStatementRegex().Matches(line).Cast<Match>()))
         {
             var type = match.Groups["type"].Value;
             // C# Switch statements are fucking grose.
@@ -59,7 +75,7 @@ public partial class LocalFileModule : Module
         FixAndCleanLines();
 
         // Check the AST for any issues that have been introduced by the cleanup.
-        GetAstReportingErrors(string.Join('\n', lines));
+        GetAstReportingErrors(string.Join('\n', Document.Document.Lines));
     }
 
     private static ScriptBlockAst GetAstReportingErrors(string astContent)
@@ -137,9 +153,17 @@ public partial class LocalFileModule : Module
         return ModuleMatch.None;
     }
 
-    public static LocalFileModule FromFile(string path)
+    public static LocalFileModule? TryFromFile(string relativeFrom, string path)
     {
-        return new LocalFileModule(path, File.ReadAllLines(path));
+        var fullPath = Path.GetFullPath(Path.Combine(relativeFrom, path));
+        Logger.Debug($"Trying to load local file: {fullPath}");
+        if (!File.Exists(fullPath))
+        {
+            Logger.Debug($"File does not exist: {fullPath}");
+            return null;
+        }
+
+        return new LocalFileModule(fullPath);
     }
 
     public override string GetContent(int indent = 0)

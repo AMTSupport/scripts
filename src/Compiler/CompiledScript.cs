@@ -16,14 +16,21 @@ public class CompiledScript : LocalFileModule
     public readonly Dictionary<string, Module.Module> ResolvedModules = [];
     public readonly ParamBlockAst? ScriptParamBlockAst;
 
-    public CompiledScript(string name, string[] lines) : base(name, lines)
+    public CompiledScript(
+        string path
+    ) : this(
+        path,
+        new ModuleSpec(Path.GetFileNameWithoutExtension(path)),
+        new TextDocument(File.ReadAllLines(path))
+    )
+    { }
+
+    public CompiledScript(
+        string path,
+        ModuleSpec moduleSpec,
+        TextDocument document
+    ) : base(path, moduleSpec, document)
     {
-
-        foreach (var module in Requirements.GetRequirements<ModuleSpec>())
-        {
-            ModuleGraph.AddEdge(new Edge<ModuleSpec>(ModuleSpec, module));
-        }
-
         // Extract the param block and its attributes from the script and store it in a variable so we can place it at the top of the script later.
         ScriptParamBlockAst = ExtractParameterBlock();
         ResolveRequirements();
@@ -152,24 +159,21 @@ public class CompiledScript : LocalFileModule
                 ModuleGraph.AddVertex(current.ModuleSpec);
             }
 
-            Logger.Debug($"Adding edge from {ModuleSpec.Name} to {current.ModuleSpec.Name}.");
-            ModuleGraph.AddEdge(new Edge<ModuleSpec>(ModuleSpec, current.ModuleSpec));
-
             current.Requirements.GetRequirements<ModuleSpec>().ForEach(module =>
             {
                 Logger.Debug($"Adding {module.Name} to the queue.");
 
                 Module.Module? resolved = null;
-                var resolvedPath = Path.GetFullPath(module.Name);
-                if (File.Exists(resolvedPath))
+                if (current is LocalFileModule local)
                 {
-                    resolved = FromFile(module.Name);
-                }
-                else
-                {
-                    resolved = RemoteModule.FromModuleRequirement(module);
+                    var parentPath = Path.GetDirectoryName(local.FilePath);
+                    Logger.Debug($"Trying to resolve {module.Name} from {parentPath}.");
+                    resolved = TryFromFile(parentPath, module.Name);
                 }
 
+                resolved ??= RemoteModule.FromModuleRequirement(module);
+
+                ModuleGraph.AddVertex(module);
                 ModuleGraph.AddEdge(new Edge<ModuleSpec>(current.ModuleSpec, module));
                 iterating.Enqueue(resolved);
             });
