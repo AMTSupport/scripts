@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
-using Text;
+using Compiler.Text;
 
 namespace Compiler.Test.Text;
 

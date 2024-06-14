@@ -1,4 +1,5 @@
 using System.Management.Automation;
+using System.Management.Automation.Runspaces;
 using Compiler.Requirements;
 using NLog;
 
@@ -38,7 +39,9 @@ public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSp
         var zipPath = Path.GetTempPath();
         var versionString = ConvertVersionParameters(moduleSpec.RequiredVersion?.ToString(), moduleSpec.MinimumVersion?.ToString(), moduleSpec.MaximumVersion?.ToString());
         var PowerShellCode = /*ps1*/ $$"""
-        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
+        #Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
+        Install-Module 'Microsoft.PowerShell.PSResourceGet' -Scope CurrentUser;
+        Import-Module 'Microsoft.PowerShell.PSResourceGet';
         Set-PSResourceRepository -Name PSGallery -Trusted;
 
         try {
@@ -59,9 +62,18 @@ public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSp
         Logger.Debug("Running the following PowerShell code to download the module from the PowerShell Gallery:");
         Logger.Debug(PowerShellCode);
 
-        var ps = PowerShell.Create();
+        var sessionState = InitialSessionState.CreateDefault();
+        sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
+        sessionState.ImportPSModule(new[] { "Microsoft.PowerShell.PSResourceGet" });
+        sessionState.LanguageMode = PSLanguageMode.FullLanguage;
+        var runspace = RunspaceFactory.CreateRunspace(sessionState);
+        runspace.Open();
+
+        var ps = PowerShell.Create(runspace);
         ps.AddScript(PowerShellCode);
         var result = ps.Invoke();
+
+        runspace.Close();
 
         if (ps.HadErrors)
         {
