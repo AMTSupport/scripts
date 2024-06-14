@@ -3,8 +3,8 @@ using System.Management.Automation.Language;
 using System.Text.RegularExpressions;
 using CommandLine;
 using Compiler.Requirements;
+using Compiler.Text;
 using NLog;
-using Text;
 
 namespace Compiler.Module;
 

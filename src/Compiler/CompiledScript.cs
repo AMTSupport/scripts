@@ -5,7 +5,7 @@ using Compiler.Requirements;
 using Microsoft.CodeAnalysis;
 using NLog;
 using QuikGraph;
-using Text;
+using Compiler.Text;
 
 namespace Compiler;
 
