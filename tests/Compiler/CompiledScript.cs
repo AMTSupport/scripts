@@ -1,8 +1,7 @@
 using System.Collections;
 using System.Text.RegularExpressions;
 using Compiler.Module;
-using Text;
-using Text.Updater;
+using Compiler.Text;
 
 namespace Compiler.Test;
 
