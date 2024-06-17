@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
+using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
 using NLog;
@@ -105,7 +106,7 @@ public class PatternUpdater(
             var clampedEnd = Math.Clamp(range.End.Value + offset, 0, lines.Length - 1);
             if (clampedStart < clampedEnd)
             {
-                offsetSkipRanges.Add(Enumerable.Range(clampedStart, clampedEnd + 1));
+                offsetSkipRanges.Add(Enumerable.Range(clampedStart, clampedEnd - clampedStart + 1));
             }
         }
 
@@ -137,7 +138,15 @@ public class PatternUpdater(
             // This is so that the endingPattern does not match the same elements, and we can find the correct end.
             if (openingMatch.Count > 0)
             {
-                clonedLine = StartingPattern.Replace(clonedLine, "", openingMatch.Count);
+                var lineOffset = 0;
+                foreach (Match match in openingMatch)
+                {
+                    clonedLine = new StringBuilder()
+                        .Append(clonedLine[..(match.Index + lineOffset)])
+                        .Append(clonedLine[(match.Index + lineOffset + match.Length)..])
+                        .ToString();
+                    lineOffset -= match.Length;
+                }
             }
 
             if (openLevel > 0)
