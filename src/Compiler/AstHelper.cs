@@ -23,7 +23,10 @@ namespace Compiler
                         break;
 
                     case UsingStatementAst usingStatementAst when usingStatementAst.ModuleSpecification is not null:
-                        var table = new Dictionary<string, object>();
+                        var table = new Dictionary<string, object>
+                        {
+                            { "AST", usingStatementAst }
+                        };
                         var pairs = usingStatementAst.ModuleSpecification.KeyValuePairs.GetEnumerator();
                         while (pairs.MoveNext())
                         {
@@ -45,11 +48,6 @@ namespace Compiler
                             {
                                 table[key] = Guid.Parse(guid);
                             }
-
-                            // if (key.EndsWith("Version") && table[key] is string version)
-                            // {
-                            //     table[key] = Version.Parse(version);
-                            // }
                         }
 
                         Logger.Debug($"Adding {table["ModuleName"] as string} with value {table}");
@@ -62,6 +60,27 @@ namespace Compiler
             }
 
             return modules;
+        }
+        public static List<(string, UsingStatementAst)> FindDeclaredNamespaces(Ast ast)
+        {
+            var namespaces = new List<(string, UsingStatementAst)>();
+
+            ast.FindAll(testAst => testAst is UsingStatementAst usingAst && usingAst.UsingStatementKind == UsingStatementKind.Namespace, true)
+                .Cast<UsingStatementAst>()
+                .ToList()
+                .ForEach(usingStatement =>
+                {
+                    Logger.Debug($"Found namespace: {usingStatement}");
+
+                    if (usingStatement.Name is null)
+                    {
+                        throw new Exception("UsingStatementAst does not contain a Name.");
+                    }
+
+                    namespaces.Add((usingStatement.Name.Value, usingStatement));
+                });
+
+            return namespaces;
         }
     }
 }

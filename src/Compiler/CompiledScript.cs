@@ -6,12 +6,19 @@ using Microsoft.CodeAnalysis;
 using NLog;
 using QuikGraph;
 using Compiler.Text;
+using System.Text.RegularExpressions;
 
 namespace Compiler;
 
-public class CompiledScript : LocalFileModule
+public partial class CompiledScript : LocalFileModule
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+    private static readonly string InvokeRunMain = "(New-Module -ScriptBlock ([ScriptBlock]::Create($Global:EmbeddedModules['00-Environment'].Content)) -AsCustomObject -ArgumentList {0}.BoundParameters).'Invoke-RunMain'({0}, ({1}));";
+    [GeneratedRegex(@"(?smi)^Import-Module\s(?:\$PSScriptRoot)?(?:[/\\\.]*(?:(?:src|common)[/\\])+)00-Environment\.psm1;?\s*$", RegexOptions.None, "en-AU")]
+    private static partial Regex ImportEnvironmentRegex();
+    [GeneratedRegex(@"^Invoke-RunMain\s+(?:\$MyInvocation)?\s+(?<Block>{.+})")]
+    private static partial Regex RunMainRegex();
+
     public readonly AdjacencyGraph<ModuleSpec, Edge<ModuleSpec>> ModuleGraph = new();
     public readonly Dictionary<string, Module.Module> ResolvedModules = [];
     public readonly ParamBlockAst? ScriptParamBlockAst;
@@ -31,26 +38,18 @@ public class CompiledScript : LocalFileModule
         TextDocument document
     ) : base(path, moduleSpec, document)
     {
-        // Remove all the using statmenets from the script.
-        var usingStatements = Ast.FindAll(ast => ast is UsingStatementAst usingStatment && (usingStatment.UsingStatementKind == UsingStatementKind.Module || usingStatment.UsingStatementKind == UsingStatementKind.Namespace), false).Cast<UsingStatementAst>().ToList();
-        usingStatements.ForEach(usingStatement =>
+        Document.AddRegexEdit(ImportEnvironmentRegex(), match => null);
+        Document.AddRegexEdit(RunMainRegex(), UpdateOptions.MatchEntireDocument, match =>
         {
-            if (usingStatement.UsingStatementKind == UsingStatementKind.Namespace)
+            var block = match.Groups["Block"].Value;
+            var invocation = match.Groups["Invocation"].Value;
+            if (string.IsNullOrWhiteSpace(invocation))
             {
-                Requirements.AddRequirement(new UsingNamespace(usingStatement.Name.Value));
+                invocation = "$MyInvocation";
             }
 
-            // TODO - Remove the ; if it is at the end of the line
-            Document.AddExactEdit(
-            usingStatement.Extent.StartLineNumber - 1,
-            usingStatement.Extent.StartColumnNumber - 1,
-            usingStatement.Extent.EndLineNumber - 1,
-            usingStatement.Extent.EndColumnNumber - 1,
-            lines => []
-            );
+            return string.Format(InvokeRunMain, invocation, block);
         });
-
-        // Requirements.AddRequirement(new ModuleSpec("./src/common/00-Environment.ps1"));
 
         // Extract the param block and its attributes from the script and store it in a variable so we can place it at the top of the script later.
         ScriptParamBlockAst = ExtractParameterBlock();

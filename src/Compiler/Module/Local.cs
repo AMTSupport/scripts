@@ -11,9 +11,10 @@ namespace Compiler.Module;
 public partial class LocalFileModule : Module
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    public readonly TextEditor Document;
     protected readonly ScriptBlockAst Ast;
+    public readonly TextEditor Document;
     public readonly string FilePath;
+
 
     public LocalFileModule(string path) : this(
         path,
@@ -32,47 +33,11 @@ public partial class LocalFileModule : Module
         Document = new TextEditor(document);
         Ast = GetAstReportingErrors(string.Join('\n', Document.Document.Lines));
 
-        AstHelper.FindDeclaredModules(Ast).ToList().ForEach(module =>
-        {
-            Logger.Debug($"Found module: {module.Key}");
 
-            Requirements.AddRequirement(new ModuleSpec(
-                Name: module.Key,
-                Guid: module.Value.TryGetValue("Guid", out object? value) ? Guid.Parse(value.Cast<string>()) : null,
-                MinimumVersion: module.Value.TryGetValue("MinimumVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
-                MaximumVersion: module.Value.TryGetValue("MaximumVersion", out object? maximumVersion) ? Version.Parse(maximumVersion.Cast<string>()) : null,
-                RequiredVersion: module.Value.TryGetValue("RequiredVersion", out object? requiredVersion) ? Version.Parse(requiredVersion.Cast<string>()) : null
-            ));
-        });
-
-        foreach (var match in Document.Document.Lines.SelectMany(line => RequiresStatementRegex().Matches(line).Cast<Match>()))
-        {
-            var type = match.Groups["type"].Value;
-            // C# Switch statements are fucking grose.
-            switch (type)
-            {
-                case "Version":
-                    var parsedVersion = Version.Parse(match.Groups["value"].Value)!;
-                    Requirements.AddRequirement(new PSVersionRequirement(parsedVersion));
-                    break;
-                case "Modules":
-                    var modules = match.Groups["value"].Value.Split(',').Select(v => v.Trim()).ToArray();
-                    foreach (var module in modules)
-                    {
-                        Requirements.AddRequirement(new ModuleSpec(
-                            Name: module
-                        ));
-                    }
-
-                    break;
-                default:
-                    Console.Error.WriteLine($"Not sure what to do with unexpected type: {type}, skipping.");
-                    break;
-            };
-        }
-
-        // Cleanup must be done after AST
-        FixAndCleanLines();
+        ResolveRequirements();
+        ResolveUsingStatements();
+        CompressLines();
+        FixLines();
 
         // Check the AST for any issues that have been introduced by the cleanup.
         GetAstReportingErrors(string.Join('\n', Document.Document.Lines));
@@ -92,7 +57,7 @@ public partial class LocalFileModule : Module
         return ast;
     }
 
-    private void FixAndCleanLines()
+    private void CompressLines()
     {
         // Remove empty lines
         Document.AddRegexEdit(EntireEmptyLineRegex(), _ => { return null; });
@@ -108,7 +73,10 @@ public partial class LocalFileModule : Module
 
         // Comments at the end of a line, after some code.
         Document.AddRegexEdit(EndOfLineComment(), _ => { return null; });
+    }
 
+    private void FixLines()
+    {
         // Fix indentation for Multiline Strings
         Document.AddPatternEdit(
             MultilineStringOpenRegex(),
@@ -140,9 +108,77 @@ public partial class LocalFileModule : Module
 
                 return updatedLines.ToArray();
             });
+    }
 
-        Document.AddRegexEdit(new(@"(?smi)^Import-Module\s(?:\$PSScriptRoot)?(?:[/\\\.]*(?:(?:src|common)[/\\])+)00-Environment\.psm1;?\s*$"), match => null);
-        Document.AddRegexEdit(new(@"^Invoke-RunMain\s+(?:\$MyInvocation)?\s+(?<block>{.+})"), UpdateOptions.MatchEntireDocument, match => match.Groups["block"].Value);
+    private void ResolveRequirements()
+    {
+        foreach (var match in Document.Document.Lines.SelectMany(line => RequiresStatementRegex().Matches(line).Cast<Match>()))
+        {
+            var type = match.Groups["type"].Value;
+            // C# Switch statements are fucking grose.
+            switch (type)
+            {
+                case "Version":
+                    var parsedVersion = Version.Parse(match.Groups["value"].Value)!;
+                    Requirements.AddRequirement(new PSVersionRequirement(parsedVersion));
+                    break;
+                case "Modules":
+                    var modules = match.Groups["value"].Value.Split(',').Select(v => v.Trim()).ToArray();
+                    foreach (var module in modules)
+                    {
+                        Requirements.AddRequirement(new ModuleSpec(
+                            Name: module
+                        ));
+                    }
+
+                    break;
+                default:
+                    Logger.Error($"Not sure what to do with unexpected type: {type}, skipping.");
+                    break;
+            };
+        }
+    }
+
+    private void ResolveUsingStatements()
+    {
+        AstHelper.FindDeclaredModules(Ast).ToList().ForEach(module =>
+        {
+            Requirements.AddRequirement(new ModuleSpec(
+                Name: module.Key,
+                Guid: module.Value.TryGetValue("Guid", out object? value) ? Guid.Parse(value.Cast<string>()) : null,
+                MinimumVersion: module.Value.TryGetValue("MinimumVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
+                MaximumVersion: module.Value.TryGetValue("MaximumVersion", out object? maximumVersion) ? Version.Parse(maximumVersion.Cast<string>()) : null,
+                RequiredVersion: module.Value.TryGetValue("RequiredVersion", out object? requiredVersion) ? Version.Parse(requiredVersion.Cast<string>()) : null
+            ));
+
+            if (module.Value.TryGetValue("AST", out object? obj) && obj is UsingStatementAst ast)
+            {
+                // TODO - Remove the ; if it is at the end of the line
+                Document.AddExactEdit(
+                    ast.Extent.StartLineNumber - 1,
+                    ast.Extent.StartColumnNumber - 1,
+                    ast.Extent.EndLineNumber - 1,
+                    ast.Extent.EndColumnNumber - 1,
+                    lines => []
+                );
+            }
+        });
+
+        AstHelper.FindDeclaredNamespaces(Ast).ToList().ForEach(statement =>
+        {
+            var ns = statement.Item1;
+            var ast = statement.Item2;
+
+            Requirements.AddRequirement(new UsingNamespace(ns));
+            // TODO - Remove the ; if it is at the end of the line
+            Document.AddExactEdit(
+                ast.Extent.StartLineNumber - 1,
+                ast.Extent.StartColumnNumber - 1,
+                ast.Extent.EndLineNumber - 1,
+                ast.Extent.EndColumnNumber - 1,
+                lines => []
+            );
+        });
     }
 
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement)
@@ -186,14 +222,13 @@ public partial class LocalFileModule : Module
 
     [GeneratedRegex(@"^\s*")]
     private static partial Regex BeginingWhitespaceMatchRegex();
-
     [GeneratedRegex(@"^(?!\n)*$")]
     public static partial Regex EntireEmptyLineRegex();
 
-    [GeneratedRegex(@"^\s*<#")]
+    [GeneratedRegex(@"^(?!\n)\s*<#")]
     public static partial Regex DocumentationStartRegex();
 
-    [GeneratedRegex(@"^\s*#>")]
+    [GeneratedRegex(@"^(?!\n)\s*#>")]
     public static partial Regex DocumentationEndRegex();
 
     [GeneratedRegex(@"^(?!\n)\s*#.*$")]
@@ -205,6 +240,6 @@ public partial class LocalFileModule : Module
     [GeneratedRegex(@"^.*@[""']")]
     public static partial Regex MultilineStringOpenRegex();
 
-    [GeneratedRegex(@"^\s+.*[""']@")]
+    [GeneratedRegex(@"^\s*[""']@")]
     public static partial Regex MultilineStringCloseRegex();
 }
