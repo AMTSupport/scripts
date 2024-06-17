@@ -71,8 +71,7 @@ public class PatternUpdater(
 
             var updatingLines = lines[startIndex..(endIndex + 1)].ToArray();
             var newLines = Updater(updatingLines);
-
-            var thisOffset = span.SetContent(ref lines, options, Updater(lines.Skip(startIndex).Take(endIndex - startIndex + 1).ToArray()));
+            var thisOffset = span.SetContent(ref lines, options, newLines);
 
             offset += thisOffset;
             skipRanges.Add(new Range(startIndex, endIndex));
@@ -94,20 +93,32 @@ public class PatternUpdater(
         HashSet<Range> skipRanges
     )
     {
-        if (offset < 0 || offset >= lines.Length || lines.Length == 0)
+        if (lines == null || lines.Length == 0)
         {
             return (-1, -1);
+        }
+
+        var offsetSkipRanges = new HashSet<IEnumerable<int>>();
+        foreach (var range in skipRanges)
+        {
+            var clampedStart = Math.Clamp(range.Start.Value + offset, 0, lines.Length - 1);
+            var clampedEnd = Math.Clamp(range.End.Value + offset, 0, lines.Length - 1);
+            if (clampedStart < clampedEnd)
+            {
+                offsetSkipRanges.Add(Enumerable.Range(clampedStart, clampedEnd + 1));
+            }
         }
 
         int startIndex = -1;
         int endIndex = -1;
         int openLevel = 0;
 
-        for (int i = offset; i < lines.Length; i++)
+        for (int i = 0; i < lines.Length; i++)
         {
             var clonedLine = lines[i].Clone().Cast<string>()!;
-            if (skipRanges.Any(range => (range.Start.Value + offset) <= i && (range.End.Value + offset) >= i))
+            if (offsetSkipRanges.Any(range => range.Contains(i)))
             {
+                Logger.Debug($"Skipping line {i} due to skip range.");
                 continue;
             }
 
@@ -129,15 +140,18 @@ public class PatternUpdater(
                 clonedLine = StartingPattern.Replace(clonedLine, "", openingMatch.Count);
             }
 
-            var closingMatch = EndingPattern.Matches(clonedLine);
-            if (closingMatch.Count > 0)
+            if (openLevel > 0)
             {
-                openLevel -= closingMatch.Count;
-
-                if (openLevel == 0)
+                var closingMatch = EndingPattern.Matches(clonedLine);
+                if (closingMatch.Count > 0)
                 {
-                    endIndex = i;
-                    break;
+                    openLevel -= closingMatch.Count;
+
+                    if (openLevel == 0)
+                    {
+                        endIndex = i;
+                        break;
+                    }
                 }
             }
         }
