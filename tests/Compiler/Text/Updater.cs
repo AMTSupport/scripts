@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using Compiler.Module;
 using Compiler.Text;
 
 namespace Compiler.Test.Text;
@@ -8,23 +9,16 @@ namespace Compiler.Test.Text;
 [TestFixture]
 public class PatternTests
 {
-    private readonly string[] LINES = [
-        "@\"",
-        "Doing cool stuff with this multiline string!",
-        "",
-        "This is the end of the string!",
-        "\"@"
-    ];
-
     [TestCaseSource(typeof(TestData), nameof(TestData.AddPatternEditCases))]
     public string AddPatternEdit(
+        string[] testLines,
         [StringSyntax("Regex")] string openingPattern,
         [StringSyntax("Regex")] string closingPattern,
         UpdateOptions options,
         Func<string[], string[]> updater
     )
     {
-        var editor = new TextEditor(new(LINES));
+        var editor = new TextEditor(new(testLines));
 
         editor.AddPatternEdit(new Regex(openingPattern), new Regex(closingPattern), options, updater);
         var compiled = CompiledDocument.FromBuilder(editor);
@@ -34,29 +28,87 @@ public class PatternTests
 
     public static class TestData
     {
+        private static readonly string[] MULTINE_STRING_LINES = [
+            "@\"",
+            "Doing cool stuff with this multiline string!",
+            "",
+            "This is the end of the string!",
+            "\"@;",
+            "@'",
+            "This is a multiline string with single quotes!",
+            "'@"
+        ];
+
+        private static readonly string[] DOCUMENTATION_LINES = [
+            "<#",
+            ".DESCRIPTION",
+            "    This module contains utility functions that have no dependencies on other modules and can be used by any module.",
+            "#>",
+            "",
+            "<#",
+            ".DESCRIPTION",
+            "    This function is used to measure the time it takes to execute a script block.",
+            "",
+            ".EXAMPLE",
+            "    Measure-ElapsedTime {",
+            "        Start-Sleep -Seconds 5;",
+            "    }",
+            "#>",
+        ];
+
         public static IEnumerable AddPatternEditCases
         {
             get
             {
-                yield return new TestCaseData("@\"", "\"@", UpdateOptions.None, (Func<string[], string[]>)(_ => [])).Returns(string.Empty).SetName("Replace all content with empty string");
-                yield return new TestCaseData("@\"", "\"@", UpdateOptions.None, (Func<string[], string[]>)(_ => ["Updated content!"])).Returns("Updated content!").SetName("Replace all content with 'Updated content'");
-                yield return new TestCaseData("@\"", "\"@", UpdateOptions.None, (Func<string[], string[]>)(content => content.Select((line, index) =>
-                {
-                    if (index > 0 && index < content.Length - 1)
+                yield return new TestCaseData(
+                    MULTINE_STRING_LINES,
+                    LocalFileModule.MultilineStringOpenRegex().ToString(),
+                    LocalFileModule.MultilineStringCloseRegex().ToString(),
+                    UpdateOptions.None,
+                    (Func<string[], string[]>)(_ => [])
+                ).Returns(string.Empty).SetName("Remove all multiline strings with empty");
+
+                yield return new TestCaseData(
+                    MULTINE_STRING_LINES,
+                    LocalFileModule.MultilineStringOpenRegex().ToString(),
+                    LocalFileModule.MultilineStringCloseRegex().ToString(),
+                    UpdateOptions.None,
+                    (Func<string[], string[]>)(_ => ["Updated content!"])
+                ).Returns(string.Join('\n', Enumerable.Repeat("Updated content!", 2))).SetName("Replace each multiline string with 'Updated content'");
+
+                yield return new TestCaseData(
+                    MULTINE_STRING_LINES,
+                    LocalFileModule.MultilineStringOpenRegex().ToString(),
+                    LocalFileModule.MultilineStringCloseRegex().ToString(),
+                    UpdateOptions.None,
+                    (Func<string[], string[]>)(content => content.Select((line, index) =>
                     {
-                        return line + "Updated content!";
-                    }
-                    else
-                    {
-                        return line;
-                    }
-                }).ToArray())).Returns(string.Join('\n', [
+                        if (index > 0 && index < content.Length - 1)
+                        {
+                            return line + "Updated content!";
+                        }
+                        else
+                        {
+                            return line;
+                        }
+                    }).ToArray())).Returns(string.Join('\n', [
                     "@\"",
                     "Doing cool stuff with this multiline string!Updated content!",
                     "Updated content!",
                     "This is the end of the string!Updated content!",
-                    "\"@"
+                    "\"@;",
+                    "@'",
+                    "This is a multiline string with single quotes!Updated content!",
+                    "'@"
                 ])).SetName("Prepend 'Updated content' to each line except first and last");
+
+                yield return new TestCaseData(
+                    DOCUMENTATION_LINES,
+                    LocalFileModule.DocumentationStartRegex().ToString(),
+                    LocalFileModule.DocumentationEndRegex().ToString(),
+                    UpdateOptions.None,
+                    (Func<string[], string[]>)(_ => [])
+                ).Returns(string.Empty).SetName("Ensure that documentation blocks are removed from content.");
             }
 
         }
