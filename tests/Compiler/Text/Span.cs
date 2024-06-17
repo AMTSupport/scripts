@@ -1,6 +1,5 @@
 using System.Collections;
 using Compiler.Text;
-using Text;
 
 namespace Compiler.Test.Text;
 
