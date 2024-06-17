@@ -340,7 +340,7 @@ public class ExactUpdater(
 
     override public void PushByUpdate(SpanUpdateInfo updateInfo)
     {
-        Logger.Debug($"Pushing by update for exact updater with {updateInfo}.");
+        Logger.Debug($"Pushing with {updateInfo}.");
 
         if (Span.StartingIndex >= updateInfo.TextSpan.StartingIndex)
         {
