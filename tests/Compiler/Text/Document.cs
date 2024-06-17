@@ -1,4 +1,4 @@
-using Text;
+using Compiler.Text;
 
 namespace Compiler.Test.Text;
 
