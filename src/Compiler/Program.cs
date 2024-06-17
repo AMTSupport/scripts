@@ -1,7 +1,6 @@
 using System.Text;
 using CommandLine;
 using Compiler;
-using Compiler.Requirements;
 using NLog;
 using QuikGraph.Graphviz;
 

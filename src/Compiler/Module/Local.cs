@@ -26,29 +26,36 @@ public partial class LocalFileModule : Module
     public LocalFileModule(
         string path,
         ModuleSpec moduleSpec,
-        TextDocument document
+        TextDocument document,
+        bool skipAstErrors = false,
+        bool skipCleanup = false
     ) : base(moduleSpec)
     {
         FilePath = path;
         Document = new TextEditor(document);
-        Ast = GetAstReportingErrors(string.Join('\n', Document.Document.Lines));
-
+        Ast = GetAstReportingErrors(string.Join('\n', Document.Document.Lines), skipAstErrors);
 
         ResolveRequirements();
         ResolveUsingStatements();
+
+        if (skipCleanup)
+        {
+            return;
+        }
+
         CompressLines();
         FixLines();
 
         // Check the AST for any issues that have been introduced by the cleanup.
-        GetAstReportingErrors(string.Join('\n', Document.Document.Lines));
+        GetAstReportingErrors(string.Join('\n', Document.Document.Lines), skipAstErrors);
     }
 
-    private static ScriptBlockAst GetAstReportingErrors(string astContent)
+    private static ScriptBlockAst GetAstReportingErrors(string astContent, bool ignoreErrors = false)
     {
         var ast = System.Management.Automation.Language.Parser.ParseInput(astContent, out _, out ParseError[] ParserErrors);
 
         ParserErrors = [.. ParserErrors.ToList().FindAll(error => !error.ErrorId.Equals("ModuleNotFoundDuringParse"))];
-        if (ParserErrors.Length > 0)
+        if (!ignoreErrors && ParserErrors.Length > 0)
         {
             Console.WriteLine("There was an issue trying to parse the script.");
             throw new ParseException(ParserErrors);
@@ -75,7 +82,7 @@ public partial class LocalFileModule : Module
         Document.AddRegexEdit(EndOfLineComment(), _ => { return null; });
     }
 
-    private void FixLines()
+    public void FixLines()
     {
         // Fix indentation for Multiline Strings
         Document.AddPatternEdit(
@@ -83,22 +90,12 @@ public partial class LocalFileModule : Module
             MultilineStringCloseRegex(),
             (lines) =>
             {
-                var startIndex = 0;
-
-                // If the multiline is not at the start of the content it does not need to be trimmed, so we skip it.
-                var trimmedLine = lines[0].Trim();
-                if (trimmedLine.StartsWith(@"@""") || trimmedLine.StartsWith("@'"))
-                {
-                    startIndex++;
-                }
-
                 // Get the multiline indent level from the last line of the string.
                 // This is used so we don't remove any whitespace that is part of the actual string formatting.
                 var indentLevel = BeginingWhitespaceMatchRegex().Match(lines.Last()).Value.Length;
-
                 var updatedLines = lines.Select((line, index) =>
                 {
-                    if (index < startIndex)
+                    if (index < 1 || string.IsNullOrWhiteSpace(line))
                     {
                         return line;
                     }
