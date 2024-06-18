@@ -204,11 +204,11 @@ public partial class LocalFileModule : Module
 
     public override string GetContent(int indent = 0)
     {
-        var compiled = CompiledDocument.FromBuilder(Document);
+        var compiled = CompiledDocument.FromBuilder(Document, indent + 4);
         var indentStr = new string(' ', indent);
         return $$"""
         <#ps1#> @'
-        {{compiled.GetContent(indent + 4)}}
+        {{compiled.GetContent()}}
         {{indentStr}}
         '@
         """;
