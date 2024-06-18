@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Compiler.Text.Updater;
 using NLog;
 
 namespace Compiler.Text;
@@ -28,12 +29,14 @@ public class CompiledDocument(string[] lines) : TextDocument(lines)
     {
         Logger.Trace($"Creating CompiledDocument from {builder}");
 
-        var indentString = new string(' ', indentBy);
-        var lines = new List<string>(builder.Document.Lines.Select(line => $"{indentString}{line}"));
+        builder.AddEdit(() => new IndentUpdater(indentBy));
+
+        var lines = builder.Document.Lines;
         var spanUpdates = new List<SpanUpdateInfo>();
-        foreach (var textUpdater in builder.TextUpdaters)
+        var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Priority).ToList();
+        foreach (var textUpdater in sortedUpdaters)
         {
-            Logger.Debug($"Applying updater {textUpdater}");
+            Logger.Debug($"Applying updater {textUpdater} with priority {textUpdater.Priority}");
             spanUpdates.ForEach(textUpdater.PushByUpdate);
             textUpdater.Apply(ref lines).ToList().ForEach(spanUpdates.Add);
         }
@@ -59,14 +62,30 @@ public class TextEditor(TextDocument document)
         Regex openingPattern,
         Regex closingPattern,
         Func<string[], string[]> updater
-    ) => AddPatternEdit(openingPattern, closingPattern, UpdateOptions.None, updater);
+    ) => AddPatternEdit(50, openingPattern, closingPattern, updater);
+
+    public void AddPatternEdit(
+        uint priority,
+        Regex openingPattern,
+        Regex closingPattern,
+        Func<string[], string[]> updater
+    ) => AddPatternEdit(priority, openingPattern, closingPattern, UpdateOptions.None, updater);
 
     public void AddPatternEdit(
         Regex openingPattern,
         Regex closingPattern,
         UpdateOptions options,
         Func<string[], string[]> updater
+    ) => AddPatternEdit(50, openingPattern, closingPattern, options, updater);
+
+    public void AddPatternEdit(
+        uint priority,
+        Regex openingPattern,
+        Regex closingPattern,
+        UpdateOptions options,
+        Func<string[], string[]> updater
     ) => AddEdit(() => new PatternUpdater(
+        priority,
         openingPattern,
         closingPattern,
         options,
@@ -76,13 +95,27 @@ public class TextEditor(TextDocument document)
     public void AddRegexEdit(
         Regex pattern,
         Func<Match, string?> updater
-    ) => AddRegexEdit(pattern, UpdateOptions.None, updater);
+    ) => AddRegexEdit(50, pattern, updater);
 
     public void AddRegexEdit(
         Regex pattern,
         UpdateOptions options,
         Func<Match, string?> updater
+    ) => AddRegexEdit(50, pattern, options, updater);
+
+    public void AddRegexEdit(
+        uint priority,
+        Regex pattern,
+        Func<Match, string?> updater
+    ) => AddRegexEdit(priority, pattern, UpdateOptions.None, updater);
+
+    public void AddRegexEdit(
+        uint priority,
+        Regex pattern,
+        UpdateOptions options,
+        Func<Match, string?> updater
     ) => AddEdit(() => new RegexUpdater(
+        priority,
         pattern,
         options,
         updater
@@ -94,7 +127,17 @@ public class TextEditor(TextDocument document)
         int endingIndex,
         int endingColumn,
         Func<string[], string[]> updater
+    ) => AddExactEdit(50, startingIndex, startingColumn, endingIndex, endingColumn, updater);
+
+    public void AddExactEdit(
+        uint priority,
+        int startingIndex,
+        int startingColumn,
+        int endingIndex,
+        int endingColumn,
+        Func<string[], string[]> updater
     ) => AddExactEdit(
+        priority,
         startingIndex,
         startingColumn,
         endingIndex,
@@ -104,6 +147,7 @@ public class TextEditor(TextDocument document)
     );
 
     public void AddExactEdit(
+        uint priority,
         int startingIndex,
         int startingColumn,
         int endingIndex,
@@ -111,6 +155,7 @@ public class TextEditor(TextDocument document)
         UpdateOptions options,
         Func<string[], string[]> updater
     ) => AddEdit(() => new ExactUpdater(
+        priority,
         startingIndex,
         startingColumn,
         endingIndex,
