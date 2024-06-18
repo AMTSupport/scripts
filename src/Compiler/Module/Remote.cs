@@ -28,11 +28,6 @@ public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSp
         return ModuleSpec.CompareTo(requirement);
     }
 
-    public override string GetContent(int indent = 0)
-    {
-        return $"'{Convert.ToBase64String(BytesZip)}'";
-    }
-
     // TODO - Run all of these in a single session to reduce overhead.
     private static byte[] GetBinaryZip(ModuleSpec moduleSpec)
     {
