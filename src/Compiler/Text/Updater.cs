@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 using CommandLine;
 using NLog;
 
-// TODO :: Ast based updater
 namespace Compiler.Text;
 
 public record SpanUpdateInfo(
@@ -16,8 +15,10 @@ public record SpanUpdateInfo(
     public override string ToString() => $"{nameof(PatternUpdater)}({TextSpan} +- {Offset})";
 }
 
-public abstract class TextSpanUpdater
+public abstract class TextSpanUpdater(uint priority = 50)
 {
+    public readonly uint Priority = priority;
+
     /// <summary>
     /// Apply the update to the lines.
     /// </summary>
@@ -33,15 +34,20 @@ public abstract class TextSpanUpdater
     /// Use informaiton from another update to possibly update this ones variables.
     /// This can be used to update the starting index of a span after a previous span has been removed.
     /// </summary>
-    public abstract void PushByUpdate(SpanUpdateInfo updateInfo);
+    [ExcludeFromCodeCoverage(Justification = "This is a virtual method that may be overridden.")]
+    public virtual void PushByUpdate(SpanUpdateInfo updateInfo)
+    {
+        // Do Nothing
+    }
 }
 
 public class PatternUpdater(
+    uint priority,
     Regex startingPattern,
     Regex endingPattern,
     UpdateOptions options,
     Func<string[], string[]> updater
-) : TextSpanUpdater
+) : TextSpanUpdater(priority)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -172,10 +178,11 @@ public class PatternUpdater(
 }
 
 public class RegexUpdater(
+    uint priority,
     Regex pattern,
     UpdateOptions options,
     Func<Match, string?> updater
-) : TextSpanUpdater
+) : TextSpanUpdater(priority)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -195,7 +202,6 @@ public class RegexUpdater(
         }
     }
 
-    // TODO - Refactor
     /// <summary>
     /// Applies the specified pattern to the given text document and returns an array of <see cref="SpanUpdateInfo"/> objects.
     /// </summary>
@@ -276,13 +282,14 @@ public class RegexUpdater(
 }
 
 public class ExactUpdater(
+    uint priority,
     int startingIndex,
     int startingColumn,
     int endingIndex,
     int endingColumn,
     UpdateOptions options,
     Func<string[], string[]> updater
-) : TextSpanUpdater
+) : TextSpanUpdater(priority)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
