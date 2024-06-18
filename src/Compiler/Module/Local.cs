@@ -15,7 +15,6 @@ public partial class LocalFileModule : Module
     public readonly TextEditor Document;
     public readonly string FilePath;
 
-
     public LocalFileModule(string path) : this(
         path,
         new ModuleSpec(Path.GetFileNameWithoutExtension(path)),
@@ -161,6 +160,10 @@ public partial class LocalFileModule : Module
                     lines => []
                 );
             }
+            else
+            {
+                Logger.Warn($"No AST found for module {module.Key}");
+            }
         });
 
         AstHelper.FindDeclaredNamespaces(Ast).ToList().ForEach(statement =>
@@ -202,18 +205,6 @@ public partial class LocalFileModule : Module
         }
 
         return new LocalFileModule(fullPath);
-    }
-
-    public override string GetContent(int indent = 0)
-    {
-        var compiled = CompiledDocument.FromBuilder(Document, indent + 4);
-        var indentStr = new string(' ', indent);
-        return $$"""
-        <#ps1#> @'
-        {{compiled.GetContent()}}
-        {{indentStr}}
-        '@
-        """;
     }
 
     [GeneratedRegex(@"^\s*#Requires -(?<type>[A-Z]+) (?<value>.+)$")]
