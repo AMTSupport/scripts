@@ -39,10 +39,9 @@ public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSp
         var zipPath = Path.GetTempPath();
         var versionString = ConvertVersionParameters(moduleSpec.RequiredVersion?.ToString(), moduleSpec.MinimumVersion?.ToString(), moduleSpec.MaximumVersion?.ToString());
         var PowerShellCode = /*ps1*/ $$"""
-        #Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force;
-        Install-Module 'Microsoft.PowerShell.PSResourceGet' -Scope CurrentUser;
-        Import-Module 'Microsoft.PowerShell.PSResourceGet';
-        Set-PSResourceRepository -Name PSGallery -Trusted;
+        Install-Module 'Microsoft.PowerShell.PSResourceGet' -Scope CurrentUser -Confirm:$False -Force;
+        Import-Module 'Microsoft.PowerShell.PSResourceGet' -Force;
+        Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
 
         try {
             $Module = Find-PSResource -Name '{{moduleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
@@ -62,7 +61,7 @@ public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSp
         Logger.Debug("Running the following PowerShell code to download the module from the PowerShell Gallery:");
         Logger.Debug(PowerShellCode);
 
-        var sessionState = InitialSessionState.CreateDefault();
+        var sessionState = InitialSessionState.CreateDefault2();
         sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
         sessionState.ImportPSModule(new[] { "Microsoft.PowerShell.PSResourceGet" });
         sessionState.LanguageMode = PSLanguageMode.FullLanguage;
@@ -72,15 +71,12 @@ public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSp
         var ps = PowerShell.Create(runspace);
         ps.AddScript(PowerShellCode);
         var result = ps.Invoke();
-
         runspace.Close();
 
         if (ps.HadErrors)
         {
             throw new Exception($"Failed to download module {moduleSpec.Name} from the PowerShell Gallery. Error: {ps.Streams.Error[0].Exception.Message}");
         }
-
-        result.ToList().ForEach(obj => Logger.Debug(obj.ToString()));
 
         zipPath = result.First().ToString();
         Logger.Debug($"Downloaded module {moduleSpec.Name} from the PowerShell Gallery to {zipPath}.");

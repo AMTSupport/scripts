@@ -67,25 +67,27 @@ public partial class LocalFileModule : Module
     private void CompressLines()
     {
         // Remove empty lines
-        Document.AddRegexEdit(EntireEmptyLineRegex(), _ => { return null; });
+        Document.AddRegexEdit(0, EntireEmptyLineRegex(), _ => { return null; });
 
         // Document Blocks
         Document.AddPatternEdit(
+            5,
             DocumentationStartRegex(),
             DocumentationEndRegex(),
             (lines) => { return []; });
 
         // Entire Line Comments
-        Document.AddRegexEdit(EntireLineCommentRegex(), _ => { return null; });
+        Document.AddRegexEdit(10, EntireLineCommentRegex(), _ => { return null; });
 
         // Comments at the end of a line, after some code.
-        Document.AddRegexEdit(EndOfLineComment(), _ => { return null; });
+        Document.AddRegexEdit(priority: 15, EndOfLineComment(), _ => { return null; });
     }
 
     public void FixLines()
     {
         // Fix indentation for Multiline Strings
         Document.AddPatternEdit(
+            80,
             MultilineStringOpenRegex(),
             MultilineStringCloseRegex(),
             (lines) =>
@@ -138,7 +140,7 @@ public partial class LocalFileModule : Module
 
     private void ResolveUsingStatements()
     {
-        AstHelper.FindDeclaredModules(Ast).ToList().ForEach(module =>
+        AstHelper.FindDeclaredModules(ast: Ast).ToList().ForEach(module =>
         {
             Requirements.AddRequirement(new ModuleSpec(
                 Name: module.Key,
