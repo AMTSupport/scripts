@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using NLog;
 
@@ -11,22 +12,24 @@ public partial class TextDocument(string[] lines)
 public class CompiledDocument(string[] lines) : TextDocument(lines)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
-    public string GetContent(int indent = 0)
+    private string Text
     {
-        var indentString = new string(' ', indent);
-        var lines = Lines.Select(line => $"{indentString}{line}");
-
-        return string.Join('\n', lines);
+        get
+        {
+            return string.Join('\n', Lines);
+        }
     }
+
+    public string GetContent() => Text;
 
     public static implicit operator string(CompiledDocument document) => document.GetContent();
 
-    public static CompiledDocument FromBuilder(TextEditor builder)
+    public static CompiledDocument FromBuilder(TextEditor builder, int indentBy = 0)
     {
         Logger.Trace($"Creating CompiledDocument from {builder}");
 
-        var lines = new List<string>(builder.Document.Lines);
+        var indentString = new string(' ', indentBy);
+        var lines = new List<string>(builder.Document.Lines.Select(line => $"{indentString}{line}"));
         var spanUpdates = new List<SpanUpdateInfo>();
         foreach (var textUpdater in builder.TextUpdaters)
         {
@@ -115,4 +118,15 @@ public class TextEditor(TextDocument document)
         options,
         updater
     ));
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder()
+            .AppendLine("TextEditor:")
+            .AppendLine("  Document:")
+            .AppendLine('\t' + string.Join("\n\t", Document.Lines))
+            .AppendLine("  TextUpdaters:")
+            .AppendLine('\t' + string.Join("\n\t", TextUpdaters.Select(updater => updater.ToString())));
+        return sb.ToString();
+    }
 }

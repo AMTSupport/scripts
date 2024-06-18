@@ -78,7 +78,7 @@ public partial class CompiledScript : LocalFileModule
         script.AppendLine(GetModuleTable());
 
         var compiled = CompiledDocument.FromBuilder(Document);
-        script.AppendLine(compiled.GetContent(0));
+        script.AppendLine(compiled.GetContent());
 
         return script.ToString();
     }
