@@ -10,19 +10,6 @@ public abstract partial class Module(ModuleSpec moduleSpec)
     public RequirementGroup Requirements { get; } = new();
 
     public abstract ModuleMatch GetModuleMatchFor(ModuleSpec requirement);
-
-    public abstract string GetContent(int indent = 0);
-
-    public string GetInsertableContent(int indent = 0)
-    {
-        var indentStr = new string(' ', indent);
-        return $$"""
-        {{indentStr}}'{{Name}}' = @{
-        {{indentStr}}    Type = '{{GetType().Name}}';
-        {{indentStr}}    Content = {{GetContent(indent + 4)}};
-        {{indentStr}}};
-        """;
-    }
 }
 
 public enum ModuleMatch

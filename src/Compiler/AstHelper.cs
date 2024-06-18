@@ -19,7 +19,9 @@ namespace Compiler
                 switch (usingStatement)
                 {
                     case UsingStatementAst usingStatementAst when usingStatementAst.Name is not null:
-                        modules.Add(usingStatementAst.Name.Value, []);
+                        modules.Add(usingStatementAst.Name.Value, new Dictionary<string, object> {
+                            { "AST", usingStatementAst }
+                        });
                         break;
 
                     case UsingStatementAst usingStatementAst when usingStatementAst.ModuleSpecification is not null:

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Compiler.Text.Updater;
@@ -18,6 +19,14 @@ public class CompiledDocument(string[] lines) : TextDocument(lines)
         get
         {
             return string.Join('\n', Lines);
+        }
+    }
+    public string ContentHash
+    {
+        get
+        {
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(Text));
+            return Convert.ToHexString(hash);
         }
     }
 
