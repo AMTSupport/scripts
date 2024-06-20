@@ -5,6 +5,15 @@ using NLog;
 
 namespace Compiler.Requirements;
 
+public record PathedModuleSpec(
+    string RelativePath,
+    string Name,
+    Guid? Guid = null,
+    Version? MinimumVersion = null,
+    Version? MaximumVersion = null,
+    Version? RequiredVersion = null
+) : ModuleSpec(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion);
+
 public record ModuleSpec(
     string Name,
     Guid? Guid = null,
@@ -55,15 +64,21 @@ public record ModuleSpec(
 
     public override string GetInsertableLine()
     {
-        var sb = new StringBuilder("#Requires -Modules @{");
-
-        sb.Append($"ModuleName = '{Name}';");
+        var sb = new StringBuilder("Using module @{");
+        sb.Append($"ModuleName = '{Path.GetFileNameWithoutExtension(Name)}';");
         if (Guid != null) sb.Append($"GUID = {Guid};");
-        sb.Append($"ModuleVersion = '{(MinimumVersion != null ? MinimumVersion.ToString() : "0.0.0.0")}';");
-        if (MaximumVersion != null) sb.Append($"MaximumVersion = '{MaximumVersion}';");
-        if (RequiredVersion != null) sb.Append($"RequiredVersion = '{RequiredVersion}';");
-        sb.Append('}');
 
+        switch (RequiredVersion, MinimumVersion, MaximumVersion)
+        {
+            case (null, null, null): break;
+            case (var req, null, null): sb.Append($"RequiredVersion = '{req}';"); break;
+            case (null, var min, var max):
+                if (min != null) sb.Append($"ModuleVersion = '{min}';");
+                if (max != null) sb.Append($"MaximumVersion = '{max}';");
+                break;
+        }
+
+        sb.Append('}');
         return sb.ToString();
     }
 

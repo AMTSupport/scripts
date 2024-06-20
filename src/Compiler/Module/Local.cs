@@ -17,7 +17,7 @@ public partial class LocalFileModule : Module
 
     public LocalFileModule(string path) : this(
         path,
-        new ModuleSpec(Path.GetFileNameWithoutExtension(path)),
+        new PathedModuleSpec(path, Path.GetFileNameWithoutExtension(path)),
         new TextDocument(File.ReadAllLines(path))
     )
     { }
@@ -194,9 +194,14 @@ public partial class LocalFileModule : Module
         return ModuleMatch.None;
     }
 
-    public static LocalFileModule? TryFromFile(string relativeFrom, string path)
+    public static LocalFileModule? TryFromFile(string relativeFrom, ModuleSpec spec)
     {
-        var fullPath = Path.GetFullPath(Path.Combine(relativeFrom, path));
+        var relativePath = spec switch {
+            PathedModuleSpec pathedSpec => pathedSpec.RelativePath,
+            _ => spec.Name
+        };
+
+        var fullPath = Path.GetFullPath(Path.Combine(relativeFrom, relativePath));
         Logger.Debug($"Trying to load local file: {fullPath}");
         if (!File.Exists(fullPath))
         {

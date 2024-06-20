@@ -125,7 +125,6 @@ public class PatternUpdater(
             var clonedLine = lines[i].Clone().Cast<string>()!;
             if (offsetSkipRanges.Any(range => range.Contains(i)))
             {
-                Logger.Debug($"Skipping line {i} due to skip range.");
                 continue;
             }
 

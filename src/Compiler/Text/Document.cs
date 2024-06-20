@@ -56,14 +56,11 @@ public class CompiledDocument(string[] lines) : TextDocument(lines)
 
 public class TextEditor(TextDocument document)
 {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
     public TextDocument Document { get; } = document;
     public List<TextSpanUpdater> TextUpdaters { get; } = [];
 
     public void AddEdit(Func<TextSpanUpdater> updater)
     {
-        Logger.Debug($"Adding {updater.GetType().Name} with spec {updater}");
         TextUpdaters.Add(updater());
     }
 
