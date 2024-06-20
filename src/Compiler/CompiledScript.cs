@@ -75,7 +75,7 @@ public partial class CompiledScript : LocalFileModule
             script.AppendLine(ScriptParamBlockAst.Extent.Text);
         }
 
-        script.AppendLine("$Global:EmbeddingModules = @{");
+        script.AppendLine("$Global:EmbeddedModules = @{");
         ResolvedModules.ToList().ForEach(module =>
         {
             script.AppendLine(module.Value.ToString());
@@ -84,7 +84,7 @@ public partial class CompiledScript : LocalFileModule
 
         script.AppendLine("""
         begin {
-            $Global:EmbeddingModules | ForEach-Object {
+            $Global:EmbeddedModules | ForEach-Object {
                 if ($_.Type -eq 'UTF8String') {
                     $Local:Path = Join-Path $env:TEMP $("($_.Name)-($_.ContentHash).ps1");
                     if (-not (Test-Path $Local:Path)) {
@@ -97,7 +97,7 @@ public partial class CompiledScript : LocalFileModule
 
         script.AppendLine($$"""
         end {
-            {{CompiledDocument.FromBuilder(Document, 4).GetContent()}}
+        {{CompiledDocument.FromBuilder(Document, 4).GetContent()}}
         }
         """);
 
