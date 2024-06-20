@@ -1,3 +1,5 @@
+Using module ./00-PSStyle.psm1
+
 function Test-IsNableRunner {
     $WindowName = $Host.UI.RawUI.WindowTitle;
     if (-not $WindowName) { return $False; };
@@ -57,11 +59,13 @@ function Invoke-Write {
 
         [String]$Local:NewLineTab = if ($PSPrefix -and (Test-SupportsUnicode)) {
             "$(' ' * $($PSPrefix.Length))";
-        } else { ''; }
+        }
+        else { ''; }
 
         [String]$Local:FormattedMessage = if ($PSMessage.Contains("`n")) {
             $PSMessage -replace "`n", "`n$Local:NewLineTab+ ";
-        } else { $PSMessage; }
+        }
+        else { $PSMessage; }
 
         if (Test-SupportsColour) {
             $Local:FormattedMessage = "$(Get-ConsoleColour $PSColour)$Local:FormattedMessage$($PSStyle.Reset)";
@@ -69,11 +73,13 @@ function Invoke-Write {
 
         [String]$Local:FormattedMessage = if ($PSPrefix -and (Test-SupportsUnicode)) {
             "$PSPrefix $Local:FormattedMessage";
-        } else { $Local:FormattedMessage; }
+        }
+        else { $Local:FormattedMessage; }
 
         if ($PassThru) {
             return $Local:FormattedMessage;
-        } else {
+        }
+        else {
             $InformationPreference = 'Continue';
             Write-Information $Local:FormattedMessage;
         }
@@ -110,7 +116,8 @@ function Format-Error(
         if ($Local:StatementIndex -lt 0) {
             [Int]$Local:StatementIndex = 0;
         }
-    } else {
+    }
+    else {
         [Int]$Local:StatementIndex = 0;
         [String]$Local:Statement = $TrimmedLine;
     }
@@ -120,7 +127,8 @@ function Format-Error(
     # Position the message to the same indent as the statement.
     [String]$Local:Message = if ($null -ne $Message) {
         (' ' * $Local:StatementIndex) + $Message;
-    } else { $null };
+    }
+    else { $null };
 
     # Fucking PS 5 doesn't allow variable overrides so i have to add the colour to all of them. :<(
     [HashTable]$Private:BaseArgs = @{
@@ -374,7 +382,8 @@ function Invoke-Timeout {
 
                 # Can't use -duration because it isn't available in PS 5.1
                 Start-Sleep -Milliseconds $Local:IntervalMinusElasped.TotalMilliseconds;
-            } else {
+            }
+            else {
                 $Local:TimeLeft -= $Local:ElaspedTime;
             }
         } while ($Local:TimeLeft.TotalMilliseconds -gt 0)
@@ -386,7 +395,8 @@ function Invoke-Timeout {
             if ($TimeoutScript) {
                 & $TimeoutScript;
             }
-        } elseif ($AllowCancel) {
+        }
+        elseif ($AllowCancel) {
             Invoke-Verbose -Message 'Timeout cancelled, invoking cancel script if one is present.' -UnicodePrefix $Local:Prefix;
             if ($CancelScript) {
                 & $CancelScript;
@@ -438,7 +448,8 @@ function Invoke-Progress {
             $Local:FuncName = (Get-PSCallStack)[1].InvocationInfo.MyCommand.Name;
             $Activity = if (-not $Local:FuncName) {
                 'Main';
-            } else { $Local:FuncName; }
+            }
+            else { $Local:FuncName; }
         }
 
         Write-Progress -Id:$Id -Activity:$Activity -CurrentOperation 'Getting items...' -PercentComplete 0;
@@ -448,7 +459,8 @@ function Invoke-Progress {
         if ($null -eq $Local:InputItems -or $Local:InputItems.Count -eq 0) {
             Write-Progress -Id:$Id -Activity:$Activity -Status 'No items found.' -PercentComplete 100 -Completed;
             return;
-        } else {
+        }
+        else {
             Write-Progress -Id:$Id -Activity:$Activity -Status "Processing $($Local:InputItems.Count) items...";
         }
 
@@ -494,7 +506,8 @@ function Invoke-Progress {
             try {
                 $ErrorActionPreference = 'Stop';
                 $Process.InvokeReturnAsIs($Item);
-            } catch {
+            }
+            catch {
                 Invoke-Warn "Failed to process item [$ItemName]";
                 Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                 try {
@@ -502,8 +515,10 @@ function Invoke-Progress {
 
                     if ($null -eq $FailedProcessItem) {
                         $Local:FailedItems.Add($Item);
-                    } else { $FailedProcessItem.InvokeReturnAsIs($Item); }
-                } catch {
+                    }
+                    else { $FailedProcessItem.InvokeReturnAsIs($Item); }
+                }
+                catch {
                     Invoke-Warn "Failed to process item [$ItemName] in failed process item block";
                 }
             }
