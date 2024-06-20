@@ -1,7 +1,9 @@
 using System.Text;
 using CommandLine;
 using Compiler;
+using Compiler.Requirements;
 using NLog;
+using QuikGraph;
 using QuikGraph.Graphviz;
 
 class Program
@@ -47,8 +49,14 @@ class Program
     {
         var compiledScript = new CompiledScript(Path.GetFullPath(inputFile));
 
-        var graphViz = compiledScript.ModuleGraph.ToGraphviz();
-        Console.WriteLine(graphViz);
+        var graphviz = compiledScript.ModuleGraph.ToGraphviz(alg =>
+        {
+            alg.FormatVertex += (sender, args) =>
+            {
+                args.VertexFormat.Label = args.Vertex.Name;
+            };
+        });
+        Console.WriteLine(graphviz);
 
         return compiledScript.Compile();
     }
