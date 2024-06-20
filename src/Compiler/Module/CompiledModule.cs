@@ -26,24 +26,27 @@ public record CompiledModule(
         }
     }
 
-    public static CompiledModule From(Module module, int indentBy = 0) => module switch
+    public static CompiledModule From(Module module, int indentBy = 0)
     {
-        LocalFileModule localFileModule => new CompiledModule(
-            ContentType.UTF8String,
-            localFileModule.ModuleSpec,
-            localFileModule.Requirements,
-            CompiledDocument.FromBuilder(localFileModule.Document, indentBy + 4).GetContent(),
-            indentBy
-        ),
-        RemoteModule remoteModule => new CompiledModule(
-            ContentType.ZipHex,
-            remoteModule.ModuleSpec,
-            remoteModule.Requirements,
-            Convert.ToHexString(remoteModule.BytesZip),
-            indentBy
-        ),
-        _ => throw new NotImplementedException()
-    };
+        return module switch
+        {
+            LocalFileModule localFileModule => new CompiledModule(
+                ContentType.UTF8String,
+                localFileModule.ModuleSpec,
+                localFileModule.Requirements,
+                CompiledDocument.FromBuilder(localFileModule.Document, indentBy + 4).GetContent(),
+                indentBy
+            ),
+            RemoteModule remoteModule => new CompiledModule(
+                ContentType.ZipHex,
+                remoteModule.ModuleSpec,
+                remoteModule.Requirements,
+                Convert.ToHexString(remoteModule.BytesZip),
+                indentBy
+            ),
+            _ => throw new NotImplementedException()
+        };
+    }
 
     public override string ToString()
     {
@@ -63,6 +66,12 @@ public record CompiledModule(
                         sb.Append(contentIndentStr);
                         sb.AppendLine(requirement.GetInsertableLine());
                     });
+                    Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(requirement =>
+                    {
+                        sb.Append(contentIndentStr);
+                        sb.AppendLine(requirement.GetInsertableLine());
+                    });
+
                     sb.AppendLine(Content);
 
                     sb.AppendLine("'@");

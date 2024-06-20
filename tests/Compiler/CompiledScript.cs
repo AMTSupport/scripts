@@ -127,6 +127,7 @@ public class CompiledScriptTest
             {
                 yield return new TestCaseData(
                     new PatternUpdater(
+                        50,
                         LocalFileModule.MultilineStringOpenRegex(),
                         LocalFileModule.MultilineStringCloseRegex(),
                         UpdateOptions.None,
@@ -173,6 +174,7 @@ public class CompiledScriptTest
 
                 yield return new TestCaseData(
                     new RegexUpdater(
+                        50,
                         LocalFileModule.EntireLineCommentRegex(),
                         UpdateOptions.None,
                         _ => null
@@ -189,6 +191,7 @@ public class CompiledScriptTest
 
                 yield return new TestCaseData(
                     new RegexUpdater(
+                        50,
                         LocalFileModule.EntireEmptyLineRegex(),
                         UpdateOptions.None,
                         _ => null
@@ -211,6 +214,7 @@ public class CompiledScriptTest
 
                 yield return new TestCaseData(
                     new PatternUpdater(
+                        50,
                         LocalFileModule.DocumentationStartRegex(),
                         LocalFileModule.DocumentationEndRegex(),
                         UpdateOptions.None,
@@ -233,6 +237,7 @@ public class CompiledScriptTest
 
                 yield return new TestCaseData(
                     new RegexUpdater(
+                        50,
                         LocalFileModule.EndOfLineComment(),
                         UpdateOptions.None,
                         _ => null

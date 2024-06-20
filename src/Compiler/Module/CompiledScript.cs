@@ -7,6 +7,8 @@ using NLog;
 using QuikGraph;
 using Compiler.Text;
 using System.Text.RegularExpressions;
+using QuikGraph.Algorithms;
+using CommandLine;
 
 namespace Compiler;
 
@@ -20,14 +22,14 @@ public partial class CompiledScript : LocalFileModule
     private static partial Regex RunMainRegex();
 
     public readonly AdjacencyGraph<ModuleSpec, Edge<ModuleSpec>> ModuleGraph = new();
-    public readonly Dictionary<string, CompiledModule> ResolvedModules = [];
+    public readonly List<CompiledModule> ResolvedModules = [];
     public readonly ParamBlockAst? ScriptParamBlockAst;
 
     public CompiledScript(
         string path
     ) : this(
         path,
-        new ModuleSpec(Path.GetFileNameWithoutExtension(path)),
+        new PathedModuleSpec(path, Path.GetFileNameWithoutExtension(path)),
         new TextDocument(File.ReadAllLines(path))
     )
     { }
@@ -79,7 +81,7 @@ public partial class CompiledScript : LocalFileModule
         script.AppendLine("begin {");
 
         script.AppendLine("    $Global:EmbeddedModules = @{");
-        ResolvedModules.ToList().ForEach(module => script.AppendLine(module.Value.ToString()));
+        ResolvedModules.ToList().ForEach(module => script.AppendLine(module.ToString()));
         script.AppendLine("};");
 
         script.AppendLine("""
@@ -179,22 +181,45 @@ public partial class CompiledScript : LocalFileModule
                 {
                     var parentPath = Path.GetDirectoryName(local.FilePath);
                     Logger.Debug($"Trying to resolve {module.Name} from {parentPath}.");
-                    resolved = TryFromFile(parentPath!, module.Name);
+                    resolved = TryFromFile(parentPath!, module);
+
+                    if (resolved != null)
+                    {
+                        Logger.Debug($"Resolved {module.Name} from {parentPath}.");
+                        ModuleGraph.TryGetOutEdges(module, out var edges);
+                        if (edges != null && edges.Any())
+                        {
+                            Logger.Debug($"Updating graph to use {resolved.Name} instead of {module.Name}.");
+
+                            ModuleGraph.AddVertex(resolved.ModuleSpec);
+                            edges.ToList().ForEach(edge =>
+                            {
+                                ModuleGraph.RemoveEdge(edge);
+                                ModuleGraph.AddEdge(new Edge<ModuleSpec>(edge.Source, resolved.ModuleSpec));
+                            });
+                            ModuleGraph.RemoveVertex(module);
+                        }
+                    }
                 }
 
                 resolved ??= RemoteModule.FromModuleRequirement(module);
 
-                ModuleGraph.AddVertex(module);
-                ModuleGraph.AddEdge(new Edge<ModuleSpec>(current.ModuleSpec, module));
+                Logger.Debug($"Adding vertex {resolved.ModuleSpec.Name} to module graph.");
+                ModuleGraph.AddVertex(resolved.ModuleSpec);
+                ModuleGraph.AddEdge(new Edge<ModuleSpec>(current.ModuleSpec, resolved.ModuleSpec));
                 iterating.Enqueue(resolved);
             });
         }
 
-        localModules.FindAll(module => module != this).ForEach(module => ResolvedModules.Add(module.Name, CompiledModule.From(module, 8)));
-        downloadableModules.ForEach(module => ResolvedModules.Add(module.Name, CompiledModule.From(module, 8)));
+        var sortedModules = ModuleGraph.TopologicalSort() ?? throw new Exception("Cyclic dependency detected.");
+        sortedModules.ToList().ForEach(moduleSpec =>
+        {
+            var matchingModule = (localModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same).Cast<Module.Module>() ?? downloadableModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same)) ?? throw new Exception($"Could not find module {moduleSpec.Name} in local or downloadable modules.")!;
+            ResolvedModules.Add(CompiledModule.From(matchingModule, 8));
+        });
 
         PSVersionRequirement? highestPSVersion = null;
-        foreach (var module in ResolvedModules.Values)
+        foreach (var module in ResolvedModules)
         {
             foreach (var version in module.Requirements.GetRequirements<PSVersionRequirement>())
             {
@@ -211,7 +236,7 @@ public partial class CompiledScript : LocalFileModule
         }
 
         PSEditionRequirement? foundPSEdition = null;
-        ResolvedModules.Values.SelectMany(module => module.Requirements.GetRequirements<PSEditionRequirement>())
+        ResolvedModules.SelectMany(module => module.Requirements.GetRequirements<PSEditionRequirement>())
             .ToList()
             .ForEach(edition =>
             {
@@ -228,7 +253,7 @@ public partial class CompiledScript : LocalFileModule
             Requirements.AddRequirement(foundPSEdition);
         }
 
-        ResolvedModules.Values.SelectMany(module => module.Requirements.GetRequirements<RunAsAdminRequirement>())
+        ResolvedModules.SelectMany(module => module.Requirements.GetRequirements<RunAsAdminRequirement>())
             .ToList()
             .ForEach(requirements =>
             {
