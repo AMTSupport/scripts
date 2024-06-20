@@ -1,10 +1,12 @@
-Using module ./00-PSStyle.psm1;
+Using module ./00-Utils.psm1
+Using module ./01-Logging.psm1
+Using namespace System.Collections.Generic
 
 [System.Boolean]$Global:ScriptRestarted = $False;
 [System.Boolean]$Global:ScriptRestarting = $False;
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 [HashTable]$Global:Logging = @{
-    Loaded      = $false;
+    Loaded      = $True;
     Error       = $True;
     Warning     = $True;
     Information = $True;
@@ -275,7 +277,7 @@ function Import-CommonModules {
     }
 
     # Import PSStyle Before anything else.
-    Import-ModuleOrScriptBlock -Name:'00-PSStyle' -Value:$Local:ToImport['00-PSStyle'];
+    # Import-ModuleOrScriptBlock -Name:'00-PSStyle' -Value:$Local:ToImport['00-PSStyle'];
 
     # Import the modules.
     Invoke-EnvVerbose -Message "Importing $($Local:ToImport.Count) modules.";
@@ -288,9 +290,9 @@ function Import-CommonModules {
             continue;
         }
 
-        if ($Local:ModuleName -eq '00-PSStyle') {
-            continue;
-        }
+        # if ($Local:ModuleName -eq '00-PSStyle') {
+        #     continue;
+        # }
 
         Import-ModuleOrScriptBlock -Name $Local:ModuleName -Value $Local:ModuleValue;
         if ($Local:ModuleName -eq '01-Logging') {
@@ -313,10 +315,10 @@ function Remove-CommonModules {
         #     return;
         # }
 
-        if ($Local:Module -eq '01-Logging') {
-            Invoke-EnvDebug -Message 'Resetting logging state.';
-            $Global:Logging.Loaded = $false;
-        }
+        # if ($Local:Module -eq '01-Logging') {
+        #     Invoke-EnvDebug -Message 'Resetting logging state.';
+        #     $Global:Logging.Loaded = $false;
+        # }
 
         try {
             Invoke-EnvDebug -Message "Running Remove-Module -Name $Private:Module";
