@@ -75,15 +75,14 @@ public partial class CompiledScript : LocalFileModule
             script.AppendLine(ScriptParamBlockAst.Extent.Text);
         }
 
-        script.AppendLine("$Global:EmbeddedModules = @{");
-        ResolvedModules.ToList().ForEach(module =>
-        {
-            script.AppendLine(module.Value.ToString());
-        });
+        #region Begin Block
+        script.AppendLine("begin {");
+
+        script.AppendLine("    $Global:EmbeddedModules = @{");
+        ResolvedModules.ToList().ForEach(module => script.AppendLine(module.Value.ToString()));
         script.AppendLine("};");
 
         script.AppendLine("""
-        begin {
             $Global:EmbeddedModules | ForEach-Object {
                 if ($_.Type -eq 'UTF8String') {
                     $Local:Path = Join-Path $env:TEMP $("($_.Name)-($_.ContentHash).ps1");
@@ -92,15 +91,18 @@ public partial class CompiledScript : LocalFileModule
                     }
                 }
             }
-        }
         """);
 
+        script.AppendLine("}");
+        #endregion
+
+        #region End Block
         script.AppendLine($$"""
         end {
         {{CompiledDocument.FromBuilder(Document, 4).GetContent()}}
         }
         """);
-
+        #endregion
         return script.ToString();
     }
 
@@ -177,7 +179,7 @@ public partial class CompiledScript : LocalFileModule
                 {
                     var parentPath = Path.GetDirectoryName(local.FilePath);
                     Logger.Debug($"Trying to resolve {module.Name} from {parentPath}.");
-                    resolved = TryFromFile(parentPath, module.Name);
+                    resolved = TryFromFile(parentPath!, module.Name);
                 }
 
                 resolved ??= RemoteModule.FromModuleRequirement(module);
@@ -188,8 +190,8 @@ public partial class CompiledScript : LocalFileModule
             });
         }
 
-        localModules.FindAll(module => module != this).ForEach(module => ResolvedModules.Add(module.Name, CompiledModule.From(module, 4)));
-        downloadableModules.ForEach(module => ResolvedModules.Add(module.Name, CompiledModule.From(module, 4)));
+        localModules.FindAll(module => module != this).ForEach(module => ResolvedModules.Add(module.Name, CompiledModule.From(module, 8)));
+        downloadableModules.ForEach(module => ResolvedModules.Add(module.Name, CompiledModule.From(module, 8)));
 
         PSVersionRequirement? highestPSVersion = null;
         foreach (var module in ResolvedModules.Values)

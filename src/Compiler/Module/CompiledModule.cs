@@ -48,16 +48,32 @@ public record CompiledModule(
     public override string ToString()
     {
         var indentStr = new string(' ', IndentBy);
-        var contentObject = ContentType switch
+
+        string contentObject;
+        switch (ContentType)
         {
-            ContentType.UTF8String => $$"""
-            <#ps1#> @'
-            {{Content}}
-            '@
-            """,
-            ContentType.ZipHex => $"'${Content}'",
-            _ => throw new NotImplementedException(),
-        };
+            case ContentType.UTF8String:
+                {
+                    var sb = new StringBuilder();
+                    sb.AppendLine($"<#ps1#> @'");
+
+                    Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Requirements.ModuleSpec).ToList().ForEach(requirement =>
+                    {
+                        sb.Append(indentStr);
+                        sb.AppendLine(requirement.GetInsertableLine());
+                    });
+                    sb.AppendLine(Content);
+
+                    sb.AppendLine("'@");
+                    contentObject = sb.ToString();
+                    break;
+                }
+            case ContentType.ZipHex:
+                contentObject = $"'${Content}'";
+                break;
+            default:
+                throw new NotImplementedException();
+        }
 
         return $$"""
         {{indentStr}}'{{ModuleSpec.Name}}' = @{
