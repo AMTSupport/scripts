@@ -48,6 +48,7 @@ public record CompiledModule(
     public override string ToString()
     {
         var indentStr = new string(' ', IndentBy);
+        var contentIndentStr = new string(' ', IndentBy + 4);
 
         string contentObject;
         switch (ContentType)
@@ -59,7 +60,7 @@ public record CompiledModule(
 
                     Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Requirements.ModuleSpec).ToList().ForEach(requirement =>
                     {
-                        sb.Append(indentStr);
+                        sb.Append(contentIndentStr);
                         sb.AppendLine(requirement.GetInsertableLine());
                     });
                     sb.AppendLine(Content);
