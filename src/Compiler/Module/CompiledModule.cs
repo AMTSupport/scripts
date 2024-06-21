@@ -34,7 +34,7 @@ public record CompiledModule(
                 ContentType.UTF8String,
                 localFileModule.ModuleSpec,
                 localFileModule.Requirements,
-                CompiledDocument.FromBuilder(localFileModule.Document, indentBy + 4).GetContent(),
+                CompiledDocument.FromBuilder(localFileModule.Document, 0).GetContent(),
                 indentBy
             ),
             RemoteModule remoteModule => new CompiledModule(
@@ -63,23 +63,23 @@ public record CompiledModule(
 
                     Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Requirements.ModuleSpec).ToList().ForEach(requirement =>
                     {
-                        sb.Append(contentIndentStr);
+                        // sb.Append(contentIndentStr);
                         sb.AppendLine(requirement.GetInsertableLine());
                     });
                     Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(requirement =>
                     {
-                        sb.Append(contentIndentStr);
+                        // sb.Append(contentIndentStr);
                         sb.AppendLine(requirement.GetInsertableLine());
                     });
 
                     sb.AppendLine(Content);
 
-                    sb.AppendLine("'@");
+                    sb.AppendLine("'@;");
                     contentObject = sb.ToString();
                     break;
                 }
             case ContentType.ZipHex:
-                contentObject = $"'${Content}'";
+                contentObject = $"'{Content}'";
                 break;
             default:
                 throw new NotImplementedException();
@@ -87,9 +87,9 @@ public record CompiledModule(
 
         return $$"""
         {{indentStr}}'{{ModuleSpec.Name}}' = @{
-        {{indentStr}}    Type = '{{GetType().Name}}';
+        {{indentStr}}    Type = '{{ContentType}}';
         {{indentStr}}    Hash = '{{ContentHash}}';
-        {{indentStr}}    Content = {{contentObject}};
+        {{indentStr}}    Content = {{contentObject}}
         {{indentStr}}};
         """;
     }

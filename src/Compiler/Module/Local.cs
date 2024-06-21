@@ -89,6 +89,7 @@ public partial class LocalFileModule : Module
             80,
             MultilineStringOpenRegex(),
             MultilineStringCloseRegex(),
+            UpdateOptions.InsertInline,
             (lines) =>
             {
                 // Get the multiline indent level from the last line of the string.
@@ -196,7 +197,8 @@ public partial class LocalFileModule : Module
 
     public static LocalFileModule? TryFromFile(string relativeFrom, ModuleSpec spec)
     {
-        var relativePath = spec switch {
+        var relativePath = spec switch
+        {
             PathedModuleSpec pathedSpec => pathedSpec.RelativePath,
             _ => spec.Name
         };
