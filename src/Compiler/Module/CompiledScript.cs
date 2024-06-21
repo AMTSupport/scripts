@@ -84,12 +84,41 @@ public partial class CompiledScript : LocalFileModule
         ResolvedModules.ToList().ForEach(module => script.AppendLine(module.ToString()));
         script.AppendLine("};");
 
-        script.AppendLine("""
-            $Global:EmbeddedModules | ForEach-Object {
-                if ($_.Type -eq 'UTF8String') {
-                    $Local:Path = Join-Path $env:TEMP $("($_.Name)-($_.ContentHash).ps1");
-                    if (-not (Test-Path $Local:Path)) {
-                        Set-Content -Path $Local:Path -Value $_.Content;
+        script.AppendLine(/*ps1*/ """
+            $Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath 'AMT/PowerShell/Modules';
+            if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
+                Write-Host "Creating module root folder: $Local:PrivatePSModulePath";
+                New-Item -Path $Local:PrivatePSModulePath -ItemType Directory | Out-Null;
+            }
+            $Local:PSModulePath = $env:PSModulePath -split ';' | Select-Object -First 1;
+            $Global:EmbeddedModules.GetEnumerator() | ForEach-Object {
+                $Local:Content = $_.Value.Content;
+                $Local:NameHash = "$($_.Key)-$($_.Value.Hash)";
+                $Local:ModuleFolderPath = Join-Path -Path $Local:PSModulePath -ChildPath $Local:NameHash;
+                if (-not (Test-Path -Path $Local:ModuleFolderPath)) {
+                    Write-Host "Creating module folder: $Local:ModuleFolderPath";
+                    New-Item -Path $Local:ModuleFolderPath -ItemType Directory | Out-Null;
+                }
+                switch ($_.Value.Type) {
+                    'UTF8String' {
+                        $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.psm1";
+                        if (-not (Test-Path -Path $Local:InnerModulePath)) {
+                            Write-Host "Writing content to module file: $Local:InnerModulePath"
+                            Set-Content -Path $Local:InnerModulePath -Value $Content;
+                        }
+                    }
+                    'ZipHex' {
+                        if (Test-Path -Path $Local:ModuleFolderPath) {
+                            return;
+                        }
+                        [String]$Local:TempFile = [System.IO.Path]::GetTempFileName();
+                        [Byte[]]$Local:Bytes = [System.Convert]::FromHexString($Content);
+                        [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
+                        Write-Host "Expanding module file: $Local:TempFile"
+                        Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force;
+                    }
+                    Default {
+                        Write-Warning "Unknown module type: $($_)";
                     }
                 }
             }
@@ -211,6 +240,7 @@ public partial class CompiledScript : LocalFileModule
             });
         }
 
+        ModuleGraph.RemoveVertex(ModuleSpec); // Remove the script from the graph so it doesn't try to resolve itself.
         var sortedModules = ModuleGraph.TopologicalSort() ?? throw new Exception("Cyclic dependency detected.");
         sortedModules.ToList().ForEach(moduleSpec =>
         {

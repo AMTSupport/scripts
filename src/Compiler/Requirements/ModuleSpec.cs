@@ -64,6 +64,11 @@ public record ModuleSpec(
 
     public override string GetInsertableLine()
     {
+        if (Guid == null && RequiredVersion == null && MinimumVersion == null && MaximumVersion == null)
+        {
+            return $"Using module '{Path.GetFileNameWithoutExtension(Name)}'";
+        }
+
         var sb = new StringBuilder("Using module @{");
         sb.Append($"ModuleName = '{Path.GetFileNameWithoutExtension(Name)}';");
         if (Guid != null) sb.Append($"GUID = {Guid};");
