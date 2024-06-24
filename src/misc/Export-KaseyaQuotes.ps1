@@ -108,7 +108,7 @@ function Invoke-ApiRequest {
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
-    if ($null -ne $InputDataPath) {
+    if (-not [string]::IsNullOrWhiteSpace($InputDataPath)) {
         $Local:RawContent = Get-Content -Path $InputDataPath;
         if ($null -eq $Local:RawContent) {
             Invoke-Error "The input data file at '$InputDataPath' could not be found.";
