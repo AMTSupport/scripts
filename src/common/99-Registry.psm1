@@ -1,3 +1,6 @@
+Using module ./01-Logging.psm1
+Using module ./01-Scope.psm1
+
 function Invoke-EnsureRegistryPath {
     [CmdletBinding(SupportsShouldProcess)]
     param (
