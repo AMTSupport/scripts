@@ -1,9 +1,7 @@
 using System.Text;
 using CommandLine;
 using Compiler;
-using Compiler.Requirements;
 using NLog;
-using QuikGraph;
 using QuikGraph.Graphviz;
 
 class Program
@@ -56,7 +54,7 @@ class Program
                 args.VertexFormat.Label = args.Vertex.Name;
             };
         });
-        Console.WriteLine(graphviz);
+        Logger.Info(message: graphviz);
 
         return compiledScript.Compile();
     }

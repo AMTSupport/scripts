@@ -7,12 +7,21 @@ namespace Compiler.Module;
 
 public record CompiledModule(
     ContentType ContentType,
-    ModuleSpec ModuleSpec,
+    ModuleSpec PreCompileModuleSpec,
     RequirementGroup Requirements,
     string Content,
     int IndentBy
 )
 {
+    public ModuleSpec ModuleSpec => new(
+        $"{PreCompileModuleSpec.Name}-{ContentHash}",
+        PreCompileModuleSpec.Guid,
+        PreCompileModuleSpec.MinimumVersion,
+        PreCompileModuleSpec.MaximumVersion,
+        PreCompileModuleSpec.RequiredVersion,
+        PreCompileModuleSpec.InternalGuid
+    );
+
     public string ContentHash
     {
         get
@@ -26,7 +35,7 @@ public record CompiledModule(
         }
     }
 
-    public static CompiledModule From(Module module, int indentBy = 0)
+    public static CompiledModule From(Module module, int indentBy)
     {
         return module switch
         {
@@ -61,16 +70,9 @@ public record CompiledModule(
                     var sb = new StringBuilder();
                     sb.AppendLine($"<#ps1#> @'");
 
-                    Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Requirements.ModuleSpec).ToList().ForEach(requirement =>
-                    {
-                        // sb.Append(contentIndentStr);
-                        sb.AppendLine(requirement.GetInsertableLine());
-                    });
-                    Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(requirement =>
-                    {
-                        // sb.Append(contentIndentStr);
-                        sb.AppendLine(requirement.GetInsertableLine());
-                    });
+                    // Modules are using statements and must go below the #Requires statements
+                    Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Requirements.ModuleSpec).ToList().ForEach(requirement => sb.AppendLine(requirement.GetInsertableLine()));
+                    Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(requirement => sb.AppendLine(requirement.GetInsertableLine()));
 
                     sb.AppendLine(Content);
 
