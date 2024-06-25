@@ -1,3 +1,5 @@
+Using module ./01-Logging.psm1
+
 [HashTable]$Global:ExitHandlers = @{};
 [HashTable]$Global:ExitCodes = @{};
 [Boolean]$Global:ExitHandlersRun = $false;

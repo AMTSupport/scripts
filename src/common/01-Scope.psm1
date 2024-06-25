@@ -1,14 +1,17 @@
 #Requires -Version 5.1
 
+Using module ./01-Logging.psm1
+
 [System.Collections.Stack]$Script:InvocationStack = [System.Collections.Stack]::new();
-[String]$Script:Tab = "  ";
+[String]$Script:Tab = '  ';
 
 # Used so we can mock in tests.
 function Get-Stack {
     Get-Variable -Name 'InvocationStack' -ValueOnly;
 }
 
-function Get-StackTop {;
+function Get-StackTop {
+    ;
     return (Get-Stack).Peek()
 }
 
@@ -99,7 +102,8 @@ $Local:EndingIndent}
             default {
                 if ($null -ne $Formatter) {
                     $Formatter.InvokeWithContext($null, [PSVariable]::new('_', $Value));
-                } else {
+                }
+                else {
                     $Value;
                 }
 

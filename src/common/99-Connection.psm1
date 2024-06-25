@@ -1,5 +1,9 @@
+Using module ./01-Logging.psm1
+Using module ./01-Scope.psm1
+Using module ./02-Exit.psm1
+
 $Script:Services = @{
-    ExchangeOnline = @{
+    ExchangeOnline     = @{
         Matchable  = $True;
         Context    = { Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName; };
         Connect    = { Connect-ExchangeOnline -ShowBanner:$False };
@@ -11,19 +15,19 @@ $Script:Services = @{
         Connect    = { Connect-IPPSSession -ShowBanner:$False };
         Disconnect = { Disconnect-IPPSSession };
     };
-    AzureAD = @{
+    AzureAD            = @{
         Matchable  = $True;
         Context    = { Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account; };
         Connect    = { Connect-AzureAD };
         Disconnect = { Disconnect-AzureAD };
     };
-    Msol = @{
+    Msol               = @{
         Matchable  = $False;
         Context    = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
         Connect    = { Connect-MsolService };
         Disconnect = { Disconnect-MsolService };
     };
-    Graph = @{
+    Graph              = @{
         Matchable  = $True;
         Context    = { Get-MgContext | Select-Object -ExpandProperty Account; };
         Connect    = { param([String[]]$Scopes) Connect-MgGraph -NoWelcome -Scopes:$Scopes; };
@@ -38,12 +42,13 @@ $Script:Services = @{
             }
 
             if ($Scopes) {
-                Invoke-Debug "Checking if connected to Graph with required scopes...";
+                Invoke-Debug 'Checking if connected to Graph with required scopes...';
                 Invoke-Debug "Required Scopes: $($Scopes -join ', ')";
                 Invoke-Debug "Current Scopes: $($Local:Context.Scopes -join ', ')";
 
                 [Bool]$Local:HasAllScopes = ($Scopes | Where-Object { $Local:Context.Scopes -notcontains $_; }).Count -eq 0;
-            } else {
+            }
+            else {
                 $Local:HasAllScopes = $True;
             }
 
@@ -68,7 +73,8 @@ function Local:Disconnect-ServiceInternal {
         if ($PSCmdlet.ShouldProcess("Disconnect from $Local:Service")) {
             & $Script:Services[$Local:Service].Disconnect | Out-Null;
         };
-    } catch {
+    }
+    catch {
         Invoke-FailedExit -ExitCode $Script:ERROR_CANT_DISCONNECT -FormatArgs @($Local:Service);
     }
 }
@@ -92,7 +98,8 @@ function Local:Connect-ServiceInternal {
         if ($PSCmdlet.ShouldProcess("Connect to $Local:Service")) {
             $null = & $Script:Services[$Local:Service].Connect -Scopes:$Scopes;
         }
-    } catch {
+    }
+    catch {
         Invoke-FailedExit -ExitCode $Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
     }
 }
@@ -107,7 +114,8 @@ function Local:Get-ServiceContext {
 
     try {
         & $Script:Services[$Service].Context;
-    } catch {
+    }
+    catch {
         # If we can't get the context, we're not connected.
         $null;
     }
@@ -199,7 +207,8 @@ function Connect-Service(
         foreach ($Local:Service in $Services) {
             [String]$Local:Context = try {
                 Get-ServiceContext -Service $Local:Service;
-            } catch {
+            }
+            catch {
                 Invoke-Debug "Failed to get connection information for $Local:Service";
                 if ($Global:Logging.Debug) {
                     Format-Error -InvocationInfo $_.InvocationInfo;
@@ -219,12 +228,14 @@ function Connect-Service(
             if ($Local:LastService -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
                 Invoke-Info 'Not all services are connected with the same account, forcing disconnect...';
                 Disconnect-ServiceInternal -Service:$Local:Service;
-            } elseif ($Local:Context) {
+            }
+            elseif ($Local:Context) {
                 [ScriptBlock]$Local:ValidCheck = $Script:Services[$Local:Service].IsValid;
                 if ($Local:ValidCheck -and -not (& $Local:ValidCheck -Scopes:$Scopes)) {
                     Invoke-Info "Connected to $Local:Service, but missing required scopes. Disconnecting...";
                     Disconnect-ServiceInternal -Service $Local:Service;
-                } elseif (!$DontConfirm) {
+                }
+                elseif (!$DontConfirm) {
                     $Local:Continue = Get-UserConfirmation -Title "Already connected to $Local:Service as [$Local:Context]" -Question 'Do you want to continue?' -DefaultChoice $true;
                     if ($Local:Continue) {
                         Invoke-Verbose 'Continuing with current connection...';
@@ -234,20 +245,23 @@ function Connect-Service(
                     }
 
                     Disconnect-ServiceInternal -Service $Local:Service;
-                } else {
+                }
+                else {
                     Invoke-Verbose "Already connected to $Local:Service. Skipping...";
                     $Local:Account = $Local:Context;
                     $Local:LastService = $Local:Service;
                     continue
                 }
-            } elseif ($CheckOnly) {
+            }
+            elseif ($CheckOnly) {
                 Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
             }
 
             while ($True) {
                 try {
                     Connect-ServiceInternal -Service $Local:Service -Scopes:$Scopes;
-                } catch {
+                }
+                catch {
                     Invoke-FailedExit -ExitCode $Script:ERROR_COULDNT_CONNECT -FormatArgs @($Local:Service);
                 }
 
