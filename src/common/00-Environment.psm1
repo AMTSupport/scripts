@@ -1,5 +1,8 @@
 Using module ./00-Utils.psm1
 Using module ./01-Logging.psm1
+Using module ./01-Scope.psm1
+Using module ./02-Exit.psm1
+
 Using namespace System.Collections.Generic
 
 [System.Boolean]$Global:ScriptRestarted = $False;
@@ -13,77 +16,6 @@ Using namespace System.Collections.Generic
     Verbose     = $VerbosePreference -ne 'SilentlyContinue';
     Debug       = $DebugPreference -ne 'SilentlyContinue';
 };
-
-#region - Logging Functions
-
-function Invoke-WithLogging {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [ScriptBlock]$HasLoggingFunc,
-
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [ScriptBlock]$MissingLoggingFunc
-    )
-
-    process {
-        if ($Global:Logging.Loaded) {
-            $HasLoggingFunc.InvokeReturnAsIs();
-        } else {
-            $MissingLoggingFunc.InvokeReturnAsIs();
-        }
-    }
-}
-
-function Invoke-EnvInfo {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [String]$Message,
-
-        [Parameter()]
-        [ValidateNotNullOrEmpty()]
-        [String]$UnicodePrefix
-    )
-
-    Invoke-WithLogging `
-        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Info $Message $UnicodePrefix; } else { Invoke-Info -Message:$Message; } } `
-        -MissingLoggingFunc { Write-Host -ForegroundColor Cyan -Object $Message; };
-}
-
-function Invoke-EnvVerbose {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [String]$Message,
-
-        [Parameter()]
-        [ValidateNotNullOrEmpty()]
-        [String]$UnicodePrefix
-    )
-
-    Invoke-WithLogging `
-        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Verbose $Message $UnicodePrefix; } else { Invoke-Verbose -Message:$Message; } } `
-        -MissingLoggingFunc { Write-Verbose -Message $Message; };
-}
-
-function Invoke-EnvDebug {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [String]$Message,
-
-        [Parameter()]
-        [ValidateNotNullOrEmpty()]
-        [String]$UnicodePrefix
-    )
-
-    Invoke-WithLogging `
-        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Debug $Message $UnicodePrefix } else { Invoke-Debug -Message:$Message; }; } `
-        -MissingLoggingFunc { Write-Debug -Message $Message; };
-}
-#endregion
 
 #region - Utility Functions
 function Get-OrFalse {
@@ -215,10 +147,10 @@ function Import-CommonModules {
         }
 
         process {
-            Invoke-EnvDebug -Message "Importing module $Name.";
+            Invoke-Debug -Message "Importing module $Name.";
 
             if ($Value -is [Hashtable]) {
-                Invoke-EnvDebug -Message "Module $Name is a hash table";
+                Invoke-Debug -Message "Module $Name is a hash table";
 
                 $Local:ContentHash = ($Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value)) | ForEach-Object { $_.ToString('x2') }) -join '';
                 if ($Value.Type -eq 'LocalFileModule') {
@@ -242,8 +174,9 @@ function Import-CommonModules {
 
                     Import-Module -Name "$env:TEMP/$Name" -Global -Force -Verbose:$False -Debug:$False;
                 }
-            } else {
-                Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
+            }
+            else {
+                Invoke-Debug -Message "Module $Name is a file or installed module.";
 
                 Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
             }
@@ -252,24 +185,26 @@ function Import-CommonModules {
 
     # Collect a List of the modules to import.
     if (Test-IsCompiledScript) {
-        Invoke-EnvVerbose 'Script has been embeded with required modules.';
+        Invoke-Verbose 'Script has been embeded with required modules.';
         [HashTable]$Local:ToImport = $Global:EmbededModules;
     } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
-        Invoke-EnvVerbose 'Script is in git repository; Using local files.';
+        Invoke-Verbose 'Script is in git repository; Using local files.';
         [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
     } else {
         [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 
         if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
             if (-not (Test-Path -Path $Local:RepoPath)) {
-                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
+                Invoke-Verbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
                 git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
-            } else {
-                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Updating repository.';
+            }
+            else {
+                Invoke-Verbose -UnicodePrefix '♻️' -Message 'Updating repository.';
                 git -C $Local:RepoPath pull;
             }
-        } else {
-            Invoke-EnvInfo -Message 'Git is not installed, unable to update the repository or clone if required.';
+        }
+        else {
+            Invoke-Info -Message 'Git is not installed, unable to update the repository or clone if required.';
         }
 
         [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
@@ -280,8 +215,8 @@ function Import-CommonModules {
     # Import-ModuleOrScriptBlock -Name:'00-PSStyle' -Value:$Local:ToImport['00-PSStyle'];
 
     # Import the modules.
-    Invoke-EnvVerbose -Message "Importing $($Local:ToImport.Count) modules.";
-    Invoke-EnvVerbose -Message "Modules to import: `n$(($Local:ToImport.Keys | Sort-Object) -join "`n")";
+    Invoke-Verbose -Message "Importing $($Local:ToImport.Count) modules.";
+    Invoke-Verbose -Message "Modules to import: `n$(($Local:ToImport.Keys | Sort-Object) -join "`n")";
     foreach ($Local:ModuleName in $Local:ToImport.Keys | Sort-Object) {
         $Local:ModuleName = $Local:ModuleName;
         $Local:ModuleValue = $Local:ToImport[$Local:ModuleName];
@@ -304,32 +239,33 @@ function Import-CommonModules {
 }
 
 function Remove-CommonModules {
-    Invoke-EnvVerbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
-    Invoke-EnvVerbose -Message "Removing modules: `n$(($Script:ImportedModules | Sort-Object -Descending) -join "`n")";
+    Invoke-Verbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
+    Invoke-Verbose -Message "Removing modules: `n$(($Script:ImportedModules | Sort-Object -Descending) -join "`n")";
     $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
         $Private:Module = $_;
-        Invoke-EnvDebug -Message "Removing module $Private:Module.";
+        Invoke-Debug -Message "Removing module $Private:Module.";
 
         # if (Test-IsCompiledScript -and ($Private:Module -eq '00-Environment')) {
-        #     Invoke-EnvDebug -Message 'Skipping removal of the environment module.';
+        #     Invoke-Debug -Message 'Skipping removal of the environment module.';
         #     return;
         # }
 
         # if ($Local:Module -eq '01-Logging') {
-        #     Invoke-EnvDebug -Message 'Resetting logging state.';
+        #     Invoke-Debug -Message 'Resetting logging state.';
         #     $Global:Logging.Loaded = $false;
         # }
 
         try {
-            Invoke-EnvDebug -Message "Running Remove-Module -Name $Private:Module";
+            Invoke-Debug -Message "Running Remove-Module -Name $Private:Module";
             Remove-Module -Name "$Private:Module*" -Force -Verbose:$False -Debug:$False;
 
             # The environment module doesn't get a file created for it.
             if (($Private:Module -ne '00-Environment') -and (Test-IsCompiledScript)) {
                 Remove-Item -Path ($env:TEMP | Join-Path -ChildPath "$($Private:Module)*");
             }
-        } catch {
-            Invoke-EnvDebug -Message "Failed to remove module $Local:Module";
+        }
+        catch {
+            Invoke-Debug -Message "Failed to remove module $Local:Module";
         }
     };
 }
@@ -398,11 +334,11 @@ function Invoke-RunMain {
                 }
 
                 if (-not $HideDisclaimer) {
-                    Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
+                    Invoke-Info -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
                 }
 
                 if ($Local:DontImport) {
-                    Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Skipping module import.';
+                    Invoke-Verbose -UnicodePrefix '♻️' -Message 'Skipping module import.';
                     return;
                 }
 
@@ -415,7 +351,7 @@ function Invoke-RunMain {
             try {
                 # FIXME :: it's not working as expected, currently not executing if ran from within a script.
                 if (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation) {
-                    Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
+                    Invoke-Verbose -UnicodePrefix '🚀' -Message 'Running main function.';
 
                     $Local:RunBoundParameters = $Cmdlet.MyInvocation.BoundParameters;
                     $Cmdlet.InvokeCommand.InvokeScript(
@@ -429,12 +365,12 @@ function Invoke-RunMain {
                 $Local:CatchingError = $_;
                 switch ($Local:CatchingError.FullyQualifiedErrorId) {
                     'QuickExit' {
-                        Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
+                        Invoke-Verbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
                     }
                     # TODO - Remove the error from the record.
                     'FailedExit' {
                         [Int]$Local:ExitCode = $Local:CatchingError.TargetObject;
-                        Invoke-EnvVerbose -Message "Script exited with an error code of $Local:ExitCode.";
+                        Invoke-Verbose -Message "Script exited with an error code of $Local:ExitCode.";
                         $LASTEXITCODE = $Local:ExitCode;
 
                         $Global:Error.Remove($Local:CatchingError);
@@ -475,7 +411,7 @@ function Invoke-RunMain {
                 }
 
                 if ($Private:IsRestarting) {
-                    Invoke-EnvVerbose -UnicodePrefix '🔄' -Message 'Restarting script.';
+                    Invoke-Verbose -UnicodePrefix '🔄' -Message 'Restarting script.';
                     Remove-Variable -Scope Global -Name ScriptRestarting;
                     Set-Variable -Scope Global -Name ScriptRestarted -Value $True; # Bread trail for the script to know it's been restarted.
                     Invoke-Inner @PSBoundParameters;

@@ -1,5 +1,9 @@
 #Requires -Version 5.1
 
+Using module ./01-Logging.psm1
+Using module ./01-Scope.psm1
+Using module ./02-Exit.psm1
+
 enum PackageManager {
     Chocolatey
     Unsupported
@@ -14,15 +18,15 @@ enum PackageManager {
     Chocolatey {
         @{
             Executable = "$($env:SystemDrive)\ProgramData\Chocolatey\bin\choco.exe";
-            Commands = @{
-                List       = 'list';
-                Uninstall  = 'uninstall';
-                Install    = 'install';
-                Update     = 'upgrade';
+            Commands   = @{
+                List      = 'list';
+                Uninstall = 'uninstall';
+                Install   = 'install';
+                Update    = 'upgrade';
             }
-            Options = @{
+            Options    = @{
                 Common = @('--confirm', '--limit-output', '--no-progress', '--exact');
-                Force = '--force';
+                Force  = '--force';
             }
         };
     };
@@ -45,9 +49,9 @@ function Local:Install-Requirements {
     }
 
     @{
-        PSPrefix = '📦';
+        PSPrefix  = '📦';
         PSMessage = "Installing requirements for $Script:PackageManager...";
-        PSColour = 'Green';
+        PSColour  = 'Green';
     } | Invoke-Write;
 
     switch ($Script:PackageManager) {
@@ -66,7 +70,8 @@ function Local:Install-Requirements {
                     refreshenv | Out-Null;
 
                     return;
-                } else {
+                }
+                else {
                     Invoke-Warn 'Chocolatey bin not found, deleting folder and reinstalling...';
                     Remove-Item -Path "$($env:SystemDrive)\ProgramData\chocolatey" -Recurse -Force;
                 }
@@ -97,9 +102,9 @@ function Test-ManagedPackage(
 
     process {
         @{
-            PSPrefix = '🔍';
+            PSPrefix  = '🔍';
             PSMessage = "Checking if package '$PackageName' is installed...";
-            PSColour = 'Yellow';
+            PSColour  = 'Yellow';
         } | Invoke-Write;
 
         # if ($PackageVersion) {
@@ -134,9 +139,9 @@ function Install-ManagedPackage(
 
     process {
         @{
-            PSPrefix = '📦';
+            PSPrefix  = '📦';
             PSMessage = "Installing package '$Local:PackageName'...";
-            PSColour = 'Green';
+            PSColour  = 'Green';
         } | Invoke-Write;
 
         # if ($PackageVersion) {
@@ -165,9 +170,9 @@ function Update-ManagedPackage(
 
     process {
         @{
-            PSPrefix = '🔄';
+            PSPrefix  = '🔄';
             PSMessage = "Updating package '$Local:PackageName'...";
-            PSColour = 'Blue';
+            PSColour  = 'Blue';
         } | Invoke-Write;
 
         try {
@@ -176,7 +181,8 @@ function Update-ManagedPackage(
             if ($LASTEXITCODE -ne 0) {
                 throw "Error Code: $LASTEXITCODE";
             }
-        } catch {
+        }
+        catch {
             Invoke-Error "There was an issue while updating $Local:PackageName.";
             Invoke-Error $_.Exception.Message;
         }
