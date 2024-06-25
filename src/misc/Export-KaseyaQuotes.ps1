@@ -108,7 +108,21 @@ function Invoke-ApiRequest {
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $MyInvocation {
+    trap {
+        Remove-Variable -Scope Global -Name 'Quotes' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'QuoteSections' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'QuoteLines' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'SalesOrders' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'SalesOrderLines' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'SalesOrderPayments' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'Products' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'Brands' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'Categories' -ErrorAction SilentlyContinue;
+        Remove-Variable -Scope Global -Name 'Customers' -ErrorAction SilentlyContinue;
+    };
+
     if (-not [string]::IsNullOrWhiteSpace($InputDataPath)) {
+        Invoke-Debug "Reading input data from $InputDataPath";
         $Local:RawContent = Get-Content -Path $InputDataPath;
         if ($null -eq $Local:RawContent) {
             Invoke-Error "The input data file at '$InputDataPath' could not be found.";
@@ -121,16 +135,18 @@ Invoke-RunMain $MyInvocation {
     function Set-InputOrLazy([String]$VariableName, [ScriptBlock]$LazyBlock) {
         if ($null -eq (Get-Variable -Scope Global -Name $VariableName -ValueOnly -ErrorAction SilentlyContinue)) {
             if ($null -ne $InputData -and $InputData.ContainsKey($VariableName)) {
+                Invoke-Debug "Setting variable $VariableName from input data.";
                 Set-Variable -Scope Global -Name $VariableName -Value $InputData[$VariableName];
             }
             else {
+                Invoke-Debug "Setting variable $VariableName from lazy block.";
                 Set-Variable -Scope Global -Name $VariableName -Value (&$LazyBlock);
             }
         }
     }
 
     Set-InputOrLazy -VariableName 'Quotes' -LazyBlock { Invoke-ApiRequest -Location 'quote' -PaginatedQuery };
-    Set-InputOrLazy -VariableName 'QuoteLines' -LazyBlock { Invoke-ApiRequest -Location 'quoteline' -PaginatedQuery };
+
     Set-InputOrLazy -VariableName 'SalesOrders' -LazyBlock { Invoke-ApiRequest -Location 'salesorder' -PaginatedQuery };
     Set-InputOrLazy -VariableName 'SalesOrderLines' -LazyBlock { Invoke-ApiRequest -Location 'salesorderline' -PaginatedQuery };
     Set-InputOrLazy -VariableName 'SalesOrderPayments' -LazyBlock { Invoke-ApiRequest -Location 'salesorderpayment' -PaginatedQuery };
@@ -197,10 +213,12 @@ Invoke-RunMain $MyInvocation {
 
     Set-InputOrLazy -VariableName 'QuoteLines' -LazyBlock {
         $Local:QuoteLines = @{};
-        foreach ($Local:QuoteSection in $Local:QuoteSections) {
-            [String]$Local:QuoteId = $Local:QuoteSection.QuoteId;
-            if (-not $Local:QuoteLines.ContainsKey($Local:QuoteId)) {
-                $Local:QuoteLines[$Local:QuoteId] = Invoke-ApiRequest -Location 'quoteline' -Parameters @{ quoteId = $Local:QuoteId };
+        foreach ($Local:QuoteSections in $Global:QuoteSections.Values) {
+            foreach ($Local:QuoteSection in $Local:QuoteSections) {
+                [String]$Local:QuoteSectionId = $Local:QuoteSection.id;
+                if (-not $Local:QuoteLines.ContainsKey($Local:QuoteSectionId)) {
+                    $Local:QuoteLines[$Local:QuoteSectionId] = Invoke-ApiRequest -Location 'quoteline' -Parameters @{ quoteSectionId = $Local:QuoteSectionId } -PaginatedQuery;
+                }
             }
         }
 
@@ -210,6 +228,7 @@ Invoke-RunMain $MyInvocation {
     if ($RawData) {
         @{
             Quotes             = $Global:Quotes;
+            QuoteSections      = $Global:QuoteSections;
             QuoteLines         = $Global:QuoteLines;
             SalesOrders        = $Global:SalesOrders;
             SalesOrderLines    = $Global:SalesOrderLines;
@@ -218,11 +237,12 @@ Invoke-RunMain $MyInvocation {
             Brands             = $Global:Brands;
             Categories         = $Global:Categories;
             Customers          = $Global:Customers;
-            QuoteSections      = $Global:QuoteSections;
         } | ConvertTo-Json -Depth 9 | Out-File -FilePath $OutputPath -Force;
     }
     else {
         $Global:Quotes | ForEach-Object {
+            Invoke-Debug "Processing quote $($_.id)";
+
             $Local:RawQuote = $_;
             $Local:Quote = $Local:RawQuote | Select-Object -Property id, salesOrderId, quoteNumber, title, expiryDate, createdDate, modifiedDate, privateNote;
 
@@ -242,14 +262,27 @@ Invoke-RunMain $MyInvocation {
             };
 
             $Local:Quote | Add-Member -MemberType NoteProperty -Name Sections -Value ($Global:QuoteSections["$($Local:RawQuote.id)"] | ForEach-Object {
+                    Invoke-Debug "Processing quote section $($_.id)";
+
                     $Local:Section = $_;
                     $Local:Section = $Local:Section | Select-Object -Property id, title, description;
 
-                    $Local:Section | Add-Member -MemberType NoteProperty -Name Lines -Value ($Global:QuoteLines["$($Local:RawQuote.id)"] | Where-Object { $_.quoteSectionId -eq $Local:Section.id } | ForEach-Object {
+                    $Local:Section | Add-Member -MemberType NoteProperty -Name Lines -Value ($Global:QuoteLines["$($Local:Section.id)"] | ForEach-Object {
+                            if ($null -eq $_) {
+                                return @{};
+                            }
+
+                            Invoke-Debug "Processing quote line $($_.id)";
+
                             $Local:Line = $_;
                             $Local:Line | Select-Object -Property id, productId, quantity, price, discount, tax, total;
+
+                            $Local:Line | Add-Member -MemberType NoteProperty -Name Product -Value ($Global:Products["$($Local:Line.productID)"] | Select-Object -Property id, productNumber, manufacturerPartNumber, title);
+                            $Local:Line;
                         });
-                });
+
+                    $Local:Section;
+                } | Where-Object { $null -ne $_.Lines -and $_.Lines.Count -gt 0 });
 
             if ($Local:Status -eq 'Won') {
                 $Local:SalesOrder = $Global:SalesOrders["$($Local:RawQuote.salesOrderId)"];
@@ -270,48 +303,23 @@ Invoke-RunMain $MyInvocation {
                 # FIXME Some are null?
                 $Local:Quote | Add-Member -MemberType NoteProperty -Name Sale -Value ($Local:SalesOrder | Select-Object -Property orderNumber, notes, orderDate, createdDate, modifiedDate);
                 if ($null -eq $Local:Quote.Sale) {
+                    Invoke-Warn "No sales order found for quote $($Local:RawQuote.id), creating empty sale object.";
                     $Local:Quote.Sale = @{};
                 }
 
                 $Local:Quote.Sale | Add-Member -MemberType NoteProperty -Name Status -Value $Local:Status;
                 $Local:Quote.Sale | Add-Member -MemberType NoteProperty -Name FulfillmentStatus -Value $Local:FulfillmentStatus;
+                $Local:Quote.Sale | Add-Member -MemberType NoteProperty -Name Lines -Value ($Global:SalesOrderLines | Where-Object { $_.salesOrderID -eq $Local:RawQuote.salesOrderID } | ForEach-Object {
+                        Invoke-Debug "Processing sales order line $($_.id)";
 
-                # $Local:Quote.Sale | Add-Member -MemberType NoteProperty -Name Lines -Value ($Global:SalesOrderLines.Values | Where-Object { $_.salesOrderID -eq $Local:RawQuote.salesOrderID } | ForEach-Object {
-                #         $Local:SalesOrderLine = $_;
-                #         $Local:SalesOrderLine | Select-Object -Property id, productId, quantity, price, discount, tax, total;
-                #     });
-                $Global:Quote = $Local:Quote
+                        $Local:SalesOrderLine = $_;
+                        $Local:SalesOrderLine | Select-Object -Property id, productId, quantity, price, discount, tax, total;
+                    });
             }
 
             $Local:Quote;
         } | ConvertTo-Json -Depth 9 | Out-File -FilePath $OutputPath -Force;
 
-        # Product = @{
-        #     Meta     = @{
-        #         Brands     = $Global:Brands.Values | ForEach-Object {
-        #             $Local:Brand = $_;
-        #             $Local:Brand | Select-Object -Property id, name;
-        #         };
-
-        #         Categories = $Global:Categories.Values | ForEach-Object {
-        #             $Local:Category = $_;
-        #             $Local:Category | Select-Object -Property id, parentID, name;
-        #         };
-        #     };
-
-        #     Products = $Global:Products.Values | ForEach-Object {
-        #         $Private:RawProduct = $_;
-        #         $Private:Product = $Private:RawProduct | Select-Object -Property id, productNumber, manufacturerPartNumber, title, price, retailPrice;
-        #         $Private:Product | Add-Member -MemberType NoteProperty -Name Brand -Value ($Global:Brands["$($Private:RawProduct.BrandId)"] | Select-Object -Property id, name);
-        #         $Private:Product | Add-Member -MemberType NoteProperty -Name Category -Value ($Global:Categories["$($Private:RawProduct.CategoryId)"] | Select-Object -Property id, parentID, name);
-        #         $Private:Product;
-        #     };
-        # }
-
-        # Products           = $Global:Products.Values | ForEach-Object {
-        #     $Local:Product = $_;
-        #     $Local:Product | Select-Object -Property * #id, productNumber, manufacturerPartNumber, title, price, retailPrice;
-        # };
-        # }
+        Invoke-Info "Exported quotes to $OutputPath";
     }
 };
