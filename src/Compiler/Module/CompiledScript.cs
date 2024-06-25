@@ -15,7 +15,7 @@ namespace Compiler;
 public partial class CompiledScript : LocalFileModule
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    private static readonly string InvokeRunMain = "(New-Module -ScriptBlock ([ScriptBlock]::Create($Global:EmbeddedModules['00-Environment'].Content)) -AsCustomObject -ArgumentList {0}.BoundParameters).'Invoke-RunMain'({0}, ({1}));";
+    private static readonly string InvokeRunMain = "(New-Module -ScriptBlock ([ScriptBlock]::Create($Global:EmbeddedModules['{0}'].Content)) -AsCustomObject -ArgumentList {1}.BoundParameters).'Invoke-RunMain'({1}, ({2}));";
     [GeneratedRegex(@"(?smi)^Import-Module\s(?:\$PSScriptRoot)?(?:[/\\\.]*(?:(?:src|common)[/\\])+)00-Environment\.psm1;?\s*$", RegexOptions.None, "en-AU")]
     private static partial Regex ImportEnvironmentRegex();
     [GeneratedRegex(@"^Invoke-RunMain\s+(?:\$MyInvocation)?\s+(?<Block>{.+})")]
@@ -50,7 +50,10 @@ public partial class CompiledScript : LocalFileModule
                 invocation = "$MyInvocation";
             }
 
-            return string.Format(InvokeRunMain, invocation, block);
+            return string.Format(InvokeRunMain, ResolvedModules.Find(module =>
+            {
+                return module.PreCompileModuleSpec.Name == "00-Environment";
+            })!.ModuleSpec.Name, invocation, block);
         });
 
         // Extract the param block and its attributes from the script and store it in a variable so we can place it at the top of the script later.
@@ -90,18 +93,20 @@ public partial class CompiledScript : LocalFileModule
                 Write-Host "Creating module root folder: $Local:PrivatePSModulePath";
                 New-Item -Path $Local:PrivatePSModulePath -ItemType Directory | Out-Null;
             }
-            $Local:PSModulePath = $env:PSModulePath -split ';' | Select-Object -First 1;
+            if (-not ($Env:PSModulePath -like "*$Local:PrivatePSModulePath*")) {
+                $Env:PSModulePath = "$Local:PrivatePSModulePath;" + $Env:PSModulePath;
+            }
             $Global:EmbeddedModules.GetEnumerator() | ForEach-Object {
                 $Local:Content = $_.Value.Content;
-                $Local:NameHash = "$($_.Key)-$($_.Value.Hash)";
-                $Local:ModuleFolderPath = Join-Path -Path $Local:PSModulePath -ChildPath $Local:NameHash;
+                $Local:NameHash = $_.Key;
+                $Local:ModuleFolderPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath $Local:Name;
                 if (-not (Test-Path -Path $Local:ModuleFolderPath)) {
                     Write-Host "Creating module folder: $Local:ModuleFolderPath";
                     New-Item -Path $Local:ModuleFolderPath -ItemType Directory | Out-Null;
                 }
                 switch ($_.Value.Type) {
                     'UTF8String' {
-                        $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.psm1";
+                        $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:Name.psm1";
                         if (-not (Test-Path -Path $Local:InnerModulePath)) {
                             Write-Host "Writing content to module file: $Local:InnerModulePath"
                             Set-Content -Path $Local:InnerModulePath -Value $Content;
@@ -131,6 +136,7 @@ public partial class CompiledScript : LocalFileModule
         script.AppendLine($$"""
         end {
         {{CompiledDocument.FromBuilder(Document, 4).GetContent()}}
+            $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
         }
         """);
         #endregion
@@ -241,12 +247,35 @@ public partial class CompiledScript : LocalFileModule
         }
 
         ModuleGraph.RemoveVertex(ModuleSpec); // Remove the script from the graph so it doesn't try to resolve itself.
-        var sortedModules = ModuleGraph.TopologicalSort() ?? throw new Exception("Cyclic dependency detected.");
-        sortedModules.ToList().ForEach(moduleSpec =>
+        var sortedModules = new Queue<ModuleSpec>(ModuleGraph.TopologicalSort()) ?? throw new Exception("Cyclic dependency detected.");
+        while (sortedModules.TryDequeue(out var moduleSpec))
         {
-            var matchingModule = (localModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same).Cast<Module.Module>() ?? downloadableModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same)) ?? throw new Exception($"Could not find module {moduleSpec.Name} in local or downloadable modules.")!;
-            ResolvedModules.Add(CompiledModule.From(matchingModule, 8));
-        });
+            Logger.Debug("Sorting module: {0}", moduleSpec.Name);
+
+            var module = localModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same).Cast<Module.Module>()
+                ?? downloadableModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same)
+                ?? throw new Exception($"Could not find module {moduleSpec.Name} in local or downloadable modules.");
+            Logger.Debug("Found matching module {0}", module.Name);
+
+            Logger.Debug("Trying to update module requirements for {0}", module.Name);
+
+            module.Requirements.GetRequirements<ModuleSpec>().ForEach(moduleSpec =>
+            {
+                Logger.Debug("Getting matching module for {0}", moduleSpec.Name);
+
+                var matchingModule = ResolvedModules.Find(module =>
+                {
+                    Logger.Debug("Comparing {0} to {1}", module.ModuleSpec.Name, moduleSpec.Name);
+                    Logger.Debug("InternalGuid: {0} == {1}", module.ModuleSpec.InternalGuid, moduleSpec.InternalGuid);
+
+                    return module.ModuleSpec.InternalGuid == moduleSpec.InternalGuid;
+                }) ?? throw new Exception($"Could not find module {moduleSpec.Name} in resolved modules.")!;
+                Logger.Debug("Found matching module {0}", matchingModule.ModuleSpec.Name);
+
+                module.Requirements.RemoveRequirement(moduleSpec);
+                module.Requirements.AddRequirement(matchingModule.ModuleSpec);
+            });
+        }
 
         PSVersionRequirement? highestPSVersion = null;
         foreach (var module in ResolvedModules)

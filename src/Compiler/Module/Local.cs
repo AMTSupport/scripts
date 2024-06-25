@@ -15,9 +15,9 @@ public partial class LocalFileModule : Module
     public readonly TextEditor Document;
     public readonly string FilePath;
 
-    public LocalFileModule(string path) : this(
+    public LocalFileModule(string path, Guid moduleGuid) : this(
         path,
-        new PathedModuleSpec(path, Path.GetFileNameWithoutExtension(path)),
+        new PathedModuleSpec(path, Path.GetFileNameWithoutExtension(path), PassedInternalGuid: moduleGuid),
         new TextDocument(File.ReadAllLines(path))
     )
     { }
@@ -211,7 +211,7 @@ public partial class LocalFileModule : Module
             return null;
         }
 
-        return new LocalFileModule(fullPath);
+        return new LocalFileModule(fullPath, spec.InternalGuid);
     }
 
     [GeneratedRegex(@"^\s*#Requires -(?<type>[A-Z]+) (?<value>.+)$")]

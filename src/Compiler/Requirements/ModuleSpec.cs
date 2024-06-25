@@ -11,18 +11,21 @@ public record PathedModuleSpec(
     Guid? Guid = null,
     Version? MinimumVersion = null,
     Version? MaximumVersion = null,
-    Version? RequiredVersion = null
-) : ModuleSpec(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion);
+    Version? RequiredVersion = null,
+    Guid? PassedInternalGuid = null
+) : ModuleSpec(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion, PassedInternalGuid);
 
 public record ModuleSpec(
     string Name,
     Guid? Guid = null,
     Version? MinimumVersion = null,
     Version? MaximumVersion = null,
-    Version? RequiredVersion = null
-) : Requirement(true)
+    Version? RequiredVersion = null,
+    Guid? PassedInternalGuid = null
+) : Requirement(true, 70)
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
+    public readonly Guid InternalGuid = PassedInternalGuid ?? System.Guid.NewGuid();
 
     // TODO - Maybe use IsCompatibleWith to do some other check stuff
     public ModuleSpec MergeSpecs(ModuleSpec[] merge)
@@ -59,7 +62,7 @@ public record ModuleSpec(
             }
         }
 
-        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion);
+        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion, InternalGuid);
     }
 
     public override string GetInsertableLine()
@@ -160,6 +163,15 @@ public record ModuleSpec(
 
         return ModuleMatch.Same;
     }
+
+    public ModuleSpec CreateCompiledVersion(string hash) => new(
+            $"{Name}-{hash}",
+            Guid,
+            MinimumVersion,
+            MaximumVersion,
+            RequiredVersion,
+            InternalGuid
+        );
 
     [ExcludeFromCodeCoverage(Justification = "Just a bool flag.")]
     public override bool IsCompatibleWith(Requirement other) => true;

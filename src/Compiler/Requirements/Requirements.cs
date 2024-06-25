@@ -1,6 +1,5 @@
 using System.Collections;
 using CommandLine;
-using Compiler.Module;
 using NLog;
 
 namespace Compiler.Requirements;
@@ -49,41 +48,8 @@ public class RequirementGroup
 
     public List<Requirement> GetRequirements()
     {
-        return StoredRequirements.Values.Cast<List<Requirement>>().SelectMany(requirements => requirements).ToList();
+        return [.. StoredRequirements.Values.Cast<List<Requirement>>().SelectMany(requirements => requirements).OrderBy(requirement => requirement)];
     }
-
-    // public void UpdateWithCompiledInplace(string rootPath, List<CompiledModule> compiledModules)
-    // {
-    //     foreach (var requirement in GetRequirements<ModuleSpec>())
-    //     {
-    //         if (requirement is not ModuleSpec moduleSpec)
-    //         {
-    //             continue;
-    //         }
-
-    //         var matchingModules = compiledModules.Where(module => module.ModuleSpec.RawSpec.Name == Path.GetFileNameWithoutExtension(moduleSpec.Name));
-    //         if (matchingModules == null || matchingModules.Count() == 0)
-    //         {
-    //             Logger.Warn($"Could not find matching module for {moduleSpec.Name}");
-    //             continue;
-    //         }
-    //         else if (matchingModules.Count() > 1)
-    //         {
-    //             throw new Exception($"Found multiple matching modules for {moduleSpec.Name}, this is a limitation of the current implementation, ensure unique names.");
-    //         }
-
-    //         var matchingModule = matchingModules.First();
-
-    //         // FIXME - This may be a bad way of doing this.
-    //         var newSpec = new CompiledModuleSpec(
-    //             $"{matchingModule.ModuleSpec.Name}-{matchingModule.ContentHash}.psm1",
-    //             moduleSpec
-    //         );
-
-    //         RemoveRequirement(moduleSpec);
-    //         AddRequirement(newSpec);
-    //     }
-    // }
 
     // FIXME - Not very efficient
     public bool VerifyRequirements()
@@ -106,11 +72,25 @@ public class RequirementGroup
     }
 }
 
-public abstract record Requirement(bool SupportsMultiple)
+public abstract record Requirement(bool SupportsMultiple, uint Weight = 50) : IComparable<Requirement>
 {
     public abstract bool IsCompatibleWith(Requirement other);
 
     public abstract string GetInsertableLine();
+
+    /*
+        For sorting purposes of requirements
+        Not for comparing if they are compatible
+    */
+    public int CompareTo(Requirement? other)
+    {
+        if (other == null)
+        {
+            return 1;
+        }
+
+        return Weight.CompareTo(other.Weight);
+    }
 }
 
 public enum PSEdition { Desktop, Core }

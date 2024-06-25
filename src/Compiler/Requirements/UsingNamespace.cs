@@ -2,7 +2,7 @@ namespace Compiler.Requirements;
 
 public record UsingNamespace(
     string Namespace
-) : Requirement(true)
+) : Requirement(true, 75)
 {
     public override string GetInsertableLine() => $"Using namespace {Namespace};";
 
