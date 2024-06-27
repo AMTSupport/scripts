@@ -33,7 +33,7 @@ Param (
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
-    [String]$NetworkName = "Guests",
+    [String]$NetworkName = 'Guests',
 
     [Parameter(DontShow)]
     [ValidateNotNullOrEmpty()]
@@ -154,9 +154,7 @@ function Update-ToWin11(
 
     process {
         [String]$Private:OSCaption = (Get-CimInstance -Query 'select caption from win32_operatingsystem' | Select-Object -Property Caption).Caption;
-        [Int]$Private:OSVersion = $Private:OSCaption -replace '(\d+)', '$1';
-
-        if ($Private:OSVersion.Major -ne 10) {
+        if ($Private:OSCaption -match 'Windows 11') {
             return;
         }
 
@@ -447,19 +445,20 @@ function Invoke-Phase_SetupWindows {
                 [Microsoft.VisualBasic.Interaction]::AppActivate($Local:SetupPID) | Out-Null;
 
                 [String[]]$Local:ScreenSteps = @(
-                    '{TAB}{ENTER}',
-                    '{DOWN}{ENTER}{ENTER}',
-                    '{TAB}{TAB}{TAB}{ENTER}',
-                    '{TAB}{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}',
-                    '{TAB}{TAB}{TAB}{TAB}{ENTER}',
-                    'localadmin{ENTER}{ENTER}',
-                    '{TAB}{TAB}{TAB} {TAB} {TAB} {TAB} {TAB}{TAB}{ENTER}', # Nope
+                    '{ENTER}', # Accept Region
+                    '{DOWN}{ENTER}{ENTER}', # Select and confirm US Keyboard
+                    '+{TAB}{ENTER}', # Skip Network Setup
+                    '+{TAB}{ENTER}', # Skip Second Network Setup
+                    '{TAB}{TAB}{TAB}{TAB}{ENTER}', # Terms and Conditions
+                    'localadmin{ENTER}{ENTER}', # Create Local Account
+                    '{ENTER}+{TAB}{ENTER}', # Privacy Settings
                     '+{TAB}{ENTER}'
                 );
 
                 switch ($Local:Manufacturer) {
                     'HP' {
-                        $Local:ScreenSteps += '{TAB}{TAB}{TAB}{TAB}{TAB}{ENTER}{TAB}{TAB}{TAB}{TAB}{ENTER}'
+                        $Local:ScreenSteps += '{ENTER}';
+                        $Local:ScreenSteps += '{ENTER}';
                     }
                     default {
                         # Do nothing.
