@@ -4,8 +4,8 @@ using Compiler.Requirements;
 using Compiler.Text;
 
 namespace Compiler.Module;
-
 public record CompiledModule(
+
     ContentType ContentType,
     ModuleSpec PreCompileModuleSpec,
     RequirementGroup Requirements,
@@ -50,7 +50,7 @@ public record CompiledModule(
                 ContentType.ZipHex,
                 remoteModule.ModuleSpec,
                 remoteModule.Requirements,
-                Convert.ToHexString(remoteModule.BytesZip),
+                Convert.ToHexString(remoteModule.BytesZip.Value),
                 indentBy
             ),
             _ => throw new NotImplementedException()
