@@ -1,6 +1,6 @@
-
 Using namespace System.Management.Automation
 Using module ../src/common/00-Environment.psm1
+Using module ../src/common/02-Exit.psm1
 Using module @{
     ModuleName      = 'PSReadLine';
     RequiredVersion = '2.3.5';

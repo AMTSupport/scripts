@@ -369,17 +369,13 @@ public class ExactUpdater(
 
     override public void PushByUpdate(SpanUpdateInfo updateInfo)
     {
-        Logger.Debug($"Pushing with {updateInfo}.");
-
         if (Span.StartingIndex >= updateInfo.TextSpan.StartingIndex)
         {
-            Logger.Debug($"Updating starting index from {Span.StartingIndex} to {Span.StartingIndex + updateInfo.Offset}.");
             Span.StartingIndex += updateInfo.Offset;
         }
 
         if (Span.EndingIndex >= updateInfo.TextSpan.StartingIndex)
         {
-            Logger.Debug($"Updating ending index from {Span.EndingIndex} to {Span.EndingIndex + updateInfo.Offset}.");
             Span.EndingIndex += updateInfo.Offset;
         }
     }
