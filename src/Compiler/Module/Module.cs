@@ -10,6 +10,8 @@ public abstract partial class Module(ModuleSpec moduleSpec)
     public RequirementGroup Requirements { get; } = new();
 
     public abstract ModuleMatch GetModuleMatchFor(ModuleSpec requirement);
+
+    public override int GetHashCode() => ModuleSpec.GetHashCode();
 }
 
 public enum ModuleMatch
