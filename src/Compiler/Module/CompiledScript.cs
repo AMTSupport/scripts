@@ -8,7 +8,7 @@ using QuikGraph;
 using Compiler.Text;
 using System.Text.RegularExpressions;
 using QuikGraph.Algorithms;
-using CommandLine;
+using QuikGraph.Graphviz;
 
 namespace Compiler;
 
@@ -21,7 +21,7 @@ public partial class CompiledScript : LocalFileModule
     [GeneratedRegex(@"^Invoke-RunMain\s+(?:\$MyInvocation)?\s+(?<Block>{.+})")]
     private static partial Regex RunMainRegex();
 
-    public readonly AdjacencyGraph<ModuleSpec, Edge<ModuleSpec>> ModuleGraph = new();
+    public readonly BidirectionalGraph<ModuleSpec, Edge<ModuleSpec>> ModuleGraph = new();
     public readonly List<CompiledModule> ResolvedModules = [];
     public readonly ParamBlockAst? ScriptParamBlockAst;
 
@@ -50,9 +50,14 @@ public partial class CompiledScript : LocalFileModule
                 invocation = "$MyInvocation";
             }
 
+            Logger.Debug("Invocation: {0}", invocation);
+            Logger.Debug("Block: {0}", block);
+            Logger.Debug("ResolvedModules: {0}", ResolvedModules.Count);
+
             return string.Format(InvokeRunMain, ResolvedModules.Find(module =>
             {
-                return module.PreCompileModuleSpec.Name == "00-Environment";
+                Logger.Debug("Checking {0}", module.PreCompileModuleSpec.Name);
+                return new Regex(@"^00-Environment-.+$").Matches(module.PreCompileModuleSpec.Name).Count > 0;
             })!.ModuleSpec.Name, invocation, block);
         });
 
@@ -98,7 +103,7 @@ public partial class CompiledScript : LocalFileModule
             }
             $Global:EmbeddedModules.GetEnumerator() | ForEach-Object {
                 $Local:Content = $_.Value.Content;
-                $Local:NameHash = $_.Key;
+                $Local:Name = $_.Key;
                 $Local:ModuleFolderPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath $Local:Name;
                 if (-not (Test-Path -Path $Local:ModuleFolderPath)) {
                     Write-Host "Creating module folder: $Local:ModuleFolderPath";
@@ -174,108 +179,43 @@ public partial class CompiledScript : LocalFileModule
         return scriptParamBlockAst;
     }
 
+    // TODO - This is a bit of a mess. Refactor this to be more readable, maybe split it into smaller functions.
     private void ResolveRequirements()
     {
-        var localModules = new List<LocalFileModule>();
-        var downloadableModules = new List<RemoteModule>();
-
-        var iterating = new Queue<Module.Module>([this]);
-        while (iterating.TryDequeue(out Module.Module? current) && current != null)
+        var (ModuleGraph, unsortedModules) = CreateModuleGraph(this);
+        var sortedModules = new Queue<ModuleSpec>(ModuleGraph.TopologicalSort().Reverse()) ?? throw new Exception("Cyclic dependency detected.");
+        var graphviz = ModuleGraph.ToGraphviz(alg =>
         {
-            Logger.Debug($"Resolving requirements for {current.Name}");
-            if (localModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Same) || downloadableModules.Any(module => module.GetModuleMatchFor(current.ModuleSpec) == ModuleMatch.Same))
+            alg.FormatVertex += (sender, args) =>
             {
-                Logger.Debug($"Skipping {current.Name} because it is already resolved.");
-                continue;
-            }
+                args.VertexFormat.Label = args.Vertex.Name;
+                args.VertexFormat.Comment = args.Vertex.InternalGuid.ToString();
+            };
+        });
+        Logger.Info(message: graphviz);
 
-            switch (current)
-            {
-                case LocalFileModule local:
-                    Logger.Debug($"Adding {local.Name} to local modules.");
-                    localModules.Add(local);
-                    break;
-                case RemoteModule remote:
-                    Logger.Debug($"Adding {remote.Name} to downloadable modules.");
-                    downloadableModules.Add(remote);
-                    break;
-            }
-
-            if (!ModuleGraph.ContainsVertex(current.ModuleSpec))
-            {
-                Logger.Debug($"Adding {current.Name} to module graph.");
-                ModuleGraph.AddVertex(current.ModuleSpec);
-            }
-
-            current.Requirements.GetRequirements<ModuleSpec>().ForEach(module =>
-            {
-                Logger.Debug($"Adding {module.Name} to the queue.");
-
-                Module.Module? resolved = null;
-                if (current is LocalFileModule local)
-                {
-                    var parentPath = Path.GetDirectoryName(local.FilePath);
-                    Logger.Debug($"Trying to resolve {module.Name} from {parentPath}.");
-                    resolved = TryFromFile(parentPath!, module);
-
-                    if (resolved != null)
-                    {
-                        Logger.Debug($"Resolved {module.Name} from {parentPath}.");
-                        ModuleGraph.TryGetOutEdges(module, out var edges);
-                        if (edges != null && edges.Any())
-                        {
-                            Logger.Debug($"Updating graph to use {resolved.Name} instead of {module.Name}.");
-
-                            ModuleGraph.AddVertex(resolved.ModuleSpec);
-                            edges.ToList().ForEach(edge =>
-                            {
-                                ModuleGraph.RemoveEdge(edge);
-                                ModuleGraph.AddEdge(new Edge<ModuleSpec>(edge.Source, resolved.ModuleSpec));
-                            });
-                            ModuleGraph.RemoveVertex(module);
-                        }
-                    }
-                }
-
-                resolved ??= RemoteModule.FromModuleRequirement(module);
-
-                Logger.Debug($"Adding vertex {resolved.ModuleSpec.Name} to module graph.");
-                ModuleGraph.AddVertex(resolved.ModuleSpec);
-                ModuleGraph.AddEdge(new Edge<ModuleSpec>(current.ModuleSpec, resolved.ModuleSpec));
-                iterating.Enqueue(resolved);
-            });
-        }
-
-        ModuleGraph.RemoveVertex(ModuleSpec); // Remove the script from the graph so it doesn't try to resolve itself.
-        var sortedModules = new Queue<ModuleSpec>(ModuleGraph.TopologicalSort()) ?? throw new Exception("Cyclic dependency detected.");
-        while (sortedModules.TryDequeue(out var moduleSpec))
+        ModuleGraph.TopologicalSort().Skip(1).Reverse().ToList().ForEach(moduleSpec =>
         {
-            Logger.Debug("Sorting module: {0}", moduleSpec.Name);
-
-            var module = localModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same).Cast<Module.Module>()
-                ?? downloadableModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same)
-                ?? throw new Exception($"Could not find module {moduleSpec.Name} in local or downloadable modules.");
-            Logger.Debug("Found matching module {0}", module.Name);
-
-            Logger.Debug("Trying to update module requirements for {0}", module.Name);
-
-            module.Requirements.GetRequirements<ModuleSpec>().ForEach(moduleSpec =>
+            var matchingModule = unsortedModules.Find(module => moduleSpec.CompareTo(module.ModuleSpec) == ModuleMatch.Same) ?? throw new Exception($"Could not find module {moduleSpec.Name} in local or downloadable modules.")!;
+            // Update the ModuleSpecs in the resolved modules list to be the actual modules.
+            matchingModule.Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(requirement =>
             {
-                Logger.Debug("Getting matching module for {0}", moduleSpec.Name);
-
-                var matchingModule = ResolvedModules.Find(module =>
+                Logger.Debug("Getting matching module for {0}", requirement.Name);
+                var matchingModuleSpec = ResolvedModules.Find(module =>
                 {
-                    Logger.Debug("Comparing {0} to {1}", module.ModuleSpec.Name, moduleSpec.Name);
-                    Logger.Debug("InternalGuid: {0} == {1}", module.ModuleSpec.InternalGuid, moduleSpec.InternalGuid);
+                    Logger.Debug("Comparing {0} to {1}", module.ModuleSpec.Name, requirement.Name);
+                    Logger.Debug("InternalGuid: {0} == {1}", module.ModuleSpec.InternalGuid, requirement.InternalGuid);
 
-                    return module.ModuleSpec.InternalGuid == moduleSpec.InternalGuid;
-                }) ?? throw new Exception($"Could not find module {moduleSpec.Name} in resolved modules.")!;
-                Logger.Debug("Found matching module {0}", matchingModule.ModuleSpec.Name);
+                    return module.ModuleSpec.InternalGuid == requirement.InternalGuid;
+                })?.ModuleSpec;
+                Logger.Debug("Found matching module {0}", matchingModuleSpec?.Name);
 
-                module.Requirements.RemoveRequirement(moduleSpec);
-                module.Requirements.AddRequirement(matchingModule.ModuleSpec);
+                matchingModule.Requirements.RemoveRequirement(requirement);
+                matchingModule.Requirements.AddRequirement(matchingModuleSpec ?? throw new Exception($"Could not find module {requirement.Name} in resolved modules."));
             });
-        }
+
+            ResolvedModules.Add(CompiledModule.From(matchingModule, 8));
+        });
 
         PSVersionRequirement? highestPSVersion = null;
         foreach (var module in ResolvedModules)
@@ -321,5 +261,103 @@ public partial class CompiledScript : LocalFileModule
                     Requirements.AddRequirement(requirements);
                 }
             });
+    }
+
+    public static Module.Module? LinkFindingPossibleResolved(
+        ModuleSpec? parentModule,
+        ModuleSpec currentModule,
+        List<Module.Module> unsortedModules,
+        ref BidirectionalGraph<ModuleSpec, Edge<ModuleSpec>> moduleGraph
+    )
+    {
+        var alreadyResolvedModule = unsortedModules.Find(module => module.GetModuleMatchFor(currentModule) == ModuleMatch.Same);
+        if (alreadyResolvedModule != null)
+        {
+            if (!moduleGraph.ContainsVertex(alreadyResolvedModule.ModuleSpec))
+            {
+                Logger.Debug("Adding vertex for {0}", alreadyResolvedModule.Name);
+                moduleGraph.AddVertex(alreadyResolvedModule.ModuleSpec);
+            }
+
+            Logger.Debug("Skipping {0} because it is already resolved.", currentModule.Name);
+            if (parentModule != null)
+            {
+                moduleGraph.AddEdge(new Edge<ModuleSpec>(parentModule, alreadyResolvedModule.ModuleSpec));
+            }
+
+            return alreadyResolvedModule;
+        }
+
+        if (!moduleGraph.ContainsVertex(currentModule))
+        {
+            Logger.Debug("Adding vertex for {0}", currentModule.Name);
+            moduleGraph.AddVertex(currentModule);
+        }
+
+        if (parentModule != null)
+        {
+            Logger.Debug("Adding edge from {0} to {1}", parentModule.Name, currentModule.Name);
+            moduleGraph.AddEdge(new Edge<ModuleSpec>(parentModule, currentModule));
+        }
+
+        return null;
+    }
+
+    public static (BidirectionalGraph<ModuleSpec, Edge<ModuleSpec>>, List<Module.Module>) CreateModuleGraph(Module.Module rootModule)
+    {
+        var moduleGraph = new BidirectionalGraph<ModuleSpec, Edge<ModuleSpec>>();
+        var unsortedModules = new HashSet<Module.Module>();
+
+        var iterating = new Queue<(Module.Module?, Module.Module)>([(null, rootModule)]);
+        do
+        {
+            var (parentModule, currentModule) = iterating.Dequeue()!;
+            Logger.Debug($"Resolving requirements for {currentModule.Name}");
+
+            // The parent was a module which was already resolved, so we can skip this one as it would be an orphan.
+            if (parentModule != null && !moduleGraph.ContainsVertex(parentModule.ModuleSpec))
+            {
+                Logger.Debug($"Parent to {0} was determined to be already resolved, skipping.", currentModule.Name);
+                continue;
+            }
+
+            var resolvedModule = LinkFindingPossibleResolved(parentModule?.ModuleSpec, currentModule.ModuleSpec, [.. unsortedModules], ref moduleGraph);
+            // The module has already been resolved, so we can skip this one.
+            if (resolvedModule != null)
+            {
+                // Update the modules RequirementGroup to the correct specs.
+                if (parentModule != null)
+                {
+                    Logger.Debug("Updating requirements for parent {0}", parentModule.Name);
+
+                    Logger.Debug("Replacing {0} with {1} in requirements for {2}", currentModule.ModuleSpec.InternalGuid, resolvedModule.ModuleSpec.InternalGuid, parentModule.Name);
+
+                    var replacingReq = parentModule.Requirements.GetRequirements<ModuleSpec>().ToList().Find(req => req.InternalGuid == currentModule.ModuleSpec.InternalGuid)!;
+                    parentModule.Requirements.RemoveRequirement(replacingReq);
+                    parentModule.Requirements.AddRequirement(resolvedModule.ModuleSpec);
+                }
+
+                continue;
+            }
+
+            unsortedModules.Add(currentModule);
+
+            currentModule.Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(nestedRequirement =>
+            {
+                Logger.Debug($"Adding {nestedRequirement.Name} to the queue.");
+                Module.Module? requirementModule = null;
+                if (currentModule is LocalFileModule local)
+                {
+                    var parentPath = Path.GetDirectoryName(local.FilePath);
+                    requirementModule ??= TryFromFile(parentPath!, nestedRequirement);
+                }
+                requirementModule ??= RemoteModule.FromModuleRequirement(nestedRequirement);
+
+                iterating.Enqueue((currentModule, requirementModule ?? throw new Exception("Could not resolve module.")));
+            });
+        } while (iterating.Count > 0);
+
+
+        return (moduleGraph, [.. unsortedModules]);
     }
 }
