@@ -5,10 +5,10 @@ using NLog;
 
 namespace Compiler.Module;
 
-public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSpec)
+public class RemoteModule(ModuleSpec moduleSpec, Lazy<byte[]> bytes) : Module(moduleSpec)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    public byte[] BytesZip = bytes;
+    public Lazy<byte[]> BytesZip = bytes;
 
     /*
         Create a new module that is hosted on the PowerShell Gallery.
@@ -19,7 +19,7 @@ public class RemoteModule(ModuleSpec moduleSpec, byte[] bytes) : Module(moduleSp
         // Compress the binary zip into a string that we can store in the powershell script.
         // This will later be extracted and imported into the script.
 
-        var binaryZip = GetBinaryZip(moduleSpec);
+        var binaryZip = new Lazy<byte[]>(() => GetBinaryZip(moduleSpec));
         return new RemoteModule(moduleSpec, binaryZip);
     }
 
