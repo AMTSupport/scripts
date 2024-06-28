@@ -22,9 +22,12 @@ public record ModuleSpec(
     Version? MaximumVersion = null,
     Version? RequiredVersion = null,
     Guid? PassedInternalGuid = null
-) : Requirement(true, 70)
+) : Requirement(true)
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
+
+    public override uint Weight => 70;
+
     public readonly Guid InternalGuid = PassedInternalGuid ?? System.Guid.NewGuid();
 
     // TODO - Maybe use IsCompatibleWith to do some other check stuff
@@ -175,5 +178,7 @@ public record ModuleSpec(
 
     [ExcludeFromCodeCoverage(Justification = "Just a bool flag.")]
     public override bool IsCompatibleWith(Requirement other) => true;
+
+    public override int GetHashCode() => HashCode.Combine(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion);
 }
 
