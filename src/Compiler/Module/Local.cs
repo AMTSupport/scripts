@@ -197,13 +197,12 @@ public partial class LocalFileModule : Module
 
     public static LocalFileModule? TryFromFile(string relativeFrom, ModuleSpec spec)
     {
-        var relativePath = spec switch
+        var fullPath = spec switch
         {
-            PathedModuleSpec pathedSpec => pathedSpec.RelativePath,
-            _ => spec.Name
+            PathedModuleSpec pathedSpec => pathedSpec.FullPath,
+            _ => Path.GetFullPath(Path.Combine(relativeFrom, spec.Name))
         };
 
-        var fullPath = Path.GetFullPath(Path.Combine(relativeFrom, relativePath));
         Logger.Debug($"Trying to load local file: {fullPath}");
         if (!File.Exists(fullPath))
         {
