@@ -4,6 +4,7 @@ using Compiler.Requirements;
 using Compiler.Text;
 
 namespace Compiler.Module;
+
 public record CompiledModule(
 
     ContentType ContentType,
@@ -26,12 +27,22 @@ public record CompiledModule(
     {
         get
         {
-            return ContentType switch
+            var RawContentBytes = ContentType switch
             {
-                ContentType.UTF8String => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Content))),
-                ContentType.ZipHex => Convert.ToHexString(SHA256.HashData(Convert.FromHexString(Content))),
+                ContentType.UTF8String => Encoding.UTF8.GetBytes(Content),
+                ContentType.ZipHex => Convert.FromHexString(Content),
                 _ => throw new NotImplementedException(),
             };
+            var requirements = Requirements.GetRequirements();
+            if (requirements.IsEmpty)
+            {
+                return Convert.ToHexString(SHA1.HashData(RawContentBytes));
+            }
+            else
+            {
+                var addedRequirements = Requirements.GetRequirements().Select(requirement => requirement.Hash).Aggregate((acc, next) => SHA256.HashData(acc.Concat(next).ToArray()));
+                return Convert.ToHexString(SHA1.HashData([.. RawContentBytes.Concat(addedRequirements)]));
+            }
         }
     }
 
@@ -50,7 +61,7 @@ public record CompiledModule(
                 ContentType.ZipHex,
                 remoteModule.ModuleSpec,
                 remoteModule.Requirements,
-                Convert.ToHexString(remoteModule.BytesZip.Value),
+                Convert.ToHexString(remoteModule.ZipBytes.Value),
                 indentBy
             ),
             _ => throw new NotImplementedException()

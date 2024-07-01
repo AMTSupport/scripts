@@ -1,10 +1,17 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Compiler.Requirements;
+
+public enum PSEdition { Desktop, Core }
 
 /// <summary>
 /// Represents a PowerShell edition requirement.
 /// </summary>
 public record PSEditionRequirement(PSEdition Edition) : Requirement(false)
 {
+    public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(Edition.ToString()));
+
     /// <summary>
     /// Gets the insertable line for the requirement.
     /// </summary>

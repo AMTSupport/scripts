@@ -46,16 +46,6 @@ class Program
     public static string CompileScript(string inputFile)
     {
         var compiledScript = new CompiledScript(Path.GetFullPath(inputFile));
-
-        var graphviz = compiledScript.ModuleGraph.ToGraphviz(alg =>
-        {
-            alg.FormatVertex += (sender, args) =>
-            {
-                args.VertexFormat.Label = args.Vertex.Name;
-            };
-        });
-        Logger.Info(message: graphviz);
-
         return compiledScript.Compile();
     }
 

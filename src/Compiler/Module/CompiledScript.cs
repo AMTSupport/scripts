@@ -44,21 +44,13 @@ public partial class CompiledScript : LocalFileModule
         Document.AddRegexEdit(RunMainRegex(), UpdateOptions.MatchEntireDocument, match =>
         {
             var block = match.Groups["Block"].Value;
-            var invocation = match.Groups["Invocation"].Value;
-            if (string.IsNullOrWhiteSpace(invocation))
-            {
-                invocation = "$MyInvocation";
-            }
+            var invocation = match.Groups.ContainsKey("Invocation") ? match.Groups["Invocation"].Value : "$MyInvocation";
 
             Logger.Debug("Invocation: {0}", invocation);
             Logger.Debug("Block: {0}", block);
             Logger.Debug("ResolvedModules: {0}", ResolvedModules.Count);
 
-            return string.Format(InvokeRunMain, ResolvedModules.Find(module =>
-            {
-                Logger.Debug("Checking {0}", module.PreCompileModuleSpec.Name);
-                return new Regex(@"^00-Environment-.+$").Matches(module.PreCompileModuleSpec.Name).Count > 0;
-            })!.ModuleSpec.Name, invocation, block);
+            return string.Format(InvokeRunMain, ResolvedModules.Find(module => module.PreCompileModuleSpec.Name == "00-Environment")!.ModuleSpec.Name, invocation, block);
         });
 
         // Extract the param block and its attributes from the script and store it in a variable so we can place it at the top of the script later.
@@ -88,6 +80,7 @@ public partial class CompiledScript : LocalFileModule
         #region Begin Block
         script.AppendLine("begin {");
 
+        script.AppendLine("    $Global:CompiledScript = $True;");
         script.AppendLine("    $Global:EmbeddedModules = @{");
         ResolvedModules.ToList().ForEach(module => script.AppendLine(module.ToString()));
         script.AppendLine("};");
@@ -351,7 +344,7 @@ public partial class CompiledScript : LocalFileModule
                     var parentPath = Path.GetDirectoryName(local.FilePath);
                     requirementModule ??= TryFromFile(parentPath!, nestedRequirement);
                 }
-                requirementModule ??= RemoteModule.FromModuleRequirement(nestedRequirement);
+                requirementModule ??= new RemoteModule(nestedRequirement);
 
                 iterating.Enqueue((currentModule, requirementModule ?? throw new Exception("Could not resolve module.")));
             });
