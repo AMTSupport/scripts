@@ -1,5 +1,8 @@
 #Requires -Version 5.1
 
+Using module ./01-Logging.psm1
+Using module ./02-Exit.psm1
+
 function Assert-NotNull(
     [Parameter(ValueFromPipeline)]
     [Object]$Object,
@@ -11,7 +14,8 @@ function Assert-NotNull(
         if ($null -eq $Message) {
             Invoke-Error -Message 'Object is null';
             Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
-        } else {
+        }
+        else {
             Invoke-Error $Message;
             Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
         }
@@ -31,4 +35,4 @@ function Assert-Equals([Parameter(Mandatory, ValueFromPipeline)][Object]$Object,
     }
 }
 
-Export-ModuleMember -Function Assert-NotNull,Assert-Equals;
+Export-ModuleMember -Function Assert-NotNull, Assert-Equals;

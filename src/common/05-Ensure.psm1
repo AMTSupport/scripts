@@ -1,3 +1,7 @@
+Using module ./01-Logging.psm1
+Using module ./01-Scope.psm1
+Using module ./02-Exit.psm1
+
 $Script:NOT_ADMINISTRATOR = Register-ExitCode -Description @'
 Not running as administrator!
 Please re-run your terminal session as Administrator, and try again.

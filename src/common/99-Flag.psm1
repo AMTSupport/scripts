@@ -1,3 +1,5 @@
+Using module ./01-Logging.psm1
+
 class Flag {
     [String][ValidateNotNull()]$Context;
     [String][ValidateNotNull()]$FlagPath;
@@ -41,7 +43,7 @@ class RunningFlag: Flag {
 
     [Void]Set([Object]$Data) {
         if ($Data) {
-            Write-Warning -Message "Data is ignored for RunningFlag, only the PID of the running process is stored."
+            Invoke-Warn -Message "Data is ignored for RunningFlag, only the PID of the running process is stored."
         }
 
         [Int]$Local:CurrentPID = [System.Diagnostics.Process]::GetCurrentProcess().Id;

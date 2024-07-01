@@ -1,3 +1,5 @@
+Using module ./01-Logging.psm1
+
 function Get-NamedTempFolder {
     Param(
         [Parameter(Mandatory)]
@@ -16,7 +18,8 @@ function Get-NamedTempFolder {
     if (-not (Test-Path $Local:Folder -PathType Container)) {
         Invoke-Verbose -Message "Creating temporary folder $Local:Folder...";
         New-Item -ItemType Directory -Path $Local:Folder | Out-Null;
-    } elseif (Test-Path $Local:Folder -PathType Container) {
+    }
+    elseif (Test-Path $Local:Folder -PathType Container) {
         Invoke-Verbose -Message "Temporary folder $Local:Folder already exists.";
         if ($ForceEmpty) {
             Invoke-Verbose -Message "Emptying temporary folder $Local:Folder...";
@@ -43,7 +46,8 @@ function Invoke-WithinEphemeral {
         Invoke-Verbose -Message "Executing script block within temporary folder $Local:Folder...";
         Push-Location -Path $Local:Folder;
         & $ScriptBlock;
-    } finally {
+    }
+    finally {
         Invoke-Verbose -Message "Cleaning temporary folder $Local:Folder...";
         Pop-Location;
         Remove-Item -Path $Local:Folder -Force -Recurse;
