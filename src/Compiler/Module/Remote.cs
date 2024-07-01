@@ -5,80 +5,107 @@ using NLog;
 
 namespace Compiler.Module;
 
-public class RemoteModule(ModuleSpec moduleSpec, Lazy<byte[]> bytes) : Module(moduleSpec)
+public class RemoteModule(ModuleSpec moduleSpec) : Module(moduleSpec)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    public Lazy<byte[]> BytesZip = bytes;
-
-    /*
-        Create a new module that is hosted on the PowerShell Gallery.
-    */
-    public static RemoteModule FromModuleRequirement(ModuleSpec moduleSpec)
+    private static readonly Lazy<RunspacePool> RunspacePool = new(() =>
     {
-        // Obtain a variable which contains the binary zip file of the module.
-        // Compress the binary zip into a string that we can store in the powershell script.
-        // This will later be extracted and imported into the script.
+        var sessionState = InitialSessionState.CreateDefault2();
+        sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
+        sessionState.ImportPSModule(new[] { "Microsoft.PowerShell.PSResourceGet" });
 
-        var binaryZip = new Lazy<byte[]>(() => GetBinaryZip(moduleSpec));
-        return new RemoteModule(moduleSpec, binaryZip);
-    }
+        var rsPool = RunspaceFactory.CreateRunspacePool(sessionState);
+        rsPool.SetMinRunspaces(1);
+        rsPool.SetMaxRunspaces(5);
+        rsPool.Open();
+        return rsPool;
+    });
+
+    private string CachePath => Path.Join(
+        Path.GetTempPath(),
+        "PowerShellGet",
+        ModuleSpec.Name
+    );
+
+    public Lazy<byte[]> ZipBytes => new(() => File.ReadAllBytes(FindCachedResult() ?? CacheResult()));
 
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement)
     {
         return ModuleSpec.CompareTo(requirement);
     }
 
-    // TODO - Run all of these in a single session to reduce overhead.
-    private static byte[] GetBinaryZip(ModuleSpec moduleSpec)
+    public string? FindCachedResult()
     {
-        var zipPath = Path.GetTempPath();
-        var versionString = ConvertVersionParameters(moduleSpec.RequiredVersion?.ToString(), moduleSpec.MinimumVersion?.ToString(), moduleSpec.MaximumVersion?.ToString());
+        if (!Directory.Exists(CachePath))
+        {
+            return null;
+        }
+
+        var files = Directory.GetFiles(CachePath, "*.nupkg");
+        if (files.Length == 0)
+        {
+            return null;
+        }
+
+        var versions = files.Select(file =>
+        {
+            var fileName = Path.GetFileName(file);
+            var version = fileName.Substring(ModuleSpec.Name.Length + 1, fileName.Length - ModuleSpec.Name.Length - 1 - ".nupkg".Length);
+            return new Version(version);
+        });
+
+        var selectedVersion = versions.Where(version =>
+        {
+            var otherSpec = new ModuleSpec(ModuleSpec.Name, ModuleSpec.Guid, RequiredVersion: version);
+            var matchType = ModuleSpec.CompareTo(otherSpec);
+
+            return matchType == ModuleMatch.Same || matchType == ModuleMatch.Stricter;
+        }).OrderByDescending(version => version).FirstOrDefault();
+
+        return selectedVersion == null ? null : Path.Join(CachePath, $"{ModuleSpec.Name}.{selectedVersion}.nupkg");
+    }
+
+    public string CacheResult()
+    {
+        var versionString = ConvertVersionParameters(ModuleSpec.RequiredVersion?.ToString(), ModuleSpec.MinimumVersion?.ToString(), ModuleSpec.MaximumVersion?.ToString());
         var PowerShellCode = /*ps1*/ $$"""
         Install-Module 'Microsoft.PowerShell.PSResourceGet' -Scope CurrentUser -Confirm:$False -Force;
         Import-Module 'Microsoft.PowerShell.PSResourceGet' -Force;
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
 
         try {
-            $Module = Find-PSResource -Name '{{moduleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
+            $Module = Find-PSResource -Name '{{ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
         } catch {
             exit 10;
         }
 
         try {
-            $Module | Save-PSResource -Path '{{zipPath}}' -AsNupkg;
+            $Module | Save-PSResource -Path '{{CachePath}}' -AsNupkg;
         } catch {
             exit 11;
         }
 
-        return $env:TEMP | Join-Path -ChildPath "{{moduleSpec.Name}}.$($Module.Version).nupkg";
+        return $env:TEMP | Join-Path -ChildPath ("PowerShellGet" | Join-Path -ChildPath "{{ModuleSpec.Name}}.$($Module.Version).nupkg");
         """;
 
-        Logger.Debug("Running the following PowerShell code to download the module from the PowerShell Gallery:");
-        Logger.Debug(PowerShellCode);
-
-        var sessionState = InitialSessionState.CreateDefault2();
-        sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
-        sessionState.ImportPSModule(new[] { "Microsoft.PowerShell.PSResourceGet" });
-        sessionState.LanguageMode = PSLanguageMode.FullLanguage;
-        var runspace = RunspaceFactory.CreateRunspace(sessionState);
-        runspace.Open();
-
-        var ps = PowerShell.Create(runspace);
-        ps.AddScript(PowerShellCode);
-        var result = ps.Invoke();
-        runspace.Close();
-
-        if (ps.HadErrors)
+        if (!Directory.Exists(CachePath))
         {
-            throw new Exception($"Failed to download module {moduleSpec.Name} from the PowerShell Gallery. Error: {ps.Streams.Error[0].Exception.Message}");
+            Directory.CreateDirectory(CachePath);
         }
 
-        zipPath = result.First().ToString();
-        Logger.Debug($"Downloaded module {moduleSpec.Name} from the PowerShell Gallery to {zipPath}.");
-        var bytesZip = File.ReadAllBytes(zipPath);
-        File.Delete(zipPath);
+        var pwsh = PowerShell.Create(RunspaceMode.NewRunspace);
+        pwsh.RunspacePool = RunspacePool.Value;
+        pwsh.AddScript(PowerShellCode);
+        var result = pwsh.Invoke();
 
-        return bytesZip;
+        if (pwsh.HadErrors)
+        {
+            throw new Exception($"Failed to download module {ModuleSpec.Name} from the PowerShell Gallery. Error: {pwsh.Streams.Error[0].Exception.Message}");
+        }
+
+        var returnedResult = result.First().ToString();
+        Logger.Debug($"Downloaded module {ModuleSpec.Name} from the PowerShell Gallery to {returnedResult}.");
+        return returnedResult;
     }
 
     // Based on https://github.com/PowerShell/PowerShellGet/blob/c6aea39ea05491c648efd7aebdefab1ae7c5b213/src/PowerShellGet.psm1#L111-L144
