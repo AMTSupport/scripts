@@ -1,5 +1,4 @@
-using System.Collections;
-using CommandLine;
+using System.Collections.Immutable;
 using NLog;
 
 namespace Compiler.Requirements;
@@ -7,48 +6,76 @@ namespace Compiler.Requirements;
 public class RequirementGroup
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
-    public Hashtable StoredRequirements { get; }
+    public Dictionary<Type, List<Requirement>> StoredRequirements { get; }
 
     public RequirementGroup()
     {
         StoredRequirements = [];
     }
 
-    public void AddRequirement(Requirement value)
+    public void AddRequirement<T>(T value) where T : Requirement
     {
-        if (!StoredRequirements.ContainsKey(value.GetType()))
+        var typeName = typeof(T);
+        if (!StoredRequirements.TryGetValue(typeName, out List<Requirement>? requirementList))
         {
-            StoredRequirements.Add(value.GetType(), new List<Requirement> { value });
+            StoredRequirements.Add(typeName, [value]);
         }
         else
         {
-            StoredRequirements[value.GetType()].Cast<List<Requirement>>().Add(value);
+            requirementList.Add(value);
         }
     }
 
-    public List<T> GetRequirements<T>()
+    public ImmutableHashSet<T> GetRequirements<T>() where T : Requirement
     {
-        if (StoredRequirements.ContainsKey(typeof(T)))
+        var typeName = typeof(T);
+        if (StoredRequirements.TryGetValue(typeName, out List<Requirement>? value))
         {
-            return StoredRequirements[typeof(T)].Cast<List<Requirement>>().FindAll(requirement => requirement is T).Cast<T>().ToList();
+            return value.Cast<T>().ToImmutableHashSet();
         }
 
         return [];
     }
 
-    public bool RemoveRequirement(Requirement value)
+    public bool RemoveRequirement<T>(T value) where T : Requirement
     {
-        if (StoredRequirements.ContainsKey(value.GetType()))
+        var typeName = typeof(T);
+        if (StoredRequirements.TryGetValue(typeName, out List<Requirement>? collection))
         {
-            return StoredRequirements[value.GetType()].Cast<List<Requirement>>().Remove(value);
+            return collection.Remove(value);
         }
 
         return false;
     }
 
-    public List<Requirement> GetRequirements()
+    public bool ReplaceRequirement<T>(T oldValue, T newValue) where T : Requirement
     {
-        return [.. StoredRequirements.Values.Cast<List<Requirement>>().SelectMany(requirements => requirements).OrderBy(requirement => requirement)];
+        var typeName = typeof(T);
+        if (StoredRequirements.TryGetValue(typeName, out List<Requirement>? value))
+        {
+            var index = value.ToList().IndexOf(oldValue);
+            if (index != -1)
+            {
+                value[index] = newValue;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public ImmutableHashSet<Requirement> GetRequirements()
+    {
+        var rawRequirements = StoredRequirements.Values;
+        if (rawRequirements.Count == 0)
+        {
+            Logger.Debug("No requirements found");
+            return [];
+        }
+
+        var flattenedList = StoredRequirements.Values.ToList().SelectMany(x => x).ToList();
+        flattenedList.Sort(new RequirementWeightSorter());
+        return [.. flattenedList];
     }
 
     // FIXME - Not very efficient
@@ -72,25 +99,26 @@ public class RequirementGroup
     }
 }
 
-public abstract record Requirement(bool SupportsMultiple, uint Weight = 50) : IComparable<Requirement>
+public abstract record Requirement(bool SupportsMultiple)
 {
+    public virtual uint Weight => 50;
+
+    public abstract byte[] Hash { get; }
+
     public abstract bool IsCompatibleWith(Requirement other);
 
     public abstract string GetInsertableLine();
-
-    /*
-        For sorting purposes of requirements
-        Not for comparing if they are compatible
-    */
-    public int CompareTo(Requirement? other)
-    {
-        if (other == null)
-        {
-            return 1;
-        }
-
-        return Weight.CompareTo(other.Weight);
-    }
 }
 
-public enum PSEdition { Desktop, Core }
+public class RequirementWeightSorter : IComparer<Requirement>
+{
+    public int Compare(Requirement? x, Requirement? y)
+    {
+        if (x == null)
+        {
+            return y == null ? 0 : -1;
+        }
+
+        return x.Weight.CompareTo(y?.Weight);
+    }
+}

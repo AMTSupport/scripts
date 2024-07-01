@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
 using System.Text;
 using Compiler.Module;
 using NLog;
@@ -6,14 +7,17 @@ using NLog;
 namespace Compiler.Requirements;
 
 public record PathedModuleSpec(
-    string RelativePath,
+    string FullPath,
     string Name,
     Guid? Guid = null,
     Version? MinimumVersion = null,
     Version? MaximumVersion = null,
     Version? RequiredVersion = null,
     Guid? PassedInternalGuid = null
-) : ModuleSpec(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion, PassedInternalGuid);
+) : ModuleSpec(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion, PassedInternalGuid)
+{
+    public override byte[] Hash => SHA1.HashData(File.ReadAllBytes(FullPath));
+}
 
 public record ModuleSpec(
     string Name,
@@ -27,6 +31,8 @@ public record ModuleSpec(
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
 
     public override uint Weight => 70;
+
+    public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(string.Concat(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion)));
 
     public readonly Guid InternalGuid = PassedInternalGuid ?? System.Guid.NewGuid();
 
