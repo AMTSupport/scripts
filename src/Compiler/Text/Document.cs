@@ -175,7 +175,6 @@ public class TextEditor(TextDocument document)
         var sb = new StringBuilder()
             .AppendLine("TextEditor:")
             .AppendLine("  Document:")
-            // .AppendLine('\t' + string.Join("\n\t", Document.Lines))
             .AppendLine("  TextUpdaters:")
             .AppendLine('\t' + string.Join("\n\t", TextUpdaters.Select(updater => updater.ToString())));
         return sb.ToString();

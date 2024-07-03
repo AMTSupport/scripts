@@ -2,7 +2,6 @@ using System.Text;
 using CommandLine;
 using Compiler;
 using NLog;
-using QuikGraph.Graphviz;
 
 class Program
 {
@@ -29,24 +28,20 @@ class Program
         {
             LogManager.Setup().LoadConfiguration(builder =>
             {
-                builder.ForLogger().FilterMinLevel(LogLevel.Trace).WriteToColoredConsole();
+                builder.ForLogger()
+                    .FilterLevels(LogLevel.Trace, LogLevel.Error)
+                    .WriteToColoredConsole(
+                        "${pad:padding=5:inner=${level:uppercase=true}}|${message}",
+                        true,
+                        detectConsoleAvailable: true,
+                        enableAnsiOutput: true
+                    ).WithAsync();
             });
 
-            if (string.IsNullOrWhiteSpace(o.InputFile))
-            {
-                Logger.Error("Input file is required");
-                return;
-            }
-
-            var compiledContent = CompileScript(o.InputFile);
+            var compiledScript = new CompiledScript(Path.GetFullPath(o.InputFile!));
+            var compiledContent = compiledScript.Compile();
             OutputToFile(o, compiledContent);
         });
-    }
-
-    public static string CompileScript(string inputFile)
-    {
-        var compiledScript = new CompiledScript(Path.GetFullPath(inputFile));
-        return compiledScript.Compile();
     }
 
     public static async void OutputToFile(Options options, string content)
@@ -61,24 +56,24 @@ class Program
         // Output to file
         if (File.Exists(options.OutputFile))
         {
-            // Console.WriteLine("Output file already exists");
+            Logger.Info("Output file already exists");
 
             var removeFile = options.Force;
             if (!removeFile)
             {
-                // Console.WriteLine($"File {options.OutputFile} already exists. Overwrite? (Y/n)");
+                Logger.Info($"File {options.OutputFile} already exists. Overwrite? (Y/n)");
                 var response = Console.ReadLine();
-                removeFile = String.IsNullOrWhiteSpace(response) || response.Equals("y", StringComparison.CurrentCultureIgnoreCase);
+                removeFile = string.IsNullOrWhiteSpace(response) || response.Equals("y", StringComparison.CurrentCultureIgnoreCase);
             }
 
             if (removeFile)
             {
-                // Console.WriteLine("Removing file");
+                Logger.Trace("Removing file");
                 File.Delete(options.OutputFile);
             }
         }
 
-        // Console.WriteLine($"Writing to file {options.OutputFile}");
+        Logger.Info($"Writing to file {options.OutputFile}");
         var fileStream = File.Open(options.OutputFile, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite);
         await fileStream.WriteAsync(Encoding.UTF8.GetBytes(content));
         fileStream.Close();
