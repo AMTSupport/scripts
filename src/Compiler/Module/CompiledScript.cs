@@ -62,10 +62,7 @@ public partial class CompiledScript : LocalFileModule
     {
         var script = new StringBuilder();
 
-        Requirements.GetRequirements().Where(requirement => requirement is not Compiler.Requirements.ModuleSpec).ToList().ForEach(requirement =>
-        {
-            script.AppendLine(requirement.GetInsertableLine());
-        });
+        Requirements.GetRequirements().ToList().ForEach(requirement => script.AppendLine(requirement.GetInsertableLine()));
 
         if (ScriptParamBlockAst != null)
         {
