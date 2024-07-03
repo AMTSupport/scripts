@@ -84,5 +84,36 @@ namespace Compiler
 
             return namespaces;
         }
+
+        public static List<CommandAst> FindCalledFunctions(Ast ast) => [.. ast.FindAll(testAst => testAst is CommandAst, true).Cast<CommandAst>().Where(command => command.GetCommandName() != null)];
+
+        public static List<FunctionDefinitionAst> FindAvailableFunctions(Ast ast, bool onlyExported)
+        {
+            // Check for Export-ModuleMember statement, if one exists return only functions listed
+            // Otherwise return all functions
+            var allDefinedFunctions = ast.FindAll(testAst => testAst is FunctionDefinitionAst, true).Cast<FunctionDefinitionAst>().ToList();
+
+            if (ast.Find(testAst => testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember", true) is not CommandAst command || !onlyExported)
+            {
+                return allDefinedFunctions;
+            }
+
+            var wantingToExport = new List<(string, List<string>)>();
+            var namedParameters = ast.FindAll(testAst => testAst is CommandParameterAst commandParameter && commandParameter.Parent == command, true).Cast<CommandParameterAst>().ToList();
+            foreach (var (namedParameter, index) in namedParameters.Select((value, i) => (value, i)))
+            {
+                ExpressionAst? value = namedParameter.Argument;
+                value ??= command.CommandElements[index + 1] as ExpressionAst;
+
+                var objects = value switch
+                {
+                    StringConstantExpressionAst stringConstantExpressionAst => [stringConstantExpressionAst.Value],
+                    ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()),
+                    _ => throw new NotImplementedException("Export-ModuleMember parameter must be a string or array of strings"),
+                };
+            }
+
+            return allDefinedFunctions.Where(function => wantingToExport.Any(wanting => wanting.Item2.Contains(function.Name))).ToList();
+        }
     }
 }
