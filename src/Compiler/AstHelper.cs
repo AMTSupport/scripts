@@ -102,15 +102,22 @@ namespace Compiler
             var namedParameters = ast.FindAll(testAst => testAst is CommandParameterAst commandParameter && commandParameter.Parent == command, true).Cast<CommandParameterAst>().ToList();
             foreach (var (namedParameter, index) in namedParameters.Select((value, i) => (value, i)))
             {
+                if (namedParameter.ParameterName != "Function" && namedParameter.ParameterName != "Alias")
+                {
+                    continue;
+                }
+
                 ExpressionAst? value = namedParameter.Argument;
-                value ??= command.CommandElements[index + 1] as ExpressionAst;
+                value ??= command.CommandElements[command.CommandElements.IndexOf(namedParameter) + 1] as ExpressionAst;
 
                 var objects = value switch
                 {
                     StringConstantExpressionAst stringConstantExpressionAst => [stringConstantExpressionAst.Value],
                     ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()),
-                    _ => throw new NotImplementedException("Export-ModuleMember parameter must be a string or array of strings"),
+                    _ => throw new NotImplementedException($"Export-ModuleMember parameter must be a string or array of strings, got: {value}"),
                 };
+
+                wantingToExport.Add((namedParameter.ParameterName, objects.Cast<string>().ToList()));
             }
 
             return allDefinedFunctions.Where(function => wantingToExport.Any(wanting => wanting.Item2.Contains(function.Name))).ToList();
