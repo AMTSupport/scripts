@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation;
 using System.Text;
@@ -18,7 +17,6 @@ public enum UpdateOptions
     InsertInline = 2
 }
 
-[DebuggerDisplay("{toString()}")]
 public class TextSpan(
     [NonNegativeValue] int startingIndex,
     [NonNegativeValue] int startingColumn,
