@@ -35,7 +35,7 @@ class Program
                         true,
                         detectConsoleAvailable: true,
                         enableAnsiOutput: true
-                    ).WithAsync();
+                    );
             });
 
             var compiledScript = new CompiledScript(Path.GetFullPath(o.InputFile!));
