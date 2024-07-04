@@ -3,19 +3,12 @@ Using module ./01-Logging.psm1
 Using module ./01-Scope.psm1
 Using module ./02-Exit.psm1
 
+Using namespace System.Management.Automation.Language;
 Using namespace System.Collections.Generic
 
 [System.Boolean]$Global:ScriptRestarted = $False;
 [System.Boolean]$Global:ScriptRestarting = $False;
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
-[HashTable]$Global:Logging = @{
-    Loaded      = $True;
-    Error       = $True;
-    Warning     = $True;
-    Information = $True;
-    Verbose     = $VerbosePreference -ne 'SilentlyContinue';
-    Debug       = $DebugPreference -ne 'SilentlyContinue';
-};
 
 #region - Utility Functions
 function Get-OrFalse {
@@ -113,8 +106,8 @@ function Invoke-Setup {
     $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
     $PSDefaultParameterValues['*:WarningAction'] = 'Continue';
     $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
-    $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
-    $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
+    $PSDefaultParameterValues['*:Verbose'] = $Logging.Verbose;
+    $PSDefaultParameterValues['*:Debug'] = $Logging.Debug;
 
     $Global:ErrorActionPreference = 'Stop';
 }
@@ -127,146 +120,26 @@ function Invoke-Teardown {
     $PSDefaultParameterValues.Remove('*:Debug');
 }
 
-function Import-CommonModules {
-    [HashTable]$Local:ToImport = [Ordered]@{};
+function Remove-Modules {
+    # Get the AST of the script and look for all the using module statements.
+    # Then remove the modules in reverse order.
 
-    function Get-FilsAsHashTable([String]$Path) {
-        [HashTable]$Local:HashTable = [Ordered]@{};
+    # Get the AST of the script.
+    [String]$Private:CallingScript = (Get-PSCallStack)[-1].Location;
+    [System.Management.Automation.Language.Ast]$Private:ScriptAst = [Parser]::ParseFile($Private:CallingScript, [ref]$null, [ref]$null);
 
-        Get-ChildItem -File -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1" | ForEach-Object {
-            [System.IO.FileInfo]$Local:File = $_;
-            $Local:HashTable[$Local:File.BaseName] = $Local:File.FullName;
-        };
+    # Find all the using module statements.
+    [List[UsingStatementAst]]$Private:UsingStatements = [List[UsingStatementAst]]::new();
+    $Private:ScriptAst.FindAll({ $args[0] -is [UsingStatementAst] -and ($args[0] -as [UsingStatementAst]).UsingStatementKind -eq 'Module' }, $true) | ForEach-Object {
+        $Private:UsingStatements.Add(([UsingStatementAst]$_).Name);
+    };
 
-        return $Local:HashTable;
-    }
-
-    function Import-ModuleOrScriptBlock([String]$Name, [Object]$Value) {
-        begin {
-            $Local:Hasher = [System.Security.Cryptography.SHA256]::Create();
-        }
-
-        process {
-            Invoke-Debug -Message "Importing module $Name.";
-
-            if ($Value -is [Hashtable]) {
-                Invoke-Debug -Message "Module $Name is a hash table";
-
-                $Local:ContentHash = ($Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value)) | ForEach-Object { $_.ToString('x2') }) -join '';
-                if ($Value.Type -eq 'LocalFileModule') {
-                    $Local:ModuleName = "$Name-$Local:ContentHash.psm1";
-                    $Local:ModulePath = ($env:TEMP | Join-Path -ChildPath "$Local:ModuleName");
-
-                    if (-not (Test-Path $Private:ModulePath)) {
-                        Set-Content -Path $Private:ModulePath -Value $Value.ToString();
-                    }
-
-                    Import-Module -Name $Private:ModulePath -Global -Force -Verbose:$False -Debug:$False;
-                }
-                elseif ($Value.Type -eq 'RemoteModule') {
-                    # Convert from Base64 to raw bytes
-                    # Then output them into a zip file so we can expand it
-                    $Local:Bytes = [System.Convert]::FromBase64String($Value.Content);
-                    $Local:ZipPath = ($env:TEMP | Join-Path -ChildPath "$Name-$Local:ContentHash.zip");
-
-                    [System.IO.File]::WriteAllBytes($Local:ZipPath, $Local:Bytes);
-                    Expand-Archive -Path $Local:ZipPath -DestinationPath $env:TEMP -Force;
-
-                    Import-Module -Name "$env:TEMP/$Name" -Global -Force -Verbose:$False -Debug:$False;
-                }
-            }
-            else {
-                Invoke-Debug -Message "Module $Name is a file or installed module.";
-
-                Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
-            }
-        }
-    }
-
-    # Collect a List of the modules to import.
-    if (Test-IsCompiledScript) {
-        Invoke-Verbose 'Script has been embeded with required modules.';
-        [HashTable]$Local:ToImport = $Global:EmbededModules;
-    } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
-        Invoke-Verbose 'Script is in git repository; Using local files.';
-        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
-    } else {
-        [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
-
-        if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
-            if (-not (Test-Path -Path $Local:RepoPath)) {
-                Invoke-Verbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
-                git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
-            }
-            else {
-                Invoke-Verbose -UnicodePrefix '♻️' -Message 'Updating repository.';
-                git -C $Local:RepoPath pull;
-            }
-        }
-        else {
-            Invoke-Info -Message 'Git is not installed, unable to update the repository or clone if required.';
-        }
-
-        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
-
-    }
-
-    # Import PSStyle Before anything else.
-    # Import-ModuleOrScriptBlock -Name:'00-PSStyle' -Value:$Local:ToImport['00-PSStyle'];
-
-    # Import the modules.
-    Invoke-Verbose -Message "Importing $($Local:ToImport.Count) modules.";
-    Invoke-Verbose -Message "Modules to import: `n$(($Local:ToImport.Keys | Sort-Object) -join "`n")";
-    foreach ($Local:ModuleName in $Local:ToImport.Keys | Sort-Object) {
-        $Local:ModuleName = $Local:ModuleName;
-        $Local:ModuleValue = $Local:ToImport[$Local:ModuleName];
-
-        if ($Local:ModuleName -eq '00-Environment') {
-            continue;
-        }
-
-        # if ($Local:ModuleName -eq '00-PSStyle') {
-        #     continue;
-        # }
-
-        Import-ModuleOrScriptBlock -Name $Local:ModuleName -Value $Local:ModuleValue;
-        if ($Local:ModuleName -eq '01-Logging') {
-            $Global:Logging.Loaded = $true;
-        }
-    }
-
-    $Script:ImportedModules += $Local:ToImport.Keys;
-}
-
-function Remove-CommonModules {
-    Invoke-Verbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
-    Invoke-Verbose -Message "Removing modules: `n$(($Script:ImportedModules | Sort-Object -Descending) -join "`n")";
-    $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
-        $Private:Module = $_;
-        Invoke-Debug -Message "Removing module $Private:Module.";
-
-        # if (Test-IsCompiledScript -and ($Private:Module -eq '00-Environment')) {
-        #     Invoke-Debug -Message 'Skipping removal of the environment module.';
-        #     return;
-        # }
-
-        # if ($Local:Module -eq '01-Logging') {
-        #     Invoke-Debug -Message 'Resetting logging state.';
-        #     $Global:Logging.Loaded = $false;
-        # }
-
-        try {
-            Invoke-Debug -Message "Running Remove-Module -Name $Private:Module";
-            Remove-Module -Name "$Private:Module*" -Force -Verbose:$False -Debug:$False;
-
-            # The environment module doesn't get a file created for it.
-            if (($Private:Module -ne '00-Environment') -and (Test-IsCompiledScript)) {
-                Remove-Item -Path ($env:TEMP | Join-Path -ChildPath "$($Private:Module)*");
-            }
-        }
-        catch {
-            Invoke-Debug -Message "Failed to remove module $Local:Module";
-        }
+    Invoke-Verbose -Message "Cleaning up $($Private:UsingStatements.Count) imported modules.";
+    Invoke-Verbose -Message "Removing modules: `n$(($Private:UsingStatements | Sort-Object -Descending) -join "`n")";
+    $Private:UsingStatements | ForEach-Object {
+        $Private:ModuleName = $_;
+        Invoke-Debug -Message "Removing module $Private:ModuleName.";
+        Remove-Module -Name $Private:ModuleName -Force -Verbose:$False -Debug:$False;
     };
 }
 
@@ -329,7 +202,7 @@ function Invoke-RunMain {
             if (-not $Global:ScriptRestarted) {
                 foreach ($Local:Param in @('Verbose', 'Debug')) {
                     if ($Cmdlet.MyInvocation.BoundParameters.ContainsKey($Local:Param)) {
-                        $Global:Logging[$Local:Param] = $Cmdlet.MyInvocation.BoundParameters[$Local:Param];
+                        $Logging[$Local:Param] = $Cmdlet.MyInvocation.BoundParameters[$Local:Param];
                     }
                 }
 
@@ -342,7 +215,6 @@ function Invoke-RunMain {
                     return;
                 }
 
-                Import-CommonModules;
                 Invoke-Setup;
             }
         }
@@ -372,11 +244,10 @@ function Invoke-RunMain {
                         [Int]$Local:ExitCode = $Local:CatchingError.TargetObject;
                         Invoke-Verbose -Message "Script exited with an error code of $Local:ExitCode.";
                         $LASTEXITCODE = $Local:ExitCode;
-
-                        $Global:Error.Remove($Local:CatchingError);
+                        $Error.RemoveAt(0);
                     }
                     'RestartScript' {
-                        $Global:ScriptRestarting = $True;
+                        Set-Variable -Scope Global -Name ScriptRestarting -Value $True;
                     }
                     default {
                         Invoke-Error 'Uncaught Exception during script execution';
@@ -394,13 +265,12 @@ function Invoke-RunMain {
 
                     # There is no point in removing the modules if the script is restarting.
                     if (-not (Test-IsRestartingScript)) {
-                        Remove-CommonModules;
+                        Invoke-Debug 'Cleaning up'
+                        Remove-Modules;
 
                         if ($Private:WasCompiled) {
-                            Remove-Variable -Scope Global -Name CompiledScript, EmbededModules;
+                            Remove-Variable -Scope Global -Name CompiledScript, EmbeddedModules;
                         }
-
-                        Remove-Variable -Scope Global -Name Logging;
 
                         # Without this explicit check theres a silent error.
                         # It has no effect but it annoys me.
@@ -432,4 +302,4 @@ function Invoke-RunMain {
         -Debug:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Debug');
 }
 
-Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules, Test-IsNableRunner;
+Export-ModuleMember -Function Invoke-RunMain, Remove-CommonModules, Test-IsNableRunner -Variable ScriptRestarted, ScriptRestarting;

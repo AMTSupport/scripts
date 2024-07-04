@@ -1,3 +1,7 @@
+Using module ./01-Logging.psm1
+Using module ./01-Scope.psm1
+Using module ./02-Exit.psm1
+
 <#
 .DESCRIPTION
     This module contains utility functions that have no dependencies on other modules and can be used by any module.

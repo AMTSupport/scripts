@@ -1,4 +1,16 @@
 Using module ./00-PSStyle.psm1
+Using module @{
+    ModuleName      = 'PSReadLine';
+    RequiredVersion = '2.3.5';
+}
+
+[HashTable]$Logging = @{
+    Error       = $True;
+    Warning     = $True;
+    Information = $True;
+    Verbose     = $VerbosePreference -ne 'SilentlyContinue';
+    Debug       = $DebugPreference -ne 'SilentlyContinue';
+};
 
 function Test-IsNableRunner {
     $WindowName = $Host.UI.RawUI.WindowTitle;
@@ -440,9 +452,6 @@ function Invoke-Progress {
         [ScriptBlock]$FailedProcessItem
     )
 
-    begin { Enter-Scope; }
-    end { Exit-Scope; }
-
     process {
         if (-not $Activity) {
             $Local:FuncName = (Get-PSCallStack)[1].InvocationInfo.MyCommand.Name;
@@ -474,7 +483,7 @@ function Invoke-Progress {
 
         foreach ($Item in $Local:InputItems) {
             [String]$ItemName;
-            [TimeSpan]$Local:TimeTaken = (Measure-ElaspedTime {
+            [TimeSpan]$Local:TimeTaken = (Measure-Command {
                     $ItemName = if ($Format) { $Format.InvokeReturnAsIs($Item) } else { $Item; };
                 });
             $Local:TotalTime += $Local:TimeTaken;
@@ -534,4 +543,4 @@ function Invoke-Progress {
     }
 }
 
-Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Format-Error, Invoke-Timeout, Invoke-Progress;
+Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Format-Error, Invoke-Timeout, Invoke-Progress -Variable Logging;

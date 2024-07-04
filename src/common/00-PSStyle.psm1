@@ -190,7 +190,8 @@ class PSStyle {
         }
         if ($isBackground) {
             return [PSStyle]::BackgroundColorMap[$index]
-        } else {
+        }
+        else {
             return [PSStyle]::ForegroundColorMap[$index]
         }
     }
@@ -225,7 +226,8 @@ class PSStyle {
 function Get-ConsoleColour([Parameter(Mandatory)][System.ConsoleColor]$Colour) {
     if ($Below7_2) {
         [PSStyle]::MapForegroundColorToEscapeSequence($Colour)
-    } else {
+    }
+    else {
         $PSStyle.Foreground.FromConsoleColor($Colour)
     }
 }
@@ -234,6 +236,7 @@ function Get-ConsoleColour([Parameter(Mandatory)][System.ConsoleColor]$Colour) {
 if ($PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSVersion.Minor -lt 2) {
     $PSStyle = [PSStyle]::new()
     Export-ModuleMember -Variable PSStyle -Function Get-ConsoleColour;
-} else {
+}
+else {
     Export-ModuleMember -Function Get-ConsoleColour;
 }

@@ -1,5 +1,10 @@
+Using module ./00-Utils.psm1
 Using module ./01-Logging.psm1
 Using module ./01-Scope.psm1
+Using module @{
+    ModuleName    = 'PSReadLine';
+    ModuleVersion = '2.3.2';
+}
 
 $Script:Validations = @{
     Email = '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$';
