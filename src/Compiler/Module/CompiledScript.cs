@@ -9,6 +9,7 @@ using Compiler.Text;
 using System.Text.RegularExpressions;
 using QuikGraph.Algorithms;
 using QuikGraph.Graphviz;
+using Compiler.Analyser;
 
 namespace Compiler;
 
@@ -108,7 +109,7 @@ public partial class CompiledScript : LocalFileModule
                         }
                     }
                     'ZipHex' {
-                        if (Test-Path -Path $Local:ModuleFolderPath) {
+                        if ((Get-ChildItem -Path $Local:ModuleFolderPath).Count -ne 0) {
                             return;
                         }
                         [String]$Local:TempFile = [System.IO.Path]::GetTempFileName();
@@ -204,7 +205,14 @@ public partial class CompiledScript : LocalFileModule
                 matchingModule.Requirements.AddRequirement(matchingModuleSpec ?? throw new Exception($"Could not find module {requirement.Name} in resolved modules."));
             });
 
-            ResolvedModules.Add(CompiledModule.From(matchingModule, 8));
+            var compiledModule = CompiledModule.From(matchingModule, 8);
+            // Only validate unknown requirements for local modules.
+            if (matchingModule is LocalFileModule)
+            {
+                var importedModulesResolved = matchingModule.Requirements.GetRequirements<ModuleSpec>().Select(req => ResolvedModules.Find(module => module.ModuleSpec.InternalGuid == req.InternalGuid));
+                StaticAnalyser.Analyse(compiledModule, [.. importedModulesResolved]);
+            }
+            ResolvedModules.Add(compiledModule);
         });
 
         PSVersionRequirement? highestPSVersion = null;
