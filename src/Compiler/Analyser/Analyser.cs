@@ -14,7 +14,7 @@ public static class StaticAnalyser
         A list of all the built-in functions that are provided in a standard session.
         This includes modules that are imported by default.
     */
-    private static readonly IEnumerable<string> BuiltinsFunctions = PowerShell.Create().Runspace.SessionStateProxy.InvokeCommand.GetCommands("*", CommandTypes.Function | CommandTypes.Alias | CommandTypes.Cmdlet, true).Select(command => command.Name);
+    private static readonly IEnumerable<string> BuiltinsFunctions = GetDefaultSessionFunctions();
 
     public static void Analyse(CompiledModule module, IEnumerable<CompiledModule> availableImports)
     {
@@ -31,6 +31,41 @@ public static class StaticAnalyser
             }
             throw new Exception("Undefined functions found in module.");
         }
+    }
+
+    /*
+        Get all functions which should always be available in a session.
+        This will collect the builtin functions of powershell as-well,
+        as well as the functions from modules in the compiling hosts C:\Windows\system32\WindowsPowerShell\v1.0\Modules path.
+    */
+    public static IEnumerable<string> GetDefaultSessionFunctions()
+    {
+        var defaultFunctions = new List<string>();
+        defaultFunctions.AddRange(PowerShell.Create().Runspace.SessionStateProxy.InvokeCommand
+            .GetCommands("*", CommandTypes.Function | CommandTypes.Alias | CommandTypes.Cmdlet, true)
+            .Select(command => command.Name));
+
+        var modulesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules");
+        if (!Directory.Exists(modulesPath))
+        {
+            return defaultFunctions;
+        }
+
+        var moduleDirectories = Directory.GetDirectories(modulesPath);
+        var ps = PowerShell.Create().AddScript(/*ps1*/ $$"""
+            $env:PSModulePath = '{{modulesPath}}';
+            $PSModuleAutoLoadingPreference = 'All';
+            Get-Module -ListAvailable | ForEach-Object {
+                $_.ExportedCommands.Keys + $_.ExportedFunctions.Keys + $_.ExportedAliases.Keys + $_.ExportedCmdlets.Keys
+            }
+        """).Invoke();
+
+        foreach (var commandName in ps)
+        {
+            defaultFunctions.Add((string)commandName.BaseObject);
+        }
+
+        return defaultFunctions.Where(func => func == "Expand-Archive");
     }
 
     public static List<CommandAst> FindUndefinedFunctions(CompiledModule module, IEnumerable<CompiledModule> availableImports)

@@ -1,3 +1,4 @@
+using System.Management.Automation.Runspaces;
 using System.Text;
 using CommandLine;
 using Compiler;
@@ -6,6 +7,19 @@ using NLog;
 class Program
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
+    public static readonly Lazy<RunspacePool> RunspacePool = new(() =>
+    {
+        var sessionState = InitialSessionState.CreateDefault2();
+        sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
+        sessionState.ImportPSModule(new[] { "Microsoft.PowerShell.PSResourceGet" });
+
+        var rsPool = RunspaceFactory.CreateRunspacePool(sessionState);
+        rsPool.SetMinRunspaces(1);
+        rsPool.SetMaxRunspaces(5);
+        rsPool.Open();
+        return rsPool;
+    });
 
     public class Options
     {

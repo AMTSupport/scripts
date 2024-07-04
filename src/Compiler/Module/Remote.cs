@@ -8,18 +8,6 @@ namespace Compiler.Module;
 public class RemoteModule(ModuleSpec moduleSpec) : Module(moduleSpec)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    private static readonly Lazy<RunspacePool> RunspacePool = new(() =>
-    {
-        var sessionState = InitialSessionState.CreateDefault2();
-        sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
-        sessionState.ImportPSModule(new[] { "Microsoft.PowerShell.PSResourceGet" });
-
-        var rsPool = RunspaceFactory.CreateRunspacePool(sessionState);
-        rsPool.SetMinRunspaces(1);
-        rsPool.SetMaxRunspaces(5);
-        rsPool.Open();
-        return rsPool;
-    });
 
     private string CachePath => Path.Join(
         Path.GetTempPath(),
@@ -94,7 +82,7 @@ public class RemoteModule(ModuleSpec moduleSpec) : Module(moduleSpec)
         }
 
         var pwsh = PowerShell.Create(RunspaceMode.NewRunspace);
-        pwsh.RunspacePool = RunspacePool.Value;
+        pwsh.RunspacePool = Program.RunspacePool.Value;
         pwsh.AddScript(PowerShellCode);
         var result = pwsh.Invoke();
 
