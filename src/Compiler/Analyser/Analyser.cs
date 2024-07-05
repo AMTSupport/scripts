@@ -1,5 +1,6 @@
 using System.Management.Automation;
 using System.Management.Automation.Language;
+using System.Text;
 using Compiler.Module;
 using NLog;
 using Pastel;
@@ -78,13 +79,14 @@ public static class StaticAnalyser
         return unknownCalls.ToList();
     }
 
+    // TODO, ability to translate the virtual cleaned line numbers to the actual line numbers in the file.
     public static void PrintPrettyAstError(Ast ast, string message)
     {
-        var line = ast.Extent.StartLineNumber.ToString();
-        var indent = Math.Max(line.Length + 1, 5);
-        var indentString = new string(' ', indent);
-        var errorInlineColumn = ast.Extent.StartColumnNumber;
-        var errorInline = new string(' ', errorInlineColumn - 1) + new string('~', ast.Extent.EndColumnNumber - errorInlineColumn);
+        var startingLine = ast.Extent.StartLineNumber;
+        var endingLine = ast.Extent.EndLineNumber;
+
+        var firstColumnIndent = Math.Max(endingLine.ToString().Length + 1, 5);
+        var firstColumnIndentString = new string(' ', firstColumnIndent);
         var colouredPipe = "|".Pastel(ConsoleColor.Cyan);
 
         var rootParent = ast.Parent;
@@ -92,16 +94,39 @@ public static class StaticAnalyser
         {
             rootParent = rootParent.Parent;
         } while (rootParent.Parent != null);
+        var extentRegion = rootParent.Extent.Text.Split('\n')[(startingLine - 1)..endingLine];
 
-        var parentExtent = rootParent.Extent.Text.Split('\n')[ast.Extent.StartLineNumber - 1];
-        var extent = string.Concat(parentExtent[0..(ast.Extent.StartColumnNumber - 1)], parentExtent[(ast.Extent.StartColumnNumber - 1)..(ast.Extent.EndColumnNumber - 1)].Pastel(ConsoleColor.DarkRed), parentExtent[(ast.Extent.EndColumnNumber - 1)..]);
+        var printableLines = new string[extentRegion.Length];
+        for (var i = 0; i < extentRegion.Length; i++)
+        {
+            var line = extentRegion[i];
+            line = i switch
+            {
+                0 => string.Concat(line[0..(ast.Extent.StartColumnNumber - 1)], line[(ast.Extent.StartColumnNumber - 1)..].Pastel(ConsoleColor.DarkRed)),
+                var _ when i == extentRegion.Length - 1 => string.Concat(line[0..(ast.Extent.EndColumnNumber - 1)].Pastel(ConsoleColor.DarkRed), line[(ast.Extent.EndColumnNumber - 1)..]),
+                _ => line.Pastel(ConsoleColor.DarkRed)
+            };
+
+            var sb = new StringBuilder()
+                .Append((i + startingLine).ToString().PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan))
+                .Append(colouredPipe)
+                .Append(' ')
+                .Append(line);
+
+            printableLines[i] = sb.ToString();
+        }
+
+        var longestLine = extentRegion.Max(line => line.TrimEnd().Length);
+        var leastWhitespaceBeforeText = extentRegion.Min(line => line.Length - line.TrimStart().Length);
+        var errorSquigleLength = longestLine - leastWhitespaceBeforeText;
+        var errorPointer = string.Concat([new(' ', leastWhitespaceBeforeText), new('~', errorSquigleLength)]);
 
         Console.WriteLine($"""
-        {"File".PadRight(indent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {rootParent.Extent.File.Pastel(ConsoleColor.Gray)}
-        {"Line".PadRight(indent).Pastel(ConsoleColor.Cyan)}{colouredPipe}
-        {line.PadRight(indent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {extent.Pastel(ConsoleColor.DarkGray)}
-        {indentString}{colouredPipe} {errorInline.Pastel(ConsoleColor.DarkRed)}
-        {indentString}{colouredPipe} {message.Pastel(ConsoleColor.DarkRed)}
+        {"File".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {rootParent.Extent.File.Pastel(ConsoleColor.Gray)}
+        {"Line".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe}
+        {string.Join('\n', printableLines)}
+        {firstColumnIndentString}{colouredPipe} {errorPointer.Pastel(ConsoleColor.DarkRed)}
+        {firstColumnIndentString}{colouredPipe} {message.Pastel(ConsoleColor.DarkRed)}
         """);
     }
 }
