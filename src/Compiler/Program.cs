@@ -3,6 +3,7 @@ using System.Text;
 using CommandLine;
 using Compiler;
 using NLog;
+using NLog.Targets;
 
 class Program
 {
@@ -26,6 +27,9 @@ class Program
         [Option('v', "verbose", Required = false, HelpText = "Set output to verbose messages.")]
         public bool Verbose { get; set; }
 
+        [Option('d', "debug", Required = false, HelpText = "Set output to debug messages.")]
+        public bool Debug { get; set; }
+
         [Option('i', "input", Required = true, HelpText = "Input file to be processed.")]
         public string? InputFile { get; set; }
 
@@ -42,18 +46,82 @@ class Program
         {
             LogManager.Setup().LoadConfiguration(builder =>
             {
-                builder.ForLogger()
-                    .FilterLevels(LogLevel.Trace, LogLevel.Error)
-                    .WriteToColoredConsole(
-                        "${pad:padding=5:inner=${level:uppercase=true}}|${message}",
-                        true,
-                        detectConsoleAvailable: true,
-                        enableAnsiOutput: true
-                    );
+                var console = new ColoredConsoleTarget("console")
+                {
+                    Layout = "${pad:padding=5:inner=${level:uppercase=true}}|${message}",
+                    DetectConsoleAvailable = true,
+                    EnableAnsiOutput = true,
+                    RowHighlightingRules = {
+                        new() {
+                            Condition = "level == LogLevel.Fatal",
+                            ForegroundColor = ConsoleOutputColor.Red,
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Error",
+                            ForegroundColor = ConsoleOutputColor.DarkRed
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Warn",
+                            ForegroundColor = ConsoleOutputColor.Yellow
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Info",
+                            ForegroundColor = ConsoleOutputColor.Gray
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Debug",
+                            ForegroundColor = ConsoleOutputColor.DarkMagenta
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Trace",
+                            ForegroundColor = ConsoleOutputColor.DarkGray
+                        }
+                    },
+                    WordHighlightingRules = {
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:error|exception|fail|fatal|warn|warning)\\b",
+                            ForegroundColor = ConsoleOutputColor.DarkRed
+                        },
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:info|log|message|success)\\b",
+                            ForegroundColor = ConsoleOutputColor.Green
+                        },
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:debug)\\b",
+                            ForegroundColor = ConsoleOutputColor.Blue
+                        },
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:trace)\\b",
+                            ForegroundColor = ConsoleOutputColor.Gray
+                        }
+                    }
+                };
+
+                builder.ForLogger().FilterLevels(LogLevel.Info, LogLevel.Fatal).WriteTo(console);
+                if (o.Verbose) builder.ForLogger().FilterLevel(LogLevel.Trace).WriteTo(console);
+                if (o.Debug) builder.ForLogger().FilterLevel(LogLevel.Debug).WriteTo(console);
             });
 
-            var compiledScript = new CompiledScript(Path.GetFullPath(o.InputFile!));
-            var compiledContent = compiledScript.Compile();
+            var compiledContent = string.Empty;
+            try
+            {
+                var compiledScript = new CompiledScript(Path.GetFullPath(o.InputFile!));
+                compiledContent = compiledScript.Compile();
+            }
+            catch (Exception e)
+            {
+                Logger.Error("There was an error compiling the script, please see the error below:");
+
+                var printing = o.Verbose == true ? e.ToString() : e.Message;
+                Logger.Error(printing);
+
+                Environment.Exit(1);
+            }
+
             OutputToFile(o, compiledContent);
         });
     }
@@ -67,7 +135,6 @@ class Program
             return;
         }
 
-        // Output to file
         if (File.Exists(options.OutputFile))
         {
             Logger.Info("Output file already exists");
