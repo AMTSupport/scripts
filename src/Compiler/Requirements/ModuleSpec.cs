@@ -183,15 +183,6 @@ public record ModuleSpec(
         return ModuleMatch.Same;
     }
 
-    public ModuleSpec CreateCompiledVersion(string hash) => new(
-            $"{Name}-{hash}",
-            Guid,
-            MinimumVersion,
-            MaximumVersion,
-            RequiredVersion,
-            InternalGuid
-        );
-
     [ExcludeFromCodeCoverage(Justification = "Just a bool flag.")]
     public override bool IsCompatibleWith(Requirement other) => true;
 

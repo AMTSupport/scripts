@@ -94,17 +94,42 @@ public class RequirementGroup
     }
 }
 
+/// <summary>
+///  Represents a requirement, which is a condition that must be met in order to run the script.
+/// </summary>
+/// <param name="SupportsMultiple">
+/// True if the requirement supports multiple instances, false otherwise.
+/// </param>
 public abstract record Requirement(bool SupportsMultiple)
 {
+    /// <summary>
+    /// Gets the weight of the requirement.
+    /// This weight is used for the order when inserting the requirements.
+    /// </summary>
     public virtual uint Weight => 50;
 
+    /// <summary>
+    /// Gets the hash of the requirement.
+    ///
+    /// This is implemented by the derived class.
+    /// </summary>
     public abstract byte[] Hash { get; }
 
+    /// <summary>
+    /// Checks if the requirement is compatible with another requirement.
+    /// </summary>
     public abstract bool IsCompatibleWith(Requirement other);
 
+    /// <summary>
+    /// Gets the insertable line for the requirement.
+    /// This is the code which will be inserted into the script.
+    /// </summary>
     public abstract string GetInsertableLine();
 }
 
+/// <summary>
+/// Sorts requirements by their weight.
+/// </summary>
 public class RequirementWeightSorter : IComparer<Requirement>
 {
     public int Compare(Requirement? x, Requirement? y)
