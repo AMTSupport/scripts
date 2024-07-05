@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Text;
 using Compiler.Requirements;
 
 namespace Compiler.Test.Requirements;
@@ -44,7 +45,7 @@ public class RequirementGroupTests
     public void AddRequirement_ShouldAddRequirementToList()
     {
         var requirementGroup = new RequirementGroup();
-        var requirement = new SampleRequirement();
+        var requirement = new SampleRequirement("Data");
 
         requirementGroup.AddRequirement(requirement);
 
@@ -60,7 +61,7 @@ public class RequirementGroupTests
     public void RemoveRequirement_ShouldRemoveRequirementFromList()
     {
         var requirementGroup = new RequirementGroup();
-        var requirement = new SampleRequirement();
+        var requirement = new SampleRequirement("Data");
         requirementGroup.AddRequirement(requirement);
 
         var removed = requirementGroup.RemoveRequirement(requirement);
@@ -78,12 +79,11 @@ public class RequirementGroupTests
     public void ReplaceRequirement_ShouldReplaceOldRequirementWithNewRequirement()
     {
         var requirementGroup = new RequirementGroup();
-        var oldRequirement = new SampleRequirement();
-        var newRequirement = new SampleRequirement();
+        var oldRequirement = new SampleRequirement("Data1");
+        var newRequirement = new SampleRequirement("Data2");
         requirementGroup.AddRequirement(oldRequirement);
 
         var replaced = requirementGroup.ReplaceRequirement(oldRequirement, newRequirement);
-
 
         var storedRequirements = requirementGroup.GetRequirements<SampleRequirement>();
         Assert.Multiple(() =>
@@ -95,12 +95,12 @@ public class RequirementGroupTests
         });
     }
 
-    [Test]
+    [Test, Repeat(100)]
     public void GetRequirements_ShouldReturnAllRequirementsInOrder()
     {
         var requirementGroup = new RequirementGroup();
-        var requirement1 = new SampleRequirement();
-        var requirement2 = new SampleRequirement();
+        var requirement1 = new SampleRequirement("Data1");
+        var requirement2 = new SampleRequirement("Data2");
         requirementGroup.AddRequirement(requirement1);
         requirementGroup.AddRequirement(requirement2);
 
@@ -119,8 +119,8 @@ public class RequirementGroupTests
     public void VerifyRequirements_ShouldReturnTrueWhenAllRequirementsAreCompatible()
     {
         var requirementGroup = new RequirementGroup();
-        var requirement1 = new SampleRequirement();
-        var requirement2 = new SampleRequirement();
+        var requirement1 = new SampleRequirement("Data1");
+        var requirement2 = new SampleRequirement("Data2");
         requirementGroup.AddRequirement(requirement1);
         requirementGroup.AddRequirement(requirement2);
 
@@ -132,7 +132,7 @@ public class RequirementGroupTests
     public void VerifyRequirements_ShouldReturnFalseWhenIncompatibleRequirementsExist()
     {
         var requirementGroup = new RequirementGroup();
-        var requirement1 = new SampleRequirement();
+        var requirement1 = new SampleRequirement("Data1");
         var requirement2 = new IncompatibleRequirement();
         requirementGroup.AddRequirement(requirement1);
         requirementGroup.AddRequirement(requirement2);
@@ -141,9 +141,9 @@ public class RequirementGroupTests
         Assert.That(result, Is.False);
     }
 
-    private record SampleRequirement() : Requirement(true)
+    private record SampleRequirement(string Data) : Requirement(true)
     {
-        public override byte[] Hash => [];
+        public override byte[] Hash => Encoding.UTF8.GetBytes(Data);
         public override bool IsCompatibleWith(Requirement other) => true;
         public override string GetInsertableLine() => string.Empty;
     }

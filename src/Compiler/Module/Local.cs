@@ -56,7 +56,7 @@ public partial class LocalFileModule : Module
         ParserErrors = [.. ParserErrors.ToList().FindAll(error => !error.ErrorId.Equals("ModuleNotFoundDuringParse"))];
         if (!ignoreErrors && ParserErrors.Length > 0)
         {
-            Console.WriteLine("There was an issue trying to parse the script.");
+            Logger.Error("There was an issue trying to parse the script.");
             throw new ParseException(ParserErrors);
         }
 
@@ -145,7 +145,7 @@ public partial class LocalFileModule : Module
             Requirements.AddRequirement(new ModuleSpec(
                 Name: module.Key,
                 Guid: module.Value.TryGetValue("Guid", out object? value) ? Guid.Parse(value.Cast<string>()) : null,
-                MinimumVersion: module.Value.TryGetValue("MinimumVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
+                MinimumVersion: module.Value.TryGetValue("ModuleVersion", out object? minimumVersion) ? Version.Parse(minimumVersion.Cast<string>()) : null,
                 MaximumVersion: module.Value.TryGetValue("MaximumVersion", out object? maximumVersion) ? Version.Parse(maximumVersion.Cast<string>()) : null,
                 RequiredVersion: module.Value.TryGetValue("RequiredVersion", out object? requiredVersion) ? Version.Parse(requiredVersion.Cast<string>()) : null
             ));

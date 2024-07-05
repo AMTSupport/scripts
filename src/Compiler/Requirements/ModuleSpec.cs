@@ -26,7 +26,7 @@ public record ModuleSpec(
     Version? MaximumVersion = null,
     Version? RequiredVersion = null,
     Guid? PassedInternalGuid = null
-) : Requirement(true)
+) : Requirement(true), IEquatable<ModuleSpec>
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -88,15 +88,25 @@ public record ModuleSpec(
         switch (RequiredVersion, MinimumVersion, MaximumVersion)
         {
             case (null, null, null): break;
-            case (var req, null, null): sb.Append($"RequiredVersion = '{req}';"); break;
-            case (null, var min, var max):
-                if (min != null) sb.Append($"ModuleVersion = '{min}';");
-                if (max != null) sb.Append($"MaximumVersion = '{max}';");
-                break;
+            case (null, var min, var max) when min != null && max != null: sb.Append($"ModuleVersion = '{min}';MaximumVersion = '{max}';"); break;
+            case (null, var min, _) when min != null: sb.Append($"ModuleVersion = '{min}';"); break;
+            case (null, _, var max) when max != null: sb.Append($"MaximumVersion = '{max}';"); break;
+            case (var req, _, _): sb.Append($"RequiredVersion = '{req}';"); break;
         }
 
         sb.Append('}');
         return sb.ToString();
+    }
+
+    public virtual bool Equals(ModuleSpec? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return Name == other.Name &&
+               Guid == other.Guid &&
+               MinimumVersion == other.MinimumVersion &&
+               MaximumVersion == other.MaximumVersion &&
+               RequiredVersion == other.RequiredVersion;
     }
 
     public ModuleMatch CompareTo(ModuleSpec other)

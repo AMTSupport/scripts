@@ -51,25 +51,25 @@ public class TestData
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule"
-            )).Returns("#Requires -Modules @{ModuleName = 'MyModule';ModuleVersion = '0.0.0.0';}").SetName("Only name");
+            )).Returns("Using module 'MyModule'").SetName("Only name");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid
-            )).Returns($$"""#Requires -Modules @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '0.0.0.0';}""").SetName("Name and guid");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};}""").SetName("Name and guid");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0")
-            )).Returns($$"""#Requires -Modules @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';}""").SetName("Name, guid and minimum version");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';}""").SetName("Name, guid and minimum version");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns($$"""#Requires -Modules @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';}""").SetName("Name, guid, minimum and maximum version");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';}""").SetName("Name, guid, minimum and maximum version");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -77,7 +77,7 @@ public class TestData
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
-            )).Returns($$"""#Requires -Modules @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';RequiredVersion = '1.5.0';}""").SetName("All properties");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};RequiredVersion = '1.5.0';}""").SetName("All properties");
         }
     }
 

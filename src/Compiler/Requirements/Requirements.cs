@@ -75,27 +75,22 @@ public class RequirementGroup
 
         var flattenedList = StoredRequirements.Values.ToList().SelectMany(x => x).ToList();
         flattenedList.Sort(new RequirementWeightSorter());
+        flattenedList.Sort((x, y) => x.GetType().Name.CompareTo(y.GetType().Name));
         return [.. flattenedList];
     }
 
     // FIXME - Not very efficient
     public bool VerifyRequirements()
     {
-        foreach (var requirement in GetRequirements<Requirement>())
+        var hadError = false;
+        var requirements = GetRequirements();
+        requirements.SelectMany(x => requirements.Where(y => !x.IsCompatibleWith(y))).ToList().ForEach(x =>
         {
-            foreach (var other in GetRequirements<Requirement>())
-            {
-                if (!requirement.IsCompatibleWith(other))
-                {
-                    Logger.Error($"Requirement {requirement} is incompatible with {other}");
-                    return false;
-                }
+            Logger.Error($"Requirement {x} is incompatible with another requirement");
+            hadError = true;
+        });
 
-                Logger.Debug($"Requirement {requirement} is compatible with {other}");
-            }
-        }
-
-        return true;
+        return !hadError;
     }
 }
 
