@@ -161,7 +161,7 @@ public record ModuleSpec(
                 break;
             case (null, var b) when b < MinimumVersion || b > MaximumVersion:
                 return ModuleMatch.Incompatible;
-            case (var a, null) when a < other.MinimumVersion || a > other.MaximumVersion:
+            case (var a, null) when (other.MinimumVersion != null && a < other.MinimumVersion) || (other.MaximumVersion != null && a > other.MaximumVersion):
                 return ModuleMatch.Incompatible;
             case (_, null):
                 isStricter = true;

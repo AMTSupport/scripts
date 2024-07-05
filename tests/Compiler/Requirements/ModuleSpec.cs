@@ -67,6 +67,12 @@ public class TestData
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
+                MaximumVersion: new Version("2.0.0")
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};MaximumVersion = '2.0.0';}""").SetName("Name, guid and maximum version");
+
+            yield return new TestCaseData(new ModuleSpec(
+                "MyModule",
+                guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';}""").SetName("Name, guid, minimum and maximum version");
