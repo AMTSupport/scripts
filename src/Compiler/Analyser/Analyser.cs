@@ -55,9 +55,7 @@ public static class StaticAnalyser
         var ps = PowerShell.Create().AddScript(/*ps1*/ $$"""
             $env:PSModulePath = '{{modulesPath}}';
             $PSModuleAutoLoadingPreference = 'All';
-            Get-Module -ListAvailable | ForEach-Object {
-                $_.ExportedCommands.Keys + $_.ExportedFunctions.Keys + $_.ExportedAliases.Keys + $_.ExportedCmdlets.Keys
-            }
+            Get-Command | Select-Object -ExpandProperty Name -Unique
         """).Invoke();
 
         foreach (var commandName in ps)
@@ -65,7 +63,7 @@ public static class StaticAnalyser
             defaultFunctions.Add((string)commandName.BaseObject);
         }
 
-        return defaultFunctions.Where(func => func == "Expand-Archive");
+        return defaultFunctions;
     }
 
     public static List<CommandAst> FindUndefinedFunctions(CompiledModule module, IEnumerable<CompiledModule> availableImports)
