@@ -28,7 +28,7 @@ public static class StaticAnalyser
             {
                 // Logger.Error($"Undefined function: {undefinedFunction.GetCommandName()}");
                 // Logger.Error($"Location: {undefinedFunction.Extent.File}({undefinedFunction.Extent.StartLineNumber},{undefinedFunction.Extent.StartColumnNumber})");
-                PrintPrettyAstError(undefinedFunction, "Undefined function found in module.");
+                PrintPrettyAstError(undefinedFunction.CommandElements[0], "Undefined function found in module.");
             }
             throw new Exception("Undefined functions found in module.");
         }
@@ -84,6 +84,8 @@ public static class StaticAnalyser
     {
         var startingLine = ast.Extent.StartLineNumber;
         var endingLine = ast.Extent.EndLineNumber;
+        var startingColumn = ast.Extent.StartColumnNumber - 1;
+        var endingColumn = ast.Extent.EndColumnNumber - 1;
 
         var firstColumnIndent = Math.Max(endingLine.ToString().Length + 1, 5);
         var firstColumnIndentString = new string(' ', firstColumnIndent);
@@ -102,8 +104,9 @@ public static class StaticAnalyser
             var line = extentRegion[i];
             line = i switch
             {
-                0 => string.Concat(line[0..(ast.Extent.StartColumnNumber - 1)], line[(ast.Extent.StartColumnNumber - 1)..].Pastel(ConsoleColor.DarkRed)),
-                var _ when i == extentRegion.Length - 1 => string.Concat(line[0..(ast.Extent.EndColumnNumber - 1)].Pastel(ConsoleColor.DarkRed), line[(ast.Extent.EndColumnNumber - 1)..]),
+                0 when i == extentRegion.Length - 1 => string.Concat(line[0..startingColumn], line[startingColumn..endingColumn].Pastel(ConsoleColor.DarkRed), line[endingColumn..]),
+                0 => string.Concat(line[0..startingColumn], line[startingColumn..].Pastel(ConsoleColor.DarkRed)),
+                var _ when i == extentRegion.Length - 1 => string.Concat(line[0..endingColumn].Pastel(ConsoleColor.DarkRed), line[endingColumn..]),
                 _ => line.Pastel(ConsoleColor.DarkRed)
             };
 
@@ -116,10 +119,17 @@ public static class StaticAnalyser
             printableLines[i] = sb.ToString();
         }
 
-        var longestLine = extentRegion.Max(line => line.TrimEnd().Length);
-        var leastWhitespaceBeforeText = extentRegion.Min(line => line.Length - line.TrimStart().Length);
-        var errorSquigleLength = longestLine - leastWhitespaceBeforeText;
-        var errorPointer = string.Concat([new(' ', leastWhitespaceBeforeText), new('~', errorSquigleLength)]);
+        string errorPointer;
+        if (startingLine == endingLine)
+        {
+            errorPointer = string.Concat([new(' ', startingColumn), new('~', endingColumn - startingColumn)]);
+        }
+        else
+        {
+            var squigleEndColumn = extentRegion.Max(line => line.TrimEnd().Length);
+            var leastWhitespaceBeforeText = extentRegion.Min(line => line.Length - line.TrimStart().Length);
+            errorPointer = string.Concat([new(' ', leastWhitespaceBeforeText), new('~', squigleEndColumn - leastWhitespaceBeforeText)]);
+        }
 
         Console.WriteLine($"""
         {"File".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {rootParent.Extent.File.Pastel(ConsoleColor.Gray)}
