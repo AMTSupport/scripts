@@ -11,12 +11,6 @@ public class CompiledScriptTest
     const string TEST_SCRIPT = /*ps1*/ """
     #Requires -Version 5.1
 
-    Using module ../src/common/00-Environment.psm1;
-    # Using module @{
-    #     ModuleName      = 'PSReadLine';
-    #     RequiredVersion = '2.3.5';
-    # }
-
     <#
         Making some random documentation for the module here!!
     #>
@@ -28,7 +22,7 @@ public class CompiledScriptTest
 
     Set-StrictMode -Version 3;
 
-    Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
+    Import-Module $PSScriptRoot/src/common/00-Environment.psm1;
     Invoke-RunMain $MyInvocation {
         Write-Host 'Hello, World!';
 
