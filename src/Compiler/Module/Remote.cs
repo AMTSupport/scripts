@@ -57,8 +57,6 @@ public class RemoteModule(ModuleSpec moduleSpec) : Module(moduleSpec)
     {
         var versionString = ConvertVersionParameters(ModuleSpec.RequiredVersion?.ToString(), ModuleSpec.MinimumVersion?.ToString(), ModuleSpec.MaximumVersion?.ToString());
         var PowerShellCode = /*ps1*/ $$"""
-        Install-Module 'Microsoft.PowerShell.PSResourceGet' -Scope CurrentUser -Confirm:$False -Force;
-        Import-Module 'Microsoft.PowerShell.PSResourceGet' -Force;
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
 
         try {
@@ -73,7 +71,7 @@ public class RemoteModule(ModuleSpec moduleSpec) : Module(moduleSpec)
             exit 11;
         }
 
-        return $env:TEMP | Join-Path -ChildPath ("PowerShellGet" | Join-Path -ChildPath "{{ModuleSpec.Name}}.$($Module.Version).nupkg");
+        return $env:TEMP | Join-Path -ChildPath "PowerShellGet/{{ModuleSpec.Name}}/{{ModuleSpec.Name}}.$($Module.Version).nupkg";
         """;
 
         if (!Directory.Exists(CachePath))
