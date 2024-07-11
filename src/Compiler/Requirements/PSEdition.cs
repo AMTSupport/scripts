@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -16,7 +17,7 @@ public record PSEditionRequirement(PSEdition Edition) : Requirement(false)
     /// Gets the insertable line for the requirement.
     /// </summary>
     /// <returns>The insertable line for the requirement.</returns>
-    public override string GetInsertableLine() => $"#Requires -PSEdition {Edition}";
+    public override string GetInsertableLine(Hashtable _) => $"#Requires -PSEdition {Edition}";
 
     /// <summary>
     /// Determines whether this requirement is compatible with another requirement.

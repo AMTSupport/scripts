@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using Compiler.Text.Updater;
 using NLog;
@@ -14,25 +12,8 @@ public partial class TextDocument(string[] lines)
 public class CompiledDocument(string[] lines) : TextDocument(lines)
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    private string Text
-    {
-        get
-        {
-            return string.Join('\n', Lines);
-        }
-    }
-    public string ContentHash
-    {
-        get
-        {
-            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(Text));
-            return Convert.ToHexString(hash);
-        }
-    }
 
-    public string GetContent() => Text;
-
-    public static implicit operator string(CompiledDocument document) => document.GetContent();
+    public string GetContent() => string.Join('\n', Lines);
 
     public static CompiledDocument FromBuilder(TextEditor builder, int indentBy = 0)
     {
@@ -45,7 +26,7 @@ public class CompiledDocument(string[] lines) : TextDocument(lines)
         var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Priority).ToList();
         foreach (var textUpdater in sortedUpdaters)
         {
-            Logger.Debug($"Applying updater {textUpdater} with priority {textUpdater.Priority}");
+            // Logger.Debug($"Applying updater {textUpdater} with priority {textUpdater.Priority}");
             spanUpdates.ForEach(textUpdater.PushByUpdate);
             textUpdater.Apply(ref lines).ToList().ForEach(spanUpdates.Add);
         }
@@ -56,8 +37,9 @@ public class CompiledDocument(string[] lines) : TextDocument(lines)
 
 public class TextEditor(TextDocument document)
 {
-    public TextDocument Document { get; } = document;
-    public List<TextSpanUpdater> TextUpdaters { get; } = [];
+    public readonly TextDocument OriginalCopy = document;
+    public readonly TextDocument Document = document;
+    public readonly List<TextSpanUpdater> TextUpdaters = [];
 
     public void AddEdit(Func<TextSpanUpdater> updater)
     {
@@ -169,14 +151,4 @@ public class TextEditor(TextDocument document)
         options,
         updater
     ));
-
-    public override string ToString()
-    {
-        var sb = new StringBuilder()
-            .AppendLine("TextEditor:")
-            .AppendLine("  Document:")
-            .AppendLine("  TextUpdaters:")
-            .AppendLine('\t' + string.Join("\n\t", TextUpdaters.Select(updater => updater.ToString())));
-        return sb.ToString();
-    }
 }

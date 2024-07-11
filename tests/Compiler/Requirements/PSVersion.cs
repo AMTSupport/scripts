@@ -10,7 +10,7 @@ public class PSVersionTests
     [Test, TestCaseSource(typeof(TestData), nameof(TestData.CaseForVersionString))]
     public string GetInsertableLine_CheckContent(Version version)
     {
-        var line = new PSVersionRequirement(version).GetInsertableLine();
+        var line = new PSVersionRequirement(version).GetInsertableLine([]);
 
         Assert.Multiple(() =>
         {

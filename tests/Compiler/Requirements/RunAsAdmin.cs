@@ -26,7 +26,7 @@ public class RunAsAdminRequirementTests {
     public void GetInsertableLine_ShouldReturnString() {
         var requirement = new RunAsAdminRequirement();
 
-        var insertableLine = requirement.GetInsertableLine();
+        var insertableLine = requirement.GetInsertableLine([]);
 
         Assert.That(insertableLine, Is.EqualTo("#Requires -RunAsAdministrator"));
     }

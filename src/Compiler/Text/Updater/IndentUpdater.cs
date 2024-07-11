@@ -17,7 +17,7 @@ public class IndentUpdater(int indentBy) : TextSpanUpdater(70)
             }
 
             lines[i] = $"{indentString}{lines[i]}";
-            updateSpans.Add(new SpanUpdateInfo(new(i, i, 0, 0), 4));
+            updateSpans.Add(new SpanUpdateInfo(new(i, i, 0, 0), IndentBy));
         }
 
         return [.. updateSpans];

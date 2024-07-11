@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Collections.Immutable;
+using System.Configuration;
 using NLog;
 
 namespace Compiler.Requirements;
@@ -67,11 +69,7 @@ public class RequirementGroup
     public ImmutableHashSet<Requirement> GetRequirements()
     {
         var rawRequirements = StoredRequirements.Values;
-        if (rawRequirements.Count == 0)
-        {
-            Logger.Debug("No requirements found");
-            return [];
-        }
+        if (rawRequirements.Count == 0) return [];
 
         var flattenedList = StoredRequirements.Values.ToList().SelectMany(x => x).ToList();
         flattenedList.Sort(new RequirementWeightSorter());
@@ -124,7 +122,14 @@ public abstract record Requirement(bool SupportsMultiple)
     /// Gets the insertable line for the requirement.
     /// This is the code which will be inserted into the script.
     /// </summary>
-    public abstract string GetInsertableLine();
+    public abstract string GetInsertableLine(Hashtable data);
+
+    bool IEquatable<Requirement>.Equals(Requirement? obj)
+    {
+        if (obj == null) return false;
+        return obj.Hash.SequenceEqual(Hash);
+
+    }
 }
 
 /// <summary>
