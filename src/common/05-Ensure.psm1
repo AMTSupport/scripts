@@ -1,6 +1,21 @@
+Using module ./00-Utils.psm1
 Using module ./01-Logging.psm1
 Using module ./01-Scope.psm1
 Using module ./02-Exit.psm1
+Using module ./40-Temp.psm1
+
+Using module @{
+    ModuleName    = 'Microsoft.PowerShell.PSResourceGet';
+    ModuleVersion = '1.0.5';
+}
+Using module @{
+    ModuleName    = 'PowerShellGet';
+    ModuleVersion = '2.2.5';
+}
+Using module @{
+    ModuleName    = 'PackageManagement';
+    ModuleVersion = '1.4.8.1';
+}
 
 $Script:NOT_ADMINISTRATOR = Register-ExitCode -Description @'
 Not running as administrator!
@@ -261,7 +276,7 @@ function Invoke-EnsureModule {
                 if ($Local:ModuleMinimumVersion -and $Local:AvailableModule.Version -lt $Local:ModuleMinimumVersion) {
                     Invoke-Verbose 'Module is installed, but the version is less than the minimum version required, trying to update...';
                     try {
-                        Update-Module -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion -ErrorAction Stop;
+                        Update-PSResource -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion -ErrorAction Stop;
                         Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
                     }
                     catch {
@@ -285,15 +300,15 @@ function Invoke-EnsureModule {
             }
 
             if ($null -eq $Local:AvailableModule -or $Local:TryInstall) {
-                $Local:FoundModule = Find-Module `
+                $Local:FoundModule = Find-PSResource `
                     -Name $Local:ModuleName `
-                    -MinimumVersion:$(if ($Local:InstallArgs.MinimumVersion) { $Local:InstallArgs.MinimumVersion } else { '0.0.0' }) `
+                    -Version "[$(if ($Local:InstallArgs.MinimumVersion) { $Local:InstallArgs.MinimumVersion } else { '0.0.0' }),)" `
                     -ErrorAction SilentlyContinue;
 
                 if ($Local:FoundModule) {
                     Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
                     try {
-                        $Local:FoundModule | Install-Module -AllowClobber -Scope CurrentUser -Force;
+                        $Local:FoundModule | Install-PSResource -Scope CurrentUser -TrustRepository -Quiet -AcceptLicense;
                     }
                     catch {
                         Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:UNABLE_TO_INSTALL_MODULE -FormatArgs @($Local:ModuleName);

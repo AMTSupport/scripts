@@ -3,36 +3,6 @@ Using module ./01-Scope.psm1
 Using module ./02-Exit.psm1
 
 <#
-.DESCRIPTION
-    This module contains utility functions that have no dependencies on other modules and can be used by any module.
-#>
-
-<#
-.DESCRIPTION
-    This function is used to measure the time it takes to execute a script block.
-
-.EXAMPLE
-    Measure-ElapsedTime {
-        Start-Sleep -Seconds 5;
-    }
-#>
-function Measure-ElaspedTime {
-    param(
-        [Parameter(Mandatory, ValueFromPipeline)]
-        [ScriptBlock]$ScriptBlock
-    )
-
-    process {
-        [DateTime]$Local:StartAt = Get-Date;
-
-        & $ScriptBlock;
-
-        [TimeSpan]$Local:ElapsedTime = (Get-Date) - $Local:StartAt;
-        return $Local:ElapsedTime * 10000; # Why does this make it more accurate?
-    }
-}
-
-<#
 .SYNOPSIS
     Get the value of an environment variable or save it if it does not exist.
 .DESCRIPTION
@@ -1103,4 +1073,139 @@ function Compare-FileHashToS3ETag {
     }
 }
 
-Export-ModuleMember -Function * -Alias *;
+function Get-BlobCompatableHash {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Path
+    )
+
+    begin {
+        Enter-Scope;
+        $Private:Algorithm = [System.Security.Cryptography.HashAlgorithm]::Create('MD5');
+    }
+    end { Exit-Scope; }
+
+    process {
+        [Byte[]]$Private:ByteStream = [System.IO.File]::ReadAllBytes($Path);
+        [Byte[]]$Private:HashBytes = $Private:Algorithm.ComputeHash($Private:ByteStream);
+
+        return [System.Convert]::ToBase64String($Private:HashBytes);
+    }
+}
+
+function Get-FactorOf1MB {
+    param(
+        [Parameter(Mandatory)]
+        [Int]$Size,
+
+        [Parameter(Mandatory)]
+        [Int]$Parts
+    )
+
+    if ($Size -lt 1MB -and $Parts -le 1) {
+        return $Size;
+    }
+
+    $ChunkSize = $Size / $Parts;
+    $NumberOfChunks = $ChunkSize % 1MB;
+    return $ChunkSize + 1MB - $NumberOfChunks;
+}
+
+function Get-ETag {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Path,
+
+        [Parameter(Mandatory)]
+        [Int]$ChunkSize
+    )
+
+    begin {
+        Enter-Scope;
+        $Algorithm = [System.Security.Cryptography.HashAlgorithm]::Create('MD5');
+    }
+
+    process {
+        $Digest = @();
+        $OpenFile = [System.IO.File]::OpenRead($Path);
+        try {
+            do {
+                $Bytes = New-Object byte[] $ChunkSize;
+                $OpenFile.Read($Bytes, 0, $ChunkSize) | Out-Null;
+                $Digest += $Algorithm.ComputeHash($Bytes);
+            } while ($OpenFile.Position -lt $OpenFile.Length);
+
+            $StringBuilder = [System.Text.StringBuilder]::new();
+            $StringBuilder.Append([System.Convert]::ToHexString($Algorithm.ComputeHash($Digest)));
+
+            if ($Digest.Count -gt 1) {
+                $StringBuilder.Append('-');
+                $StringBuilder.Append($Digest.Count);
+            }
+
+            return $StringBuilder.ToString();
+        }
+        finally {
+            $OpenFile.Close();
+        }
+    }
+
+    end { Exit-Scope; }
+}
+
+function Get-PossiblePartSizes {
+    param(
+        [Parameter(Mandatory)]
+        [Int]$Size,
+
+        [Parameter(Mandatory)]
+        [Int]$Parts
+    )
+
+    $PartSizes = @(
+        8388608, # aws_cli/boto3
+        15728640, # s3cmd
+        (Get-FactorOf1MB -Size $FileSize -Parts $Parts)
+    ) | Where-Object { $_ -lt $FileSize -and ($FileSize / $_) -le $Parts };
+
+    if ($PartSizes.Count -eq 0) {
+        return $Size;
+    }
+
+    return $PartSizes;
+}
+
+function Compare-FileHashToS3ETag {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Path,
+
+        [Parameter(Mandatory)]
+        [String]$ETag
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        $FileSize = (Get-Item $Path).Length;
+        $Parts = $ETag.Split('-');
+        if ($Parts.Count -lt 2) { $Parts = 1; }
+        else { $Parts = $Parts[1]; }
+
+        $PossiblePartSizes = Get-PossiblePartSizes -Size $FileSize -Parts $Parts;
+        if ($PossiblePartSizes.Count -eq 0) {
+            Invoke-Debug "No possible part sizes found for $Path with ETag $ETag";
+            return $False;
+        }
+        foreach ($PossiblePartSize in $PossiblePartSizes) {
+            $Local:OurETag = Get-ETag -Path $Path -ChunkSize $PossiblePartSize;
+            Invoke-Debug "Comparing Our ETag $Local:OurETag to S3 ETag $ETag";
+            if ($Local:OurETag -eq $ETag) {
+                return $True;
+            }
+        }
+    }
+}
+
+Export-ModuleMember -Function Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Export-Types, Add-ModuleCallback, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag -Alias await, async, lazy;
