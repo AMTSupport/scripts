@@ -10,7 +10,7 @@ public class PSEditionTests
     [Test, TestCaseSource(typeof(TestData), nameof(TestData.CaseForEachEdition))]
     public string GetInsertableStringFromEdition(PSEdition edition)
     {
-        return new PSEditionRequirement(edition).GetInsertableLine();
+        return new PSEditionRequirement(edition).GetInsertableLine([]);
     }
 
     [Test]

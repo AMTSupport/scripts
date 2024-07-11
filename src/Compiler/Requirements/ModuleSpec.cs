@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
@@ -17,6 +18,18 @@ public record PathedModuleSpec(
 ) : ModuleSpec(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion, PassedInternalGuid)
 {
     public override byte[] Hash => SHA1.HashData(File.ReadAllBytes(FullPath));
+
+    // TODO - this may not be the best way to do this.
+    public override ModuleMatch CompareTo(ModuleSpec other)
+    {
+        if (other is not PathedModuleSpec && other.Guid == null && other.MinimumVersion == null && other.MaximumVersion == null && other.RequiredVersion == null)
+        {
+            var otherMaybeFileName = Path.GetFileNameWithoutExtension(other.Name);
+            if (Name == otherMaybeFileName) return ModuleMatch.Same;
+        }
+
+        return base.CompareTo(other);
+    }
 }
 
 public record ModuleSpec(
@@ -74,15 +87,18 @@ public record ModuleSpec(
         return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion, InternalGuid);
     }
 
-    public override string GetInsertableLine()
+    public override string GetInsertableLine(Hashtable data)
     {
+        var nameSuffix = data.ContainsKey("NameSuffix") ? $"-{data["NameSuffix"]}" : string.Empty;
+        var moduleName = $"{Path.GetFileNameWithoutExtension(Name)}{nameSuffix}";
+
         if (Guid == null && RequiredVersion == null && MinimumVersion == null && MaximumVersion == null)
         {
-            return $"Using module '{Path.GetFileNameWithoutExtension(Name)}'";
+            return $"Using module '{moduleName}'";
         }
 
         var sb = new StringBuilder("Using module @{");
-        sb.Append($"ModuleName = '{Path.GetFileNameWithoutExtension(Name)}';");
+        sb.Append($"ModuleName = '{moduleName}';");
         if (Guid != null) sb.Append($"GUID = {Guid};");
 
         switch (RequiredVersion, MinimumVersion, MaximumVersion)
@@ -98,18 +114,7 @@ public record ModuleSpec(
         return sb.ToString();
     }
 
-    public virtual bool Equals(ModuleSpec? other)
-    {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
-        return Name == other.Name &&
-               Guid == other.Guid &&
-               MinimumVersion == other.MinimumVersion &&
-               MaximumVersion == other.MaximumVersion &&
-               RequiredVersion == other.RequiredVersion;
-    }
-
-    public ModuleMatch CompareTo(ModuleSpec other)
+    public virtual ModuleMatch CompareTo(ModuleSpec other)
     {
         if (Name != other.Name) return ModuleMatch.None;
         if (Guid != null && other.Guid != null && Guid != other.Guid) return ModuleMatch.None;
@@ -176,7 +181,7 @@ public record ModuleSpec(
         }
 
         // We can't really determine if its higher or lower so we just call it the same.
-        if (isStricter && isLooser) return ModuleMatch.Same;
+        if (isStricter && isLooser) return ModuleMatch.MergeRequired;
         if (isStricter) return ModuleMatch.Stricter;
         if (isLooser) return ModuleMatch.Looser;
 

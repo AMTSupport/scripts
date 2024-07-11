@@ -145,13 +145,13 @@ public class RequirementGroupTests
     {
         public override byte[] Hash => Encoding.UTF8.GetBytes(Data);
         public override bool IsCompatibleWith(Requirement other) => true;
-        public override string GetInsertableLine() => string.Empty;
+        public override string GetInsertableLine(Hashtable _data) => string.Empty;
     }
 
     private record IncompatibleRequirement() : Requirement(true)
     {
         public override byte[] Hash => [];
         public override bool IsCompatibleWith(Requirement other) => false;
-        public override string GetInsertableLine() => string.Empty;
+        public override string GetInsertableLine(Hashtable _data) => string.Empty;
     }
 }

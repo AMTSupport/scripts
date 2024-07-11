@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -21,7 +22,7 @@ public record UsingNamespace(
     /// Gets the insertable line for the requirement.
     /// </summary>
     /// <returns>The insertable line.</returns>
-    public override string GetInsertableLine() => $"Using namespace {Namespace};";
+    public override string GetInsertableLine(Hashtable _) => $"Using namespace {Namespace};";
 
     /// <summary>
     /// Checks if the requirement is compatible with another requirement.

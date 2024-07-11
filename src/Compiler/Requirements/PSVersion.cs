@@ -1,6 +1,6 @@
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
-using System.Security.Policy;
 using System.Text;
 
 namespace Compiler.Requirements;
@@ -9,7 +9,7 @@ public record PSVersionRequirement(Version Version) : Requirement(false)
 {
     public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(Version.ToString()));
 
-    public override string GetInsertableLine()
+    public override string GetInsertableLine(Hashtable _)
     {
         var sb = new StringBuilder();
         sb.Append("#Requires -Version ");

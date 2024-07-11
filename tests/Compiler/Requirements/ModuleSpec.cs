@@ -10,7 +10,7 @@ public class ModuleSpecTests
     [TestCaseSource(typeof(TestData), nameof(TestData.InsetableLinesCases))]
     public string GetInsertableLine_ReturnsCorrectLine(ModuleSpec moduleSpec)
     {
-        return moduleSpec.GetInsertableLine();
+        return moduleSpec.GetInsertableLine([]);
     }
 
     [TestCaseSource(typeof(TestData), nameof(TestData.MatchTestCases))]
