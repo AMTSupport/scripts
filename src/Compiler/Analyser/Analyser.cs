@@ -9,10 +9,10 @@ public static class StaticAnalyser
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-    /*
-        A list of all the built-in functions that are provided in a standard session.
-        This includes modules that are imported by default.
-    */
+    /// <summary>
+    /// A list of all the built-in functions that are provided in a standard session.
+    /// This includes modules that are imported by default.
+    /// </summary>
     private static readonly IEnumerable<string> BuiltinsFunctions = GetDefaultSessionFunctions();
 
     public static void Analyse(CompiledLocalModule module, IEnumerable<Compiled> availableImports)
@@ -24,8 +24,6 @@ public static class StaticAnalyser
         {
             foreach (var undefinedFunction in undefinedFunctions)
             {
-                // Logger.Error($"Undefined function: {undefinedFunction.GetCommandName()}");
-                // Logger.Error($"Location: {undefinedFunction.Extent.File}({undefinedFunction.Extent.StartLineNumber},{undefinedFunction.Extent.StartColumnNumber})");
                 AstHelper.PrintPrettyAstError(undefinedFunction.CommandElements[0].Extent, undefinedFunction, "Undefined function found in module.");
             }
 
@@ -33,34 +31,31 @@ public static class StaticAnalyser
         }
     }
 
-    /*
-        Get all functions which should always be available in a session.
-        This will collect the builtin functions of powershell as-well,
-        as well as the functions from modules in the compiling hosts C:\Windows\system32\WindowsPowerShell\v1.0\Modules path.
-    */
+
+    /// <summary>
+    /// Get all functions which should always be available in a session.
+    /// This will collect the builtin functions of powershell,
+    /// as-well as the functions from modules in the compiling hosts C:\Windows\system32\WindowsPowerShell\v1.0\Modules path.
+    /// </summary>
     public static IEnumerable<string> GetDefaultSessionFunctions()
     {
         var defaultFunctions = new List<string>();
+        var pwsh = PowerShell.Create();
+        pwsh.Runspace.SessionStateProxy.LanguageMode = PSLanguageMode.FullLanguage;
         defaultFunctions.AddRange(PowerShell.Create().Runspace.SessionStateProxy.InvokeCommand
             .GetCommands("*", CommandTypes.Function | CommandTypes.Alias | CommandTypes.Cmdlet, true)
             .Select(command => command.Name));
 
         var modulesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules");
-        if (!Directory.Exists(modulesPath))
-        {
-            return defaultFunctions;
-        }
         var moduleDirectories = Directory.GetDirectories(modulesPath);
         var ps = PowerShell.Create().AddScript(/*ps1*/ $$"""
             $env:PSModulePath = '{{modulesPath}}';
+            $env:Path = 'C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;';
             $PSModuleAutoLoadingPreference = 'All';
-            Get-Command | Select-Object -ExpandProperty Name -Unique
+            Get-Command * | Select-Object -ExpandProperty Name
         """).Invoke();
-        foreach (var commandName in ps)
-        {
-            defaultFunctions.Add((string)commandName.BaseObject);
-        }
-        return defaultFunctions;
+        defaultFunctions.AddRange(ps.Select(commandName => ((string)commandName.BaseObject).Replace(".exe", "")));
+        return defaultFunctions.Distinct();
     }
 
     public static List<CommandAst> FindUndefinedFunctions(CompiledLocalModule module, IEnumerable<Compiled> availableImports)
