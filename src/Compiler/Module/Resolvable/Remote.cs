@@ -137,6 +137,9 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
         return $env:TEMP | Join-Path -ChildPath "PowerShellGet/{{ModuleSpec.Name}}/{{ModuleSpec.Name}}.$($Module.Version).nupkg";
         """;
 
+        Logger.Debug("Running PowerShell code to download module from the PowerShell Gallery.");
+        Logger.Debug(PowerShellCode);
+
         if (!Directory.Exists(CachePath))
         {
             Directory.CreateDirectory(CachePath);
@@ -149,7 +152,10 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
 
         if (pwsh.HadErrors)
         {
-            throw new Exception($"Failed to download module {ModuleSpec.Name} from the PowerShell Gallery. Error: {pwsh.Streams.Error[0].Exception.Message}");
+            Logger.Error($"Failed to download module {ModuleSpec.Name} from the PowerShell Gallery.");
+            pwsh.Streams.Error.ToList().ForEach(error => Logger.Error(error));
+
+            throw new Exception("Failed to download module from the PowerShell Gallery.");
         }
 
         var returnedResult = result.First().ToString();

@@ -40,7 +40,6 @@ public class CompiledScript : Compiled
             alg.FormatVertex += (sender, args) =>
             {
                 args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
-                args.VertexFormat.Comment = args.Vertex.ModuleSpec.InternalGuid.ToString();
             };
         });
         Logger.Debug("Initial graphviz:");
@@ -92,7 +91,6 @@ public class CompiledScript : Compiled
             alg.FormatVertex += (sender, args) =>
             {
                 args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
-                args.VertexFormat.Comment = args.Vertex.ModuleSpec.InternalGuid.ToString();
             };
         });
         Logger.Debug("Compiled graphviz:");

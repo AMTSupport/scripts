@@ -55,53 +55,53 @@ class Program : IDisposable
                     DetectConsoleAvailable = true,
                     EnableAnsiOutput = true,
                     RowHighlightingRules = {
-                new() {
-                    Condition = "level == LogLevel.Fatal",
-                    ForegroundColor = ConsoleOutputColor.Red,
-                },
-                new() {
-                    Condition = "level == LogLevel.Error",
-                    ForegroundColor = ConsoleOutputColor.DarkRed
-                },
-                new() {
-                    Condition = "level == LogLevel.Warn",
-                    ForegroundColor = ConsoleOutputColor.Yellow
-                },
-                new() {
-                    Condition = "level == LogLevel.Info",
-                    ForegroundColor = ConsoleOutputColor.Gray
-                },
-                new() {
-                    Condition = "level == LogLevel.Debug",
-                    ForegroundColor = ConsoleOutputColor.DarkMagenta
-                },
-                new() {
-                    Condition = "level == LogLevel.Trace",
-                    ForegroundColor = ConsoleOutputColor.DarkGray
-                }
+                        new() {
+                            Condition = "level == LogLevel.Fatal",
+                            ForegroundColor = ConsoleOutputColor.Red,
                         },
-                    WordHighlightingRules = {
-                new ConsoleWordHighlightingRule
-                {
-                    Regex = "\\b(?:error|exception|fail|fatal|warn|warning)\\b",
-                    ForegroundColor = ConsoleOutputColor.DarkRed
-                },
-                new ConsoleWordHighlightingRule
-                {
-                    Regex = "\\b(?:info|log|message|success)\\b",
-                    ForegroundColor = ConsoleOutputColor.Green
-                },
-                new ConsoleWordHighlightingRule
-                {
-                    Regex = "\\b(?:debug)\\b",
-                    ForegroundColor = ConsoleOutputColor.Blue
-                },
-                new ConsoleWordHighlightingRule
-                {
-                    Regex = "\\b(?:trace)\\b",
-                    ForegroundColor = ConsoleOutputColor.Gray
-                }
+                        new() {
+                            Condition = "level == LogLevel.Error",
+                            ForegroundColor = ConsoleOutputColor.DarkRed
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Warn",
+                            ForegroundColor = ConsoleOutputColor.Yellow
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Info",
+                            ForegroundColor = ConsoleOutputColor.Gray
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Debug",
+                            ForegroundColor = ConsoleOutputColor.DarkMagenta
+                        },
+                        new() {
+                            Condition = "level == LogLevel.Trace",
+                            ForegroundColor = ConsoleOutputColor.DarkGray
                         }
+                    },
+                    WordHighlightingRules = {
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:error|exception|fail|fatal|warn|warning)\\b",
+                            ForegroundColor = ConsoleOutputColor.DarkRed
+                        },
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:info|log|message|success)\\b",
+                            ForegroundColor = ConsoleOutputColor.Green
+                        },
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:debug)\\b",
+                            ForegroundColor = ConsoleOutputColor.Blue
+                        },
+                        new ConsoleWordHighlightingRule
+                        {
+                            Regex = "\\b(?:trace)\\b",
+                            ForegroundColor = ConsoleOutputColor.Gray
+                        }
+                    }
                 };
 
                 builder.ForLogger().FilterLevels(LogLevel.Info, LogLevel.Fatal).WriteTo(console);
@@ -112,11 +112,7 @@ class Program : IDisposable
             var compiledContent = string.Empty;
             try
             {
-                var pathedModuleSpec = new PathedModuleSpec(
-                    Path.GetFullPath(opts.InputFile!),
-                    Path.GetFileNameWithoutExtension(opts.InputFile!)
-                );
-
+                var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(opts.InputFile!));
                 var resolvableScript = new ResolvableScript(pathedModuleSpec);
                 var compiledScript = resolvableScript.IntoCompiled();
                 compiledContent = compiledScript.GetPowerShellObject();
