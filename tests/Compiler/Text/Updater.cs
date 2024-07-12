@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
-using Compiler.Module;
+using Compiler.Module.Resolvable;
 using Compiler.Text;
 
 namespace Compiler.Test.Text;
@@ -62,24 +62,24 @@ public class PatternTests
             {
                 yield return new TestCaseData(
                     MULTINE_STRING_LINES,
-                    LocalFileModule.MultilineStringOpenRegex().ToString(),
-                    LocalFileModule.MultilineStringCloseRegex().ToString(),
+                    ResolvableLocalModule.MultilineStringOpenRegex().ToString(),
+                    ResolvableLocalModule.MultilineStringCloseRegex().ToString(),
                     UpdateOptions.None,
                     (Func<string[], string[]>)(_ => [])
                 ).Returns(string.Empty).SetName("Remove all multiline strings with empty");
 
                 yield return new TestCaseData(
                     MULTINE_STRING_LINES,
-                    LocalFileModule.MultilineStringOpenRegex().ToString(),
-                    LocalFileModule.MultilineStringCloseRegex().ToString(),
+                    ResolvableLocalModule.MultilineStringOpenRegex().ToString(),
+                    ResolvableLocalModule.MultilineStringCloseRegex().ToString(),
                     UpdateOptions.None,
                     (Func<string[], string[]>)(_ => ["Updated content!"])
                 ).Returns(string.Join('\n', Enumerable.Repeat("Updated content!", 2))).SetName("Replace each multiline string with 'Updated content'");
 
                 yield return new TestCaseData(
                     MULTINE_STRING_LINES,
-                    LocalFileModule.MultilineStringOpenRegex().ToString(),
-                    LocalFileModule.MultilineStringCloseRegex().ToString(),
+                    ResolvableLocalModule.MultilineStringOpenRegex().ToString(),
+                    ResolvableLocalModule.MultilineStringCloseRegex().ToString(),
                     UpdateOptions.None,
                     (Func<string[], string[]>)(content => content.Select((line, index) =>
                     {
@@ -104,8 +104,8 @@ public class PatternTests
 
                 yield return new TestCaseData(
                     DOCUMENTATION_LINES,
-                    LocalFileModule.DocumentationStartRegex().ToString(),
-                    LocalFileModule.DocumentationEndRegex().ToString(),
+                    ResolvableLocalModule.DocumentationStartRegex().ToString(),
+                    ResolvableLocalModule.DocumentationEndRegex().ToString(),
                     UpdateOptions.None,
                     (Func<string[], string[]>)(_ => [])
                 ).Returns(string.Empty).SetName("Ensure that documentation blocks are removed from content.");

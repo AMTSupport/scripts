@@ -1,50 +1,14 @@
 using System.Collections;
 using System.Text.RegularExpressions;
-using Compiler.Module;
+using Compiler.Module.Resolvable;
 using Compiler.Text;
 
-namespace Compiler.Test;
+namespace Compiler.Test.Module.Resolvable;
 
 [TestFixture]
 public class CompiledScriptTest
 {
-    const string TEST_SCRIPT = /*ps1*/ """
-    #Requires -Version 5.1
-
-    <#
-        Making some random documentation for the module here!!
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter()]
-        [string]$Name
-    )
-
-    Set-StrictMode -Version 3;
-
-    Import-Module $PSScriptRoot/src/common/00-Environment.psm1;
-    Invoke-RunMain $MyInvocation {
-        Write-Host 'Hello, World!';
-
-        Write-Host @"
-    This is a multiline string!
-    It can have multiple lines!
-    "@;
-
-        # Write-Error 'This is an error message!' -Category InvalidOperation;
-        Invoke-FailedExit 1050;
-
-        # Random comment
-        $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
-        if ($Restart) {
-            Write-Host 'Restarting script...';
-            Restart-Script; # Comment at the end of a line!!
-        }
-        else {
-            Write-Host 'Exiting script...';
-        };
-    }
-    """;
+    static readonly string TEST_SCRIPT = Path.Combine(Environment.CurrentDirectory, "resources", "test.ps1");
 
     [TestCaseSource(typeof(TestData), nameof(TestData.TestCases))]
     public string Test(
@@ -66,7 +30,7 @@ public class CompiledScriptTest
     )
     {
         var scriptLines = scriptText.Split('\n');
-        var script = new CompiledScript("test", new("test"), new(scriptLines));
+        var script = new ResolvableScript(TestUtils.GetModuleSpecFromContent(scriptText));
 
         var result = script.ExtractParameterBlock();
 
@@ -122,8 +86,8 @@ public class CompiledScriptTest
                 yield return new TestCaseData(
                     new PatternUpdater(
                         50,
-                        LocalFileModule.MultilineStringOpenRegex(),
-                        LocalFileModule.MultilineStringCloseRegex(),
+                        ResolvableLocalModule.MultilineStringOpenRegex(),
+                        ResolvableLocalModule.MultilineStringCloseRegex(),
                         UpdateOptions.None,
                         (lines) =>
                         {
@@ -169,7 +133,7 @@ public class CompiledScriptTest
                 yield return new TestCaseData(
                     new RegexUpdater(
                         50,
-                        LocalFileModule.EntireLineCommentRegex(),
+                        ResolvableLocalModule.EntireLineCommentRegex(),
                         UpdateOptions.None,
                         _ => null
                     ),
@@ -186,7 +150,7 @@ public class CompiledScriptTest
                 yield return new TestCaseData(
                     new RegexUpdater(
                         50,
-                        LocalFileModule.EntireEmptyLineRegex(),
+                        ResolvableLocalModule.EntireEmptyLineRegex(),
                         UpdateOptions.None,
                         _ => null
                     ),
@@ -209,8 +173,8 @@ public class CompiledScriptTest
                 yield return new TestCaseData(
                     new PatternUpdater(
                         50,
-                        LocalFileModule.DocumentationStartRegex(),
-                        LocalFileModule.DocumentationEndRegex(),
+                        ResolvableLocalModule.DocumentationStartRegex(),
+                        ResolvableLocalModule.DocumentationEndRegex(),
                         UpdateOptions.None,
                         _ => []
                     ),
@@ -232,7 +196,7 @@ public class CompiledScriptTest
                 yield return new TestCaseData(
                     new RegexUpdater(
                         50,
-                        LocalFileModule.EndOfLineComment(),
+                        ResolvableLocalModule.EndOfLineComment(),
                         UpdateOptions.None,
                         _ => null
                     ),

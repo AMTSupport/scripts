@@ -144,7 +144,6 @@ public class TestData
                 new Version("1.5.0")
             )).Returns(ModuleMatch.Same).SetName("Same match with all properties");
 
-            // TODO - handle this better?, maybe a specific enum for it.
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
@@ -154,7 +153,7 @@ public class TestData
                 "MyModule",
                 guid,
                 new Version("1.0.0")
-            )).Returns(ModuleMatch.Same).SetName("Same match because both are technically stricter");
+            )).Returns(ModuleMatch.MergeRequired).SetName("Merge Required because both are stricter in different ways");
             #endregion
 
             #region Looser matches
