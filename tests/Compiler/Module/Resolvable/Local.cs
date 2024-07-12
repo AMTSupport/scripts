@@ -1,29 +1,23 @@
-using Compiler.Module;
-using Compiler.Requirements;
+using Compiler.Module.Resolvable;
 using Compiler.Text;
 using System.Collections;
 
-namespace Compiler.Test.Module;
+namespace Compiler.Test.Module.Resolvable;
 
 [TestFixture]
 public class LocalModuleTests
 {
-
     [TestCaseSource(typeof(TestData), nameof(TestData.FixLinesCases))]
-    public string FixLines(
-        string[] testLines
-    )
+    public string TestCompileDocument(string testContent)
     {
-        var module = new LocalFileModule("test.ps1", new ModuleSpec("test"), new TextDocument(testLines), true, true);
-        module.FixLines();
-
-        var compiledDocument = CompiledDocument.FromBuilder(module.Document);
+        var module = new ResolvableLocalModule(TestUtils.GetModuleSpecFromContent(testContent));
+        var compiledDocument = CompiledDocument.FromBuilder(module.Editor);
         return compiledDocument.GetContent();
     }
 
     public class TestData
     {
-        private static readonly string[] MULTILINE_STRING_LINES = """
+        private static readonly string MULTILINE_STRING_LINES = """
                 @"
             Doing cool stuff with this indented multiline string!
 
@@ -35,14 +29,14 @@ public class LocalModuleTests
                             $MyVariable = @"
                 This is a multiline string with a variable inside: $MyVariable
                 "@;
-        """.Split('\n');
+        """;
 
         public static IEnumerable FixLinesCases
         {
             get
             {
                 yield return new TestCaseData(
-                    arg: MULTILINE_STRING_LINES
+                    MULTILINE_STRING_LINES
                 ).Returns("""
                         @"
                 Doing cool stuff with this indented multiline string!
