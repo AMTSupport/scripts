@@ -9,13 +9,11 @@ namespace Compiler.Requirements;
 
 public record PathedModuleSpec(
     string FullPath,
-    string Name,
     Guid? Guid = null,
     Version? MinimumVersion = null,
     Version? MaximumVersion = null,
-    Version? RequiredVersion = null,
-    Guid? PassedInternalGuid = null
-) : ModuleSpec(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion, PassedInternalGuid)
+    Version? RequiredVersion = null
+) : ModuleSpec(Path.GetFileNameWithoutExtension(FullPath), Guid, MinimumVersion, MaximumVersion, RequiredVersion)
 {
     public override byte[] Hash => SHA1.HashData(File.ReadAllBytes(FullPath));
 
@@ -37,8 +35,7 @@ public record ModuleSpec(
     Guid? Guid = null,
     Version? MinimumVersion = null,
     Version? MaximumVersion = null,
-    Version? RequiredVersion = null,
-    Guid? PassedInternalGuid = null
+    Version? RequiredVersion = null
 ) : Requirement(true), IEquatable<ModuleSpec>
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
@@ -46,8 +43,6 @@ public record ModuleSpec(
     public override uint Weight => 70;
 
     public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(string.Concat(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion)));
-
-    public readonly Guid InternalGuid = PassedInternalGuid ?? System.Guid.NewGuid();
 
     // TODO - Maybe use IsCompatibleWith to do some other check stuff
     public ModuleSpec MergeSpecs(ModuleSpec[] merge)
@@ -84,7 +79,7 @@ public record ModuleSpec(
             }
         }
 
-        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion, InternalGuid);
+        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion);
     }
 
     public override string GetInsertableLine(Hashtable data)

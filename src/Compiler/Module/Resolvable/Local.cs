@@ -26,10 +26,7 @@ public partial class ResolvableLocalModule : Resolvable
     ) : this(
         moduleSpec is PathedModuleSpec pathedModuleSpec
             ? pathedModuleSpec
-            : new PathedModuleSpec(
-                Path.GetFullPath(Path.Combine(parentPath, moduleSpec.Name)),
-                Path.GetFileNameWithoutExtension(moduleSpec.Name)
-            )
+            : new PathedModuleSpec(Path.GetFullPath(Path.Combine(parentPath, moduleSpec.Name)))
         )
     {
         if (!Path.IsPathRooted(parentPath)) throw new InvalidModulePathException("The parent path must be an absolute path.");
