@@ -14,12 +14,12 @@ public partial class ResolvableScript : ResolvableLocalModule
     {
         ResolvableParent = new ResolvableParent(this);
 
-        Editor.AddRegexEdit(RunMainRegex(), Text.UpdateOptions.MatchEntireDocument, static match =>
-        {
-            var block = match.Groups["Block"].Value;
-            var invocation = match.Groups.ContainsKey("Invocation") ? match.Groups["Invocation"].Value : "$MyInvocation";
-            return string.Format(InvokeRunMain, "00-Environment", invocation, block);
-        });
+        // Editor.AddRegexEdit(RunMainRegex(), Text.UpdateOptions.MatchEntireDocument, static match =>
+        // {
+        //     var block = match.Groups["Block"].Value;
+        //     var invocation = match.Groups.ContainsKey("Invocation") ? match.Groups["Invocation"].Value : "$MyInvocation";
+        //     return string.Format(InvokeRunMain, "00-Environment", invocation, block);
+        // });
 
         ResolvableParent.Resolve();
 

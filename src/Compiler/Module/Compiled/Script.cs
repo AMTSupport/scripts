@@ -1,5 +1,5 @@
-using System.Collections;
 using System.Management.Automation.Language;
+using System.Reflection;
 using System.Text;
 using Compiler.Analyser;
 using Compiler.Module.Resolvable;
@@ -12,7 +12,7 @@ using QuikGraph.Graphviz;
 
 namespace Compiler.Module.Compiled;
 
-public class CompiledScript : Compiled
+public class CompiledScript : CompiledLocalModule
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -20,20 +20,12 @@ public class CompiledScript : Compiled
 
     public readonly BidirectionalGraph<Compiled, Edge<Compiled>> Graph;
 
-    public readonly CompiledDocument Document;
-
-    public override string ComputedHash => throw new NotImplementedException();
-
-    public override ContentType ContentType => throw new NotImplementedException();
-
-    public override Version Version => throw new NotImplementedException();
-
     public CompiledScript(
         PathedModuleSpec moduleSpec,
         TextEditor editor,
         ResolvableParent resolvableParent,
         ParamBlockAst? scriptParamBlock
-    ) : base(moduleSpec)
+    ) : base(moduleSpec, CompiledDocument.FromBuilder(editor, 0))
     {
         var graphviz = resolvableParent.Graph.ToGraphviz(alg =>
         {
@@ -45,7 +37,6 @@ public class CompiledScript : Compiled
         Logger.Debug("Initial graphviz:");
         Logger.Debug(graphviz);
 
-        Document = CompiledDocument.FromBuilder(editor, 0);
         ScriptParamBlock = scriptParamBlock;
         Graph = new BidirectionalGraph<Compiled, Edge<Compiled>>();
         Graph.AddVertex(this);
@@ -104,106 +95,63 @@ public class CompiledScript : Compiled
         });
     }
 
-    /// <summary>
-    /// The script contents.
-    /// </summary>
-    /// <returns>
-    /// The script contents.
-    /// </returns>
     public override string GetPowerShellObject()
     {
-        var sb = new StringBuilder();
+        var info = Assembly.GetExecutingAssembly().GetName();
+        using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
+        using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
+        var template = streamReader.ReadToEnd();
 
-        sb.AppendJoin('\n', Requirements.GetRequirements().Select(requirement =>
+        var EMBEDDED_MODULES = new StringBuilder();
+        EMBEDDED_MODULES.AppendLine("$Script:EMBEDDED_MODULES = @(");
+        Graph.Vertices.ToList().ForEach(module =>
         {
-            var data = new Hashtable() { { "NameSuffix", Convert.ToHexString(requirement.Hash) } };
-            return requirement.GetInsertableLine(data);
-        }));
-        sb.AppendLine();
+            var moduleObject = module switch
+            {
+                CompiledScript script when script == this => base.GetPowerShellObject(),
+                _ => module.GetPowerShellObject()
+            };
 
-        if (ScriptParamBlock != null)
-        {
-            sb.AppendJoin('\n', ScriptParamBlock.Attributes.Select(attr => attr.Extent.Text));
-            sb.AppendLine();
+            var lineCount = moduleObject.Split('\n').Length;
+            var skipLines = Enumerable.Range(6, lineCount - 1);
+            EMBEDDED_MODULES.AppendLine(IndentString(moduleObject, 8, skipLines));
+        });
+        EMBEDDED_MODULES.AppendLine(IndentString(");", 4));
 
-            sb.Append(ScriptParamBlock.Extent.Text);
-            sb.AppendLine();
-        }
-
-        #region Begin Block
-        sb.AppendLine("begin {");
-        sb.AppendLine("    $Global:CompiledScript = $True;");
-        sb.AppendLine("    $Global:EmbeddedModules = @{");
-        Graph.Vertices.Skip(1).ToList().ForEach(module => sb.AppendLine($$"""        '{{module.ModuleSpec.Name}}' = {{module.GetPowerShellObject()}}"""));
-        sb.AppendLine("};");
-
-        sb.AppendLine(/*ps1*/ """
-            $Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath 'AMT/PowerShell/Modules';
-            if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
-                Write-Host "Creating module root folder: $Local:PrivatePSModulePath";
-                New-Item -Path $Local:PrivatePSModulePath -ItemType Directory | Out-Null;
-            }
-            if (-not ($Env:PSModulePath -like "*$Local:PrivatePSModulePath*")) {
-                $Env:PSModulePath = "$Local:PrivatePSModulePath;" + $Env:PSModulePath;
-            }
-            $Global:EmbeddedModules.GetEnumerator() | ForEach-Object {
-                $Local:Content = $_.Value.Content;
-                $Local:Name = $_.Key;
-                $Local:ModuleFolderPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath $Local:Name;
-                if (-not (Test-Path -Path $Local:ModuleFolderPath)) {
-                    Write-Host "Creating module folder: $Local:ModuleFolderPath";
-                    New-Item -Path $Local:ModuleFolderPath -ItemType Directory | Out-Null;
-                }
-                switch ($_.Value.Type) {
-                    'UTF8String' {
-                        $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:Name.psm1";
-                        if (-not (Test-Path -Path $Local:InnerModulePath)) {
-                            Write-Host "Writing content to module file: $Local:InnerModulePath"
-                            Set-Content -Path $Local:InnerModulePath -Value $Content;
-                        }
-                    }
-                    'ZipHex' {
-                        if ((Get-ChildItem -Path $Local:ModuleFolderPath).Count -ne 0) {
-                            return;
-                        }
-                        [String]$Local:TempFile = [System.IO.Path]::GetTempFileName();
-                        [Byte[]]$Local:Bytes = [System.Convert]::FromHexString($Content);
-                        [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
-                        Write-Host "Expanding module file: $Local:TempFile"
-                        Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force;
-                    }
-                    Default {
-                        Write-Warning "Unknown module type: $($_)";
-                    }
-                }
-            }
-        """);
-
-        sb.AppendLine("}");
-        #endregion
-
-        #region End Block
-        sb.AppendLine($$"""
-        end {
-        {{Document.GetContent()}}
-            $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
-        }
-        """);
-        #endregion
-
-        return sb.ToString();
+        // TODO - Implement a way to replace #!DEFINE macros in the template.
+        // This could also be how we can implement secure variables during compilation.
+        template = template.Replace("#!DEFINE EMBEDDED_MODULES", EMBEDDED_MODULES.ToString());
+        return template;
     }
 
-    public override string StringifyContent() => throw new NotImplementedException();
-    public override IEnumerable<string> GetExportedFunctions() => throw new NotImplementedException();
-
-    private static string IndentString(string str, int indentBy, bool indentFirstLine = true)
+    /// <summary>
+    /// Utility method for indenting a string.
+    ///
+    /// As indentation is optional in PowerShell this will not add any indentations
+    /// if the program is running without the Debug flag to conserve space.
+    /// </summary>
+    /// <param name="str">
+    /// The string to indent.
+    /// </param>
+    /// <param name="indentBy">
+    /// The amount of spaces to indent by.
+    /// </param>
+    /// <param name="skipLines">
+    /// The lines to skip when indenting.
+    /// </param>
+    /// <returns>
+    /// The indented string.
+    /// </returns>
+    private static string IndentString(string str, int indentBy, IEnumerable<int>? skipLines = null)
     {
+        if (!Program.IsDebugging) { return str; }
+
         var indent = new string(' ', indentBy);
         var lines = str.Split('\n');
         var indentedLines = lines.Select((line, index) =>
         {
-            if (index == 0 && !indentFirstLine) { return line; }
+            if (string.IsNullOrWhiteSpace(line)) { return line; } // Skip empty lines.
+            if (skipLines != null && skipLines.Contains(index)) { return line; }
             return indent + line;
         });
 
