@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using Compiler.Text;
+using Compiler.Text.Updater.Built;
 
 namespace Compiler.Module.Resolvable;
 
@@ -58,29 +59,7 @@ public partial class ResolvableLocalModule : Resolvable
         // Remove #Requires statements
         Editor.AddRegexEdit(20, RequiresStatementRegex(), _ => { return null; });
 
-        // Fix indentation for Multiline Strings
-        Editor.AddPatternEdit(
-            80,
-            MultilineStringOpenRegex(),
-            MultilineStringCloseRegex(),
-            UpdateOptions.InsertInline,
-            (lines) =>
-            {
-                // Get the multiline indent level from the last line of the string.
-                // This is used so we don't remove any whitespace that is part of the actual string formatting.
-                var indentLevel = BeginingWhitespaceMatchRegex().Match(lines.Last()).Value.Length;
-                var updatedLines = lines.Select((line, index) =>
-                {
-                    if (index < 1 || string.IsNullOrWhiteSpace(line))
-                    {
-                        return line;
-                    }
-
-                    return line[indentLevel..];
-                });
-
-                return updatedLines.ToArray();
-            });
+        Editor.AddEdit(() => new HereStringUpdater());
     }
 
     /// <summary>
@@ -172,8 +151,6 @@ public partial class ResolvableLocalModule : Resolvable
     public override int GetHashCode() => ModuleSpec.GetHashCode();
 
     #region Regex Patterns
-    [GeneratedRegex(@"^\s*")]
-    private static partial Regex BeginingWhitespaceMatchRegex();
     [GeneratedRegex(@"^(?!\n)*$")]
     public static partial Regex EntireEmptyLineRegex();
 
@@ -189,11 +166,6 @@ public partial class ResolvableLocalModule : Resolvable
     [GeneratedRegex(@"(?!\n)\s*(?<!<)#(?!>).*$")]
     public static partial Regex EndOfLineComment();
 
-    [GeneratedRegex(@"^.*@[""']")]
-    public static partial Regex MultilineStringOpenRegex();
-
-    [GeneratedRegex(@"^\s*[""']@")]
-    public static partial Regex MultilineStringCloseRegex();
     [GeneratedRegex(@"^\s*#Requires\s+-Version\s+\d+\.\d+")]
     private static partial Regex RequiresStatementRegex();
     #endregion

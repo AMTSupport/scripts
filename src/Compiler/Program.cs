@@ -12,6 +12,8 @@ class Program : IDisposable
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
+    internal static bool IsDebugging;
+
     public static readonly Lazy<RunspacePool> RunspacePool = new(() =>
     {
         var sessionState = InitialSessionState.CreateDefault2();
@@ -47,6 +49,8 @@ class Program : IDisposable
     {
         _ = Parser.Default.ParseArguments<Options>(args).WithParsed(opts =>
         {
+            Program.IsDebugging = opts.Debug;
+
             LogManager.Setup().LoadConfiguration(builder =>
             {
                 var console = new ColoredConsoleTarget("console")

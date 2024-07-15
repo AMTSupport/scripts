@@ -69,10 +69,7 @@ public class TextSpan(
     [Pure]
     public string GetContent(string[] lines)
     {
-        if (lines.Length == 0)
-        {
-            return string.Empty;
-        }
+        if (lines.Length == 0) return string.Empty;
 
         if (StartingIndex < 0 || StartingIndex >= lines.Length)
         {
