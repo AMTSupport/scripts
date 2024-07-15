@@ -56,7 +56,7 @@ public class CompiledLocalModule : Compiled
         }))
         .AppendLine()
         .AppendLine(Document.GetContent())
-        .AppendLine("'@;")
+        .Append("'@;")
         .ToString();
 
     public override IEnumerable<string> GetExportedFunctions() => AstHelper.FindAvailableFunctions(Ast, true).Select(function => function.Name);

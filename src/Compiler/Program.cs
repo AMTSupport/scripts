@@ -49,7 +49,7 @@ class Program : IDisposable
     {
         _ = Parser.Default.ParseArguments<Options>(args).WithParsed(opts =>
         {
-            Program.IsDebugging = opts.Debug;
+            IsDebugging = opts.Debug;
 
             LogManager.Setup().LoadConfiguration(builder =>
             {
