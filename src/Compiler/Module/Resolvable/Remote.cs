@@ -81,16 +81,10 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
     {
         if (_cachedFile != null) return _cachedFile;
 
-        if (!Directory.Exists(CachePath))
-        {
-            return null;
-        }
+        if (!Directory.Exists(CachePath)) return null;
 
         var files = Directory.GetFiles(CachePath, "*.nupkg");
-        if (files.Length == 0)
-        {
-            return null;
-        }
+        if (files.Length == 0) return null;
 
         var versions = files.Where(file =>
         {
@@ -108,7 +102,7 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
         var selectedVersion = versions.Where(version =>
         {
             var otherSpec = new ModuleSpec(ModuleSpec.Name, ModuleSpec.Guid, RequiredVersion: version);
-            var matchType = ModuleSpec.CompareTo(otherSpec);
+            var matchType = otherSpec.CompareTo(ModuleSpec);
 
             return matchType == ModuleMatch.Same || matchType == ModuleMatch.Stricter;
         }).OrderByDescending(version => version).FirstOrDefault();
