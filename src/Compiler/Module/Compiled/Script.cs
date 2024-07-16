@@ -112,8 +112,9 @@ public class CompiledScript : CompiledLocalModule
                 _ => module.GetPowerShellObject()
             };
 
-            var lineCount = moduleObject.Split('\n').Length;
-            var skipLines = Enumerable.Range(6, lineCount - 1);
+            var lineCount = moduleObject.Count(character => character == '\n');
+            // Only skip the lines of the content of the module object.
+            var skipLines = Enumerable.Range(6, lineCount - 6);
             EMBEDDED_MODULES.AppendLine(IndentString(moduleObject, 8, skipLines));
         });
         EMBEDDED_MODULES.AppendLine(IndentString(");", 4));
