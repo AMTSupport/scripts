@@ -48,7 +48,7 @@ Function Update-Script {
 }
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     foreach ($File in $FilesToFetch) {
         Update-Script -BaseUrl:$BaseUrl -ScriptName:$File;
     }

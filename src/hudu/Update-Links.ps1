@@ -54,7 +54,7 @@ function Get-Passwords {
 }
 
 Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     [PSCustomObject]$Private:Companies = Get-HuduCompanies -Endpoint:$Private:Endpoint;
 
     foreach ($Private:Company in $Private:Companies) {

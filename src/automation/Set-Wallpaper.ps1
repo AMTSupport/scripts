@@ -290,7 +290,7 @@ function Get-ReusableFile {
 }
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 
     $Script:ERROR_INVALID_HEADERS = Register-ExitCode -Description 'Failed to get headers from {0}';

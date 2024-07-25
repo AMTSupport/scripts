@@ -94,7 +94,7 @@ function Set-Style(
 #endregion - Excel Functions
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-EnsureUser;
     Invoke-EnsureModule -Modules 'ImportExcel', "$PSScriptRoot\Common.psm1"; # TODO - This should be imported by compiler in future.
 

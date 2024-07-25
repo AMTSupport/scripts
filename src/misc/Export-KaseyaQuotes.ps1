@@ -107,7 +107,7 @@ function Invoke-ApiRequest {
 }
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     trap {
         Remove-Variable -Scope Global -Name 'Quotes' -ErrorAction SilentlyContinue;
         Remove-Variable -Scope Global -Name 'QuoteSections' -ErrorAction SilentlyContinue;

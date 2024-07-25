@@ -21,7 +21,7 @@ foreach ($domain in $domains) {
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-EnsureModule @('Microsoft.Graph');
     Connect-Service -Services @('Graph') -Scopes @('Domain.ReadWrite.All');
 

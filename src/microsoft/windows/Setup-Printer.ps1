@@ -203,7 +203,7 @@ function Install-PrinterImpl(
 }
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     [String]$Local:TrimmedPrinterName = $PrinterName.Trim();
     [String]$Local:TrimmedPrinterIP = $PrinterIP.Trim();
     [String]$Local:TrimmedPrinterDriver = $PrinterDriver.Trim();

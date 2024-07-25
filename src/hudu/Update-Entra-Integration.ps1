@@ -33,7 +33,7 @@ function Remove-OldSecrets {
 
 # Invoke-Init;
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     [String]$Local:HuduKey = Get-VarOrSave -VariableName 'HUDU_KEY' -LazyValue {
         $Local:Input = Get-UserInput -Title 'Hudu API Key' -Question 'Please enter your Hudu API Key';
         if (-not $Local:Input) {

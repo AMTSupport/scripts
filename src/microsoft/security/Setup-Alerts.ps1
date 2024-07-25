@@ -56,7 +56,7 @@ function Update-SecurityAndCompilence(
 
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Connect-Service -Services SecurityComplience,Graph -Scopes 'SecurityEvents.ReadWrite.All';
 
     [MicrosoftGraphUser]$Local:AlertsUser = Get-AlertsUser;
