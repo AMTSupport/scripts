@@ -524,7 +524,7 @@ function Invoke-Compile {
     }
 }
 
-Invoke-RunMain $PSCmdlet -HideDisclaimer:$InnerInvocation {
+Invoke-RunMain $PSCmdlet -HideDisclaimer:$InnerInvocation -DontImport:$InnerInvocation {
     $CompileScripts | ForEach-Object {
         $Local:OutPath = $_;
         $Local:CompiledScript = Invoke-Compile -ScriptPath $_ -Modules $Modules -ModuleRoot $ModuleRoot;
