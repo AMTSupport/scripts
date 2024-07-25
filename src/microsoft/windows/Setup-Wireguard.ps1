@@ -26,21 +26,21 @@ Invoke-RunMain $PSCmdlet {
 
         [ADSI]$Local:Group = Get-Group 'Network Configuration Operators';
         [ADSI]$Local:UserGroup = Get-Group 'Users';
-        [HashTable[]]$Local:Users = Get-GroupMembers $Local:UserGroup | ForEach-Object {
+        [HashTable[]]$Local:Users = Get-MembersOfGroup $Local:UserGroup | ForEach-Object {
             [PSCustomObject]$Local:Formatted = Format-ADSIUser $_;
             @{
-                ADSI = $_;
+                ADSI      = $_;
                 Formatted = "$($Local:Formatted.Domain)\$($Local:Formatted.Name)";
             };
         };
         while ($True) {
             [HashTable]$Local:User = Get-UserSelection `
-                -Title 'Select User'
+                -Title 'Select User' `
                 -Question 'Select the user you want to add to Network Configuration Operators:' `
                 -Choices $Local:Users `
-                -FormatChoice { $_.Formatted };
+                -FormatChoice { param($User) $User.Formatted };
 
-            $null = Add-MemberToGroup -Group $Local:Group -Username $Local:User.ADSI;
+            $null = Add-MemberToGroup -Group $Local:Group -User $Local:User.ADSI;
             $Local:Users = $Local:Users | Where-Object { $_ -ne $Local:User };
 
             if ($Local:Users.Count -eq 0) {
@@ -50,7 +50,8 @@ Invoke-RunMain $PSCmdlet {
 
             if (Get-UserConfirmation -Title 'Add another user?' -Question 'Do you want to add another user to Network Configuration Operators?' -Default $True) {
                 continue;
-            } else {
+            }
+            else {
                 break;
             }
         }

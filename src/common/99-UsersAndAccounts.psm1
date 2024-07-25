@@ -3,9 +3,9 @@
 #region - Caching
 
 $Script:InitialisedAllGroups = $False;
-$Script:CachedGroups;
+$Script:CachedGroups = @{};
 $Script:InitialisedAllUsers = $False;
-$Script:CachedUsers;
+$Script:CachedUsers = @{};
 
 #endregion
 
@@ -111,7 +111,7 @@ function Get-Group(
             Invoke-Debug 'Getting all groups...'
             if (-not $Script:InitialisedAllGroups) {
                 Invoke-Debug 'Initialising all groups...';
-                $Script:CachedGroups = @{};
+                $Script:CachedGroups;
                 [ADSI]$Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
                 $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' } | ForEach-Object { $Script:CachedGroups[$_.Name] = $_; };
                 $Script:InitialisedAllGroups = $True;
