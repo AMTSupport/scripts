@@ -2,13 +2,13 @@
 
 [CmdletBinding(SupportsShouldProcess)]
 param (
-    [Parameter(HelpMessage='This directory to source scripts from.')]
+    [Parameter(HelpMessage = 'This directory to source scripts from.')]
     [String]$SourceDir = "$PSScriptRoot/../src",
 
-    [Parameter(HelpMessage='The directory to output compiled scripts to.')]
+    [Parameter(HelpMessage = 'The directory to output compiled scripts to.')]
     [String]$OutputDir = "$PSScriptRoot/../compiled",
 
-    [Parameter(DontShow, HelpMessage='The compiler scripts location.')]
+    [Parameter(DontShow, HelpMessage = 'The compiler scripts location.')]
     [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
     [String]$CompilerScript = "$PSScriptRoot/Compiler.ps1"
 )
@@ -46,11 +46,13 @@ function Invoke-EnsureDirectoryStructure {
 
 Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
+    $SourceDir = [System.IO.Path]::GetFullPath($SourceDir);
+    $OutputDir = [System.IO.Path]::GetFullPath($OutputDir);
     Invoke-Info "Compiling scripts from $SourceDir to $OutputDir";
-    Invoke-EnsureModule "$PSScriptRoot/Compiler.ps1";
 
-    [Object[]]$Local:Items = Get-ChildItem -Path $SourceDir -Recurse -Filter '*.ps1';
-    foreach ($Local:Item in $Local:Items) {
+    [Object[]]$Local:Items = Get-ChildItem -Path $SourceDir -Recurse -Filter '*.ps1' -Depth 9 -File;
+    $Local:Items | ForEach-Object {
+        $Local:Item = $_;
         [String]$Local:Content = Get-Content -Path $Local:Item.FullName;
         if (($Local:Content.Length -eq 0) -or (Select-String -InputObject $Local:Content -Pattern '^\s*#.*@compile-ignore')) {
             Invoke-Info "Ignoring $($Local:Item.FullName)";
@@ -62,11 +64,8 @@ Invoke-RunMain $PSCmdlet {
         # Get the relative path of the file
         [String]$Local:RelativePath = $Local:Item.DirectoryName.Substring((Get-Item $SourceDir).FullName.Length).TrimStart('\');
         [String]$Local:OutputFolderPath = Join-Path $OutputDir $Local:RelativePath;
-
         Invoke-EnsureDirectoryStructure -SourcePath $SourceDir -TargetBasePath $OutputDir -CurrentPath ($Local:Item.FullName | Split-Path -Parent);
-        [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Local:OutputFolderPath -ChildPath $Local:Item.Name;
 
-        [String]$Local:CompiledScript = Invoke-Compile -ScriptPath $Local:Item.FullName;
-        Set-Content -Path $Local:OutputFile -Value $Local:CompiledScript;
+        & $CompilerScript -CompileScripts:$Local:Item.FullName -Output:$Local:OutputFolderPath -Force -InnerInvocation;
     }
 }
