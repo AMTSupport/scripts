@@ -80,7 +80,7 @@ function Get-ShouldRestart {
 }
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     $Local:RequiresRestart = Get-ShouldRestart;
     if (-not $Local:RequiresRestart.required) {
         Invoke-Info "No reboot required.";

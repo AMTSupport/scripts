@@ -340,14 +340,17 @@ function Invoke-RunMain {
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNull()]
-        [System.Management.Automation.InvocationInfo]$Invocation,
+        [System.Management.Automation.PSCmdlet]$Cmdlet,
 
         [Parameter(Mandatory)]
         [ValidateNotNull()]
         [ScriptBlock]$Main,
 
         [Parameter(DontShow)]
-        [Switch]$DontImport = (-not (Test-ExplicitlyCalled -Invocation:$Invocation)),
+        [Switch]$NotStrict = $False,
+
+        [Parameter(DontShow)]
+        [Switch]$DontImport = (-not (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation)),
 
         [Parameter(DontShow)]
         [Switch]$HideDisclaimer = ($DontImport -or ($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
@@ -358,7 +361,7 @@ function Invoke-RunMain {
         Param(
             [Parameter(Mandatory)]
             [ValidateNotNull()]
-            [System.Management.Automation.InvocationInfo]$Invocation,
+            [System.Management.Automation.PSCmdlet]$Cmdlet,
 
             [Parameter(Mandatory)]
             [ValidateNotNull()]
@@ -375,8 +378,8 @@ function Invoke-RunMain {
             # If the script is being restarted, we have already done this.
             if (-not $Global:ScriptRestarted) {
                 foreach ($Local:Param in @('Verbose', 'Debug')) {
-                    if ($Invocation.BoundParameters.ContainsKey($Local:Param)) {
-                        $Global:Logging[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
+                    if ($Cmdlet.MyInvocation.BoundParameters.ContainsKey($Local:Param)) {
+                        $Global:Logging[$Local:Param] = $Cmdlet.MyInvocation.BoundParameters[$Local:Param];
                     }
                 }
 
@@ -397,11 +400,16 @@ function Invoke-RunMain {
         process {
             try {
                 # FIXME :: it's not working as expected, currently not executing if ran from within a script.
-                if (Test-ExplicitlyCalled -Invocation:$Invocation) {
+                if (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation) {
                     Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
 
-                    $Local:RunBoundParameters = $Invocation.BoundParameters;
-                    & $Main @Local:RunBoundParameters;
+                    $Local:RunBoundParameters = $Cmdlet.MyInvocation.BoundParameters;
+                    $Cmdlet.InvokeCommand.InvokeScript(
+                        $Cmdlet.SessionState,
+                        $Main,
+                        [System.Management.Automation.Runspaces.PipelineResultTypes]::All,
+                        $Local:RunBoundParameters
+                    );
                 }
             }
             catch {
@@ -464,9 +472,11 @@ function Invoke-RunMain {
         }
     }
 
-    Set-StrictMode -Version 3;
+    if (-not $NotStrict) {
+        Set-StrictMode -Version 3;
+    }
     Invoke-Inner `
-        -Invocation $Invocation `
+        -Cmdlet $Cmdlet `
         -Main $Main `
         -DontImport:$DontImport `
         -HideDisclaimer:($HideDisclaimer -or $False) `

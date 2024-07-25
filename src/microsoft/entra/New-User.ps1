@@ -12,7 +12,7 @@ function New-User {
 }
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-EnsureModule -Modules 'Graph' -Scopes '';
 
     #region - Get user details

@@ -420,7 +420,7 @@ function New-CompiledScript(
         [String]$Local:InvokeMain = $null;
         [Int32]$Local:MatchIndex = -1;
         $Local:FilteredLines | ForEach-Object {
-            if ($_ | Select-String -Pattern '(?smi)^Invoke-RunMain\s*(?:-Invocation(?:\s*|=)?)?(?<invocation>\$[A-Z]+)\s*(?:-Main(?:\s*|=)?)?{') {
+            if ($_ | Select-String -Pattern '(?smi)^Invoke-RunMain\s*(?:-Cmdlet(?:\s*|=)?)?(?<cmdlet>\$[A-Z]+)\s*(?:-Main(?:\s*|=)?)?{') {
                 $Local:MatchIndex = $Local:FilteredLines.IndexOf($_);
                 return;
             }
@@ -444,7 +444,7 @@ function New-CompiledScript(
                 $Local:FilteredLines = $Local:FilteredLines[($Local:ScriptEnd + 1)..($Local:FilteredLines.Count)];
             }
 
-            $Local:InvokeMain = $Local:InvokeMain -replace '(?smi)^Invoke-RunMain\s*(?:-Invocation(?:\s*|=)?)?(?<invocation>\$[A-Z]+)\s*(?:-Main(?:\s*|=)?)?', '';
+            $Local:InvokeMain = $Local:InvokeMain -replace '(?smi)^Invoke-RunMain\s*(?:-Cmdlet(?:\s*|=)?)?(?<cmdlet>\$[A-Z]+)\s*(?:-Main(?:\s*|=)?)?', '';
             # Remove the semi-colon from the end of the Invoke-RunMain block
             $Local:InvokeMain = $Local:InvokeMain -replace ';?\s*$', '';
         }
@@ -476,7 +476,7 @@ $(
 }
 $Local:ScriptBody
 $(if ($Local:InvokeMain) {
-    "(New-Module -ScriptBlock `$Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList `$MyInvocation.BoundParameters).'Invoke-RunMain'(`$MyInvocation, $Local:InvokeMain);"
+    "(New-Module -ScriptBlock `$Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList `$MyInvocation.BoundParameters).'Invoke-RunMain'(`$PSCmdlet, $Local:InvokeMain);"
 })
 "@;
 
@@ -524,7 +524,7 @@ function Invoke-Compile {
     }
 }
 
-Invoke-RunMain $MyInvocation -HideDisclaimer:$InnerInvocation {
+Invoke-RunMain $PSCmdlet -HideDisclaimer:$InnerInvocation {
     $CompileScripts | ForEach-Object {
         $Local:OutPath = $_;
         $Local:CompiledScript = Invoke-Compile -ScriptPath $_ -Modules $Modules -ModuleRoot $ModuleRoot;

@@ -67,7 +67,7 @@ function Invoke-Exec(
 }
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-WithinEphemeral {
         [String]$Local:Executable = Get-Executable -URL:$URL -ExecutablePattern:$ExecutablePattern;
         Invoke-Exec -Executable:$Local:Executable -ExecutableArgs:$ExecArgs;

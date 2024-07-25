@@ -765,7 +765,7 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
 }
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     if (-not $ClientsFolder) {
         [String[]]$Local:PossiblePaths = @(
             "$env:USERPROFILE\AMT\Clients - Documents",

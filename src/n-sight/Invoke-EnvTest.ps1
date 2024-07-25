@@ -4,7 +4,7 @@
 #>
 
 Import-Module $PSScriptRoot/../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-Info 'Printing environment variables...'
     [Object[]]$Local:EnvironmentVariables = Get-ChildItem -Path 'env:';
     $Local:EnvironmentVariables | Format-Table -AutoSize -Wrap;

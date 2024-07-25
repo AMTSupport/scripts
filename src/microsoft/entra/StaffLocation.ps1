@@ -242,7 +242,7 @@ function Set-ConditionalAccessPolicy {
 
 # Register-ArgumentCompleter -CommandName:($PSCommandPath | Split-Path -Leaf) -ScriptBlock $Local:ScriptBlock
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation -Main:$Local:ScriptBlock;
+Invoke-RunMain $PSCmdlet -Main:$Local:ScriptBlock;
 
 dynamicparam {
     Start-Sleep -Seconds 15;

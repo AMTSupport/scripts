@@ -23,7 +23,7 @@ function Test-TravelAccess {
 }
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     # Get exact users by recursive input quary
 
     switch ($Action) {

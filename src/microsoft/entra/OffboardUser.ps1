@@ -7,7 +7,7 @@ function Update-Mailbox {
     )
 
     Set-MailBox -Identity:$User.Mail -Type:Shared -HiddenFromAddressListsEnabled:$True;
-    
+
     # Forward and/or delegate the mailbox to another user
     # Set the mailbox to auto-reply if requested
 }
@@ -22,7 +22,7 @@ function Update-User {
 }
 
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-EnsureModule "$PSScriptRoot/../Common.psm1", 'ExchangeOnlineManagement', 'Microsoft.Graph';
     Connect-Service 'Graph','ExchangeOnline' -Scopes @('User.ReadWrite.All', 'Directory.ReadWrite.All');
 
