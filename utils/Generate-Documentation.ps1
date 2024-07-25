@@ -1,5 +1,5 @@
 Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
 
     Set-StrictMode -Version Latest;
@@ -30,7 +30,7 @@ Invoke-RunMain $MyInvocation {
     # -----------------------------------------------------------------------------
     # Generate the new MDX Files for each module
     # -----------------------------------------------------------------------------
-    $Local:Modules = Get-ChildItem -Path "../src/" -Include '*.psm1' -File -Recurse | ForEach-Object { $_ } | Sort-Object;
+    $Local:Modules = Get-ChildItem -Path '../src/' -Include '*.psm1' -File -Recurse | ForEach-Object { $_ } | Sort-Object;
     foreach ($Local:Module in $Local:Modules) {
         $Local:ModuleDocusaurusOptions = $Local:DocusaurusOptions.Clone();
         $Local:ModuleDocusaurusOptions.Module = $Local:Module.BaseName;
@@ -41,7 +41,8 @@ Invoke-RunMain $MyInvocation {
         Invoke-Info "Generating new MDX files for module: $($Local:Module.BaseName) in $Local:Parents";
         try {
             New-DocusaurusHelp @Local:ModuleDocusaurusOptions;
-        } catch {
+        }
+        catch {
             Invoke-Error "Failed to generate MDX files for module: $($Local:Module.BaseName) in $Local:Parents";
         }
 
@@ -51,7 +52,7 @@ Invoke-RunMain $MyInvocation {
     # -----------------------------------------------------------------------------
     # Generate the new MDX Files for each script
     # -----------------------------------------------------------------------------
-    $Local:Scripts = Get-ChildItem -Path "../src/" -Include '*.ps1' -File -Recurse | ForEach-Object { $_ } | Sort-Object;
+    $Local:Scripts = Get-ChildItem -Path '../src/' -Include '*.ps1' -File -Recurse | ForEach-Object { $_ } | Sort-Object;
     foreach ($Local:Script in $Local:Scripts) {
         $Local:ScriptDocusaurusOptions = $Local:DocusaurusOptions.Clone();
         $Local:ScriptDocusaurusOptions.Module = $Local:Script.BaseName;
@@ -62,7 +63,8 @@ Invoke-RunMain $MyInvocation {
         Invoke-Info "Generating new MDX files for script: $($Local:Script.BaseName) in $Local:Parents";
         try {
             New-DocusaurusHelp @Local:ScriptDocusaurusOptions;
-        } catch {
+        }
+        catch {
             Invoke-Error "Failed to generate MDX files for script: $($Local:Script.BaseName) in $Local:Parents";
         }
 
@@ -73,7 +75,7 @@ Invoke-RunMain $MyInvocation {
     # Generate the Sidebar file
     # -----------------------------------------------------------------------------
     $Local:Sidebar = '../docs/sidebars.js';
-@"
+    @'
 // @ts-check
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
@@ -84,7 +86,7 @@ const sidebars = {
 
 export default sidebars;
 
-"@ | Set-Content -Path $Local:Sidebar -Force;
+'@ | Set-Content -Path $Local:Sidebar -Force;
 
     Pop-Location;
 }

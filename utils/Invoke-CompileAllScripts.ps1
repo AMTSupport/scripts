@@ -45,7 +45,7 @@ function Invoke-EnsureDirectoryStructure {
 }
 
 Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCmdlet {
     Invoke-Info "Compiling scripts from $SourceDir to $OutputDir";
     Invoke-EnsureModule "$PSScriptRoot/Compiler.ps1";
 

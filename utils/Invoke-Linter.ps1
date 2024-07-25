@@ -1,5 +1,5 @@
 Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-Invoke-RunMain $MyInvocation {
+Invoke-RunMain $PSCommandPath {
     Invoke-EnsureModule -Modules 'PSScriptAnalyzer';
 
     $Local:Results = Invoke-ScriptAnalyzer `
@@ -9,6 +9,6 @@ Invoke-RunMain $MyInvocation {
 
     if ($Local:Results.Count -gt 0) {
         $Local:Results | Format-Table -AutoSize;
-        throw "PSScriptAnalyzer found issues";
+        throw 'PSScriptAnalyzer found issues';
     }
 };
