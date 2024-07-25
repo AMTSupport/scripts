@@ -56,7 +56,7 @@ Invoke-RunMain $PSCmdlet {
         [String]$Local:Content = Get-Content -Path $Local:Item.FullName;
         if (($Local:Content.Length -eq 0) -or (Select-String -InputObject $Local:Content -Pattern '^\s*#.*@compile-ignore')) {
             Invoke-Info "Ignoring $($Local:Item.FullName)";
-            continue;
+            return;
         }
 
         Invoke-Info "Compiling $($Local:Item.FullName)";
@@ -66,6 +66,6 @@ Invoke-RunMain $PSCmdlet {
         [String]$Local:OutputFolderPath = Join-Path $OutputDir $Local:RelativePath;
         Invoke-EnsureDirectoryStructure -SourcePath $SourceDir -TargetBasePath $OutputDir -CurrentPath ($Local:Item.FullName | Split-Path -Parent);
 
-        & $CompilerScript -CompileScripts:$Local:Item.FullName -Output:$Local:OutputFolderPath -Force -InnerInvocation;
+        & $CompilerScript -CompileScript:$Local:Item.FullName -Output:$Local:OutputFolderPath -Force -InnerInvocation;
     }
 }

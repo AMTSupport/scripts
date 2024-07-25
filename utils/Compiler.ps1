@@ -36,7 +36,7 @@ Param(
     [Parameter(Mandatory, HelpMessage = 'The path of the target script to compile a merged version of.')]
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Target script file does not exist: {0}')]
     [ValidateScript({ $_.EndsWith('.ps1') }, ErrorMessage = 'Target script file must be a PowerShell script file: {0}')]
-    [String[]]$CompileScripts,
+    [String]$CompileScript,
 
     [Parameter(HelpMessage = 'The folders or files to search for modules to merge into the target script.')]
     [ValidateScript({ Test-Path $_ -IsValid }, ErrorMessage = 'Module folder does not exist: {0}')]
@@ -525,29 +525,26 @@ function Invoke-Compile {
 }
 
 Invoke-RunMain $PSCmdlet -HideDisclaimer:$InnerInvocation -DontImport:$InnerInvocation {
-    $CompileScripts | ForEach-Object {
-        $Local:OutPath = $_;
-        $Local:CompiledScript = Invoke-Compile -ScriptPath $_ -Modules $Modules -ModuleRoot $ModuleRoot;
+    $Local:CompiledScript = Invoke-Compile -ScriptPath $CompileScript -Modules $Modules -ModuleRoot $ModuleRoot;
 
-        if (-not $Output) {
-            return $Local:CompiledScript;
-        }
-        else {
-            [System.IO.FileInfo]$Local:ScriptFile = Get-Item -Path $Local:OutPath;
-            [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
-            if (Test-Path $Local:OutputFile) {
-                if ($Force -or (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true)) {
-                    Invoke-Info 'Output file already exists. Deleting...';
-                    Remove-Item -Path $Local:OutputFile -Force | Out-Null;
-                }
-                else {
-                    Invoke-Error "Output file already exists: $($Local:OutputFile)";
-                    continue
-                }
+    if (-not $Output) {
+        return $Local:CompiledScript;
+    }
+    else {
+        [System.IO.FileInfo]$Local:ScriptFile = Get-Item -Path $CompileScript;
+        [System.IO.FileInfo]$Local:OutputFile = Join-Path -Path $Output -ChildPath $Local:ScriptFile.Name;
+        if (Test-Path $Local:OutputFile) {
+            if ($Force -or (Get-UserConfirmation -Title "Output file [$($Local:OutputFile | Split-Path -LeafBase)] already exists" -Question 'Do you want to overwrite it?' -DefaultChoice $true)) {
+                Invoke-Info 'Output file already exists. Deleting...';
+                Remove-Item -Path $Local:OutputFile -Force | Out-Null;
             }
-
-            New-Item -Path $Local:OutputFile -ItemType File -Force | Out-Null;
-            Out-File -FilePath $Local:OutputFile -Encoding UTF8 -InputObject $Local:CompiledScript;
+            else {
+                Invoke-Error "Output file already exists: $($Local:OutputFile)";
+                continue
+            }
         }
+
+        New-Item -Path $Local:OutputFile -ItemType File -Force | Out-Null;
+        Out-File -FilePath $Local:OutputFile -Encoding UTF8 -InputObject $Local:CompiledScript;
     }
 };
