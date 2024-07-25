@@ -144,6 +144,7 @@ function Get-UserInput {
 
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
+        [Alias('Prompt')]
         [String]$Question,
 
         [Parameter(HelpMessage = 'Validation script block to validate the user input.')]
@@ -272,7 +273,6 @@ function Get-UserSelection {
         [Array]$Choices,
 
         [Parameter()]
-        [ValidateNotNullOrEmpty()]
         [Int]$DefaultChoice = 0,
 
         [Parameter()]
@@ -283,12 +283,9 @@ function Get-UserSelection {
         [ScriptBlock]$FormatChoice = { Param([String]$Choice) $Choice.ToString(); }
     )
 
-    begin { Enter-Scope; Install-Requirements; }
-    end { Exit-Scope -ReturnValue $Local:Selection; }
-
-    process {
-        Invoke-Write @Script:WriteStyle -PSMessage $Title;
-        Invoke-Write @Script:WriteStyle -PSMessage $Question;
+    begin {
+        Enter-Scope;
+        Install-Requirements;
 
         #region Setup PSReadLine Key Handlers
         [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs;
@@ -369,18 +366,26 @@ function Get-UserSelection {
             }
         };
         #endregion
+    }
+
+    process {
+        Invoke-Write @Script:WriteStyle -PSMessage $Title;
+        Invoke-Write @Script:WriteStyle -PSMessage $Question;
 
         [Boolean]$Local:FirstRun = $true;
         $Host.UI.RawUI.FlushInputBuffer();
         Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
         Invoke-Write @Script:WriteStyle -PSMessage "Enter one of the following: $($ChoicesList -join ', ')";
-        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($ChoicesList[$DefaultChoice])" -NoNewline;
+        Write-Host '>> ' -NoNewline;
+        if ($null -ne $DefaultChoice) {
+            Write-Host "$($PSStyle.Foreground.FromRgb(40, 44, 52))$($ChoicesList[$DefaultChoice])" -NoNewline;
+        }
         Write-Host "`r>> " -NoNewline;
 
         do {
             $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 
-            if (-not $Local:Selection -and $Local:FirstRun) {
+            if (-not $Local:Selection -and $Local:FirstRun -and $null -ne $DefaultChoice) {
                 $Local:Selection = $Choices[$DefaultChoice];
                 Clear-HostLight -Count 1;
             }
@@ -398,10 +403,6 @@ function Get-UserSelection {
             $Local:FirstRun = $false;
         } while ($Local:Selection -notin $ChoicesList -and -not $Script:ShouldAbort);
 
-        Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
-        Set-PSReadLineKeyHandler -Chord Shift+Tab -Function $Local:PreviousShiftTabFunction;
-        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
-
         if ($Script:ShouldAbort) {
             if (-not $AllowNone) {
                 throw [System.Management.Automation.PipelineStoppedException]::new();
@@ -412,6 +413,14 @@ function Get-UserSelection {
         }
 
         return $Choices[$ChoicesList.IndexOf($Local:Selection)];
+    }
+
+    end {
+        Exit-Scope -ReturnValue $Local:Selection;
+
+        if ($Local:PreviousTabFunction -ne 'CustomAction') { Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction; }
+        if ($Local:PreviousShiftTabFunction -ne 'CustomAction') { Set-PSReadLineKeyHandler -Chord Shift+Tab -Function $Local:PreviousShiftTabFunction; }
+        if ($Local:PreviousFunctions) { Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions; }
     }
 }
 
