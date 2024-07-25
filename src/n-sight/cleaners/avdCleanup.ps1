@@ -1,3 +1,4 @@
+#@compile-ignore
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service.
