@@ -1,6 +1,6 @@
-#Requires -Version 7.4
-[CmdletBinding()]
-param()
+#Requires -Version 5.1
+
+
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -3774,55 +3774,26 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
-        return;
-    }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
-    }
+Using namespace Microsoft.Graph.PowerShell.Models;
+function Update-Mailbox {
+    param(
+        [Parameter(Mandatory)]
+        [MicrosoftGraphUser]$User
+    )
+    Set-MailBox -Identity:$User.Mail -Type:Shared -HiddenFromAddressListsEnabled:$True;
+}
+function Update-User {
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
-        } else {
-            return;
-        }
-    }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
-        }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
+    Invoke-EnsureModule "$PSScriptRoot/../Common.psm1", 'ExchangeOnlineManagement', 'Microsoft.Graph';
+    Connect-Service 'Graph','ExchangeOnline' -Scopes @('User.ReadWrite.All', 'Directory.ReadWrite.All');
+    [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser[]]$Private:Users = Get-MgUser -Filter '';
+    [Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Local:User = Get-UserSelection `
+        -Title 'Which account?' `
+        -Question 'Select the account you want to offboard/archive' `
+        -Choices $Local:Users `
+        -FormatChoice { param([Microsoft.Graph.PowerShell.Models.MicrosoftGraphUser]$Item) $Item.UserPrincipalName };
+    Update-Mailbox -User:$Local:User;
+    Update-User -User:$Local:User;
 });

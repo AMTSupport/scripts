@@ -1,6 +1,6 @@
-#Requires -Version 7.4
-[CmdletBinding()]
-param()
+#Requires -Version 5.1
+
+
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -3774,55 +3774,170 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
-        return;
+$script:logFileName = "FixWinAgentUpdateLoop.log"
+$script:logFilePath = "C:\Technical Support"
+$script:combinedPathAndAndName = "$($script:logFilePath)\$($script:logFileName)"
+function writeToLog($state, $message) {
+    $script:timestamp = "[{0:dd/MM/yy} {0:HH:mm:ss}]" -f (Get-Date)
+    switch -regex -Wildcard ($state) {
+        "I" {
+            $state = "INFO"
+        }
+        "E" {
+            $state = "ERROR"
+        }
+        "W" {
+            $state = "WARNING"
+        }
+        "F"  {
+            $state = "FAILURE"
+        }
+        "V"  {
+            $state = "VERBOSE"
+        }
+        ""  {
+            $state = "INFO"
+        }
+        Default {
+            $state = "INFO"
+        }
+        }
+    Write-Host "$($timeStamp) - [$state]: $message"
+    Write-Output "$($timeStamp) - [$state]: $message" | Out-file $script:combinedPathAndAndName -Append
+}
+function createLogFileAndWorkingDirectory () {
+    if(!(test-path $script:logFilePath)) {
+        try {
+            New-Item -ItemType Directory -Path $script:logFilePath -ErrorAction Stop| Out-Null
+            writeToLog V "Logfile Directory $($script:logFilePath) has been created."
+        } catch {
+            $errorMessage = "We have failed to create the folder $($logFilePath) which is the working directory of the script. Error thrown was: $($error[0])."
+            writeToLog E $errorMessage
+            exit 0
+        }
+    } else {
+        writeToLog V "Logfile Directory $($script:logFilePath) has been created."
     }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
+    try {
+        New-Item -ItemType File -Path $script:combinedPathAndAndName -ErrorAction Stop -Force | Out-Null
+        writeToLog V "Log file $($script:logFileName) has been created."
+    } catch {
+        $errorMessage = "We have failed to create the file $script:logFileName which is logfile the script logs to. Error thrown was: $($error[0])."
+        writeToLog E $errorMessage
+        exit 0
     }
 }
-
-(New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
+function stopService () {
+    try {
+        $service = get-service -name "Advanced Monitoring Agent" -ErrorAction stop
+    } catch {
+        writeToLog E "The Advanced Monitoring Agent service doesn't exist. Therefore this script will exit."
+        exit 0
+    }
+    $script:existingStartType = ($service | Select-Object -Property StartType).StartType
+    writeToLog V "Setting Service Startup Type to Disabled, to stop the Agent re-starting itself during maintenance."
+    $service | Set-Service -StartupType Disabled
+    writeToLog I "Stopping Service."
+    $service | Stop-Service -ErrorAction SilentlyContinue
+    $service = get-service -name "Advanced Monitoring Agent"
+    if($service.status -ne "Stopped") {
+        $script:needToCheckServiceAfterKillingProcesses = $true
+        writeToLog V "The service is in state $($service.status) after attempting to be stopped. Will check service after stopping processes."
+    } else {
+        writeToLog V "The service is stopped."
+    }
+ }
+function killProcesses () {
+    writeToLog I "Ending processes."
+    try {
+        writeToLog V "Checking if process winagent.exe is still running."
+        $process = get-process -ProcessName winagent -ErrorAction Stop
+        writeToLog V "winagent.exe is still running. Attempting to stop."
+        $process | Stop-Process -Force
+        Start-Sleep -Seconds 3;
+        $process = get-process -ProcessName winagent -ErrorAction Stop
+        writeToLog E "winagent.exe is still running. This device will need manual intervention."
+        exit 0
+    } catch {
+        writeToLog V "winagent.exe isn't running. Moving on."
+    }
+    try {
+        writeToLog V "Checking if process _new_winagent.exe is still running."
+        $process = get-process -ProcessName _new_winagent -ErrorAction Stop
+        writeToLog V "_new_winagent.exe is still running. Attempting to stop."
+        $process | Stop-Process -Force
+        Start-Sleep -Seconds 3;
+        $process = get-process -ProcessName _new_winagent -ErrorAction Stop
+        writeToLog E "_new_winagent.exe is still running. This device will need manual intervention."
+        exit 0
+    } catch {
+        writeToLog V "Process _new_winagent.exe isn't running. Moving on."
+    }
+    try {
+        writeToLog V "Checking if process _new_setup.exe is still running."
+        $process = get-process -ProcessName _new_setup -ErrorAction Stop
+        writeToLog V "_new_setup.exe is still running. Attempting to stop."
+        $process | Stop-Process -Force
+        Start-Sleep -Seconds 3;
+        $process = get-process -ProcessName _new_setup -ErrorAction Stop
+        writeToLog E "_new_setup.exe is still running. This device will need manual intervention."
+        exit 0
+    } catch {
+        writeToLog V "Process _new_setup.exe isn't running. Moving on."
+    }
+    if($script:needToCheckServiceAfterKillingProcesses) {
+        $service = get-service -name "Advanced Monitoring Agent"
+        if($service.status -ne "Stopped") {
+            writeToLog E "The service is in state $($service.status) after the processes were stopped. This shouldn't happen."
+            exit 0
         } else {
-            return;
+            writeToLog V "The service is stopped."
         }
     }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
+}
+function deleteStagingFolder () {
+    writeToLog I "Deleting Staging folder contents."
+    $AgentLocationGP = "\Advanced Monitoring Agent GP"
+    $AgentLocation = "\Advanced Monitoring Agent"
+    If((Get-WmiObject Win32_OperatingSystem).OSArchitecture -like "*64*"){
+        $PathTester = "C:\Program Files (x86)" +  $AgentLocationGP + "\debug.log"
+        If(!(Test-Path $PathTester)){
+            $PathTester = "C:\Program Files (x86)" +  $AgentLocation + "\staging"
+            Remove-item $PathTester\* -recurse -Force
         }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
-});
+        Else {
+            $PathTester = "C:\Program Files (x86)" + $AgentLocationGP + "\staging"
+            Remove-item $PathTester\* -recurse -Force
+        }
+    }
+    Else {
+        $PathTester = "C:\Program Files" +  $AgentLocationGP + "\debug.log"
+        If(!(Test-Path $PathTester)){
+            $PathTester = "C:\Program Files" +  $AgentLocation + "\staging"
+            Remove-item $PathTester\* -recurse -Force
+        }
+        Else {
+            $PathTester = "C:\Program Files" + $AgentLocationGP + "\staging"
+            Remove-item $PathTester\* -recurse -Force
+        }
+    }
+    writeToLog V "Staging folder contents have been deleted."
+}
+function restartAgentService () {
+    try {
+        $service = get-service -name "Advanced Monitoring Agent" -ErrorAction stop
+    } catch {
+        writeToLog E "The Advanced Monitoring Agent service doesn't exist. Even though it existed the last time we checked. This is a very rare edge case where the Agent has probably been uninstalled in this window."
+        exit 0
+    }
+    writeToLog V "Setting Service Startup Type to $script:existingStartType."
+    $service | Set-Service -StartupType $script:existingStartType
+    writeToLog I "Starting Agent Service."
+    $service | Start-Service
+}
+createLogFileAndWorkingDirectory
+stopService
+killProcesses
+deleteStagingFolder
+restartAgentService
+

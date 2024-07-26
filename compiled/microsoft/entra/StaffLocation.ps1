@@ -1,6 +1,6 @@
-#Requires -Version 7.4
-[CmdletBinding()]
-param()
+#Requires -Version 5.1
+
+
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -3774,55 +3774,217 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
-        return;
-    }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
+Using module Microsoft.Graph.Identity.SignIns;
+Using module Microsoft.Graph.Authentication;
+Using module Microsoft.Graph.Groups;
+Using namespace Microsoft.Graph.PowerShell.Models;
+Using namespace System.Management.Automation;
+[CmdletBinding()]
+param()
+Class CountryNames : System.Management.Automation.IValidateSetValuesGenerator {
+    [String[]]GetValidValues() {
+        return [CultureInfo]::GetCultures([System.Globalization.CultureTypes]::SpecificCultures) `
+            | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
+            | Select-Object -Unique | Sort-Object;
     }
 }
-
-(New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
+function Test-SecurityGroup {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [String]$GroupName,
+        [Switch]$PassThru
+    )
+    [Boolean]$Local:Validated = $True;
+    [MicrosoftGraphGroup]$Local:Group = Get-MgGroup -Filter "displayName eq '$GroupName'";
+    if ($null -eq $Local:Group) {
+        Invoke-Info "Security Group $GroupName does not exist.";
+        $Local:Validated = $False;
+    } else {
+        Invoke-Info "Security Group $GroupName exists.";
+    }
+    if ($PassThru) {
+        return $Local:Group, $Local:Validated;
+    } else {
+        return $Local:Validated;
+    }
+}
+function Set-SecurityGroup {
+    param (
+        [MicrosoftGraphGroup]$InputObject,
+        [Parameter(Mandatory)]
+        [String]$GroupName
+    )
+    if (-not $InputObject) {
+        [MicrosoftGraphUser[]]$Local:Users = Get-MgUser -Filter "-not startswith(displayName, 'zArchived')";
+        [MicrosoftGraphUser[]]$Local:Members = @();
+        while ($True) {
+            $Local:User = Get-UserSelection `
+                -Title 'Select a user' `
+                -Question 'Please select a user to add to the security group.' `
+                -Choices:$Local:Users;
+            if ($Local:User) {
+                $Local:Members += $Local:User;
+            } else {
+                break;
+            }
+        }
+        $InputObject = New-MgGroup `
+            -DisplayName:$GroupName `
+            -MailEnabled:$True `
+            -SecurityEnabled:$True `
+            -Members:$Local:Members;
+        Invoke-Info "Security Group $GroupName has been created."
+    }
+    Update-MgGroup -InputObject:$InputObject `
+        -DisplayName:$GroupName `
+        -MailEnabled:$True `
+        -SecurityEnabled:$True `
+        -MailNickname:$GroupName `
+        -Description:"Staff Security Group";
+    Invoke-Info "Security Group $GroupName has been updated.";
+    return $InputObject;
+}
+function Test-NamedLocation {
+    param (
+        [String]$LocationName,
+        [String[]]$Countries,
+        [Switch]$PassThru
+    )
+    [Boolean]$Local:Validated = $True;
+    [MicrosoftGraphNamedLocation]$Local:Location = New-MgIdentityConditionalAccessNamedLocation -DisplayName:$LocationName;
+    if ($null -eq $Local:Location) {
+        Invoke-Info "Named Location $LocationName does not exist.";
+        $Local:Validated = $False;
+    } else {
+        Invoke-Info "Named Location $LocationName exists.";
+    }
+    if ($PassThru) {
+        return $Local:Location, $Local:Validated;
+    } else {
+        return $Local:Validated;
+    }
+}
+function Set-NamedLocation {
+    param(
+        [MicrosoftGraphNamedLocation]$InputObject,
+        [Parameter(Mandatory)]
+        [String]$LocationName,
+        [String[]]$Countries
+    )
+    New-MgIdentityConditionalAccessNamedLocation
+}
+function Test-ConditionalAccessPolicy {
+    param (
+        [String]$PolicyName,
+        [Switch]$PassThru
+    )
+    [Boolean]$Local:Validated = $True;
+    $Local:Policy = Get-MgIdentityConditionalAccessPolicy
+    if ($PassThru) {
+        return $Local:Policy, $Local:Validated;
+    } else {
+        return $Local:Validated;
+    }
+}
+function Set-ConditionalAccessPolicy {
+    New-MgIdentityConditionalAccessPolicy
+}
+[ScriptBlock]$Local:ScriptBlock = {
+    [CmdletBinind()]
+    param(
+        [Parameter(Mandatory = $True)]
+        [ValidateSet('Test', 'Set')]
+        [String]$Action,
+        [Parameter(Mandatory)]
+        [ValidateSet([CountryNames])]
+        [String[]]$Countries
+    )
+    Connect-Service -Services:Graph -Scopes:Policy.Read.All, Policy.ReadWrite.ConditionalAccess;
+    [String[]]$Local:PossibleCountries = [CultureInfo]::GetCultures([System.Globalization.CultureTypes]::SpecificCultures) `
+        | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
+        | Select-Object -Unique | Sort-Object;
+    Invoke-Info 'Please select the primary country first and then select the secondary countries.';
+    [String[]]$Local:Countries = @();
+    while ($True) {
+        $Local:Country = Get-UserSelection `
+            -Title 'Select a country' `
+            -Question 'Please select a country to allow access from.' `
+            -Choices:$Local:PossibleCountries;
+        if ($Local:Country) {
+            $Local:Countries += $Local:Country;
         } else {
-            return;
+            break;
+        }
+    };
+    [String]$Local:PrimaryCountry = $Local:Countries[0];
+    [String]$Local:GroupName = "Staff - $Local:PrimaryCountry";
+    [String]$Local:LocationName = "Staff - $Local:PrimaryCountry";
+    [String]$Local:PolicyName = "Staff - $Local:PrimaryCountry";
+    switch ($Action) {
+        'Test' {
+            [Boolean]$Local:ValidatedGroup = Test-SecurityGroup -GroupName:$Local:GroupName;
+            [Boolean]$Local:ValidatedLocation = Test-NamedLocation -LocationName:$Local:LocationName -Countries:$Local:Countries;
+            [Boolean]$Local:ValidatedPolicy = Test-ConditionalAccessPolicy -PolicyName:$Local:PolicyName;
+            if ($Local:ValidatedGroup -and $Local:ValidatedLocation -and $Local:ValidatedPolicy) {
+                Invoke-Info "Staff Location is setup correctly.";
+            } else {
+                Invoke-Info "
+                Component Test Results:
+                - Security Group: $Local:GroupName
+                - Named Location: $Local:LocationName
+                - Conditional Access Policy: $Local:PolicyName
+                ".Trim();
+                Invoke-Info "Staff Location is not setup correctly.";
+                Invoke-Info "Please run the script with the 'Set' action to create the missing components.";
+            }
+        }
+        'Set' {
+            ([MicrosoftGraphGroup]$Local:Group, [Boolean]$Local:Validated) = Test-SecurityGroup -GroupName:$Local:GroupName -PassThru;
+            if (-not $Local:Validated) {
+                $Local:Group = $Local:Group | Set-SecurityGroup -GroupName:$Local:GroupName;
+            }
+            ($Local:NamedLocation, $Local:Validated) = Test-NamedLocation -LocationName:$Local:LocationName -Countries:$Local:Countries -PassThru;
+            if (-not $Local:Validated) {
+                $Local:NamedLocation = $Local:NamedLocation | Set-NamedLocation -Countries:$Local:Countries;
+            }
+            ($Local:Policy, $Local:Validated) = Test-ConditionalAccessPolicy -PolicyName:$Local:PolicyName -PassThru;
+            if (-not $Local:Validated) {
+                $Local:Policy = $Local:Policy | Set-ConditionalAccessPolicy -PolicyName:$Local:PolicyName -NamedLocation:$Local:NamedLocation -SecurityGroup:$Local:Group;
+            }
         }
     }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
+};
+
+Invoke-RunMain $PSCmdlet -Main:$Local:ScriptBlock;
+dynamicparam {
+    Start-Sleep -Seconds 15;
+    $Parameters = $Local:ScriptBlock.Ast.ParamBlock.Parameters;
+    if ($Parameters.Count -eq 0) {
+        Write-Host "No parameters found.";
+        return;
+    } else {
+        Write-Host "Found $($Parameters.Count) parameters.";
+    }
+    $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary;
+    foreach ($Param in $Parameters) {
+        $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute];
+        foreach ($Attribute in $Param.Attributes) {
+            $AttributeSet = New-Object "System.Management.Automation.$($Attribute.TypeName)Attribute";
+            foreach ($Argument in $Attribute.NamedArguments) {
+                if ($Argument.ExpressionOmmited) {
+                    $AttributeSet.($Argument.ArgumentName) = $True;
+                } else {
+                    $AttributeSet.($Argument.ArgumentName) = Invoke-Expression $Attribute.Argument.Extent.Text;
+                }
+            }
+            $AttributeCollection.Add($AttributeSet);
         }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
-});
+        $ParameterName = $Param.Name.VariablePath.UserPath;
+        $ParameterType = $Param.StaticType;
+        $RuntimeParameter = [System.Management.Automation.RuntimeDefinedParameter]::new($ParameterName, $ParameterType, $AttributeCollection);
+        $RuntimeParameterDictionary.Add($ParameterName, $RuntimeParameter);
+    }
+    return $RuntimeParameterDictionary
+}
+

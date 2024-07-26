@@ -1,6 +1,8 @@
-#Requires -Version 7.4
-[CmdletBinding()]
-param()
+#Requires -Version 5.1
+[CmdletBinding(SupportsShouldProcess)]
+param(
+    [Switch]$Nuke
+)
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -3774,55 +3776,74 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
-        return;
+function Get-DependentServices {
+    param (
+        [Parameter(Mandatory)]
+        [string]$ServiceName
+    )
+    $service = Get-Service -Name $ServiceName
+    $dependentServices = $service.DependentServices
+    $result = @{}
+    foreach ($dependentService in $dependentServices) {
+        if (!$result.ContainsKey($dependentService.ServiceName)) {
+            $Private:Service = Get-Service -Name $dependentService.ServiceName;
+            if ($Private:Service.Status -ne 'Running') {
+                continue;
+            }
+            $result[$dependentService.ServiceName] = $Private:Service.StartType;
+            if (!$result.ContainsKey($dependentService.ServiceName)) {
+                $result += Get-DependentServices -ServiceName $dependentService.ServiceName
+            }
+        }
     }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
-    }
+    return $result
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
-        } else {
-            return;
+    Invoke-EnsureAdministrator;
+    $Private:Dependants = Get-DependentServices -ServiceName Winmgmt;
+    if ($Private:Dependants) {
+        Invoke-Info "The following services are dependent on the WMI service and are currently running:";
+        $Private:Dependants.Keys | ForEach-Object {
+            Invoke-Info $_;
+        }
+        $Private:Dependants.Keys | ForEach-Object {
+            Invoke-Info "Stopping $_";
+            Set-Service -Name $_ -StartupType Disabled;
+            Stop-Service -Name $_;
         }
     }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
+    Invoke-Info 'Stopping WMI service';
+    Set-Service -Name Winmgmt -StartupType Disabled;
+    Stop-Service -Name Winmgmt;
+    Invoke-Info "Making a backup of the repository";
+    Copy-Item -Path $env:windir\System32\wbem\Repository -Destination $env:windir\System32\wbem\Repository_Backup -Recurse -Force;
+    if ($Nuke) {
+        Invoke-Info "Nuking the WMI repository";
+        try {
+            Remove-Item -Path $env:windir\System32\wbem\Repository -Recurse -Force;
+        } catch {
+            Invoke-Error $_.Exception.Message;
         }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
+    } else {
+        Invoke-Info "Attempting to repair the WMI repository";
+        try {
+            Start-Process -FilePath "$env:windir\System32\wbem\winmgmt.exe" -ArgumentList "/salvagerepository $env:windir\System32\wbem" -Wait -NoNewWindow;
+            Start-Process -FilePath "$env:windir\System32\wbem\winmgmt.exe" -ArgumentList "/resetrepository $env:windir\System32\wbem" -Wait -NoNewWindow;
+        } catch {
+            Invoke-Error $_.Exception.Message;
+        }
+    }
+    Invoke-Info "Starting WMI service";
+    Set-Service -Name Winmgmt -StartupType Automatic;
+    Start-Service -Name Winmgmt;
+    if ($Private:Dependants) {
+        Invoke-Info "Starting dependent services";
+        $Private:Dependants.Keys | ForEach-Object {
+            Invoke-Info "Starting $_";
+            Set-Service -Name $_ -StartupType $Private:Dependants[$_];
+            Start-Service -Name $_;
+        }
+    }
+    Invoke-Info "You should restart the computer to ensure that everything works correctly.";
 });

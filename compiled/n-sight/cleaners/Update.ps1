@@ -1,6 +1,15 @@
-#Requires -Version 7.4
+#Requires -Version 5.1
 [CmdletBinding()]
-param()
+param(
+    [String]$BaseUrl = 'https://s3.amazonaws.com/new-swmsp-net-supportfiles/PermanentFiles/FeatureCleanup/Cleanup Scripts',
+    [String[]]$FilesToFetch = @(
+        'avdCleanup.ps1',
+        'N-sightRMMCleanup.ps1',
+        'PMECleanup.ps1',
+        'TakeControlCleanup.ps1',
+        'WindowsAgentCleanup.ps1'
+    )
+)
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -3774,55 +3783,38 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
+Function Update-Script {
+    param(
+        [String]$BaseUrl,
+        [String]$ScriptName
+    )
+    Invoke-Info "Checking updates for '$File'...";
+    [String]$Private:S3ObjectUrl = "$BaseUrl/$ScriptName";
+    try {
+        Invoke-Verbose "Fetching HEAD from '$S3ObjectUrl'...";
+        $null = Invoke-RestMethod -Uri $Private:S3ObjectUrl -Method Head -ResponseHeadersVariable ResponseHeaders;
+    } catch {
+        Invoke-Error -Message "Failed to fetch HEAD from '$S3ObjectUrl': $($_.Exception.Message)";
+        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+    }
+    [String]$Private:ETag = $ResponseHeaders['ETag'].Trim('"').ToUpper();
+    [String]$Private:LocalFilePath = Join-Path -Path $PSScriptRoot -ChildPath $ScriptName;
+    if ((Test-Path $Private:LocalFilePath) -and ((Get-FileHash -Path $Private:LocalFilePath -Algorithm MD5).Hash -eq $Private:ETag)) {
+        Invoke-Info "File '$ScriptName' is up to date.";
         return;
     }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
+    Invoke-Info "Fetching '$ScriptName' from '$S3ObjectUrl'...";
+    try {
+        Invoke-RestMethod -Uri $S3ObjectUrl -OutFile $Private:LocalFilePath;
+    } catch {
+        Invoke-Error -Message "Failed to fetch '$S3ObjectUrl': $($_.Exception.Message)";
+        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
     }
+    Invoke-Info "File '$ScriptName' has been updated.";
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
-        } else {
-            return;
-        }
+    foreach ($File in $FilesToFetch) {
+        Update-Script -BaseUrl:$BaseUrl -ScriptName:$File;
     }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
-        }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
 });

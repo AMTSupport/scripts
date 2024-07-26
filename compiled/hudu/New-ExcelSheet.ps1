@@ -6,6 +6,8 @@ $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		[System.Boolean]$Global:ScriptRestarted = $False;
+		[System.Boolean]$Global:ScriptRestarting = $False;
 		[System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 		[HashTable]$Global:Logging = @{
 		    Loaded      = $false;
@@ -27,7 +29,8 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        if ($Global:Logging.Loaded) {
 		            $HasLoggingFunc.InvokeReturnAsIs();
-		        } else {
+		        }
+		        else {
 		            $MissingLoggingFunc.InvokeReturnAsIs();
 		        }
 		    }
@@ -40,7 +43,7 @@ $Global:EmbededModules = [ordered]@{
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
 		        [String]$UnicodePrefix
-		   )
+		    )
 		    Invoke-WithLogging `
 		        -HasLoggingFunc { if ($UnicodePrefix) { Invoke-Info $Message $UnicodePrefix; } else { Invoke-Info -Message:$Message; } } `
 		        -MissingLoggingFunc { Write-Host -ForegroundColor Cyan -Object $Message; };
@@ -83,10 +86,69 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        if ($HashTable.ContainsKey($Key)) {
 		            return $HashTable[$Key];
-		        } else {
+		        }
+		        else {
 		            return $false;
 		        }
 		    }
+		}
+		function Test-OrGetBooleanVariable {
+		    Param(
+		        [Parameter(Mandatory)]
+		        [ValidateNotNull()]
+		        [String]$Name
+		    )
+		    process {
+		        if (Test-Path Variable:Global:$Name) {
+		            return Get-Variable -Scope Global -Name $Name -ValueOnly;
+		        }
+		        else {
+		            return $false;
+		        }
+		    }
+		}
+		function Test-IsCompiledScript {
+		    Test-OrGetBooleanVariable -Name 'CompiledScript';
+		}
+		function Test-IsRestartingScript {
+		    Test-OrGetBooleanVariable -Name 'ScriptRestarting';
+		}
+		function Test-IsRestartedScript {
+		    Test-OrGetBooleanVariable -Name 'ScriptRestarted';
+		}
+		function Test-ExplicitlyCalled {
+		    Param(
+		        [Parameter(Mandatory)]
+		        [ValidateNotNull()]
+		        [System.Management.Automation.InvocationInfo]$Invocation
+		    )
+		    process {
+		        $Global:Invocation = $Invocation;
+		        if ($Invocation.CommandOrigin -eq 'Runspace' -and ($Invocation.InvocationName | Split-Path -Leaf) -eq $Invocation.MyCommand.Name) {
+		            return $True;
+		        }
+		        return $True;
+		    }
+		}
+		function Test-IsNableRunner {
+		    $WindowName = $Host.UI.RawUI.WindowTitle;
+		    if (-not $WindowName) { return $False; };
+		    return ($WindowName | Split-Path -Leaf) -eq 'fmplugin.exe';
+		}
+		function Invoke-Setup {
+		    $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
+		    $PSDefaultParameterValues['*:WarningAction'] = 'Continue';
+		    $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
+		    $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
+		    $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
+		    $Global:ErrorActionPreference = 'Stop';
+		}
+		function Invoke-Teardown {
+		    $PSDefaultParameterValues.Remove('*:ErrorAction');
+		    $PSDefaultParameterValues.Remove('*:WarningAction');
+		    $PSDefaultParameterValues.Remove('*:InformationAction');
+		    $PSDefaultParameterValues.Remove('*:Verbose');
+		    $PSDefaultParameterValues.Remove('*:Debug');
 		}
 		function Import-CommonModules {
 		    [HashTable]$Local:ToImport = [Ordered]@{};
@@ -99,35 +161,48 @@ $Global:EmbededModules = [ordered]@{
 		        return $Local:HashTable;
 		    }
 		    function Import-ModuleOrScriptBlock([String]$Name, [Object]$Value) {
-		        Invoke-EnvDebug -Message "Importing module $Name.";
-		        if ($Value -is [ScriptBlock]) {
-		            Invoke-EnvDebug -Message "Module $Name is a script block.";
-		            if (Get-Module -Name $Name) {
-		                Remove-Module -Name $Name -Force;
+		        begin {
+		            $Local:Hasher = [System.Security.Cryptography.SHA256]::Create();
+		        }
+		        process {
+		            Invoke-EnvDebug -Message "Importing module $Name.";
+		            if ($Value -is [ScriptBlock]) {
+		                Invoke-EnvDebug -Message "Module $Name is a script block.";
+		                $Local:ContentHash = ($Local:Hasher.ComputeHash([System.Text.Encoding]::UTF8.GetBytes(($Value -as [ScriptBlock]).Ast.Extent.Text)) | ForEach-Object { $_.ToString('x2') }) -join '';
+		                $Local:ModuleName = "$Name-$Local:ContentHash.psm1";
+		                $Local:ModulePath = ($env:TEMP | Join-Path -ChildPath "$Local:ModuleName");
+		                if (-not (Test-Path $Private:ModulePath)) {
+		                    Set-Content -Path $Private:ModulePath -Value $Value.ToString();
+		                }
+		                Import-Module -Name $Private:ModulePath -Global -Force -Verbose:$False -Debug:$False;
 		            }
-		            New-Module -ScriptBlock $Value -Name $Name | Import-Module -Global -Force;
-		        } else {
-		            Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
-		            Import-Module -Name $Value -Global -Force;
+		            else {
+		                Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
+		                Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
+		            }
 		        }
 		    }
-		    if ($Global:CompiledScript) {
+		    if (Test-IsCompiledScript) {
 		        Invoke-EnvVerbose 'Script has been embeded with required modules.';
 		        [HashTable]$Local:ToImport = $Global:EmbededModules;
-		    } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
+		    }
+		    elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
 		        Invoke-EnvVerbose 'Script is in git repository; Using local files.';
 		        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
-		    } else {
+		    }
+		    else {
 		        [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 		        if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
 		            if (-not (Test-Path -Path $Local:RepoPath)) {
 		                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
 		                git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
-		            } else {
+		            }
+		            else {
 		                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Updating repository.';
 		                git -C $Local:RepoPath pull;
 		            }
-		        } else {
+		        }
+		        else {
 		            Invoke-EnvInfo -Message 'Git is not installed, unable to update the repository or clone if required.';
 		        }
 		        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
@@ -155,37 +230,44 @@ $Global:EmbededModules = [ordered]@{
 		    Invoke-EnvVerbose -Message "Cleaning up $($Script:ImportedModules.Count) imported modules.";
 		    Invoke-EnvVerbose -Message "Removing modules: `n$(($Script:ImportedModules | Sort-Object -Descending) -join "`n")";
 		    $Script:ImportedModules | Sort-Object -Descending | ForEach-Object {
-		        Invoke-EnvDebug -Message "Removing module $_.";
-		        if ($Global:CompiledScript -and $_ -eq '00-Envrionment') {
-		            continue;
-		        }
-		        if ($_ -eq '01-Logging') {
+		        $Private:Module = $_;
+		        Invoke-EnvDebug -Message "Removing module $Private:Module.";
+		        if ($Local:Module -eq '01-Logging') {
+		            Invoke-EnvDebug -Message 'Resetting logging state.';
 		            $Global:Logging.Loaded = $false;
 		        }
-		        Remove-Module -Name $_ -Force;
+		        try {
+		            Invoke-EnvDebug -Message "Running Remove-Module -Name $Private:Module";
+		            Remove-Module -Name "$Private:Module*" -Force -Verbose:$False -Debug:$False;
+		            if (($Private:Module -ne '00-Environment') -and (Test-IsCompiledScript)) {
+		                Remove-Item -Path ($env:TEMP | Join-Path -ChildPath "$($Private:Module)*");
+		            }
+		        }
+		        catch {
+		            Invoke-EnvDebug -Message "Failed to remove module $Local:Module";
+		        }
 		    };
-		    if ($Global:CompiledScript) {
-		        Remove-Variable -Scope Global -Name CompiledScript, EmbededModules, Logging;
-		    }
 		}
 		function Invoke-RunMain {
 		    Param(
 		        [Parameter(Mandatory)]
 		        [ValidateNotNull()]
-		        [System.Management.Automation.InvocationInfo]$Invocation,
+		        [System.Management.Automation.PSCmdlet]$Cmdlet,
 		        [Parameter(Mandatory)]
 		        [ValidateNotNull()]
 		        [ScriptBlock]$Main,
 		        [Parameter(DontShow)]
-		        [Switch]$DontImport,
+		        [Switch]$NotStrict = $False,
 		        [Parameter(DontShow)]
-		        [Switch]$HideDisclaimer = (($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
+		        [Switch]$DontImport = (-not (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation)),
+		        [Parameter(DontShow)]
+		        [Switch]$HideDisclaimer = ($DontImport -or (Test-IsNableRunner))
 		    )
 		    function Invoke-Inner {
 		        Param(
 		            [Parameter(Mandatory)]
 		            [ValidateNotNull()]
-		            [System.Management.Automation.InvocationInfo]$Invocation,
+		            [System.Management.Automation.PSCmdlet]$Cmdlet,
 		            [Parameter(Mandatory)]
 		            [ValidateNotNull()]
 		            [ScriptBlock]$Main,
@@ -195,56 +277,96 @@ $Global:EmbededModules = [ordered]@{
 		            [Switch]$HideDisclaimer
 		        )
 		        begin {
-		            foreach ($Local:Param in @('Verbose','Debug')) {
-		                if ($Invocation.BoundParameters.ContainsKey($Local:Param)) {
-		                    $Global:Logging[$Local:Param] = $Invocation.BoundParameters[$Local:Param];
+		            if (-not $Global:ScriptRestarted) {
+		                foreach ($Local:Param in @('Verbose', 'Debug')) {
+		                    if ($Cmdlet.MyInvocation.BoundParameters.ContainsKey($Local:Param)) {
+		                        $Global:Logging[$Local:Param] = $Cmdlet.MyInvocation.BoundParameters[$Local:Param];
+		                    }
 		                }
+		                if (-not $HideDisclaimer) {
+		                    Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
+		                }
+		                if ($Local:DontImport) {
+		                    Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Skipping module import.';
+		                    return;
+		                }
+		                Import-CommonModules;
+		                Invoke-Setup;
 		            }
-		            $PSDefaultParameterValues['*:WarningAction'] = 'Stop';
-		            $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
-		            $PSDefaultParameterValues['*:Verbose'] = $Global:Logging.Verbose;
-		            $PSDefaultParameterValues['*:Debug'] = $Global:Logging.Debug;
-		            if (-not $HideDisclaimer) {
-		                Invoke-EnvInfo -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
-		            }
-		            if ($Local:DontImport) {
-		                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Skipping module import.';
-		                return;
-		            }
-		            Import-CommonModules;
 		        }
 		        process {
 		            try {
-		                Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
-		                & $Main;
-		            } catch {
-		                if ($_.FullyQualifiedErrorId -eq 'QuickExit') {
-		                    Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
-		                } elseif ($_.FullyQualifiedErrorId -eq 'FailedExit') {
-		                    [Int16]$Local:ExitCode = $_.TargetObject;
-		                    Invoke-EnvVerbose -Message "Script exited with an error code of $Local:ExitCode.";
-		                    $LASTEXITCODE = $Local:ExitCode;
-		                } else {
-		                    Invoke-Error 'Uncaught Exception during script execution';
-		                    Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_ -DontExit;
+		                if (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation) {
+		                    Invoke-EnvVerbose -UnicodePrefix '🚀' -Message 'Running main function.';
+		                    $Local:RunBoundParameters = $Cmdlet.MyInvocation.BoundParameters;
+		                    $Cmdlet.InvokeCommand.InvokeScript(
+		                        $Cmdlet.SessionState,
+		                        $Main,
+		                        [System.Management.Automation.Runspaces.PipelineResultTypes]::All,
+		                        $Local:RunBoundParameters
+		                    );
 		                }
-		            } finally {
-		                Invoke-Handlers;
+		            }
+		            catch {
+		                $Local:CatchingError = $_;
+		                switch ($Local:CatchingError.FullyQualifiedErrorId) {
+		                    'QuickExit' {
+		                        Invoke-EnvVerbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
+		                    }
+		                    'FailedExit' {
+		                        [Int]$Local:ExitCode = $Local:CatchingError.TargetObject;
+		                        Invoke-EnvVerbose -Message "Script exited with an error code of $Local:ExitCode.";
+		                        $LASTEXITCODE = $Local:ExitCode;
+		                        $Global:Error.Remove($Local:CatchingError);
+		                    }
+		                    'RestartScript' {
+		                        $Global:ScriptRestarting = $True;
+		                    }
+		                    default {
+		                        Invoke-Error 'Uncaught Exception during script execution';
+		                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:CatchingError -DontExit;
+		                    }
+		                }
+		            }
+		            finally {
+		                [Boolean]$Private:WasCompiled = Test-IsCompiledScript;
+		                [Boolean]$Private:WasRestarted = Test-IsRestartedScript;
+		                [Boolean]$Private:IsRestarting = Test-IsRestartingScript;
 		                if (-not $Local:DontImport) {
-		                    Remove-CommonModules;
+		                    Invoke-Handlers;
+		                    Invoke-Teardown;
+		                    if (-not (Test-IsRestartingScript)) {
+		                        Remove-CommonModules;
+		                        if ($Private:WasCompiled) {
+		                            Remove-Variable -Scope Global -Name CompiledScript, EmbededModules;
+		                        }
+		                        Remove-Variable -Scope Global -Name Logging;
+		                        if ($Private:WasRestarted) {
+		                            Remove-Variable -Scope Global -Name ScriptRestarted;
+		                        }
+		                    }
+		                }
+		                if ($Private:IsRestarting) {
+		                    Invoke-EnvVerbose -UnicodePrefix '🔄' -Message 'Restarting script.';
+		                    Remove-Variable -Scope Global -Name ScriptRestarting;
+		                    Set-Variable -Scope Global -Name ScriptRestarted -Value $True; # Bread trail for the script to know it's been restarted.
+		                    Invoke-Inner @PSBoundParameters;
 		                }
 		            }
 		        }
 		    }
+		    if (-not $NotStrict) {
+		        Set-StrictMode -Version 3;
+		    }
 		    Invoke-Inner `
-		        -Invocation $Invocation `
+		        -Cmdlet $Cmdlet `
 		        -Main $Main `
 		        -DontImport:$DontImport `
 		        -HideDisclaimer:($HideDisclaimer -or $False) `
 		        -Verbose:(Get-OrFalse $Invocation.BoundParameters 'Verbose') `
 		        -Debug:(Get-OrFalse $Invocation.BoundParameters 'Debug');
 		}
-		Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules;
+		Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules, Test-IsNableRunner;
     };`
 	"00-PSStyle" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -461,7 +583,7 @@ $Global:EmbededModules = [ordered]@{
 		    Export-ModuleMember -Variable PSStyle -Function Get-ConsoleColour;
 		} else {
 		    Export-ModuleMember -Function Get-ConsoleColour;
-		}
+		}
     };`
 	"00-Utils" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -498,17 +620,20 @@ $Global:EmbededModules = [ordered]@{
 		                    if ($Validate.InvokeReturnAsIs($Local:EnvValue)) {
 		                        Invoke-Debug "Validated environment variable ${VariableName}: $Local:EnvValue";
 		                        return $Local:EnvValue;
-		                    } else {
+		                    }
+		                    else {
 		                        Invoke-Error "Failed to validate environment variable ${VariableName}: $Local:EnvValue";
 		                        [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
 		                    };
-		                } catch {
+		                }
+		                catch {
 		                    Invoke-Error "
 		                    Failed to validate environment variable ${VariableName}: $Local:EnvValue.
 		                    Due to reason ${$_.Exception.Message}".Trim();
 		                    [Environment]::SetEnvironmentVariable($VariableName, $null, 'Process');
 		                }
-		            } else {
+		            }
+		            else {
 		                Invoke-Debug "Found environment variable $VariableName with value $Local:EnvValue";
 		                return $Local:EnvValue;
 		            }
@@ -520,14 +645,17 @@ $Global:EmbededModules = [ordered]@{
 		                    if ($Validate.InvokeReturnAsIs($Local:Value)) {
 		                        Invoke-Debug "Validated lazy value for environment variable ${VariableName}: $Local:Value";
 		                        break;
-		                    } else {
+		                    }
+		                    else {
 		                        Invoke-Error "Failed to validate lazy value for environment variable ${VariableName}: $Local:Value";
 		                    }
-		                } else {
+		                }
+		                else {
 		                    break;
 		                }
-		            } catch {
-		                Invoke-Error "Encountered an error while trying to get value for ${VariableName}.";
+		            }
+		            catch {
+		                Invoke-Error "Encountered an error while evalutating LazyValue for ${VariableName}.";
 		                return $null;
 		            }
 		        };
@@ -548,7 +676,8 @@ $Global:EmbededModules = [ordered]@{
 		                if (Test-Path -LiteralPath $_) {
 		                    $Local:Path = Resolve-Path -Path $_;
 		                    [System.Management.Automation.Language.Parser]::ParseFile($Local:Path.ProviderPath, [ref]$null, [ref]$null)
-		                } else {
+		                }
+		                else {
 		                    [System.Management.Automation.Language.Parser]::ParseInput($_, [ref]$null, [ref]$null)
 		                }
 		                break
@@ -603,11 +732,13 @@ $Global:EmbededModules = [ordered]@{
 		                if ($Local:Variable) {
 		                    [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Variable.GetType();
 		                    $Local:ReturnTypes += $Local:ReturnType;
-		                } else {
+		                }
+		                else {
 		                    Invoke-Warn -Message "Could not resolve the variable: $Local:VariableName.";
 		                    continue
 		                }
-		            } else {
+		            }
+		            else {
 		                [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Expression.StaticType;
 		                $Local:ReturnTypes += $Local:ReturnType;
 		            }
@@ -637,9 +768,11 @@ $Global:EmbededModules = [ordered]@{
 		        foreach ($Local:ReturnType in $Local:ReturnTypes) {
 		            if ($ValidTypes -contains $Local:ReturnType) {
 		                continue;
-		            } elseif ($AllowNull -and $Local:ReturnType -eq [Void]) {
+		            }
+		            elseif ($AllowNull -and $Local:ReturnType -eq [Void]) {
 		                continue;
-		            } else {
+		            }
+		            else {
 		                Invoke-Warn -Message "The return type of the AST object is not valid. Expected: $($ValidTypes -join ', '); Actual: $($Local:ReturnType.Name)";
 		                return $False;
 		            }
@@ -664,11 +797,13 @@ $Global:EmbededModules = [ordered]@{
 		                    if ($ValidTypes -contains $Local:ReturnType) {
 		                        continue;
 		                    }
-		                } else {
+		                }
+		                else {
 		                    Invoke-Debug -Message "Could not resolve the variable: $Local:VariableName.";
 		                    continue
 		                }
-		            } else {
+		            }
+		            else {
 		                [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Expression.StaticType;
 		                [String]$Local:TypeName = $Local:ReturnType.Name;
 		                Invoke-Debug "Return type: $Local:TypeName";
@@ -735,7 +870,8 @@ Text: $($Local:Region.Text)
 		        try {
 		            $ErrorActionPreference = 'Stop';
 		            Invoke-RestMethod $Local:ZipballUrl -OutFile $Local:OutFile;
-		        } catch {
+		        }
+		        catch {
 		            Invoke-Error "Failed to download $Local:ModuleName from $Local:ZipballUrl to $Local:OutFile";
 		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
 		        }
@@ -747,7 +883,8 @@ Text: $($Local:Region.Text)
 		        Invoke-Verbose "Extracting $Local:OutFile to $Local:ExtractDir";
 		        try {
 		            Expand-Archive -Path $Local:OutFile -DestinationPath $Local:ExtractDir -Force;
-		        } catch {
+		        }
+		        catch {
 		            Invoke-Error "Failed to extract $Local:OutFile to $Local:ExtractDir";
 		            Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
 		        }
@@ -764,17 +901,20 @@ Text: $($Local:Region.Text)
 		        }
 		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
 		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem (Join-Path -Path $Local:UnzippedArchive -ChildPath *) -File | Where-Object { $_.Name -like '*.psd1' };
-		        } else {
+		        }
+		        else {
 		            [System.IO.FileInfo[]]$Local:ManifestFiles = Get-ChildItem -Path $Local:UnzippedArchive.FullName -File | Where-Object { $_.Name -like '*.psd1' };
 		        }
 		        if ($Local:ManifestFiles.Count -eq 0) {
 		            Invoke-Error "No manifest file found in $($Local:UnzippedArchive.FullName)";
 		            Invoke-FailedExit -ExitCode 9999;
-		        } elseif ($Local:ManifestFiles.Count -gt 1) {
+		        }
+		        elseif ($Local:ManifestFiles.Count -gt 1) {
 		            Invoke-Debug "Multiple manifest files found in $($Local:UnzippedArchive.FullName)";
 		            Invoke-Debug "Manifest files: $($Local:ManifestFiles.FullName -join ', ')";
 		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Where-Object { $_.Name -like "$Local:ModuleName*.psd1" } | Select-Object -First 1;
-		        } else {
+		        }
+		        else {
 		            [System.IO.FileInfo]$Local:ManifestFile = $Local:ManifestFiles | Select-Object -First 1;
 		            Invoke-Debug "Manifest file: $($Local:ManifestFile.FullName)";
 		        }
@@ -787,7 +927,8 @@ Text: $($Local:Region.Text)
 		        Invoke-Debug "Copying $Local:SourcePath to $Local:TargetPath";
 		        if ([System.Environment]::OSVersion.Platform -eq 'Unix') {
 		            Copy-Item "$(Join-Path -Path $Local:UnzippedArchive -ChildPath *)" $Local:TargetPath -Force -Recurse | Out-Null;
-		        } else {
+		        }
+		        else {
 		            Copy-Item "$Local:SourcePath\*" $Local:TargetPath -Force -Recurse | Out-Null;
 		        }
 		        return $Local:ModuleName;
@@ -805,12 +946,14 @@ Text: $($Local:Region.Text)
 		    param(
 		        [Parameter(Mandatory)]
 		        [Type[]]$Types,
-		        [Switch]$Clobber
+		        [Switch]$Clobber,
+		        [Parameter(DontShow)]
+		        [PSModuleInfo]$Module = (Get-PSCallStack)[0].InvocationInfo.MyCommand.ScriptBlock.Module
 		    )
-		    if (-not $MyInvocation.MyCommand.ScriptBlock.Module) {
+		    if (-not $Module) {
 		        throw [System.InvalidOperationException]::new('This function must be called from within a module.');
 		    }
-		    $TypeAcceleratorsClass = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators');
+		    $TypeAcceleratorsClass = [PSObject].Assembly.GetType('System.Management.Automation.TypeAccelerators');
 		    if (-not $Clobber) {
 		        $ExistingTypeAccelerators = $TypeAcceleratorsClass::Get;
 		        foreach ($Type in $Types) {
@@ -829,28 +972,165 @@ Text: $($Local:Region.Text)
 		        }
 		    }
 		    foreach ($Type in $Types) {
-		        $TypeAcceleratorsClass::Add($Type.FullName, $Type)
+		        $TypeAcceleratorsClass::Add($Type.FullName, $Type);
 		    }
-		    $MyInvocation.MyCommand.ScriptBlock.Module.OnRemove = {
+		    Invoke-Debug "Exported types: $($Types -join ', ')";
+		    Invoke-Debug "Registering module callback to remove type accelerators: $($Types -join ', ') from $($Module)";
+		    Add-ModuleCallback -Module $Module -ScriptBlock {
 		        foreach ($Type in $Types) {
-		            $TypeAcceleratorsClass::Remove($Type.FullName) | Out-Null
+		            $null = $TypeAcceleratorsClass::Remove($Type.FullName);
 		        }
-		    }.GetNewClosure()
+		    }.GetNewClosure();
 		}
-		Export-ModuleMember -Function *;
+		function Add-ModuleCallback {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        $ScriptBlock,
+		        [Parameter()]
+		        $Module = (Get-PSCallStack)[0].InvocationInfo.MyCommand.ScriptBlock.Module
+		    )
+		    if (-not $Module) {
+		        throw [System.InvalidOperationException]::new('This function must be called from within a module.');
+		    }
+		    $Module.OnRemove = $ScriptBlock;
+		}
+		function Wait-Task {
+		    [CmdletBinding()]
+		    [Alias('await')]
+		    param(
+		        [Parameter(Mandatory, ValueFromPipeline)]
+		        [PSCustomObject[]]$Run,
+		        [Switch]$PassThru
+		    )
+		    Begin {
+		        $Running = @{};
+		        $Finished = { $_.IsCompleted -or ($_.JobStateInfo.State -gt 1 -and $_.JobStateInfo.State -ne 6 -and $_.JobStateInfo.State -ne 8) };
+		        $Handle = { $_.AsyncWaitHandle };
+		    }
+		    Process {
+		        if (-not ($Run.Job -and $Run.Job.Id)) {
+		            throw [System.InvalidOperationException]::new('The Run object must contain a Job with an Id.');
+		        }
+		        $Running.Add($Run.Job.Id, $Run) | Out-Null;
+		    }
+		    End {
+		        filter Complete-Job {
+		            $Local:Out = $Running.Item($_.Id);
+		            $Running.Remove($_.Id) | Out-Null;
+		            if (-not ($Local:Out | Get-Member -Name 'Result' -MemberType NoteProperty)) {
+		                $Local:Result = if ($_.PWSH) {
+		                    try {
+		                        $_.PWSH.EndInvoke($_)
+		                    }
+		                    catch {
+		                        $_.Exception.InnerException
+		                    }
+		                    finally {
+		                        $_.PWSH.Dispose()
+		                    }
+		                }
+		                elseif ($_.IsFaulted) {
+		                    $_.Exception.InnerException
+		                }
+		                else {
+		                    $_.Result
+		                }
+		                $Local:Out | Add-Member -MemberType NoteProperty -Name Result -Value $Local:Result;
+		            }
+		            if ($PassThru) {
+		                $Local:Out
+		            }
+		            else {
+		                $Local:Out.Result
+		            }
+		        }
+		        while ($Running.Count -gt 0) {
+		            function Get-Jobs {
+		                param($Filter)
+		                $Running.Values | ForEach-Object { $_.Job } | Where-Object $Filter;
+		            }
+		            [System.Threading.WaitHandle]::WaitAny((Get-Jobs -Filter $Handle | ForEach-Object $Handle)) | Out-Null;
+		            (Get-Jobs -Filter $Finished) | Complete-Job;
+		        }
+		    }
+		}
+		function Start-AsyncTask {
+		    [CmdletBinding()]
+		    [Alias('async')]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ScriptBlock]$ScriptBlock
+		    )
+		    process {
+		        [PSCustomObject]$Local:Run = [PSCustomObject]@{
+		            Input = $_;
+		            Job   = $null;
+		        };
+		        [Powershell]$PWSH = [Powershell]::Create();
+		        $PWSH.AddScript($ScriptBlock) | Out-Null;
+		        if ($null -ne $Local:Run.Input) {
+		            $Local:Run.Job = $PWSH.BeginInvoke([System.Management.Automation.PSDataCollection[PSObject]]::new([PSObject[]]($Local:Run.Input)));
+		        }
+		        else {
+		            $Local:Run.Job = $PWSH.BeginInvoke();
+		        }
+		        $Run.Job | Add-Member -MemberType NoteProperty -Name pwsh -Value $PWSH -PassThru | Add-Member -MemberType NoteProperty -Name Id -Value $Run.Job.AsyncWaitHandle.Handle.ToString();
+		        return $Local:Run;
+		    }
+		}
+		function Add-LazyProperty {
+		    [CmdletBinding()]
+		    param (
+		        [Parameter(Mandatory, ValueFromPipeline = $true)]
+		        [PSObject]$InputObject,
+		        [Parameter(Mandatory, Position = 1)]
+		        [String]$Name,
+		        [Parameter(Mandatory, Position = 2)]
+		        [ScriptBlock]$Value,
+		        [Switch]$PassThru
+		    )
+		    process {
+		        $Local:LazyValue = {
+		            $Local:Result = & $Value;
+		            Add-Member -InputObject $this -MemberType NoteProperty -Name $Name -Value $Local:Result -Force;
+		            $Local:Result;
+		        }.GetNewClosure();
+		        Add-Member -InputObject:$InputObject -MemberType:ScriptProperty -Name:$Name -Value:$Local:LazyValue -PassThru:$Local:PassThru;
+		    }
+		}
+		function Set-LazyVariable {
+		    [CmdletBinding()]
+		    [Alias('lazy')]
+		    param (
+		        [Parameter(Mandatory, Position = 1)]
+		        [String]$Name,
+		        [Parameter(Mandatory, Position = 2)]
+		        [ScriptBlock]$Value,
+		        [Switch]$PassThru
+		    )
+		    process {
+		        $Local:LazyValue = {
+		            $Local:Result = & $Value;
+		            Set-Variable -Name $Local:Name -Value $Local:Result -Scope Local -Option ReadOnly;
+		            $Local:Result;
+		        }.GetNewClosure();
+		        Set-Variable -Name:$Name -Value:$Local:LazyValue -Scope:Local -Option:ReadOnly -PassThru:$PassThru;
+		    }
+		}
+		function Test-IsRunningAsSystem {
+		    [System.Security.Principal.WindowsIdentity]::GetCurrent().Name -eq 'NT AUTHORITY\SYSTEM';
+		}
+		Export-ModuleMember -Function * -Alias *;
     };`
 	"01-Logging" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-		function Test-NAbleEnvironment {
-		    [String]$Local:ConsoleTitle = [Console]::Title | Split-Path -Leaf;
-		    $Local:ConsoleTitle -eq 'fmplugin.exe';
-		}
 		function Test-SupportsUnicode {
-		    $null -ne $env:WT_SESSION -and -not (Test-NAbleEnvironment);
+		    $null -ne $env:WT_SESSION -and -not (Test-IsNableRunner);
 		}
 		function Test-SupportsColour {
-		    $Host.UI.SupportsVirtualTerminal -and -not (Test-NAbleEnvironment);
+		    $Host.UI.SupportsVirtualTerminal -and -not (Test-IsNableRunner);
 		}
 		function Invoke-Write {
 		    [CmdletBinding(PositionalBinding, DefaultParameterSetName = 'Splat')]
@@ -867,14 +1147,17 @@ Text: $($Local:Region.Text)
 		        [String]$PSColour,
 		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
 		        [ValidateNotNullOrEmpty()]
-		        [Boolean]$ShouldWrite
+		        [Boolean]$ShouldWrite,
+		        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
+		        [ValidateNotNullOrEmpty()]
+		        [Switch]$PassThru
 		    )
 		    process {
 		        if ($InputObject) {
 		            Invoke-Write @InputObject;
 		            return;
 		        }
-		        if (-not $ShouldWrite) {
+		        if (-not $ShouldWrite -and -not $PassThru) {
 		            return;
 		        }
 		        [String]$Local:NewLineTab = if ($PSPrefix -and (Test-SupportsUnicode)) {
@@ -889,8 +1172,12 @@ Text: $($Local:Region.Text)
 		        [String]$Local:FormattedMessage = if ($PSPrefix -and (Test-SupportsUnicode)) {
 		            "$PSPrefix $Local:FormattedMessage";
 		        } else { $Local:FormattedMessage; }
-		        $InformationPreference = 'Continue';
-		        Write-Information $Local:FormattedMessage;
+		        if ($PassThru) {
+		            return $Local:FormattedMessage;
+		        } else {
+		            $InformationPreference = 'Continue';
+		            Write-Information $Local:FormattedMessage;
+		        }
 		    }
 		}
 		function Format-Error(
@@ -903,7 +1190,9 @@ Text: $($Local:Region.Text)
 		    [Parameter(HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
 		    [ValidateNotNullOrEmpty()]
 		    [Alias('Prefix')]
-		    [String]$UnicodePrefix
+		    [String]$UnicodePrefix,
+		    [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+		    [Switch]$PassThru
 		) {
 		    [String]$Local:TrimmedLine = $InvocationInfo.Line.Trim();
 		    [String]$Local:Script = $InvocationInfo.ScriptName.Trim();
@@ -921,16 +1210,17 @@ Text: $($Local:Region.Text)
 		    [String]$Local:Message = if ($null -ne $Message) {
 		        (' ' * $Local:StatementIndex) + $Message;
 		    } else { $null };
-		    [HashTable]$Local:BaseHash = @{
-		        PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { $null };
+		    [HashTable]$Private:BaseArgs = @{
+		        PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { $null };
 		        ShouldWrite = $True;
+		        PassThru    = $PassThru;
 		    };
-		    Invoke-Write @Local:BaseHash -PSMessage "File    | $($PSStyle.Foreground.Red)$Local:Script" -PSColour Cyan;
-		    Invoke-Write @Local:BaseHash -PSMessage "Line    | $($PSStyle.Foreground.Red)$($InvocationInfo.ScriptLineNumber)" -PSColour Cyan;
-		    Invoke-Write @Local:BaseHash -PSMessage "Preview | $($PSStyle.Foreground.Red)$Local:TrimmedLine" -PSColour Cyan;
-		    Invoke-Write @Local:BaseHash -PSMessage "$Local:Underline" -PSColour 'Red';
+		    Invoke-Write @Private:BaseArgs -PSMessage "File    | $($PSStyle.Foreground.Red)$Local:Script" -PSColour Cyan;
+		    Invoke-Write @Private:BaseArgs -PSMessage "Line    | $($PSStyle.Foreground.Red)$($InvocationInfo.ScriptLineNumber)" -PSColour Cyan;
+		    Invoke-Write @Private:BaseArgs -PSMessage "Preview | $($PSStyle.Foreground.Red)$Local:TrimmedLine" -PSColour Cyan;
+		    Invoke-Write @Private:BaseArgs -PSMessage "$Local:Underline" -PSColour 'Red';
 		    if ($Local:Message) {
-		        Invoke-Write @Local:BaseHash -PSMessage "Message | $($PSStyle.Foreground.Red)$Local:Message" -PSColour Cyan;
+		        Invoke-Write @Private:BaseArgs -PSMessage "Message | $($PSStyle.Foreground.Red)$Local:Message" -PSColour Cyan;
 		    }
 		}
 		function Invoke-Verbose {
@@ -944,7 +1234,9 @@ Text: $($Local:Region.Text)
 		        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
 		        [ValidateNotNullOrEmpty()]
 		        [Alias('Prefix')]
-		        [String]$UnicodePrefix
+		        [String]$UnicodePrefix,
+		        [Parameter(ValueFromPipelineByPropertyName, HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+		        [Switch]$PassThru
 		    )
 		    process {
 		        if ($InputObject) {
@@ -952,10 +1244,11 @@ Text: $($Local:Region.Text)
 		            return;
 		        }
 		        $Local:Params = @{
-		            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
-		            PSMessage = $Message;
-		            PSColour = 'Yellow';
+		            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
+		            PSMessage   = $Message;
+		            PSColour    = 'Yellow';
 		            ShouldWrite = $Global:Logging.Verbose;
+		            PassThru    = $PassThru;
 		        };
 		        Invoke-Write @Local:Params;
 		    }
@@ -971,7 +1264,9 @@ Text: $($Local:Region.Text)
 		        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
 		        [ValidateNotNullOrEmpty()]
 		        [Alias('Prefix')]
-		        [String]$UnicodePrefix
+		        [String]$UnicodePrefix,
+		        [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+		        [Switch]$PassThru
 		    )
 		    process {
 		        if ($InputObject) {
@@ -979,10 +1274,11 @@ Text: $($Local:Region.Text)
 		            return;
 		        }
 		        $Local:Params = @{
-		            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
-		            PSMessage = $Message;
-		            PSColour = 'Magenta';
+		            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
+		            PSMessage   = $Message;
+		            PSColour    = 'Magenta';
 		            ShouldWrite = $Global:Logging.Debug;
+		            PassThru    = $PassThru;
 		        };
 		        Invoke-Write @Local:Params;
 		    }
@@ -998,7 +1294,9 @@ Text: $($Local:Region.Text)
 		        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
 		        [ValidateNotNullOrEmpty()]
 		        [Alias('Prefix')]
-		        [String]$UnicodePrefix
+		        [String]$UnicodePrefix,
+		        [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+		        [Switch]$PassThru
 		    )
 		    process {
 		        if ($InputObject) {
@@ -1006,10 +1304,11 @@ Text: $($Local:Region.Text)
 		            return;
 		        }
 		        $Local:Params = @{
-		            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
-		            PSMessage = $Message;
-		            PSColour = 'Cyan';
+		            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
+		            PSMessage   = $Message;
+		            PSColour    = 'Cyan';
 		            ShouldWrite = $Global:Logging.Information;
+		            PassThru    = $PassThru;
 		        };
 		        Invoke-Write @Local:Params;
 		    }
@@ -1227,7 +1526,7 @@ Text: $($Local:Region.Text)
 		        }
 		    }
 		}
-		Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Format-Error, Invoke-Timeout, Invoke-Progress;
+		Export-ModuleMember -Function Test-SupportsUnicode, Test-SupportsColour, Invoke-Write, Invoke-Verbose, Invoke-Debug, Invoke-Info, Invoke-Warn, Invoke-Error, Format-Error, Invoke-Timeout, Invoke-Progress;
     };`
 	"01-Scope" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1248,28 +1547,75 @@ Text: $($Local:Region.Text)
 		}
 		function Format-Parameters(
 		    [Parameter()]
-		    [String[]]$IgnoreParams = @()
+		    [String[]]$IgnoreParams = @(),
+		    [Parameter()]
+		    [HashTable]$ArgumentFormatter
 		) {
 		    [System.Collections.IDictionary]$Local:Params = (Get-StackTop).Invocation.BoundParameters;
 		    if ($null -ne $Local:Params -and $Local:Params.Count -gt 0) {
-		        [String[]]$Local:ParamsFormatted = $Local:Params.GetEnumerator() | Where-Object { $_.Key -notin $IgnoreParams } | ForEach-Object { "$($_.Key) = $(Format-Variable -Value $_.Value)" };
-		        [String]$Local:ParamsFormatted = $Local:ParamsFormatted -join "`n";
+		        [String]$Local:ParamsFormatted = ($Local:Params.GetEnumerator() `
+		            | Where-Object { $_.Key -notin $IgnoreParams } `
+		            | ForEach-Object {
+		                $Local:Formatter = $ArgumentFormatter[$_.Key];
+		                $Local:FormattedValue = Format-Variable -Value:$_.Value -Formatter:$Local:Formatter;
+		                "$($_.Key) = $Local:FormattedValue";
+		            }) `
+		            -join "`n";
 		        return "$Local:ParamsFormatted";
 		    }
 		    return $null;
 		}
-		function Format-Variable([Object]$Value) {
-		    function Format-SingleVariable([Parameter(Mandatory)][Object]$Value) {
-		        switch ($Value) {
-		            { $_ -is [System.Collections.HashTable] } { "$(([HashTable]$Value).GetEnumerator().ForEach({ "$($_.Key) = $($_.Value)" }) -join "`n")" }
-		            default { $Value }
-		        };
-		    }
+		function Format-Variable(
+		    [Parameter()]
+		    [Object]$Value,
+		    [Parameter()]
+		    [ScriptBlock]$Formatter,
+		    [Parameter(DontShow)]
+		    [Int]$CallDepth = 0,
+		    [Parameter(DontShow)]
+		    [Switch]$Appending
+		) {
+		    [String]$Local:FullIndent = $Script:Tab * ($CallDepth + 1);
+		    [String]$Local:AppendingIndent = if (-not $Appending -and $CallDepth -gt 0) { $Local:FullIndent } else { '' };
+		    [String]$Local:EndingIndent = $Script:Tab * $CallDepth;
 		    if ($null -ne $Value) {
-		        [String]$Local:FormattedValue = if ($Value -is [Array]) {
-		            "$(($Value | ForEach-Object { Format-SingleVariable $_ }) -join "`n")"
-		        } else {
-		            Format-SingleVariable -Value $Value;
+		        [String]$Local:FormattedValue = switch ($Value) {
+		            { $Value -is [Array] } {
+		                [String[]]$Private:Values = $Value | ForEach-Object { Format-Variable -Value:$_ -Formatter:$Formatter -CallDepth:($CallDepth + 1) -Appending; };
+		                if ($Private:Values.Count -eq 0) {
+		                    return "$Local:AppendingIndent[]";
+		                }
+		                @"
+$Local:AppendingIndent[
+$Local:FullIndent$($Private:Values -join ",`n$Local:FullIndent")
+$Local:EndingIndent]
+"@;
+		                break;
+		            }
+		            { $Value -is [HashTable] } {
+		                [String[]]$Private:Pairs = $Value.GetEnumerator() | ForEach-Object {
+		                    $Private:Key = $_.Key;
+		                    $Private:Value = $_.Value;
+		                    "$Private:Key = $(Format-Variable -Value:$Private:Value -Formatter:$Formatter -CallDepth:($CallDepth + 1) -Appending)"
+		                };
+		                if ($Private:Pairs.Count -eq 0) {
+		                    return "$Local:AppendingIndent{}";
+		                }
+		                @"
+$Local:AppendingIndent{
+$Local:FullIndent$($Private:Pairs -join "`n$Local:FullIndent")
+$Local:EndingIndent}
+"@;
+		                break;
+		            }
+		            default {
+		                if ($null -ne $Formatter) {
+		                    $Formatter.InvokeWithContext($null, [PSVariable]::new('_', $Value));
+		                } else {
+		                    $Value;
+		                }
+		                break;
+		            }
 		        }
 		        return $Local:FormattedValue;
 		    };
@@ -1280,47 +1626,175 @@ Text: $($Local:Region.Text)
 		    [String[]]$IgnoreParams = @(),
 		    [Parameter()]
 		    [ValidateNotNull()]
-		    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo # Get's the callers invocation info.
+		    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo, # Get's the callers invocation info.
+		    [Parameter()]
+		    [HashTable]$ArgumentFormatter,
+		    [Parameter()]
+		    [Switch]$PassThru
 		) {
-		    if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
 		    (Get-Stack).Push(@{ Invocation = $Invocation; StopWatch = [System.Diagnostics.Stopwatch]::StartNew(); });
+		    if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
+		    if ($null -eq $ArgumentFormatter) {
+		        $ArgumentFormatter = @{};
+		    }
 		    [String]$Local:ScopeName = Format-ScopeName -IsExit:$False;
-		    [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams;
+		    [String]$Local:ParamsFormatted = Format-Parameters -IgnoreParams:$IgnoreParams -ArgumentFormatter:$ArgumentFormatter;
 		    @{
 		        PSMessage   = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
 		        PSColour    = 'Blue';
 		        PSPrefix    = '❯❯';
 		        ShouldWrite = $Global:Logging.Verbose;
+		        PassThru    = $PassThru;
 		    } | Invoke-Write;
 		}
 		function Exit-Scope(
-		    [Parameter()][ValidateNotNull()]
-		    [System.Management.Automation.InvocationInfo]$Invocation = (Get-PSCallStack)[0].InvocationInfo,
 		    [Parameter()]
 		    [Object]$ReturnValue
 		) {
-		    if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
 		    [System.Diagnostics.Stopwatch]$Local:StopWatch = (Get-StackTop).StopWatch;
 		    $Local:StopWatch.Stop();
-		    [String]$Local:ExecutionTime = "Execution Time: $($Local:StopWatch.ElapsedMilliseconds)ms";
-		    [String]$Local:ScopeName = Format-ScopeName -IsExit:$True;
-		    [String]$Local:ReturnValueFormatted = Format-Variable -Value:$ReturnValue;
-		    [String]$Local:Message = $Local:ScopeName;
-		    if ($Local:ExecutionTime) {
-		        $Local:Message += "`n$Local:ExecutionTime";
+		    if ($Global:Logging.Verbose) {
+		        if ($null -eq $ArgumentFormatter) {
+		            $ArgumentFormatter = @{};
+		        }
+		        [String]$Local:ExecutionTime = "Execution Time: $($Local:StopWatch.ElapsedMilliseconds)ms";
+		        [String]$Local:ScopeName = Format-ScopeName -IsExit:$True;
+		        [String]$Local:ReturnValueFormatted = Format-Variable -Value:$ReturnValue;
+		        [String]$Local:Message = $Local:ScopeName;
+		        if ($Local:ExecutionTime) {
+		            $Local:Message += "`n$Local:ExecutionTime";
+		        }
+		        if ($Local:ReturnValueFormatted) {
+		            $Local:Message += "`n$Local:ReturnValueFormatted";
+		        }
+		        @{
+		            PSMessage   = $Local:Message;
+		            PSColour    = 'Blue';
+		            PSPrefix    = '❮❮';
+		            ShouldWrite = $Global:Logging.Verbose;
+		        } | Invoke-Write;
 		    }
-		    if ($Local:ReturnValueFormatted) {
-		        $Local:Message += "`n$Local:ReturnValueFormatted";
-		    }
-		    @{
-		        PSMessage   = $Local:Message;
-		        PSColour    = 'Blue';
-		        PSPrefix    = '❮❮';
-		        ShouldWrite = $Global:Logging.Verbose;
-		    } | Invoke-Write;
 		    (Get-Stack).Pop() | Out-Null;
 		}
-		Export-ModuleMember -Function Get-StackTop, Format-Parameters, Format-Variable, Format-ScopeName, Enter-Scope, Exit-Scope;
+		Export-ModuleMember -Function Get-StackTop, Format-Parameters, Format-Variable, Format-ScopeName, Enter-Scope, Exit-Scope;
+    };`
+	"02-Event" = {
+        [CmdletBinding(SupportsShouldProcess)]
+        Param()
+		[HashTable]$Script:Events = @{};
+		enum Priority {
+		    Low
+		    Normal
+		    High
+		}
+		class Subscription {
+		    [GUID]$Guid;
+		    [Type]$EventType;
+		    [Priority]$Priority;
+		    [ScriptBlock]$Callback;
+		    Subscription([Type]$EventType, [ScriptBlock]$Callback) {
+		        [Subscription]::new($EventType, [Priority]::Normal, [ScriptBlock]$Callback);
+		    }
+		    Subscription([Type]$EventType, [Priority]$Priority, [ScriptBlock]$Callback) {
+		        $this.Guid = [GUID]::NewGuid()
+		        $this.EventType = $EventType
+		        $this.Priority = $Priority
+		        $this.Callback = $Callback
+		    }
+		}
+		class ByPriority: System.Collections.Generic.IComparer[Subscription] {
+		    ByPriority() { }
+		    [Int] Compare([Subscription]$a, [Subscription]$b) {
+		        [Int]$OneValue = [Int]$a.Priority;
+		        [Int]$TwoValue = [Int]$b.Priority;
+		        if ($OneValue -eq $TwoValue) {
+		            return 0;
+		        }
+		        if ($OneValue -lt $TwoValue) {
+		            return -1;
+		        }
+		        return 1;
+		    }
+		}
+		class EventRegistration {
+		    [Type]$EventType;
+		    [System.Collections.Generic.SortedSet[Subscription]]$Subscriptions;
+		    EventRegistration([Type]$EventType) {
+		        $this.EventType = $EventType;
+		    }
+		    [Guid] Subscribe([Subscription]$Subscription) {
+		        if ($null -eq $this.Subscriptions) {
+		            $this.Subscriptions = [System.Collections.Generic.SortedSet[Subscription]]::new([ByPriority]::new());
+		        }
+		        $this.Subscriptions.Add($Subscription);
+		        return $this.Subscriptions.Guid;
+		    }
+		    [Boolean] Unsubscribe([Guid]$Guid) {
+		        if ($null -eq $this.Subscriptions -or $this.Subscriptions.Count -eq 0) {
+		            return $false;
+		        }
+		        [Int]$Private:Index = $this.Subscriptions.FindIndex({ param($Subscription) $Subscription.Guid -eq $Guid });
+		        if ($Private:Index -eq -1) {
+		            return $false;
+		        }
+		        $this.Subscriptions.RemoveAt($Private:Index);
+		        return $true;
+		    }
+		    [Void] Dispatch([Object]$EventInstance) {
+		        foreach ($Subscription in $this.Subscriptions) {
+		            $Subscription.Callback.Invoke($EventInstance)
+		        }
+		    }
+		    [Void] Clear() {
+		        $this.Subscriptions.Clear();
+		    }
+		}
+		class Event { }
+		function Register-EventSubscription {
+		    param(
+		        [Type]$EventType,
+		        [Priority]$Priority = [Priority]::Normal,
+		        [ScriptBlock]$Callback
+		    )
+		    [Subscription]$Private:Subscription = [Subscription]::new($EventType, $Priority, $Callback);
+		    $Script:Events[$EventType].Subscribe($Private:Subscription);
+		    return $Private:Subscription.Guid;
+		}
+		function Submit-Event {
+		    param([Object]$EventInstance)
+		    $Script:Events[$EventInstance.GetType()].Dispatch($EventInstance)
+		}
+		function Unregister-EventSubscription {
+		    param(
+		        [Type]$EventType,
+		        [Int]$Id
+		    )
+		    $Script:Events[$EventName].Unsubscribe($Id)
+		}
+		function Register-Event {
+		    param(
+		        [Type]$EventType
+		    )
+		    $Script:Events[$EventType] = [EventRegistration]::new($EventType)
+		}
+		function Get-Event {
+		    param(
+		        [Parameter()]
+		        [Type[]]$EventType
+		    )
+		    if ($EventType) {
+		        return $Script:Events[$EventType]
+		    } else {
+		        return $Script:Events
+		    }
+		}
+		Export-Types -Types @(
+		    [Priority],
+		    [Subscription],
+		    [ByPriority],
+		    [EventRegistration],
+		    [Event]
+		)
     };`
 	"02-Exit" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1341,7 +1815,8 @@ Text: $($Local:Region.Text)
 		        Invoke-Debug -Message "Invoking exit handler '$Local:ExitHandlerName'...";
 		        try {
 		            Invoke-Command -ScriptBlock $Local:ExitHandler.Script;
-		        } catch {
+		        }
+		        catch {
 		            Invoke-Warn "Failed to invoke exit handler '$Local:ExitHandlerName': $_";
 		        }
 		    }
@@ -1353,13 +1828,15 @@ Text: $($Local:Region.Text)
 		        [Parameter(Mandatory, HelpMessage = 'The exit code to return.')]
 		        [ValidateNotNullOrEmpty()]
 		        [Int]$ExitCode,
-		        [Parameter(HelpMessage='The error record that caused the exit, if any.')]
+		        [Parameter(HelpMessage = 'The error record that caused the exit, if any.')]
 		        [System.Management.Automation.ErrorRecord]$ErrorRecord,
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
 		        [Switch]$DontExit,
 		        [Parameter()]
-		        [String[]]$FormatArgs
+		        [String[]]$FormatArgs,
+		        [Parameter(DontShow)]
+		        [System.Management.Automation.Cmdlet]$CallingCmdlet = $PSCmdlet
 		    )
 		    [String]$Local:ExitDescription = $Global:ExitCodes[$ExitCode];
 		    if ($null -ne $Local:ExitDescription -and $Local:ExitDescription.Length -gt 0) {
@@ -1367,6 +1844,12 @@ Text: $($Local:Region.Text)
 		            [String]$Local:ExitDescription = $Local:ExitDescription -f $FormatArgs;
 		        }
 		        Invoke-Error $Local:ExitDescription;
+		    }
+		    elseif ($ExitCode -ne 0 -and $ExitCode -ne 9999) {
+		        Invoke-Warn "No exit description found for code '$ExitCode'";
+		    }
+		    elseif ($ExitCode -lt 1000) {
+		        Invoke-FailedExit -ExitCode $Script:INVALID_ERROR_CODE -FormatArgs $ExitCode;
 		    }
 		    if ($ErrorRecord) {
 		        [System.Exception]$Local:DeepestException = $ErrorRecord.Exception;
@@ -1376,7 +1859,7 @@ Text: $($Local:Region.Text)
 		            Invoke-Debug "Getting inner exception... (Current: $Local:DeepestException)";
 		            Invoke-Debug "Inner exception: $($Local:DeepestException.InnerException)";
 		            if (-not $Local:DeepestException.InnerException.ErrorRecord) {
-		                Invoke-Debug "Inner exception has no error record, breaking to keep the current exceptions information...";
+		                Invoke-Debug 'Inner exception has no error record, breaking to keep the current exceptions information...';
 		                break;
 		            }
 		            $Local:DeepestException = $Local:DeepestException.InnerException;
@@ -1389,7 +1872,8 @@ Text: $($Local:Region.Text)
 		        }
 		        if ($Local:DeepestInvocationInfo) {
 		            Format-Error -InvocationInfo $Local:DeepestInvocationInfo -Message $Local:DeepestMessage;
-		        } elseif ($Local:DeepestMessage) {
+		        }
+		        elseif ($Local:DeepestMessage) {
 		            Invoke-Error -Message $Local:DeepestMessage;
 		        }
 		    }
@@ -1400,7 +1884,8 @@ Text: $($Local:Region.Text)
 		        }
 		        if ($null -eq $Local:DeepestException.ErrorRecord.CategoryInfo.Category) {
 		            [System.Management.Automation.ErrorCategory]$Local:Catagory = [System.Management.Automation.ErrorCategory]::NotSpecified;
-		        } else {
+		        }
+		        else {
 		            [System.Management.Automation.ErrorCategory]$Local:Catagory = $Local:DeepestException.ErrorRecord.CategoryInfo.Category;
 		        }
 		        [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
@@ -1409,7 +1894,11 @@ Text: $($Local:Region.Text)
 		            $Local:Catagory,
 		            $ExitCode
 		        );
-		        throw $Local:ErrorRecord;
+		        if ($Local:DeepestException.ErrorRecord) {
+		            $Global:Error.Add($ErrorRecord);
+		            $Global:Error.Add($Local:DeepestException.ErrorRecord);
+		        }
+		        $CallingCmdlet.ThrowTerminatingError($Local:ErrorRecord);
 		    }
 		}
 		function Invoke-QuickExit {
@@ -1417,6 +1906,17 @@ Text: $($Local:Region.Text)
 		    [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
 		        [System.Exception]::new('Quick Exit'),
 		        'QuickExit',
+		        [System.Management.Automation.ErrorCategory]::NotSpecified,
+		        $null
+		    );
+		    throw $Local:ErrorRecord;
+		}
+		function Restart-Script {
+		    Invoke-Handlers -IsFailure:$False;
+		    Invoke-Info 'Restarting script...';
+		    [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
+		        [System.Exception]::new('Restart Script'),
+		        'RestartScript',
 		        [System.Management.Automation.ErrorCategory]::NotSpecified,
 		        $null
 		    );
@@ -1439,7 +1939,8 @@ Text: $($Local:Region.Text)
 		    if ($Global:ExitHandlers[$Local:TrimmedName]) {
 		        Invoke-Warn "Exit handler '$Local:TrimmedName' already registered, overwriting...";
 		        $Global:ExitHandlers[$Local:TrimmedName] = $Local:Value;
-		    } else {
+		    }
+		    else {
 		        $Global:ExitHandlers.add($Local:TrimmedName, $Local:Value);
 		    }
 		}
@@ -1459,13 +1960,14 @@ Text: $($Local:Region.Text)
 		    }
 		    return $Local:ExitCode;
 		}
-		Export-ModuleMember -Function Invoke-Handlers, Invoke-FailedExit, Invoke-QuickExit, Register-ExitHandler, Register-ExitCode;
+		$Script:INVALID_ERROR_CODE = Register-ExitCode -Description 'Invalid error code {0}, codes must be greater than 1000';
+		Export-ModuleMember -Function Invoke-Handlers, Invoke-FailedExit, Invoke-QuickExit, Register-ExitHandler, Register-ExitCode, Restart-Script;
     };`
 	"05-Assert" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
 		function Assert-NotNull(
-		    [Parameter(Mandatory, ValueFromPipeline)]
+		    [Parameter(ValueFromPipeline)]
 		    [Object]$Object,
 		    [Parameter()]
 		    [String]$Message
@@ -1492,12 +1994,15 @@ Text: $($Local:Region.Text)
 		        }
 		    }
 		}
-		Export-ModuleMember -Function Assert-NotNull,Assert-Equals;
+		Export-ModuleMember -Function Assert-NotNull,Assert-Equals;
     };`
 	"05-Ensure" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
-		$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description "Not running as administrator!`nPlease re-run your terminal session as Administrator, and try again.";
+		$Script:NOT_ADMINISTRATOR = Register-ExitCode -Description @'
+Not running as administrator!
+Please re-run your terminal session as Administrator, and try again.
+'@;
 		function Invoke-EnsureAdministrator {
 		    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 		        Invoke-FailedExit -ExitCode $Script:NOT_ADMINISTRATOR;
@@ -1511,9 +2016,11 @@ Text: $($Local:Region.Text)
 		    }
 		    Invoke-Verbose -Message 'Running as user.';
 		}
-		$Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module.';
+		$Script:UNABLE_TO_INSTALL_MODULE = Register-ExitCode -Description 'Unable to install module {0}';
+		$Script:UNABLE_TO_IMPORT_MODULE = Register-ExitCode -Description 'Unable to import module {0}';
+		$Script:UNABLE_TO_UPDATE_MODULE = Register-ExitCode -Description 'Unable to update module {0}';
 		$Script:MODULE_NOT_INSTALLED = Register-ExitCode -Description 'Module not installed and no-install is set.';
-		$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module.';
+		$Script:UNABLE_TO_FIND_MODULE = Register-ExitCode -Description 'Unable to find module {0}.';
 		$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 		function Invoke-EnsureModule {
 		    [CmdletBinding()]
@@ -1521,37 +2028,50 @@ Text: $($Local:Region.Text)
 		        [Parameter(Mandatory)]
 		        [ValidateNotNullOrEmpty()]
 		        [ValidateScript({
-		            $Local:NotValid = $_ | Where-Object {
-		                $Local:IsString = $_ -is [String];
-		                $Local:IsHashTable = $_ -is [HashTable] -and $_.Keys.Contains('Name');
-		                -not ($Local:IsString -or $Local:IsHashTable);
-		            };
-		            $Local:NotValid.Count -eq 0;
-		        })]
-		        [Object[]]$Modules,
-		        [Parameter(HelpMessage = 'Do not install the module if it is not installed.')]
-		        [switch]$NoInstall
+		                $Local:NotValid = $_ | Where-Object {
+		                    $Local:IsString = $_ -is [String];
+		                    $Local:IsHashTable = $_ -is [HashTable] -and $_.Keys.Contains('Name');
+		                    -not ($Local:IsString -or $Local:IsHashTable);
+		                };
+		                $Local:NotValid.Count -eq 0;
+		            })]
+		        [Object[]]$Modules
 		    )
-		    begin { Enter-Scope; }
+		    begin {
+		        Enter-Scope;
+		        if (-not $Script:SatisfiedModules) {
+		            [HashTable]$Script:SatisfiedModules = [HashTable]::new();
+		        }
+		    }
 		    end { Exit-Scope; }
 		    process {
-		        try {
-		            $ErrorActionPreference = 'Stop';
-		            Get-PackageProvider -ListAvailable -Name NuGet | Out-Null;
-		        } catch {
+		        $ErrorActionPreference = 'Stop';
+		        if (-not (Test-NetworkConnection)) {
+		            Invoke-Warn 'No network connection, some modules may not be installed.';
+		            return;
+		        };
+		        if (-not $Script:CheckedNuGet) {
 		            try {
-		                Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
-		                Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
-		            } catch {
-		                Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
-		                return;
+		                $ErrorActionPreference = 'Stop';
+		                Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | Out-Null;
 		            }
+		            catch {
+		                try {
+		                    Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
+		                    Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+		                }
+		                catch {
+		                    Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
+		                    return;
+		                }
+		            }
+		            $Script:CheckedNuGet = $true;
 		        }
 		        foreach ($Local:Module in $Modules) {
 		            $Local:InstallArgs = @{
 		                AllowClobber = $true;
-		                Scope = 'CurrentUser';
-		                Force = $true;
+		                Scope        = if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { 'AllUsers' } else { 'CurrentUser' };
+		                Force        = $true;
 		            };
 		            if ($Local:Module -is [HashTable]) {
 		                [String]$Local:ModuleName = $Local:Module.Name;
@@ -1560,76 +2080,132 @@ Text: $($Local:Region.Text)
 		                if ($Local:ModuleMinimumVersion) {
 		                    $Local:InstallArgs.Add('MinimumVersion', $Local:ModuleMinimumVersion);
 		                }
-		            } else {
+		                [Version]$Local:MinimumVersion = [Version]::Parse($Local:ModuleMinimumVersion);
+		            }
+		            else {
 		                [String]$Local:ModuleName = $Local:Module;
+		                [Boolean]$Local:DontRemove = $False;
+		            }
+		            [Version]$Local:PossibleSatifiedModuleVersion = $Script:SatisfiedModules[$Local:ModuleName];
+		            if ($Local:PossibleSatifiedModuleVersion -and ($Local:PossibleSatifiedModuleVersion -ge $Local:MinimumVersion)) {
+		                Invoke-Debug "Module '$Local:ModuleName' is already satisfied with version $Local:PossibleSatifiedModuleVersion.";
+		                continue;
 		            }
 		            $Local:InstallArgs.Add('Name', $Local:ModuleName);
-		            if (Test-Path -Path $Local:ModuleName) {
-		                Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
-		                if (-not $Local:DontRemove) {
-		                    $Script:ImportedModules.Add(($Local:ModuleName | Split-Path -LeafBase));
+		            function Import-Module_Internal {
+		                param(
+		                    [String]$ModuleName,
+		                    [String]$ModuleImport,
+		                    [Boolean]$DontRemove
+		                )
+		                if (-not $DontRemove) {
+		                    $Script:ImportedModules.Add($ModuleName);
+		                }
+		                if ($Local:AvailableModule) {
+		                    Remove-Module -Name $ModuleName -Force;
+		                }
+		                try {
+		                    if ($ModuleImport.EndsWith('.ps1')) {
+		                        [PSModuleInfo]$Local:ImportedModule = Import-Module `
+		                            -Name $ModuleImport `
+		                            -Function * `
+		                            -Variable * `
+		                            -Alias * `
+		                            -Global `
+		                            -Force `
+		                            -PassThru;
+		                    }
+		                    else {
+		                        [PSModuleInfo]$Local:ImportedModule = Import-Module -Name $ModuleImport -Global -Force -PassThru;
+		                    }
+		                    Invoke-Info "Module '$ModuleName' imported with version $($Local:ImportedModule.Version).";
+		                    $Script:SatisfiedModules[$ModuleName] = [Version]::Parse($Local:ImportedModule.Version);
+		                }
+		                catch {
+		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_IMPORT_MODULE -FormatArgs $ModuleName;
 		                }
 		            }
-		            $Local:AvailableModule = Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Select-Object -First 1;
+		            if (Test-Path $Local:ModuleName) {
+		                Invoke-Debug "Module '$Local:ModuleName' is a local path to a module, importing...";
+		                Import-Module_Internal -ModuleName:($Local:ModuleName | Split-Path -LeafBase) -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
+		                continue;
+		            }
+		            if ($Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$') {
+		                Invoke-Debug "Module '$Local:ModuleName' is a git repository, importing...";
+		                [String]$Local:Owner = $Matches.owner;
+		                [String]$Local:Repo = $Matches.repo;
+		                [String]$Local:Ref = $Matches.ref;
+		                [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
+		                Import-Module_Internal -ModuleName:($Local:ModuleName | Split-Path -LeafBase) -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
+		                continue;
+		            }
+		            $Local:CurrentImportedModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
+		            $Local:AvailableModule = if (-not ($Local:CurrentImportedModule)) { Get-Module -ListAvailable -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1; } else { $Local:CurrentImportedModule };
 		            if ($Local:AvailableModule) {
-		                Invoke-Debug "Module '$Local:ModuleName' is installed, with version $($Local:AvailableModule.Version).";
+		                Invoke-Debug "Module '$Local:ModuleName' is installed with version $($Local:AvailableModule.Version).";
 		                if ($Local:ModuleMinimumVersion -and $Local:AvailableModule.Version -lt $Local:ModuleMinimumVersion) {
 		                    Invoke-Verbose 'Module is installed, but the version is less than the minimum version required, trying to update...';
 		                    try {
-		                        Install-Module @Local:InstallArgs | Out-Null;
-		                    } catch {
-		                        Invoke-Error -Message "Unable to update module '$Local:ModuleName'.";
-		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                        Update-Module -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion -ErrorAction Stop;
+		                        Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
 		                    }
-		                }
-		                if (-not $Local:DontRemove) {
-		                    $Script:ImportedModules.Add($Local:ModuleName);
-		                }
-		            } else {
-		                if ($NoInstall) {
-		                    Invoke-Error -Message "Module '$Local:ModuleName' is not installed, and no-install is set.";
-		                    Invoke-FailedExit -ExitCode $Script:MODULE_NOT_INSTALLED;
-		                }
-		                if (Find-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue) {
-		                    Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
-		                    try {
-		                        Install-Module @Local:InstallArgs;
-		                        if (-not $Local:DontRemove) {
-		                            $Script:ImportedModules.Add($Local:ModuleName);
+		                    catch {
+		                        if ($_.FullyQualifiedErrorId -ne 'ModuleNotInstalledUsingInstallModuleCmdlet,Update-Module') {
+		                            Invoke-Error -Message "Unable to update module '$Local:ModuleName'";
+		                            Invoke-FailedExit -ExitCode $Script:UNABLE_TO_UPDATE_MODULE -FormatArgs @($Local:ModuleName);
 		                        }
-		                    } catch {
-		                        Invoke-Error -Message "Unable to install module '$Local:ModuleName'.";
-		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
+		                        Invoke-Verbose 'Module was unable to be updated, will try to install...';
+		                        [Boolean]$Local:TryInstall = $true
 		                    }
-		                } elseif ($Local:ModuleName -match '^(?<owner>.+?)/(?<repo>.+?)(?:@(?<ref>.+))?$') {
-		                    [String]$Local:Owner = $Matches.owner;
-		                    [String]$Local:Repo = $Matches.repo;
-		                    [String]$Local:Ref = $Matches.ref;
-		                    [String]$Local:ProjectUri = "https://github.com/$Local:Owner/$Local:Repo";
-		                    Invoke-Info "Module '$Local:ModuleName' not found in PSGallery, trying to install from git...";
-		                    Invoke-Debug "$Local:ProjectUri, $Local:Ref";
-		                    try {
-		                        [String]$Local:ModuleName = Install-ModuleFromGitHub -GitHubRepo "$Local:Owner/$Local:Repo" -Branch $Local:Ref -Scope CurrentUser;
-		                        if (-not $Local:DontRemove) {
-		                            $Script:ImportedModules.Add($Local:ModuleName);
-		                        }
-		                    } catch {
-		                        Invoke-Error -Message "Unable to install module '$Local:ModuleName' from git.";
-		                        Invoke-FailedExit -ExitCode $Script:UNABLE_TO_INSTALL_MODULE;
-		                    }
-		                } else {
-		                    Invoke-Error -Message "Module '$Local:ModuleName' could not be found using Find-Module, and was not a git repoistory.";
-		                    Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE;
+		                }
+		                elseif ($null -eq $Local:CurrentImportedModule -or ($Local:CurrentImportedModule.Version -lt $Local:ModuleMinimumVersion)) {
+		                    Invoke-Debug "Module '$Local:ModuleName' is installed, but the version is less than the minimum version required, importing...";
+		                    Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
+		                }
+		                else {
+		                    Invoke-Debug "Module '$Local:ModuleName' is installed, skipping...";
+		                    $Script:SatisfiedModules[$Local:ModuleName] = $Local:CurrentImportedModule.Version;
 		                }
 		            }
-		            Invoke-Debug "Importing module '$Local:ModuleName'...";
-		            Import-Module -Name $Local:ModuleName -Global -Force;
+		            if ($null -eq $Local:AvailableModule -or $Local:TryInstall) {
+		                $Local:FoundModule = Find-Module `
+		                    -Name $Local:ModuleName `
+		                    -MinimumVersion:$(if ($Local:InstallArgs.MinimumVersion) { $Local:InstallArgs.MinimumVersion } else { '0.0.0' }) `
+		                    -ErrorAction SilentlyContinue;
+		                if ($Local:FoundModule) {
+		                    Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
+		                    try {
+		                        $Local:FoundModule | Install-Module -AllowClobber -Scope CurrentUser -Force;
+		                    }
+		                    catch {
+		                        Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:UNABLE_TO_INSTALL_MODULE -FormatArgs @($Local:ModuleName);
+		                    }
+		                    if (-not $Local:Module.RestartIfUpdated) {
+		                        Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove -ErrorAction SilentlyContinue;
+		                    }
+		                    else {
+		                        Invoke-Info "Module '$Local:ModuleName' has been installed, restart script...";
+		                        Restart-Script;
+		                    }
+		                }
+		                else {
+		                    Invoke-Warn "Unable to find module '$Local:ModuleName'.";
+		                }
+		            }
+		            [PSModuleInfo]$Local:AfterEnsureModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
+		            if ($null -eq $Local:AfterEnsureModule) {
+		                Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -FormatArgs @($Local:ModuleName);
+		            }
+		            elseif ($Local:CurrentImportedModule -ne $Local:AfterEnsureModule -and $Local:Module.RestartIfUpdated) {
+		                Invoke-Info "Module '$Local:ModuleName' has been updated, restart script...";
+		                Restart-Script;
+		            }
 		        }
 		        Invoke-Verbose -Message 'All modules are installed.';
 		    }
 		}
-		$Script:WifiXmlTemplate = "<?xml version=""1.0""?>
-		<WLANProfile xmlns=""http://www.microsoft.com/networking/WLAN/profile/v1"">
+		$Script:WifiXmlTemplate = '<?xml version="1.0"?>
+		<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
 		  <name>{0}</name>
 		  <SSIDConfig>
 		    <SSID>
@@ -1654,7 +2230,7 @@ Text: $($Local:Region.Text)
 		    </security>
 		  </MSM>
 		</WLANProfile>
-		";
+		';
 		$Private:NO_CONNECTION_AFTER_SETUP = Register-ExitCode -Description 'Failed to connect to the internet after network setup.';
 		function Invoke-EnsureNetwork(
 		    [Parameter(HelpMessage = 'The name of the network to connect to.')]
@@ -1664,13 +2240,13 @@ Text: $($Local:Region.Text)
 		    [SecureString]$Password
 		) {
 		    begin { Enter-Scope -Invocation $MyInvocation; }
-		    end { Exit-Scope -Invocation $MyInvocation; }
+		    end { Exit-Scope; }
 		    process {
 		        [Boolean]$Local:HasNetwork = (Get-NetConnectionProfile | Where-Object {
-		            $Local:HasIPv4 = $_.IPv4Connectivity -eq 'Internet';
-		            $Local:HasIPv6 = $_.IPv6Connectivity -eq 'Internet';
-		            $Local:HasIPv4 -or $Local:HasIPv6
-		        } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
+		                $Local:HasIPv4 = $_.IPv4Connectivity -eq 'Internet';
+		                $Local:HasIPv6 = $_.IPv6Connectivity -eq 'Internet';
+		                $Local:HasIPv4 -or $Local:HasIPv6
+		            } | Measure-Object | Select-Object -ExpandProperty Count) -gt 0;
 		        if ($Local:HasNetwork) {
 		            Invoke-Debug 'Network is setup, skipping network setup...';
 		            return $false;
@@ -1691,7 +2267,8 @@ Text: $($Local:Region.Text)
 		            if ($WhatIfPreference) {
 		                Invoke-Info -Message 'WhatIf is set, skipping network setup...';
 		                return $true;
-		            } else {
+		            }
+		            else {
 		                Invoke-Info -Message 'Setting up network...';
 		                netsh wlan add profile filename="$Local:ProfileFile" | Out-Null;
 		                netsh wlan show profiles $Name key=clear | Out-Null;
@@ -1721,7 +2298,7 @@ Text: $($Local:Region.Text)
 		    Invoke-Verbose -Prefix '✅' -Message "Removed modules: `n`t$($Script:ImportedModules -join "`n`t")";
 		    Remove-Module -Name $Script:ImportedModules -Force;
 		};
-		Export-ModuleMember -Function Invoke-EnsureAdministrator, Invoke-EnsureUser, Invoke-EnsureModule, Invoke-EnsureNetwork;
+		Export-ModuleMember -Function Invoke-EnsureAdministrator, Invoke-EnsureUser, Invoke-EnsureModule, Invoke-EnsureNetwork;
     };`
 	"40-Temp" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1770,7 +2347,7 @@ Text: $($Local:Region.Text)
 		        Remove-Item -Path $Local:Folder -Force -Recurse;
 		    }
 		}
-		Export-ModuleMember -Function Get-NamedTempFolder, Get-UniqueTempFolder, Invoke-WithinEphemeral;
+		Export-ModuleMember -Function Get-NamedTempFolder, Get-UniqueTempFolder, Invoke-WithinEphemeral;
     };`
 	"45-PackageManager" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1915,7 +2492,7 @@ Text: $($Local:Region.Text)
 		        }
 		    }
 		}
-		Export-ModuleMember -Function Test-ManagedPackage, Install-ManagedPackage, Uninstall-Package, Update-ManagedPackage;
+		Export-ModuleMember -Function Test-ManagedPackage, Install-ManagedPackage, Uninstall-Package, Update-ManagedPackage;
     };`
 	"50-Input" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -1956,7 +2533,17 @@ Text: $($Local:Region.Text)
 		        $Script:ShouldAbort = $True;
 		        [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
 		    };
-		    [System.Func[String,Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
+		    [Int]$Script:ExtraLines = 0;
+		    [ScriptBlock]$Private:EnterScriptBlock = {
+		        Param([System.ConsoleKeyInfo]$Key, $Arg)
+		        $Script:ExtraLines++;
+		        [Microsoft.PowerShell.PSConsoleReadLine]::AddLine($Key, $Arg);
+		    };
+		    [Object]$Local:PreviousCtrlEnterFunction = (Get-PSReadLineKeyHandler -Chord Ctrl+Enter).Function;
+		    [Object]$Local:PreviousShiftEnterFunction = (Get-PSReadLineKeyHandler -Chord Shift+Enter).Function;
+		    Set-PSReadLineKeyHandler -Chord Ctrl+Enter -ScriptBlock $Private:EnterScriptBlock;
+		    Set-PSReadLineKeyHandler -Chord Shift+Enter -ScriptBlock $Private:EnterScriptBlock;
+		    [System.Func[String, Object]]$Local:HistoryHandler = (Get-PSReadLineOption).AddToHistoryHandler;
 		    if ($DontSaveInputs) {
 		        Set-PSReadLineOption -AddToHistoryHandler {
 		            Param([String]$Line)
@@ -1964,14 +2551,18 @@ Text: $($Local:Region.Text)
 		        }
 		    }
 		    return @{
-		        Enter           = $Local:PreviousEnterFunction;
-		        CtrlC           = $Local:PreviousCtrlCFunction;
-		        HistoryHandler  = $Local:HistoryHandler;
+		        Enter          = $Local:PreviousEnterFunction;
+		        CtrlC          = $Local:PreviousCtrlCFunction;
+		        CtrlShift      = $Local:PreviousCtrlEnterFunction;
+		        ShiftEnter     = $Local:PreviousShiftEnterFunction;
+		        HistoryHandler = $Local:HistoryHandler;
 		    }
 		}
 		function Unregister-CustomReadLineHandlers([HashTable]$PreviousHandlers) {
 		    Set-PSReadLineKeyHandler -Chord Enter -Function $PreviousHandlers.Enter;
 		    Set-PSReadLineKeyHandler -Chord Ctrl+c -Function $PreviousHandlers.CtrlC;
+		    Set-PSReadLineKeyHandler -Chord Ctrl+Enter -Function $PreviousHandlers.CtrlShift;
+		    Set-PSReadLineKeyHandler -Chord Shift+Enter -Function $PreviousHandlers.ShiftEnter;
 		    Set-PSReadLineOption -AddToHistoryHandler $PreviousHandlers.HistoryHandler;
 		}
 		function Get-UserInput {
@@ -1981,34 +2572,55 @@ Text: $($Local:Region.Text)
 		        [String]$Title,
 		        [Parameter(Mandatory)]
 		        [ValidateNotNullOrEmpty()]
+		        [Alias('Prompt')]
 		        [String]$Question,
-		        [Parameter()]
+		        [Parameter(HelpMessage = 'Validation script block to validate the user input.')]
 		        [ValidateNotNullOrEmpty()]
 		        [ScriptBlock]$Validate,
 		        [Parameter()]
 		        [Switch]$AsSecureString,
 		        [Parameter()]
-		        [Switch]$DontSaveInputs
+		        [Switch]$DontSaveInputs = $AsSecureString,
+		        [Parameter()]
+		        [Switch]$SaveInputAsUniqueHistory,
+		        [Parameter()]
+		        [Switch]$AllowEmpty
 		    )
 		    begin { Enter-Scope; Install-Requirements; }
 		    end { Exit-Scope -ReturnValue $Local:UserInput; }
 		    process {
 		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
 		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
-		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:($DontSaveInputs -or $AsSecureString);
+		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs:$DontSaveInputs;
+		        if ($SaveInputAsUniqueHistory) {
+		            $Local:PreviousHistorySavePath = (Get-PSReadLineOption).HistorySavePath;
+		            $Local:Hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$Title$Question"));
+		            $Local:HashString = [System.BitConverter]::ToString($Local:Hash).Replace('-', '');
+		            $Local:HashString = $Local:HashString.Substring(0, [Math]::Min(8, $Local:HashString.Length));
+		            $Private:FileLocation = "$env:APPDATA\Roaming\Microsoft\Windows\PowerShell\PSReadLine\UniqueHistory-$Local:HashString.txt";
+		            Set-PSReadLineOption -HistorySavePath $Private:FileLocation;
+		        }
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
 		        Write-Host "`r>> " -NoNewline;
 		        do {
 		            [String]$Local:UserInput = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
-		            if (-not $Local:UserInput -or ($Validate -and (-not $Validate.InvokeReturnAsIs($Local:UserInput)))) {
-		                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
+		            if ((-not $AllowEmpty -and -not $Local:UserInput) -or ($Validate -and (-not $Validate.InvokeWithContext($null, [PSVariable]::new('_', $Local:UserInput))))) {
+		                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) {
+		                    $Private:Value = $Script:ExtraLines + 2;
+		                    $Script:ExtraLines = 0;
+		                    $Private:Value;
+		                }
+		                else {
+		                    1
+		                };
 		                Clear-HostLight -Count $Local:ClearLines;
 		                Invoke-Write @Script:WriteStyle -PSMessage 'Invalid input, please try again...';
 		                $Host.UI.Write('>> ');
 		                $Local:FailedAtLeastOnce = $true;
 		                $Script:PressedEnter = $false;
-		            } else {
+		            }
+		            else {
 		                Clear-HostLight -Count 1;
 		                break;
 		            }
@@ -2016,6 +2628,12 @@ Text: $($Local:Region.Text)
 		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
 		            throw [System.Management.Automation.PipelineStoppedException]::new();
+		        }
+		        if ($SaveInputAsUniqueHistory) {
+		            Set-PSReadLineOption -HistorySavePath $Local:PreviousHistorySavePath;
+		        }
+		        if ($AllowEmpty -and -not $Local:UserInput) {
+		            return $null;
 		        }
 		        if ($AsSecureString) {
 		            [SecureString]$Local:UserInput = ConvertTo-SecureString -String $Local:UserInput -AsPlainText -Force;
@@ -2052,25 +2670,35 @@ Text: $($Local:Region.Text)
 		        [String]$Question,
 		        [Parameter(Mandatory)]
 		        [ValidateNotNullOrEmpty()]
+		        [Alias('Items')]
 		        [Array]$Choices,
 		        [Parameter()]
-		        [ValidateNotNullOrEmpty()]
 		        [Int]$DefaultChoice = 0,
+		        [Parameter()]
+		        [Switch]$AllowNone,
 		        [Parameter()]
 		        [ValidateNotNullOrEmpty()]
 		        [ScriptBlock]$FormatChoice = { Param([String]$Choice) $Choice.ToString(); }
 		    )
-		    begin { Enter-Scope; Install-Requirements; }
-		    end { Exit-Scope -ReturnValue $Local:Selection; }
-		    process {
-		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
-		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
+		    begin {
+		        Enter-Scope;
+		        Install-Requirements;
 		        [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs;
 		        $Local:PreviousTabFunction = (Get-PSReadLineKeyHandler -Chord Tab).Function;
 		        if (-not $Local:PreviousTabFunction) {
 		            $Local:PreviousTabFunction = 'TabCompleteNext';
 		        }
-		        [String[]]$Script:ChoicesList = $Choices | ForEach-Object { $FormatChoice.InvokeReturnAsIs($_); };
+		        $Local:PreviousShiftTabFunction = (Get-PSReadLineKeyHandler -Chord Shift+Tab).Function;
+		        if (-not $Local:PreviousShiftTabFunction) {
+		            $Local:PreviousShiftTabFunction = 'TabCompletePrevious';
+		        }
+		        [String[]]$Script:ChoicesList = $Choices | ForEach-Object {
+		            $Formatted = $FormatChoice.InvokeReturnAsIs($_);
+		            if (-not $Formatted -or $Formatted -eq '') {
+		                throw [System.ArgumentException]::new('FormatChoice script block must return a non-empty string.');
+		            }
+		            $Formatted;
+		        };
 		        Set-PSReadLineKeyHandler -Chord Tab -ScriptBlock {
 		            Param([System.ConsoleKeyInfo]$Key, $Arg)
 		            $Line = $null;
@@ -2080,7 +2708,8 @@ Text: $($Local:Region.Text)
 		            if ($Script:PreviewingChoices -and $Line -eq $Script:PreviewingInput) {
 		                if ($Script:ChoicesGoneThrough -eq $Script:MatchedChoices.Count - 1) {
 		                    $Script:ChoicesGoneThrough = 0;
-		                } else {
+		                }
+		                else {
 		                    $Script:ChoicesGoneThrough++;
 		                }
 		                $Script:PreviewingInput = $Script:MatchedChoices[$Script:ChoicesGoneThrough];
@@ -2095,22 +2724,49 @@ Text: $($Local:Region.Text)
 		                $Script:PreviewingChoices = $true;
 		                $Script:PreviewingInput = $Script:MatchedChoices[$Script:ChoicesGoneThrough];
 		                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices[$Script:ChoicesGoneThrough]);
-		            } elseif ($Script:MatchedChoices.Count -eq 1) {
+		            }
+		            elseif ($Script:MatchedChoices.Count -eq 1) {
 		                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
 		            }
 		        }
+		        Set-PSReadLineKeyHandler -Chord Shift+Tab -ScriptBlock {
+		            Param([System.ConsoleKeyInfo]$Key, $Arg)
+		            $Line = $null;
+		            $Cursor = $null;
+		            [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$Line, [ref]$Cursor);
+		            $MatchingInput = $Line.Substring(0, $Cursor);
+		            if ($Script:PreviewingChoices -and $Line -eq $Script:PreviewingInput) {
+		                if ($Script:ChoicesGoneThrough -eq 0) {
+		                    $Script:ChoicesGoneThrough = $Script:MatchedChoices.Count - 1;
+		                }
+		                else {
+		                    $Script:ChoicesGoneThrough--;
+		                }
+		                $Script:PreviewingInput = $Script:MatchedChoices[$Script:ChoicesGoneThrough];
+		                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:PreviewingInput);
+		                return;
+		            }
+		        };
+		    }
+		    process {
+		        Invoke-Write @Script:WriteStyle -PSMessage $Title;
+		        Invoke-Write @Script:WriteStyle -PSMessage $Question;
 		        [Boolean]$Local:FirstRun = $true;
 		        $Host.UI.RawUI.FlushInputBuffer();
 		        Clear-HostLight -Count 0; # Clear the line buffer to get rid of the >> prompt.
 		        Invoke-Write @Script:WriteStyle -PSMessage "Enter one of the following: $($ChoicesList -join ', ')";
-		        Write-Host ">> $($PSStyle.Foreground.FromRgb(40, 44, 52))$($ChoicesList[$DefaultChoice])" -NoNewline;
+		        Write-Host '>> ' -NoNewline;
+		        if ($null -ne $DefaultChoice) {
+		            Write-Host "$($PSStyle.Foreground.FromRgb(40, 44, 52))$($ChoicesList[$DefaultChoice])" -NoNewline;
+		        }
 		        Write-Host "`r>> " -NoNewline;
 		        do {
 		            $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
-		            if (-not $Local:Selection -and $Local:FirstRun) {
+		            if (-not $Local:Selection -and $Local:FirstRun -and $null -ne $DefaultChoice) {
 		                $Local:Selection = $Choices[$DefaultChoice];
 		                Clear-HostLight -Count 1;
-		            } elseif ($Local:Selection -notin $ChoicesList) {
+		            }
+		            elseif ($Local:Selection -notin $ChoicesList) {
 		                $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
 		                Clear-HostLight -Count $Local:ClearLines;
 		                Invoke-Write @Script:WriteStyle -PSMessage 'Invalid selection, please try again...';
@@ -2120,12 +2776,21 @@ Text: $($Local:Region.Text)
 		            }
 		            $Local:FirstRun = $false;
 		        } while ($Local:Selection -notin $ChoicesList -and -not $Script:ShouldAbort);
-		        Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction;
-		        Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions;
 		        if ($Script:ShouldAbort) {
-		            throw [System.Management.Automation.PipelineStoppedException]::new();
+		            if (-not $AllowNone) {
+		                throw [System.Management.Automation.PipelineStoppedException]::new();
+		            }
+		            else {
+		                return $null;
+		            }
 		        }
 		        return $Choices[$ChoicesList.IndexOf($Local:Selection)];
+		    }
+		    end {
+		        Exit-Scope -ReturnValue $Local:Selection;
+		        if ($Local:PreviousTabFunction -ne 'CustomAction') { Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction; }
+		        if ($Local:PreviousShiftTabFunction -ne 'CustomAction') { Set-PSReadLineKeyHandler -Chord Shift+Tab -Function $Local:PreviousShiftTabFunction; }
+		        if ($Local:PreviousFunctions) { Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions; }
 		    }
 		}
 		function Get-PopupSelection {
@@ -2143,7 +2808,7 @@ Text: $($Local:Region.Text)
 		    while (-not $Local:Selection) {
 		        $Local:Selection = $Items | Out-GridView -Title $Title -PassThru;
 		        if ((-not $AllowNone) -and (-not $Local:Selection)) {
-		            Invoke-Info "No Item was selected, re-running selection...";
+		            Invoke-Info 'No Item was selected, re-running selection...';
 		        }
 		    }
 		    $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
@@ -2155,20 +2820,16 @@ Text: $($Local:Region.Text)
 		        return;
 		    }
 		    Invoke-EnsureModule @{
-		        Name           = 'PSReadLine';
-		        MinimumVersion = '2.3.0';
-		        DontRemove     = $True;
+		        Name             = 'PSReadLine';
+		        MinimumVersion   = '2.3.0';
+		        DontRemove       = $True;
+		        RestartIfUpdated = $True;
 		    };
 		    $Using = [ScriptBlock]::Create('Using module ''PSReadLine''');
 		    . $Using;
 		    [Boolean]$Script:CompletedSetup = $True;
 		}
-		try {
-		    Install-Requirements;
-		} catch {
-		    throw $_;
-		}
-		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
+		Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
     };`
 	"99-Cache" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -2176,7 +2837,7 @@ Text: $($Local:Region.Text)
 		[Int]$Script:FAILED_FOLDER_CREATION = Register-ExitCode 'Failed to create the cache folder.';
 		[Int]$Script:FAILED_FILE_CREATION = Register-ExitCode 'Failed to create the cache file.';
 		[Int]$Script:FAILED_FILE_REMOVAL = Register-ExitCode 'Failed to remove the cache file.';
-		[String]$Script:Folder = $env:TEMP | Join-Path -ChildPath 'PSCache';
+		[String]$Script:Folder = [System.IO.Path]::GetTempPath() | Join-Path -ChildPath 'PSCache';
 		function Get-CachedContent {
 		    param(
 		        [Parameter(Mandatory, HelpMessage="The unique name of the cache file.")]
@@ -2318,48 +2979,88 @@ Text: $($Local:Region.Text)
 		        return $Local:CachePath;
 		    }
 		}
-		Export-ModuleMember -Function Get-CachedContent, Get-CachedLocation;
+		Export-ModuleMember -Function Get-CachedContent, Get-CachedLocation;
     };`
 	"99-Connection" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		function Local:Invoke-NonNullParams {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [String]$FunctionName,
+		        [Parameter(Mandatory)]
+		        [Hashtable]$Params
+		    )
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        $Params.GetEnumerator() | Where-Object { $null -eq $_.Value } | ForEach-Object {
+		            $Params.Remove($_.Key);
+		        }
+		        Invoke-Debug "Invoking Expression '$FunctionName $($Params.GetEnumerator() | ForEach-Object { "-$($_.Key):$($_.Value)" })'";
+		        & $FunctionName @Params;
+		    };
+		}
 		$Script:Services = @{
-		    ExchangeOnline = @{
-		        Context = { Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName; };
-		        Connect = { Connect-ExchangeOnline -ShowBanner:$False };
+		    ExchangeOnline     = @{
+		        Matchable  = $True;
+		        Context    = { Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName; };
+		        Connect    = { param($AccessToken) Invoke-NonNullParams 'Connect-ExchangeOnline' ($PSBoundParameters + @{ ShowBanner = $False }); };
 		        Disconnect = { Disconnect-ExchangeOnline -Confirm:$False };
 		    };
 		    SecurityComplience = @{
-		        Context = { Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName; };
-		        Connect = { Connect-IPPSSession -ShowBanner:$False };
+		        Matchable  = $True;
+		        Context    = { Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName; };
+		        Connect    = { Connect-IPPSSession -ShowBanner:$False };
 		        Disconnect = { Disconnect-IPPSSession };
 		    };
-		    AzureAD = @{
-		        Context = { Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account; };
-		        Connect = { Connect-AzureAD };
+		    AzureAD            = @{
+		        Matchable  = $True;
+		        Context    = { Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account; };
+		        Connect    = { Connect-AzureAD };
 		        Disconnect = { Disconnect-AzureAD };
 		    };
-		    Msol = @{
-		        Context = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
-		        Connect = { Connect-MsolService };
+		    Msol               = @{
+		        Matchable  = $False;
+		        Context    = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
+		        Connect    = { param($AccessToken) Invoke-NonNullParams 'Connect-MsolService' @{ MsGraphAccessToken = $PSBoundParameters['AccessToken'] }; };
 		        Disconnect = { Disconnect-MsolService };
 		    };
-		    Graph = @{
-		        Context = { Get-MgContext | Select-Object -ExpandProperty Account; };
-		        Connect = { param([String[]]$Scopes) Connect-MgGraph -NoWelcome -Scopes:$Scopes; };
+		    Graph              = @{
+		        Matchable  = $True;
+		        Context    = { Get-MgContext | Select-Object -ExpandProperty Account; };
+		        Connect    = { param($Scopes, $AccessToken)
+		            if ($AccessToken) {
+		                Connect-MgGraph -AccessToken:$AccessToken -NoWelcome;
+		                $Local:ContextScopes = Get-MgContext | Select-Object -ExpandProperty Scopes;
+		                if ($Scopes) {
+		                    Invoke-Debug "Token Scopes: $($Local:ContextScopes -join ', ')";
+		                    $Local:MissingScopes = $Scopes | Where-Object { $Local:ContextScopes -notcontains $_; };
+		                    if ($Local:MissingScopes) {
+		                        Invoke-Info "Disconnecting from Graph, missing required scope: $($Local:MissingScopes -join ', ')";
+		                        Disconnect-MgGraph;
+		                    }
+		                }
+		            }
+		            if (-not (Get-MgContext)) {
+		                Connect-MgGraph -Scopes:$Scopes -NoWelcome;
+		            }
+		        };
 		        Disconnect = { Disconnect-MgGraph };
-		        IsValid = {
+		        IsValid    = {
 		            param([String[]]$Scopes)
 		            $Local:Context = Get-MgContext;
 		            if ($null -eq $Local:Context) {
 		                return $False;
 		            }
 		            if ($Scopes) {
-		                Invoke-Debug "Checking if connected to Graph with required scopes...";
+		                Invoke-Debug 'Checking if connected to Graph with required scopes...';
 		                Invoke-Debug "Required Scopes: $($Scopes -join ', ')";
 		                Invoke-Debug "Current Scopes: $($Local:Context.Scopes -join ', ')";
 		                [Bool]$Local:HasAllScopes = ($Scopes | Where-Object { $Local:Context.Scopes -notcontains $_; }).Count -eq 0;
-		            } else {
+		            }
+		            else {
 		                $Local:HasAllScopes = $True;
 		            }
 		            $Local:HasAllScopes;
@@ -2374,16 +3075,20 @@ Text: $($Local:Region.Text)
 		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
 		        [String]$Service
 		    )
-		    Invoke-Info "Disconnecting from $Local:Service...";
-		    try {
-		        if ($PSCmdlet.ShouldProcess("Disconnect from $Local:Service")) {
-		            & $Script:Services[$Local:Service].Disconnect | Out-Null;
-		        };
-		    } catch {
-		        Invoke-FailedExit -ExitCode $Script:ERROR_CANT_DISCONNECT -FormatArgs @($Local:Service);
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        Invoke-Info "Disconnecting from $Local:Service...";
+		        try {
+		            if ($PSCmdlet.ShouldProcess("Disconnect from $Local:Service")) {
+		                & $Script:Services[$Local:Service].Disconnect | Out-Null;
+		            };
+		        }
+		        catch {
+		            Invoke-FailedExit -ExitCode $Script:ERROR_CANT_DISCONNECT -FormatArgs @($Local:Service) -ErrorRecord $_;
+		        }
 		    }
 		}
-		[Int]$Script:ERROR_NOT_CONNECTED = Register-ExitCode -Description 'There was an error connecting to {0}, please try again.';
 		function Local:Connect-ServiceInternal {
 		    [CmdletBinding(SupportsShouldProcess)]
 		    param(
@@ -2391,16 +3096,23 @@ Text: $($Local:Region.Text)
 		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
 		        [String]$Service,
 		        [Parameter()]
-		        [String[]]$Scopes
+		        [String[]]$Scopes,
+		        [Parameter()]
+		        [SecureString]$AccessToken
 		    )
-		    Invoke-Info "Connecting to $Local:Service...";
-		    Invoke-Verbose "Scopes: $($Scopes -join ', ')";
-		    try {
-		        if ($PSCmdlet.ShouldProcess("Connect to $Local:Service")) {
-		            & $Script:Services[$Local:Service].Connect -Scopes:$Scopes;
-		        };
-		    } catch {
-		        Invoke-FailedExit -ExitCode $Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        Invoke-Info "Connecting to $Local:Service...";
+		        Invoke-Verbose "Scopes: $($Scopes -join ', ')";
+		        try {
+		            if ($PSCmdlet.ShouldProcess("Connect to $Local:Service")) {
+		                $null = & $Script:Services[$Local:Service].Connect -Scopes:$Scopes -AccessToken:$AccessToken;
+		            }
+		        }
+		        catch {
+		            Invoke-FailedExit -ExitCode $Script:ERROR_COULDNT_CONNECT -FormatArgs @($Local:Service) -ErrorRecord $_;
+		        }
 		    }
 		}
 		function Local:Get-ServiceContext {
@@ -2411,10 +3123,58 @@ Text: $($Local:Region.Text)
 		        [String]$Service
 		    )
 		    try {
-		        & $Script:Services[$Local:Service].Context;
-		    } catch {
+		        & $Script:Services[$Service].Context;
+		    }
+		    catch {
 		        $null;
 		    }
+		}
+		function Local:Test-HasContext {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$Service
+		    )
+		    $null -ne (Get-ServiceContext -Service $Service);
+		}
+		function Local:Test-IsMatchable {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$ServiceA,
+		        [Parameter()]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$ServiceB
+		    )
+		    $Script:Services[$Service].Matchable -and (-not $ServiceB -or $Script:Services[$ServiceB].Matchable);
+		}
+		function Local:Test-SameContext {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$ServiceA,
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$ServiceB
+		    )
+		    [String]$Private:ContextA = Get-ServiceContext -Service $ServiceA;
+		    [String]$Private:ContextB = Get-ServiceContext -Service $ServiceB;
+		    $Private:ContextA -and $Private:ContextB -and ($Private:ContextA -eq $Private:ContextB);
+		}
+		function Local:Test-NotMatchableOrSameContext {
+		    [CmdletBinding()]
+		    param(
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$ServiceA,
+		        [Parameter(Mandatory)]
+		        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+		        [String]$ServiceB
+		    )
+		    (Test-IsMatchable -ServiceA $ServiceA -ServiceB $ServiceB) -or (Test-SameContext -ServiceA $ServiceA -ServiceB $ServiceB);
 		}
 		[Int]$Script:ERROR_NOT_CONNECTED = Register-ExitCode -Description 'Not connected to {0}, must be connected to continue.';
 		[Int]$Script:ERROR_COULDNT_CONNECT = Register-ExitCode -Description 'Failed to connect to {0}.';
@@ -2425,66 +3185,80 @@ Text: $($Local:Region.Text)
 		    [String[]]$Services,
 		    [Parameter()]
 		    [String[]]$Scopes,
+		    [Parameter()]
+		    [SecureString]$AccessToken,
 		    [Switch]$DontConfirm,
 		    [Switch]$CheckOnly
 		) {
 		    begin { Enter-Scope; }
 		    end { Exit-Scope; }
 		    process {
+		        [String]$Local:LastService;
 		        [String]$Local:Account;
 		        foreach ($Local:Service in $Services) {
-		            $Local:Context = try {
+		            [String]$Local:Context = try {
 		                Get-ServiceContext -Service $Local:Service;
-		            } catch {
+		            }
+		            catch {
 		                Invoke-Debug "Failed to get connection information for $Local:Service";
 		                if ($Global:Logging.Debug) {
 		                    Format-Error -InvocationInfo $_.InvocationInfo;
 		                }
 		            }
-		            if ($Local:Account -and $Local:Context -and $Local:Account -ne $Local:Context) {
+		            if ($Local:LastService -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
 		                Invoke-Info 'Not all services are connected with the same account, forcing disconnect...';
-		                Disconnect-ServiceInternal -Service $Local:Service;
-		            } elseif ($Local:Context) {
+		                Disconnect-ServiceInternal -Service:$Local:Service;
+		            }
+		            elseif ($Local:Context) {
 		                [ScriptBlock]$Local:ValidCheck = $Script:Services[$Local:Service].IsValid;
 		                if ($Local:ValidCheck -and -not (& $Local:ValidCheck -Scopes:$Scopes)) {
 		                    Invoke-Info "Connected to $Local:Service, but missing required scopes. Disconnecting...";
 		                    Disconnect-ServiceInternal -Service $Local:Service;
-		                } elseif (!$DontConfirm) {
+		                }
+		                elseif (!$DontConfirm) {
 		                    $Local:Continue = Get-UserConfirmation -Title "Already connected to $Local:Service as [$Local:Context]" -Question 'Do you want to continue?' -DefaultChoice $true;
 		                    if ($Local:Continue) {
 		                        Invoke-Verbose 'Continuing with current connection...';
 		                        $Local:Account = $Local:Context;
+		                        $Local:LastService = $Local:Service;
 		                        continue;
 		                    }
 		                    Disconnect-ServiceInternal -Service $Local:Service;
-		                } else {
+		                }
+		                else {
 		                    Invoke-Verbose "Already connected to $Local:Service. Skipping...";
 		                    $Local:Account = $Local:Context;
+		                    $Local:LastService = $Local:Service;
 		                    continue
 		                }
-		            } elseif ($CheckOnly) {
-		                Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service);
 		            }
-		            do {
+		            elseif ($CheckOnly) {
+		                Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service) -ErrorRecord $_;
+		            }
+		            while ($True) {
 		                try {
-		                    Connect-ServiceInternal -Service $Local:Service -Scopes:$Scopes;
-		                } catch {
-		                    Invoke-FailedExit -ExitCode $Script:ERROR_COULDNT_CONNECT -FormatArgs @($Local:Service);
+		                    if ($AccessToken) { Invoke-Info "Connecting to $Local:Service with access token..."; }
+		                    else { Invoke-Info "Connecting to $Local:Service..."; }
+		                    Connect-ServiceInternal -Service:$Local:Service -Scopes:$Scopes -AccessToken:$AccessToken;
 		                }
-		                $Local:NewContext = Get-ServiceContext -Service $Local:Service;
-		                if ($Local:Account -and $Local:NewContext -ne $Local:Account) {
+		                catch {
+		                    Invoke-FailedExit -ExitCode $Script:ERROR_COULDNT_CONNECT -FormatArgs @($Local:Service) -ErrorRecord $_;
+		                }
+		                if ($Local:Account -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
 		                    Invoke-Warn 'Not all services are connected with the same account, please reconnect with the same account.';
 		                    Disconnect-ServiceInternal -Service $Local:Service;
 		                    continue;
 		                }
-		                if (-not $Local:Account) {
+		                if (-not $Local:Account -and (Test-IsMatchable $Local:Service)) {
 		                    $Local:Account = Get-ServiceContext -Service $Local:Service;
 		                }
 		                Invoke-Info "Connected to $Local:Service as [$Local:Account].";
-		            } while ($Local:NewContext -ne $Local:Account);
+		                break;
+		            };
 		        }
 		    }
-		}
+		}
+		Export-ModuleMember -Function Connect-Service;
     };`
 	"99-Flag" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -2578,7 +3352,7 @@ Text: $($Local:Region.Text)
 		    [Flag]::new($Context);
 		}
 		Export-Types -Types ([Flag], [RunningFlag], [RebootFlag]) -Clobber;
-		Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag,Get-Flag;
+		Export-ModuleMember -Function Get-FlagPath,Get-RebootFlag,Get-RunningFlag,Get-Flag;
     };`
 	"99-Registry" = {
         [CmdletBinding(SupportsShouldProcess)]
@@ -2593,18 +3367,58 @@ Text: $($Local:Region.Text)
 		        [ValidateNotNull()]
 		        [String]$Path
 		    )
-		    [String[]]$Local:PathParts = $Path.Split('\') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) };
-		    [String]$Local:CurrentPath = "${Root}:";
-		    foreach ($Local:PathPart in $Local:PathParts) {
-		        [String]$Local:CurrentPath = Join-Path -Path $Local:CurrentPath -ChildPath $Local:PathPart;
-		        if (Test-Path -Path $Local:CurrentPath -PathType Container) {
-		            Invoke-Verbose "Registry key '$Local:CurrentPath' already exists.";
-		            continue;
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        [String[]]$Local:PathParts = $Path.Split('\') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) };
+		        [String]$Local:CurrentPath = "${Root}:";
+		        foreach ($Local:PathPart in $Local:PathParts) {
+		            [String]$Local:CurrentPath = Join-Path -Path $Local:CurrentPath -ChildPath $Local:PathPart;
+		            if (Test-Path -Path $Local:CurrentPath -PathType Container) {
+		                Invoke-Verbose "Registry key '$Local:CurrentPath' already exists.";
+		                continue;
+		            }
+		            if ($PSCmdlet.ShouldProcess($Local:CurrentPath, 'Create')) {
+		                Invoke-Verbose "Creating registry key '$Local:CurrentPath'...";
+		                $null = New-Item -Path $Local:CurrentPath -Force -ItemType RegistryKey;
+		            }
 		        }
-		        if ($PSCmdlet.ShouldProcess($Local:CurrentPath, 'Create')) {
-		            Invoke-Verbose "Creating registry key '$Local:CurrentPath'...";
-		            New-Item -Path $Local:CurrentPath -Force -ItemType RegistryKey;
+		    }
+		}
+		function Test-RegistryKey {
+		    [CmdletBinding()]
+		    param (
+		        [Parameter(Mandatory)]
+		        [String]$Path,
+		        [Parameter(Mandatory)]
+		        [String]$Key
+		    )
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        if (Test-Path -Path $Path -PathType Container) {
+		            if (Get-ItemProperty -Path $Path -Name $Key -ErrorAction SilentlyContinue) {
+		                return $True;
+		            }
 		        }
+		        return $False;
+		    }
+		}
+		function Get-RegistryKey {
+		    [CmdletBinding()]
+		    param (
+		        [Parameter(Mandatory)]
+		        [String]$Path,
+		        [Parameter(Mandatory)]
+		        [String]$Key
+		    )
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        if (Test-RegistryKey -Path $Path -Key $Key) {
+		            return Get-ItemProperty -Path $Path -Name $Key;
+		        }
+		        return $Null;
 		    }
 		}
 		function Set-RegistryKey {
@@ -2620,17 +3434,108 @@ Text: $($Local:Region.Text)
 		        [ValidateSet('Binary', 'DWord', 'ExpandString', 'MultiString', 'None', 'QWord', 'String')]
 		        [Microsoft.Win32.RegistryValueKind]$Kind
 		    )
-		    Invoke-EnsureRegistryPath -Root $Path.Substring(0, 4) -Path $Path.Substring(5);
-		    if ($PSCmdlet.ShouldProcess($Path, 'Set')) {
-		        Invoke-Verbose "Setting registry key '$Path'...";
-		        Set-ItemProperty -Path $Path -Name $Key -Value $Value -Type $Kind;
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        Invoke-EnsureRegistryPath -Root $Path.Substring(0, 4) -Path $Path.Substring(5);
+		        if ($PSCmdlet.ShouldProcess($Path, 'Set')) {
+		            Invoke-Verbose "Setting registry key '$Path' to '$Value'...";
+		            Set-ItemProperty -Path $Path -Name $Key -Value $Value -Type $Kind;
+		        }
 		    }
 		}
-		Export-ModuleMember -Function New-RegistryKey, Remove-RegistryKey, Set-RegistryKey, Test-RegistryKey;
+		function Remove-RegistryKey {
+		    [CmdletBinding(SupportsShouldProcess)]
+		    param (
+		        [Parameter(Mandatory)]
+		        [String]$Path,
+		        [Parameter(Mandatory)]
+		        [String]$Key
+		    )
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        if (-not (Test-RegistryKey -Path $Path -Key $Key)) {
+		            Invoke-Verbose "Registry key '$Path\$Key' does not exist.";
+		            return;
+		        }
+		        if ($PSCmdlet.ShouldProcess($Path, 'Remove')) {
+		            Invoke-Verbose "Removing registry key '$Path\$Key'...";
+		            Remove-ItemProperty -Path $Path -Name $Key;
+		        }
+		    }
+		}
+		function Get-AllSIDs {
+		    $PatternSID = '(?:S-1-5-21|S-1-12-1)-\d+-\d+\-\d+\-\d+$'
+		    Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\*' `
+		    | Where-Object { $_.PSChildName -match $PatternSID } `
+		    | Select-Object @{name = 'SID'; expression = { $_.PSChildName } },
+		    @{name = 'UserHive'; expression = { "$($_.ProfileImagePath)\ntuser.dat" } },
+		    @{name = 'Username'; expression = { $_.ProfileImagePath -replace '^(.*[\\\/])', '' } } `
+		    | Where-Object { Test-Path -Path $_.UserHive };
+		}
+		function Get-UnloadedUserHives {
+		    param(
+		        [Parameter(Mandatory)]
+		        [PSCustomObject[]]$LoadedHives,
+		        [Parameter(Mandatory)]
+		        [PSCustomObject[]]$ProfileList
+		    )
+		    Compare-Object $ProfileList.SID $LoadedHives.SID | Select-Object @{name = 'SID'; expression = { $_.InputObject } }, UserHive, Username
+		}
+		function Get-LoadedUserHives {
+		    return Get-ChildItem Registry::HKEY_USERS `
+		    | Where-Object { $_.PSChildname -match $PatternSID } `
+		    | Select-Object @{name = 'SID'; expression = { $_.PSChildName } };
+		}
+		function Invoke-OnEachUserHive {
+		    [CmdletBinding()]
+		    param (
+		        [Parameter(Mandatory)]
+		        [ScriptBlock]$ScriptBlock
+		    )
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        [PSCustomObject[]]$Private:ProfileList = Get-AllSIDs;
+		        [PSCustomObject[]]$Private:LoadedHives = Get-LoadedUserHives;
+		        [PSCustomObject[]]$Private:UnloadedHives = Get-UnloadedUserHives -LoadedHives $Private:LoadedHives -ProfileList $Private:ProfileList;
+		        Invoke-Debug "Loaded hives: $($Private:LoadedHives.SID -join ', ')";
+		        Invoke-Debug "Unloaded hives: $($Private:UnloadedHives.SID -join ', ')";
+		        Foreach ($Private:Hive in $Private:ProfileList) {
+		            Invoke-Verbose "Processing hive '$($Private:Hive)'...";
+		            $Private:IsUnloadedHive = $Private:Hive.SID -in $Private:UnloadedHives.SID;
+		            If ($Private:IsUnloadedHive) {
+		                Invoke-Debug "Loading hive '$($Private:Hive.UserHive)'...";
+		                reg load "HKU\$($Private:Hive.SID)" $Private:Hive.UserHive;
+		                if (-not (Test-Path -Path Registry::HKEY_USERS\$($Private:Hive.SID))) {
+		                    Invoke-Warn "Failed to load hive '$($Private:Hive.UserHive)'.";
+		                    continue;
+		                }
+		            }
+		            try {
+		                Invoke-Debug 'Executing script block...';
+		                & $ScriptBlock -Hive $Private:Hive;
+		            }
+		            finally {
+		                If ($Private:IsUnloadedHive) {
+		                    Invoke-Debug "Unloading hive '$($Private:Hive.UserHive)'...";
+		                    [GC]::Collect();
+		                    reg unload HKU\$($Private:Hive.SID);
+		                }
+		            }
+		        }
+		    }
+		}
+		Export-ModuleMember -Function New-RegistryKey, Remove-RegistryKey, Test-RegistryKey, Get-RegistryKey, Set-RegistryKey, Invoke-OnEachUserHive;
     };`
 	"99-UsersAndAccounts" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		$Script:InitialisedAllGroups = $False;
+		$Script:CachedGroups = @{};
+		$Script:InitialisedAllUsers = $False;
+		$Script:CachedUsers = @{};
 		function Local:Get-ObjectByInputOrName(
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
@@ -2643,24 +3548,39 @@ Text: $($Local:Region.Text)
 		    [ValidateNotNullOrEmpty()]
 		    [ScriptBlock]$GetByName
 		) {
-		    begin { Enter-Scope; }
+		    begin {
+		        Enter-Scope -ArgumentFormatter @{
+		            InputObject = { "$($_.Name) of type $($_.SchemaClassName)" };
+		        };
+		    }
 		    end { Exit-Scope -ReturnValue $Local:Value; }
 		    process {
+		        if ($InputObject -is [String] -and $InputObject -eq '') {
+		            Write-Error 'An empty string was supplied, this is not a valid object.' -Category InvalidArgument;
+		        }
 		        if ($InputObject -is [String]) {
 		            [ADSI]$Local:Value = $GetByName.InvokeReturnAsIs();
-		        } elseif ($InputObject.SchemaClassName -ne $SchemaClassName) {
+		        }
+		        elseif ($InputObject.SchemaClassName -ne $SchemaClassName) {
+		            Write-Host "$($InputObject.SchemaClassName)"
 		            Write-Error "The supplied object is not a $SchemaClassName." -TargetObject $InputObject -Category InvalidArgument;
-		        } else {
+		        }
+		        else {
 		            [ADSI]$Local:Value = $InputObject;
 		        }
 		        return $Local:Value;
 		    }
 		}
-		function Local:Get-GroupByInputOrName([Object]$InputObject) {
-		    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'Group' -GetByName { Get-Group $Using:InputObject; };
+		function Get-GroupByInputOrName([Object]$InputObject) {
+		    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'Group' -GetByName { Get-Group $InputObject; };
 		}
-		function Local:Get-UserByInputOrName([Object]$InputObject) {
-		    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'User' -GetByName { Get-User $Using:InputObject; };
+		function Get-UserByInputOrName([Object]$InputObject) {
+		    return Get-ObjectByInputOrName -InputObject $InputObject -SchemaClassName 'User' -GetByName {
+		        if (-not ($InputObject.Contains('/'))) {
+		            $InputObject = "$env:COMPUTERNAME/$InputObject";
+		        }
+		        Get-User $InputObject;
+		    };
 		}
 		function Get-Group(
 		    [Parameter(HelpMessage = 'The name of the group to retrieve, if not specified all groups will be returned.')]
@@ -2671,11 +3591,23 @@ Text: $($Local:Region.Text)
 		    end { Exit-Scope -ReturnValue $Local:Value; }
 		    process {
 		        if (-not $Name) {
-		            [ADSI]$Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
-		            $Local:Value = $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' };
+		            Invoke-Debug 'Getting all groups...'
+		            if (-not $Script:InitialisedAllGroups) {
+		                Invoke-Debug 'Initialising all groups...';
+		                $Script:CachedGroups;
+		                [ADSI]$Local:Groups = [ADSI]"WinNT://$env:COMPUTERNAME";
+		                $Local:Groups.Children | Where-Object { $_.SchemaClassName -eq 'Group' } | ForEach-Object { $Script:CachedGroups[$_.Name] = $_; };
+		                $Script:InitialisedAllGroups = $True;
+		            }
+		            $Local:Value = $Script:CachedGroups.Values;
 		        }
 		        else {
-		            [ADSI]$Local:Value = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
+		            Invoke-Debug "Getting group $Name...";
+		            if (-not $Script:InitialisedAllGroups -or -not $Script:CachedGroups[$Name]) {
+		                [ADSI]$Local:Group = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,group";
+		                $Script:CachedGroups[$Name] = $Local:Group;
+		            }
+		            $Local:Value = $Script:CachedGroups[$Name];
 		        }
 		        return $Local:Value;
 		    }
@@ -2690,27 +3622,36 @@ Text: $($Local:Region.Text)
 		    process {
 		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject:$Group;
 		        $Group.Invoke('Members') `
-		            | ForEach-Object { [ADSI]$_ } `
-		            | Where-Object {
-		                if ($_.Parent.Length -gt 8) {
-		                    $_.Parent.Substring(8) -ne 'NT AUTHORITY'
-		                } else {
-		                    $False
-		                }
-		            };
+		        | ForEach-Object { [ADSI]$_ } `
+		        | Where-Object {
+		            if ($_.Parent.Length -gt 8) {
+		                $_.Parent.Substring(8) -ne 'NT AUTHORITY'
+		            }
+		            else {
+		                $False
+		            }
+		        };
 		    }
 		}
 		function Test-MemberOfGroup(
 		    [Parameter(Mandatory)]
 		    [Object]$Group,
 		    [Parameter(Mandatory)]
-		    [Object]$Username
+		    [Object]$User
 		) {
-		    begin { Enter-Scope; }
+		    begin {
+		        Enter-Scope -ArgumentFormatter @{
+		            Group = { $_.Name + $_.SchemaClassName };
+		            User  = { $_.Name + $_.SchemaClassName };
+		        };
+		    }
 		    end { Exit-Scope -ReturnValue $Local:User; }
 		    process {
+		        Invoke-Debug 'Getting group';
 		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
-		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
+		        Invoke-Debug 'Getting user';
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $User;
+		        Invoke-Debug 'Testing if user is a member of group...';
 		        return $Local:Group.Invoke('IsMember', $Local:User.Path);
 		    }
 		}
@@ -2720,15 +3661,15 @@ Text: $($Local:Region.Text)
 		    [Object]$Group,
 		    [Parameter(Mandatory)]
 		    [ValidateNotNullOrEmpty()]
-		    [Object]$Username
+		    [Object]$User
 		) {
 		    begin { Enter-Scope; }
 		    end { Exit-Scope; }
 		    process {
 		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
-		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Username;
-		        if (Test-MemberOfGroup -Group $Local:Group -Username $Local:User) {
-		            Invoke-Verbose "User $Username is already a member of group $Group.";
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $User;
+		        if (Test-MemberOfGroup -Group $Local:Group -User $Local:User) {
+		            Invoke-Verbose "User $User is already a member of group $Group.";
 		            return $False;
 		        }
 		        Invoke-Verbose "Adding user $Name to group $Group...";
@@ -2749,7 +3690,7 @@ Text: $($Local:Region.Text)
 		    process {
 		        [ADSI]$Local:Group = Get-GroupByInputOrName -InputObject $Group;
 		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $Member;
-		        if (-not (Test-MemberOfGroup -Group $Local:Group -Username $Local:User)) {
+		        if (-not (Test-MemberOfGroup -Group $Local:Group -User $Local:User)) {
 		            Invoke-Verbose "User $Member is not a member of group $Group.";
 		            return $False;
 		        }
@@ -2764,16 +3705,44 @@ Text: $($Local:Region.Text)
 		    [String]$Name
 		) {
 		    begin { Enter-Scope; }
-		    end { Exit-Scope -ReturnValue $Local:Value; }
 		    process {
 		        if (-not $Name) {
-		            [ADSI]$Local:Users = [ADSI]"WinNT://$env:COMPUTERNAME";
-		            $Local:Value = $Local:Users.Children | Where-Object { $_.SchemaClassName -eq 'User' };
+		            if (-not $Script:InitialisedAllUsers) {
+		                $Script:CachedUsers = @{};
+		                [ADSI]$Local:Users = [ADSI]"WinNT://$env:COMPUTERNAME";
+		                $Local:Users.Children | Where-Object { $_.SchemaClassName -eq 'User' } | ForEach-Object { $Script:CachedUsers[$_.Name] = $_; };
+		                $Script:InitialisedAllUsers = $True;
+		            }
+		            $Local:Value = $Script:CachedUsers;
 		        }
 		        else {
-		            [ADSI]$Local:Value = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,user";
+		            $null = Get-User;
+		            if (-not $Script:InitialisedAllUsers -or -not $Script:CachedUsers[$Name]) {
+		                $Script:CachedUsers = @{};
+		                [ADSI]$Local:User = [ADSI]"WinNT://$Name,user";
+		                $Script:CachedUsers[$Name] = $Local:User;
+		            }
+		            $Local:Value = $Script:CachedUsers[$Name];
+		            $Global:CachedUsers = $Script:CachedUsers;
 		        }
 		        return $Local:Value;
+		    }
+		}
+		function Get-UserGroups(
+		    [Parameter(Mandatory)]
+		    [ValidateNotNullOrEmpty()]
+		    [Object]$User
+		) {
+		    begin { Enter-Scope; }
+		    end { Exit-Scope -ReturnValue $Local:UserGroups; }
+		    process {
+		        [ADSI]$Local:User = Get-UserByInputOrName -InputObject $User;
+		        [String]$Local:Domain = $Local:User.Path.Split('/')[0];
+		        [String]$Local:Username = $Local:User.Path.Split('/')[1];
+		        Get-WmiObject -Class Win32_GroupUser `
+		        | Where-Object { $_.PartComponent -match "Domain=""$Domain"",Name=""$Username""" } `
+		        | ForEach-Object { [WMI]$_.GroupComponent };
+		        return $Local:UserGroups;
 		    }
 		}
 		function Format-ADSIUser(
@@ -2790,18 +3759,19 @@ Text: $($Local:Region.Text)
 		                Format-ADSIUser -User $_;
 		            };
 		            return $Local:Value;
-		        } else {
+		        }
+		        else {
 		            [String]$Local:Path = $User.Path.Substring(8); # Remove the WinNT:// prefix
 		            [String[]]$Local:PathParts = $Local:Path.Split('/');
 		            [HashTable]$Local:Value = @{
-		                Name = $Local:PathParts[$Local:PathParts.Count - 1]
+		                Name   = $Local:PathParts[$Local:PathParts.Count - 1]
 		                Domain = $Local:PathParts[$Local:PathParts.Count - 2]
 		            };
 		            return $Local:Value;
 		        }
 		    }
 		}
-		Export-ModuleMember -Function Get-User, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser;
+		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
 using namespace OfficeOpenXml;
@@ -2863,7 +3833,7 @@ function Set-Style(
     }
 }
 
-(New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($MyInvocation, {
+(New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
     Invoke-EnsureUser;
     Invoke-EnsureModule -Modules 'ImportExcel', "$PSScriptRoot\Common.psm1"; # TODO - This should be imported by compiler in future.
     [ExcelPackage]$Local:Excel = New-ExcelPackage;

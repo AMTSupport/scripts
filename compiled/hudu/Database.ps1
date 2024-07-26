@@ -1,6 +1,14 @@
-#Requires -Version 7.4
-[CmdletBinding()]
-param()
+#Requires -Version 5.1
+[CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Update')]
+Param(
+    [Parameter(ParameterSetName = 'Update')]
+    [String]$Endpoint,
+    [Parameter(ParameterSetName = 'Update')]
+    [ValidateScript({ Test-Path $_ -PathType Container })]
+    [String]$Database = '.',
+    [Parameter(ParameterSetName = 'Invoke', Mandatory)]
+    [ScriptBlock]$Invoke
+)
 $Global:CompiledScript = $true;
 $Global:EmbededModules = [ordered]@{
     "00-Environment" = {
@@ -3774,55 +3782,53 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
-        return;
+function New-HuduDatabase {
+    Param(
+        [Parameter(Mandatory)]
+        [String]$Database,
+        [Parameter(Mandatory)]
+        [String]$Endpoint
+    )
+    $Local:Companies = async {
+        Get-HuduCompanies -Endpoint $Endpoint;
+    };
+    $Local:BitWardenItems = async {
+        bw list items --search 'O365 Admin -' | ConvertFrom-Json;
+    };
+    $Local:Companies = $Local:Companies | await;
+    $Local:BitwardenItems = $Local:BitWardenItems | await;
+    $Local:DisplayItems = $Local:BitwardenItems `
+        | Select-Object -Property name, id `
+        | Sort-Object -Property name;
+    [HashTable]$Local:Matches = @{};
+    foreach ($Local:Company in $Local:Companies) {
+        $Local:Selection = Get-UserSelection `
+            -Title "Select Bitwarden item for $($Local:Company.name)" `
+            -Question "Which Bitwarden item corresponds to $($Local:Company.name)?" `
+            -Items $Local:DisplayItems `
+            -AllowNone `
+            -FormatChoice { $Input.name };
+        if (-not $Local:Selection) {
+            Invoke-Warn "No selection made for $($Local:Company.name); skipping.";
+            continue;
+        }
+        $Local:Matches[$Local:Company.name]['BitWarden'] = $Local:Selection.id;
     }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
-    }
+    $Local:Matches | ConvertTo-Json | Out-File -FilePath "$Database";
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
-        } else {
-            return;
+    Invoke-EnsureModule -Modules "$PSScriptRoot/Common.psm1";
+    if ($PSCmdlet.ParameterSetName -eq 'Update') {
+        Invoke-Info "Updating companies"
+        if (-not $Endpoint) {
+            $Endpoint = Get-UserInput -Title 'Hudu Endpoint' -Question 'Please enter your Hudu Endpoint';
         }
+        if (-not $Database) {
+            $Database = Get-UserInput -Title 'Database Path' -Question 'Please enter the path to save the database';
+        }
+        New-HuduDatabase -Database "$Database/matched-companies.json" -Endpoint $Endpoint;
+    } else {
+        Invoke-Info "Invoking existing companies";
     }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
-        }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
 });

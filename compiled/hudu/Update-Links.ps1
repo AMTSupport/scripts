@@ -1,4 +1,4 @@
-#Requires -Version 7.4
+#Requires -Version 5.1
 [CmdletBinding()]
 param()
 $Global:CompiledScript = $true;
@@ -3774,55 +3774,46 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
-        return;
+function Update-Links {
+    [CmdLetBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [String]$UserCardId,
+        [Parameter(Mandatory)]
+        [PSCustomObject[]]$PasswordCards
+    )
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+    process {
+        Invoke-Info "Updating links for user card $UserCardId";
+        $MatchingPasswordCard = $PasswordCards | Where-Object {
+            $_.
+        }
     }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
+}
+function Get-Passwords {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Endpoint,
+        [Parameter(Mandatory)]
+        [String]$CompanyId
+    )
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+    process {
+        $Private:Request = Invoke-HuduRequest -Endpoint:$Endpoint -Path:'passwords' -Method:GET -Params:@('page_size=1000', "company_id=$CompanyId");
+        [PSCustomObject]$Private:Passwords = $Private:Request.asset_passwords;
+        return $Private:Passwords;
     }
 }
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
-        } else {
-            return;
+    [PSCustomObject]$Private:Companies = Get-HuduCompanies -Endpoint:$Private:Endpoint;
+    foreach ($Private:Company in $Private:Companies) {
+        [PSCustomObject[]]$Private:Passwords = Get-Passwords -Endpoint:$Private:Endpoint -CompanyId:$Private:Company.id;
+        [PSCustomObject[]]$Private:UserCards = Get-UserCards -Endpoint:$Private:Endpoint -CompanyId:$Private:Company.id;
+        $Private:UserCards | ForEach-Object {
+            Update-Links -UserCardId:$_.id -PasswordCards:$Private:Passwords;
         }
     }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
-        }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
 });

@@ -1,4 +1,4 @@
-#Requires -Version 7.4
+#Requires -Version 5.1
 [CmdletBinding()]
 param()
 $Global:CompiledScript = $true;
@@ -3774,55 +3774,20 @@ Please re-run your terminal session as Administrator, and try again.
 		Export-ModuleMember -Function Get-User, Get-UserGroups, Get-Group, Get-MembersOfGroup, Test-MemberOfGroup, Add-MemberToGroup, Remove-MemberFromGroup, Format-ADSIUser, Get-GroupByInputOrName, Get-UserByInputOrName;
     };
 }
-function Install-1Password {
-    if (Get-Command -Name 'op' -ErrorAction SilentlyContinue) {
-        return;
-    }
-    winget install -e -h --scope user --accept-package-agreements --accept-source-agreements --id AgileBits.1Password.CLI;
-    [String]$Local:EnvPath = $env:LOCALAPPDATA | Join-Path -Child 'Microsoft\WinGet\Links';
-    if ($env:PATH -notlike "*$Local:EnvPath*") {
-        $env:PATH += ";$Local:EnvPath";
-    }
-}
 
 (New-Module -ScriptBlock $Global:EmbededModules['00-Environment'] -AsCustomObject -ArgumentList $MyInvocation.BoundParameters).'Invoke-RunMain'($PSCmdlet, {
-    Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules @('Microsoft.Powershell.SecretManagement');
-    Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;
-    Install-1Password;
-    if ((Get-SecretVault -Name 'PowerShell Secrets' -ErrorAction SilentlyContinue)) {
-        [Boolean]$Local:Response = Get-UserConfirmation `
-            -Title 'Recreate Secret Vault' `
-            -Question 'Secret vault already exists; do you want to recreate it?';
-        if ($Local:Response) {
-            Remove-SecretVault -Name 'PowerShell Secrets';
-        } else {
-            return;
-        }
+    Invoke-EnsureAdministrator;
+    $Private:ServiceName = 'AdobeARMservice'
+    if (Get-Service -Name $Private:ServiceName -ErrorAction SilentlyContinue) {
+        $null = Stop-Service -Name $Private:ServiceName -Force;
+        $null = Set-Service -Name $Private:ServiceName -StartupType Disabled;
     }
-    [Boolean]$Local:Email = Get-UserInput `
-        -Title '1Password Email' `
-        -Question 'Enter your 1Password email address' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match $Validations.Email;
-        };
-    [String]$Local:SecretKey = Get-UserInput `
-        -AsSecureString `
-        -Title '1Password Secret Key' `
-        -Question 'Enter your 1Password secret key' `
-        -Validate {
-            param([String]$UserInput);
-            $UserInput -match '^A3(?:-[A-Z0-9]{5,6}){6}$';
-        }
-    [HashTable]$Local:SecretVault = @{
-        Name            = 'PowerShell Secrets';
-        ModuleName      = 'SecretManagement.1Password';
-        VaultParameters = @{
-            AccountName     = 'teamamt';
-            EmailAddress    = $Local:Email;
-            SecretKey       = $Local:SecretKey;
-        };
-    };
-    Register-SecretVault @Local:SecretVault;
+    $Private:RegistryPath = 'HKLM:\SOFTWARE\Policies\Adobe\Acrobat Reader\DC\FeatureLockDown';
+    Set-RegistryKey -Path:$Private:RegistryPath -Key:'bUpdater' -Value:0 -Kind DWord; # Disable Updater
+    Set-RegistryKey -Path:$Private:RegistryPath -Key:'bUpdateToSingleApp' -Value:0 -Kind DWord; # Disable Updating to 64-bit version
+    Set-RegistryKey -Path:$Private:RegistryPath -Key:'bEnablePersistentButton' -Value:0 -Kind DWord; # Disable Upgrade button if user has license for Acrobat Pro
+    $Private:RegistryPath = $Private:RegistryPath -replace 'Policies', 'WOW6432Node\Policies';
+    Set-RegistryKey -Path:$Private:RegistryPath -Key:'bUpdater' -Value:0 -Kind DWord; # Disable Updater
+    Set-RegistryKey -Path:$Private:RegistryPath -Key:'bUpdateToSingleApp' -Value:0 -Kind DWord; # Disable Updating to 64-bit version
+    Set-RegistryKey -Path:$Private:RegistryPath -Key:'bEnablePersistentButton' -Value:0 -Kind DWord; # Disable Upgrade button if user has license for Acrobat Pro
 });
