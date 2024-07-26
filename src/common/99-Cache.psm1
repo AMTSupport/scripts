@@ -1,7 +1,7 @@
 [Int]$Script:FAILED_FOLDER_CREATION = Register-ExitCode 'Failed to create the cache folder.';
 [Int]$Script:FAILED_FILE_CREATION = Register-ExitCode 'Failed to create the cache file.';
 [Int]$Script:FAILED_FILE_REMOVAL = Register-ExitCode 'Failed to remove the cache file.';
-[String]$Script:Folder = $env:TEMP | Join-Path -ChildPath 'PSCache';
+[String]$Script:Folder = [System.IO.Path]::GetTempPath() | Join-Path -ChildPath 'PSCache';
 
 function Get-CachedContent {
     param(

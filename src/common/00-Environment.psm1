@@ -168,6 +168,12 @@ function Test-ExplicitlyCalled {
         return $True;
     }
 }
+
+function Test-IsNableRunner {
+    $WindowName = $Host.UI.RawUI.WindowTitle;
+    if (-not $WindowName) { return $False; };
+    return ($WindowName | Split-Path -Leaf) -eq 'fmplugin.exe';
+}
 #endregion
 
 function Invoke-Setup {
@@ -353,7 +359,7 @@ function Invoke-RunMain {
         [Switch]$DontImport = (-not (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation)),
 
         [Parameter(DontShow)]
-        [Switch]$HideDisclaimer = ($DontImport -or ($Host.UI.RawUI.WindowTitle | Split-Path -Leaf) -eq 'fmplugin.exe')
+        [Switch]$HideDisclaimer = ($DontImport -or (Test-IsNableRunner))
     )
 
     # Workaround for embedding modules in a script, can't use Invoke if a scriptblock contains begin/process/clean blocks
@@ -484,4 +490,4 @@ function Invoke-RunMain {
         -Debug:(Get-OrFalse $Invocation.BoundParameters 'Debug');
 }
 
-Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules;
+Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules, Test-IsNableRunner;
