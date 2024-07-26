@@ -4,12 +4,12 @@ on:
   push:
     branches: [master]
     paths:
-      - 'src/**'
-      - 'compiled/**'
-      - 'utils/Compiler.ps1'
-      - '.github/workflows/compiler.yaml'
+      - "src/**"
+      - "compiled/**"
+      - "utils/Compiler.ps1"
+      - ".github/workflows/compiler.yaml"
   pull_request:
-    paths: ['src/**', 'compiled/**', 'utils/Compiler.ps1']
+    paths: ["src/**", "compiled/**", "utils/Compiler.ps1"]
 
 jobs:
   changes:
@@ -81,7 +81,7 @@ jobs:
         if: ${{ steps.delete_files.outputs.found_deleted == 'true' && github.event_name == 'push' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'chore(compiled): Remove compiled versions of deleted files'
+          commit_message: "chore(compiled): Remove compiled versions of deleted files"
 
   compile-scripts:
     runs-on: ubuntu-latest
@@ -90,15 +90,15 @@ jobs:
     permissions:
       contents: write
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Compile Scripts
-      shell: pwsh
-      run: ./utils/Invoke-CompileAllScripts.ps1
+      - name: Compile Scripts
+        shell: pwsh
+        run: ./utils/Invoke-CompileAllScripts.ps1 -Debug -Verbose
 
-    - name: Commit Changes
-      if: ${{ needs.changes.outputs.src == 'true' && github.event_name == 'push' }}
-      uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: 'chore(compiled): Compile scripts'
+      - name: Commit Changes
+        if: ${{ needs.changes.outputs.src == 'true' && github.event_name == 'push' }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(compiled): Compile scripts"

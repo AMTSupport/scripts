@@ -1,8 +1,3 @@
-function Test-NAbleEnvironment {
-    [String]$Local:ConsoleTitle = [Console]::Title | Split-Path -Leaf;
-    $Local:ConsoleTitle -eq 'fmplugin.exe';
-}
-
 <#
 .SYNOPSIS
     Gets whether the current terminal supports Unicode characters.
@@ -10,11 +5,11 @@ function Test-NAbleEnvironment {
     FIXME: Still displays Unicode characters in the powershell console.
 #>
 function Test-SupportsUnicode {
-    $null -ne $env:WT_SESSION -and -not (Test-NAbleEnvironment);
+    $null -ne $env:WT_SESSION -and -not (Test-IsNableRunner);
 }
 
 function Test-SupportsColour {
-    $Host.UI.SupportsVirtualTerminal -and -not (Test-NAbleEnvironment);
+    $Host.UI.SupportsVirtualTerminal -and -not (Test-IsNableRunner);
 }
 
 function Invoke-Write {
@@ -134,6 +129,7 @@ function Format-Error(
     Invoke-Write @Private:BaseArgs -PSMessage "$Local:Underline" -PSColour 'Red';
 
     if ($Local:Message) {
+        # TODO - If the message is too long and would be a multiline, add extra rows and indent properly.
         Invoke-Write @Private:BaseArgs -PSMessage "Message | $($PSStyle.Foreground.Red)$Local:Message" -PSColour Cyan;
     }
 }
