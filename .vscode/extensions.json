@@ -1,0 +1,11 @@
+{
+    "recommendations": [
+        "pspester.pester-test",
+        "markis.code-coverage",
+        "editorconfig.editorconfig",
+        "ruschaaf.extended-embedded-languages",
+        "tylerleonhardt.vscode-inline-values-powershell",
+        "ironmansoftware.powershellprotools",
+        "ms-vscode.powershell"
+    ]
+}
