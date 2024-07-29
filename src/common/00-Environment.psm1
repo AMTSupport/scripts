@@ -26,8 +26,7 @@ function Invoke-WithLogging {
     process {
         if ($Global:Logging.Loaded) {
             $HasLoggingFunc.InvokeReturnAsIs();
-        }
-        else {
+        } else {
             $MissingLoggingFunc.InvokeReturnAsIs();
         }
     }
@@ -97,8 +96,7 @@ function Get-OrFalse {
     process {
         if ($HashTable.ContainsKey($Key)) {
             return $HashTable[$Key];
-        }
-        else {
+        } else {
             return $false;
         }
     }
@@ -114,8 +112,7 @@ function Test-OrGetBooleanVariable {
     process {
         if (Test-Path Variable:Global:$Name) {
             return Get-Variable -Scope Global -Name $Name -ValueOnly;
-        }
-        else {
+        } else {
             return $false;
         }
     }
@@ -228,8 +225,7 @@ function Import-CommonModules {
                 }
 
                 Import-Module -Name $Private:ModulePath -Global -Force -Verbose:$False -Debug:$False;
-            }
-            else {
+            } else {
                 Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
 
                 Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
@@ -241,25 +237,21 @@ function Import-CommonModules {
     if (Test-IsCompiledScript) {
         Invoke-EnvVerbose 'Script has been embeded with required modules.';
         [HashTable]$Local:ToImport = $Global:EmbededModules;
-    }
-    elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
+    } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
         Invoke-EnvVerbose 'Script is in git repository; Using local files.';
         [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
-    }
-    else {
+    } else {
         [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 
         if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
             if (-not (Test-Path -Path $Local:RepoPath)) {
                 Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
                 git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
-            }
-            else {
+            } else {
                 Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Updating repository.';
                 git -C $Local:RepoPath pull;
             }
-        }
-        else {
+        } else {
             Invoke-EnvInfo -Message 'Git is not installed, unable to update the repository or clone if required.';
         }
 
@@ -319,8 +311,7 @@ function Remove-CommonModules {
             if (($Private:Module -ne '00-Environment') -and (Test-IsCompiledScript)) {
                 Remove-Item -Path ($env:TEMP | Join-Path -ChildPath "$($Private:Module)*");
             }
-        }
-        catch {
+        } catch {
             Invoke-EnvDebug -Message "Failed to remove module $Local:Module";
         }
     };
@@ -417,8 +408,7 @@ function Invoke-RunMain {
                         $Local:RunBoundParameters
                     );
                 }
-            }
-            catch {
+            } catch {
                 $Local:CatchingError = $_;
                 switch ($Local:CatchingError.FullyQualifiedErrorId) {
                     'QuickExit' {
@@ -440,8 +430,7 @@ function Invoke-RunMain {
                         Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:CatchingError -DontExit;
                     }
                 }
-            }
-            finally {
+            } finally {
                 [Boolean]$Private:WasCompiled = Test-IsCompiledScript;
                 [Boolean]$Private:WasRestarted = Test-IsRestartedScript;
                 [Boolean]$Private:IsRestarting = Test-IsRestartingScript;
@@ -486,8 +475,8 @@ function Invoke-RunMain {
         -Main $Main `
         -DontImport:$DontImport `
         -HideDisclaimer:($HideDisclaimer -or $False) `
-        -Verbose:(Get-OrFalse $Invocation.BoundParameters 'Verbose') `
-        -Debug:(Get-OrFalse $Invocation.BoundParameters 'Debug');
+        -Verbose:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Verbose') `
+        -Debug:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Debug');
 }
 
 Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules, Test-IsNableRunner;
