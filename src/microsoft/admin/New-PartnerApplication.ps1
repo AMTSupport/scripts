@@ -1,16 +1,13 @@
 <#
 .SYNOPSIS
-    This script will create the require Azure AD application.
+    This script will create the required Azure AD application.
 
 .EXAMPLE
-    .\Create-AzureADApplication.ps1 -ConfigurePreconsent -DisplayName "Partner Center Web App"
+    .\Create-AzureADApplication.ps1 -DisplayName "Partner Center Web App"
 
-    .\Create-AzureADApplication.ps1 -ConfigurePreconsent -DisplayName "Partner Center Web App" -TenantId eb210c1e-b697-4c06-b4e3-8b104c226b9a
+    .\Create-AzureADApplication.ps1 -DisplayName "Partner Center Web App" -TenantId eb210c1e-b697-4c06-b4e3-8b104c226b9a
 
-    .\Create-AzureADApplication.ps1 -ConfigurePreconsent -DisplayName "Partner Center Web App" -TenantId tenant01.onmicrosoft.com
-
-.PARAMETER ConfigurePreconsent
-    Flag indicating whether or not the Azure AD application should be configured for preconsent.
+    .\Create-AzureADApplication.ps1 -DisplayName "Partner Center Web App" -TenantId tenant01.onmicrosoft.com
 
 .PARAMETER DisplayName
     Display name for the Azure AD application that will be created.
@@ -25,16 +22,15 @@
 #Requires -Version 5.1
 #Requires -PSEdition Desktop
 
+Using module ../../common/00-Environment.psm1;
+
 Param(
-    [Parameter()]
-    [switch]$ConfigurePreconsent,
     [Parameter(Mandatory)]
     [string]$DisplayName,
+
     [Parameter()]
     [string]$TenantId
 )
-
-$ErrorActionPreference = 'Stop'
 
 # Check if the Azure AD PowerShell module has already been loaded.
 if ( ! ( Get-Module AzureAD ) ) {
@@ -44,8 +40,7 @@ if ( ! ( Get-Module AzureAD ) ) {
         # must be loaded for other operations performed by this script.
         Write-Host -ForegroundColor Green 'Loading the Azure AD PowerShell module...'
         Import-Module AzureAD
-    }
-    else {
+    } else {
         Install-Module AzureAD
     }
 }
