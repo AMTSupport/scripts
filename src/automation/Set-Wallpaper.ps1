@@ -68,26 +68,6 @@ function Find-FileByHash {
     }
 }
 
-function Get-BlobCompatableHash {
-    param(
-        [Parameter(Mandatory)]
-        [String]$Path
-    )
-
-    begin {
-        Enter-Scope;
-        $Private:Algorithm = [System.Security.Cryptography.HashAlgorithm]::Create('MD5');
-    }
-    end { Exit-Scope; }
-
-    process {
-        [Byte[]]$Private:ByteStream = [System.IO.File]::ReadAllBytes($Path);
-        [Byte[]]$Private:HashBytes = $Private:Algorithm.ComputeHash($Private:ByteStream);
-
-        return [System.Convert]::ToBase64String($Private:HashBytes);
-    }
-}
-
 function Export-ToFile {
     [CmdletBinding()]
     param(

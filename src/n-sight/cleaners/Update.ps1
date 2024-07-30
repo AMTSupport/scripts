@@ -11,7 +11,7 @@ param(
     )
 )
 
-Function Update-Script {
+Function Invoke-UpdateScript {
     param(
         [String]$BaseUrl,
         [String]$ScriptName
@@ -21,26 +21,46 @@ Function Update-Script {
 
     [String]$Private:S3ObjectUrl = "$BaseUrl/$ScriptName";
 
-    try {
-        Invoke-Verbose "Fetching HEAD from '$S3ObjectUrl'...";
-        $null = Invoke-RestMethod -Uri $Private:S3ObjectUrl -Method Head -ResponseHeadersVariable ResponseHeaders;
-    } catch {
-        Invoke-Error -Message "Failed to fetch HEAD from '$S3ObjectUrl': $($_.Exception.Message)";
-        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
-    }
+    # TODO - Fix hash check
+    # try {
+    #     Invoke-Verbose "Fetching HEAD from '$S3ObjectUrl'...";
+    #     $null = Invoke-RestMethod -Uri $Private:S3ObjectUrl -Method Head -ResponseHeadersVariable ResponseHeaders;
+    # } catch {
+    #     Invoke-Error -Message "Failed to fetch HEAD from '$S3ObjectUrl': $($_.Exception.Message)";
+    #     Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+    # }
 
-    [String]$Private:ETag = $ResponseHeaders['ETag'].Trim('"').ToUpper();
-    [String]$Private:LocalFilePath = Join-Path -Path $PSScriptRoot -ChildPath $ScriptName;
-    if ((Test-Path $Private:LocalFilePath) -and ((Get-FileHash -Path $Private:LocalFilePath -Algorithm MD5).Hash -eq $Private:ETag)) {
-        Invoke-Info "File '$ScriptName' is up to date.";
-        return;
-    }
+    # [String]$Private:ETag = $ResponseHeaders['ETag'].Trim('"').ToUpper();
+    # [String]$Private:LocalFilePath = Join-Path -Path $PSScriptRoot -ChildPath $ScriptName;
+
+    # if (Test-Path $Private:LocalFilePath) {
+    #     # Split string into lines, skip first line, recontruct string
+    #     [String]$Private:FileContent = Get-Content -Path $Private:LocalFilePath -Raw;
+    #     [String[]]$Private:SplitContent = $Private:FileContent.Split("`n", 2);
+    #     [String]$Private:LocalFileOriginalContent = $Private:SplitContent[1];
+    #     [String]$Private:TempFile = [System.IO.Path]::GetTempFileName();
+    #     Set-Content -Path $Private:TempFile -Value $Private:LocalFileOriginalContent;
+
+    #     if (Compare-FileHashToS3ETag -Path:$Private:TempFile -ETag:$ETag) {
+    #         Invoke-Info "File '$ScriptName' is up-to-date.";
+    #         return;
+    #     }
+    # }
 
     Invoke-Info "Fetching '$ScriptName' from '$S3ObjectUrl'...";
     try {
-        Invoke-RestMethod -Uri $S3ObjectUrl -OutFile $Private:LocalFilePath;
+        $Content = Invoke-RestMethod -Uri $S3ObjectUrl;
     } catch {
         Invoke-Error -Message "Failed to fetch '$S3ObjectUrl': $($_.Exception.Message)";
+        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
+    }
+
+    try {
+        # Prepend file with #@compile-ignore
+        $Content = "#@compile-ignore`n$Content";
+        Set-Content -Path $Private:LocalFilePath -Value $Content;
+    } catch {
+        Invoke-Error -Message "Failed to write '$ScriptName' to '$Private:LocalFilePath': $($_.Exception.Message)";
         Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
     }
 
@@ -50,6 +70,6 @@ Function Update-Script {
 Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     foreach ($File in $FilesToFetch) {
-        Update-Script -BaseUrl:$BaseUrl -ScriptName:$File;
+        Invoke-UpdateScript -BaseUrl:$BaseUrl -ScriptName:$File;
     }
 };
