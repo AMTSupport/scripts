@@ -1,6 +1,7 @@
 using Compiler.Module;
 using Compiler.Requirements;
 using System.Collections;
+using System.Security.Policy;
 
 namespace Compiler.Test.Requirements;
 
@@ -14,7 +15,7 @@ public class ModuleSpecTests
     }
 
     [TestCaseSource(typeof(TestData), nameof(TestData.MatchTestCases))]
-    public ModuleMatch CompareTo_ReturnsModuleMatchExact(
+    public ModuleMatch CompareTo(
         ModuleSpec moduleSpec1,
         ModuleSpec moduleSpec2
     )
@@ -41,7 +42,18 @@ public class ModuleSpecTests
     }
 }
 
-public class TestData
+[TestFixture]
+public class PathedModuleSpecTests
+{
+    [TestCaseSource(typeof(TestData), nameof(TestData.MatchTestCases))]
+    [TestCaseSource(typeof(TestData), nameof(TestData.ComparePathedSpecCases))]
+    public ModuleMatch CompareTo(
+        ModuleSpec moduleSpec1,
+        ModuleSpec moduleSpec2
+    ) => moduleSpec1.CompareTo(moduleSpec2);
+}
+
+file class TestData
 {
     public static IEnumerable InsetableLinesCases
     {
@@ -67,7 +79,7 @@ public class TestData
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
-                MaximumVersion: new Version("2.0.0")
+                maximumVersion: new Version("2.0.0")
             )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};MaximumVersion = '2.0.0';}""").SetName("Name, guid and maximum version");
 
             yield return new TestCaseData(new ModuleSpec(
@@ -352,11 +364,11 @@ public class TestData
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
-                RequiredVersion: new Version("1.0.0")
+                requiredVersion: new Version("1.0.0")
             ), new ModuleSpec(
                 "MyModule",
                 guid,
-                RequiredVersion: new Version("1.0.1")
+                requiredVersion: new Version("1.0.1")
             )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of different required version");
 
             yield return new TestCaseData(new ModuleSpec(
@@ -467,7 +479,7 @@ public class TestData
                 new(
                     "MyModule",
                     guid,
-                    RequiredVersion: new Version("1.5.0")
+                    requiredVersion: new Version("1.5.0")
                 )
             }).SetName("Update required version").Returns(new ModuleSpec(
                 "MyModule",
@@ -504,7 +516,7 @@ public class TestData
                 new(
                     "MyModule",
                     guid,
-                    MaximumVersion: new Version("1.5.0")
+                    maximumVersion: new Version("1.5.0")
                 )
             }).SetName("Update maximum version").Returns(new ModuleSpec(
                 "MyModule",
@@ -531,6 +543,35 @@ public class TestData
                 new Version("1.5.0"),
                 new Version("1.8.0")
             ));
+        }
+    }
+
+    public static IEnumerable ComparePathedSpecCases
+    {
+        get
+        {
+            var testScript1 = Path.GetFullPath($"{TestUtils.RepositoryDirectory()}/resources/test.ps1");
+            var testScript2 = Path.GetFullPath($"{TestUtils.RepositoryDirectory()}/resources/test2.ps1");
+
+            yield return new TestCaseData(
+                new PathedModuleSpec(testScript1),
+                new PathedModuleSpec(testScript1)
+            ).Returns(ModuleMatch.Same).SetName("Same match");
+
+            yield return new TestCaseData(
+                new PathedModuleSpec(testScript1),
+                new PathedModuleSpec(testScript2)
+            ).Returns(ModuleMatch.None).SetName("Different name");
+
+            yield return new TestCaseData(
+                new PathedModuleSpec(testScript1),
+                new ModuleSpec("./test.ps1")
+            ).Returns(ModuleMatch.Same).SetName("Same match with relative path");
+
+            yield return new TestCaseData(
+                new PathedModuleSpec(testScript1),
+                new ModuleSpec("./test2.ps1")
+            ).Returns(ModuleMatch.None).SetName("Different name with relative path");
         }
     }
 }

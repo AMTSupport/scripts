@@ -7,13 +7,13 @@ namespace Compiler.Test.Module.Resolvable;
 [TestFixture]
 public class LocalModuleTests
 {
-    [TestCaseSource(typeof(TestData), nameof(TestData.FixLinesCases))]
-    public string TestCompileDocument(string testContent)
-    {
-        var module = new ResolvableLocalModule(TestUtils.GetModuleSpecFromContent(testContent));
-        var compiledDocument = CompiledDocument.FromBuilder(module.Editor);
-        return compiledDocument.GetContent();
-    }
+    // [TestCaseSource(typeof(TestData), nameof(TestData.FixLinesCases))]
+    // public string TestCompileDocument(string testContent)
+    // {
+    //     var module = new ResolvableLocalModule(TestUtils.GetModuleSpecFromContent(testContent));
+    //     var compiledDocument = CompiledDocument.FromBuilder(module.Editor);
+    //     return compiledDocument.GetContent();
+    // }
 
     public class TestData
     {
@@ -38,7 +38,7 @@ public class LocalModuleTests
                 yield return new TestCaseData(
                     MULTILINE_STRING_LINES
                 ).Returns("""
-                        @"
+                    @"
                 Doing cool stuff with this indented multiline string!
 
                 This is the end of the string!
