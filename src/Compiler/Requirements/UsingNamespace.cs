@@ -7,16 +7,18 @@ namespace Compiler.Requirements;
 /// <summary>
 /// Represents a requirement to include a using namespace statement in the code.
 /// </summary>
-public record UsingNamespace(
-    string Namespace
-) : Requirement(true)
+public sealed class UsingNamespace : Requirement
 {
-    public override uint Weight => 75;
+    public string Namespace { get; }
 
-    /// <summary>
-    /// Gets the hash of the requirement.
-    /// </summary>
-    public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(Namespace));
+    public UsingNamespace(string @namespace) : base()
+    {
+        SupportsMultiple = true;
+        Weight = 75;
+
+        Namespace = @namespace;
+        Hash = SHA1.HashData(Encoding.UTF8.GetBytes(Namespace));
+    }
 
     /// <summary>
     /// Gets the insertable line for the requirement.

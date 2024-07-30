@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Compiler.Requirements;
 using NLog;
 using QuikGraph;
@@ -36,10 +37,18 @@ public class ResolvableParent
         #region Deduplication and merging of Resolvables using events
         Graph.VertexAdded += vertex => Logger.Debug($"Vertex added: {vertex.ModuleSpec.Name}");
         Graph.VertexRemoved += vertex => Logger.Debug($"Vertex removed: {vertex.ModuleSpec.Name}");
-        Graph.EdgeRemoved += edge => Logger.Debug($"Edge removed: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
-        Graph.EdgeAdded += edge => Logger.Debug($"Edge added: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
-        Graph.EdgeRemoved += edge => edge.Source.Requirements.RemoveRequirement(edge.Target.ModuleSpec);
-        Graph.EdgeAdded += edge => edge.Source.Requirements.AddRequirement(edge.Target.ModuleSpec);
+        Graph.EdgeRemoved += edge =>
+        {
+            Logger.Debug($"Edge removed: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
+            var didRemove = edge.Source.Requirements.RemoveRequirement(edge.Target.ModuleSpec);
+            if (!didRemove) Logger.Warn($"Failed to remove requirement {edge.Target.ModuleSpec} from {edge.Source.ModuleSpec}.");
+        };
+        Graph.EdgeAdded += edge =>
+        {
+            Logger.Debug($"Edge added: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
+            var didAdd = edge.Source.Requirements.AddRequirement(edge.Target.ModuleSpec);
+            if (!didAdd) Logger.Warn($"Failed to add requirement {edge.Target.ModuleSpec} to {edge.Source.ModuleSpec}.");
+        };
         #endregion
     }
 
@@ -118,9 +127,8 @@ public class ResolvableParent
             // If its an incompatible match we need to throw an error.
             resultingResolvable = match switch
             {
-                ModuleMatch.Same => foundResolvable,
-                ModuleMatch.Looser => foundResolvable,
-                ModuleMatch.Stricter => foundResolvable switch
+                ModuleMatch.Same or ModuleMatch.Looser => foundResolvable,
+                ModuleMatch.MergeRequired or ModuleMatch.Stricter => foundResolvable switch
                 {
                     ResolvableLocalModule local => new ResolvableLocalModule(Path.GetDirectoryName(local.ModuleSpec.FullPath)!, moduleToResolve.MergeSpecs([foundResolvable.ModuleSpec])),
                     _ => new ResolvableRemoteModule(moduleToResolve.MergeSpecs([foundResolvable.ModuleSpec]))
@@ -129,8 +137,8 @@ public class ResolvableParent
                 _ => throw new Exception("This should never happen.")
             };
 
-            // Propogate the new requirement if it was merged.
-            if (resultingResolvable != foundResolvable)
+            // Propogate the merge if the match is not the same.
+            if (resultingResolvable.GetModuleMatchFor(foundResolvable.ModuleSpec) != ModuleMatch.Same)
             {
                 Logger.Debug($"Propogating merge of {foundResolvable.ModuleSpec} with {moduleToResolve}, resulting in {resultingResolvable.ModuleSpec}.");
 
@@ -141,6 +149,7 @@ public class ResolvableParent
                 inEdges.ToList().ForEach(edge => Graph.AddVerticesAndEdge(new Edge<Resolvable>(edge.Source, resultingResolvable)));
                 outEdges.ToList().ForEach(edge => Graph.AddVerticesAndEdge(new Edge<Resolvable>(resultingResolvable, edge.Target)));
             }
+            else { resultingResolvable = foundResolvable; }
         }
         else
         {

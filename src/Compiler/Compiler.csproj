@@ -11,6 +11,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
 
+    <LangVersion>preview</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Compiler</RootNamespace>
     <AssemblyName>Compiler</AssemblyName>

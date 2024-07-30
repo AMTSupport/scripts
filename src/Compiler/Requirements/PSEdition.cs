@@ -9,12 +9,18 @@ public enum PSEdition { Desktop, Core }
 /// <summary>
 /// Represents a PowerShell edition requirement.
 /// </summary>
-public record PSEditionRequirement(PSEdition Edition) : Requirement(false)
+public sealed class PSEditionRequirement : Requirement
 {
-    public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(Edition.ToString()));
+    public PSEdition Edition { get; }
 
-    /// <summary>
+    public PSEditionRequirement(PSEdition edition) : base()
+    {
+        Edition = edition;
+        Hash = SHA1.HashData(Encoding.UTF8.GetBytes(Edition.ToString()));
+    }
+
     /// Gets the insertable line for the requirement.
+    /// <summary>
     /// </summary>
     /// <returns>The insertable line for the requirement.</returns>
     public override string GetInsertableLine(Hashtable _) => $"#Requires -PSEdition {Edition}";
