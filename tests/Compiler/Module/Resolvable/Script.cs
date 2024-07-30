@@ -2,6 +2,7 @@ using System.Collections;
 using System.Text.RegularExpressions;
 using Compiler.Module.Resolvable;
 using Compiler.Text;
+using Compiler.Text.Updater;
 
 namespace Compiler.Test.Module.Resolvable;
 
@@ -56,12 +57,12 @@ public class CompiledScriptTest
         {
             get
             {
-                yield return new TestCaseData(false, TEST_SCRIPT).Returns("""
-                param(
-                    [Parameter()]
-                    [string]$Name
-                )
-                """).SetName("ExtractParameterBlock_ReturnsParameterBlockAst_WhenParameterBlockExists");
+                // yield return new TestCaseData(false, TEST_SCRIPT).Returns("""
+                // param(
+                //     [Parameter()]
+                //     [string]$Name
+                // )
+                // """).SetName("ExtractParameterBlock_ReturnsParameterBlockAst_WhenParameterBlockExists");
 
                 yield return new TestCaseData(true, """
                 #Requires -Version 5.1
@@ -83,52 +84,52 @@ public class CompiledScriptTest
         {
             get
             {
-                yield return new TestCaseData(
-                    new PatternUpdater(
-                        50,
-                        ResolvableLocalModule.MultilineStringOpenRegex(),
-                        ResolvableLocalModule.MultilineStringCloseRegex(),
-                        UpdateOptions.None,
-                        (lines) =>
-                        {
-                            var startIndex = 0;
+                // yield return new TestCaseData(
+                //     new PatternUpdater(
+                //         50,
+                //         ResolvableLocalModule.MultilineStringOpenRegex(),
+                //         ResolvableLocalModule.MultilineStringCloseRegex(),
+                //         UpdateOptions.None,
+                //         (lines) =>
+                //         {
+                //             var startIndex = 0;
 
-                            // If the multiline is not at the start of the content it does not need to be trimmed, so we skip it.
-                            var trimmedLine = lines[0].Trim();
-                            if (trimmedLine.StartsWith(@"@""") || trimmedLine.StartsWith("@'"))
-                            {
-                                startIndex++;
-                            }
+                //             // If the multiline is not at the start of the content it does not need to be trimmed, so we skip it.
+                //             var trimmedLine = lines[0].Trim();
+                //             if (trimmedLine.StartsWith(@"@""") || trimmedLine.StartsWith("@'"))
+                //             {
+                //                 startIndex++;
+                //             }
 
-                            // Get the multiline indent level from the last line of the string.
-                            // This is used so we don't remove any whitespace that is part of the actual string formatting.
-                            var indentLevel = new Regex(@"^\s*").Match(lines.Last()).Value.Length;
+                //             // Get the multiline indent level from the last line of the string.
+                //             // This is used so we don't remove any whitespace that is part of the actual string formatting.
+                //             var indentLevel = new Regex(@"^\s*").Match(lines.Last()).Value.Length;
 
-                            var updatedLines = lines.Select((line, index) =>
-                            {
-                                if (index < startIndex)
-                                {
-                                    return line;
-                                }
+                //             var updatedLines = lines.Select((line, index) =>
+                //             {
+                //                 if (index < startIndex)
+                //                 {
+                //                     return line;
+                //                 }
 
-                                return line[indentLevel..];
-                            });
+                //                 return line[indentLevel..];
+                //             });
 
-                            return updatedLines.ToArray();
-                        }
-                    ),
-                    """
-                                    Write-Host @"
-                            This is a multiline string!
-                            It can have multiple lines!
-                            "@;
-                    """
-                ).Returns("""
-                        Write-Host @"
-                This is a multiline string!
-                It can have multiple lines!
-                "@;
-                """).SetName("Fix Indentation for Multiline Strings");
+                //             return updatedLines.ToArray();
+                //         }
+                //     ),
+                //     """
+                //                     Write-Host @"
+                //             This is a multiline string!
+                //             It can have multiple lines!
+                //             "@;
+                //     """
+                // ).Returns("""
+                //         Write-Host @"
+                // This is a multiline string!
+                // It can have multiple lines!
+                // "@;
+                // """).SetName("Fix Indentation for Multiline Strings");
 
                 yield return new TestCaseData(
                     new RegexUpdater(

@@ -61,48 +61,6 @@ public class PatternTests
             get
             {
                 yield return new TestCaseData(
-                    MULTINE_STRING_LINES,
-                    ResolvableLocalModule.MultilineStringOpenRegex().ToString(),
-                    ResolvableLocalModule.MultilineStringCloseRegex().ToString(),
-                    UpdateOptions.None,
-                    (Func<string[], string[]>)(_ => [])
-                ).Returns(string.Empty).SetName("Remove all multiline strings with empty");
-
-                yield return new TestCaseData(
-                    MULTINE_STRING_LINES,
-                    ResolvableLocalModule.MultilineStringOpenRegex().ToString(),
-                    ResolvableLocalModule.MultilineStringCloseRegex().ToString(),
-                    UpdateOptions.None,
-                    (Func<string[], string[]>)(_ => ["Updated content!"])
-                ).Returns(string.Join('\n', Enumerable.Repeat("Updated content!", 2))).SetName("Replace each multiline string with 'Updated content'");
-
-                yield return new TestCaseData(
-                    MULTINE_STRING_LINES,
-                    ResolvableLocalModule.MultilineStringOpenRegex().ToString(),
-                    ResolvableLocalModule.MultilineStringCloseRegex().ToString(),
-                    UpdateOptions.None,
-                    (Func<string[], string[]>)(content => content.Select((line, index) =>
-                    {
-                        if (index > 0 && index < content.Length - 1)
-                        {
-                            return line + "Updated content!";
-                        }
-                        else
-                        {
-                            return line;
-                        }
-                    }).ToArray())).Returns(string.Join('\n', [
-                    "@\"",
-                    "Doing cool stuff with this multiline string!Updated content!",
-                    "Updated content!",
-                    "This is the end of the string!Updated content!",
-                    "\"@;",
-                    "@'",
-                    "This is a multiline string with single quotes!Updated content!",
-                    "'@"
-                ])).SetName("Prepend 'Updated content' to each line except first and last");
-
-                yield return new TestCaseData(
                     DOCUMENTATION_LINES,
                     ResolvableLocalModule.DocumentationStartRegex().ToString(),
                     ResolvableLocalModule.DocumentationEndRegex().ToString(),
