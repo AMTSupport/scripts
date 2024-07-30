@@ -6,6 +6,8 @@ namespace Compiler.Module.Compiled;
 
 public abstract class Compiled
 {
+    internal List<Compiled> Parents = [];
+
     public readonly ModuleSpec ModuleSpec;
 
     public RequirementGroup Requirements;
@@ -66,6 +68,38 @@ public abstract class Compiled
                 hashableBytes.AddRange(requirement.Hash);
             });
         }
+    }
+
+    protected Compiled GetRootParent()
+    {
+        if (Parents.Count == 0) return this;
+
+        // All parents should point to the same root parent eventually.
+        var parent = Parents[0];
+        while (parent.Parents.Count > 0)
+        {
+            parent = parent.Parents[0];
+        }
+
+        return parent;
+    }
+
+    protected Compiled[] GetSiblings()
+    {
+        var rootParent = GetRootParent();
+        if (rootParent is not CompiledScript script) return [];
+
+        return script.Graph.Vertices.Where(compiled => compiled != this).ToArray();
+    }
+
+    protected Compiled? FindSibling(ModuleSpec moduleSpec)
+    {
+        if (ReferenceEquals(moduleSpec, ModuleSpec)) return this;
+
+        var siblings = GetSiblings();
+        if (siblings.Length == 0) return null;
+
+        return siblings.FirstOrDefault(compiled => compiled.ModuleSpec == moduleSpec);
     }
 }
 

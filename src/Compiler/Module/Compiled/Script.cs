@@ -78,11 +78,17 @@ public class CompiledScript : CompiledLocalModule
             else { Graph.AddVertex(compiledModule); }
         });
 
+        // Iterate over the graph and add the parent-child relationships.
+        Graph.Edges.ToList().ForEach(edge =>
+        {
+            edge.Target.Parents.Add(edge.Source);
+        });
+
         graphviz = Graph.ToGraphviz(alg =>
         {
             alg.FormatVertex += (sender, args) =>
             {
-                args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
+                args.VertexFormat.Label = args.Vertex.ModuleSpec.Name + '-' + args.Vertex.ComputedHash;
             };
         });
         Logger.Debug("Compiled graphviz:");

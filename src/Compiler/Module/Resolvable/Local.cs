@@ -9,7 +9,6 @@ namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableLocalModule : Resolvable
 {
-    private RequirementGroup? _requirements;
     internal readonly ScriptBlockAst _ast;
 
     public readonly TextEditor Editor;
@@ -60,6 +59,8 @@ public partial class ResolvableLocalModule : Resolvable
         Editor.AddRegexEdit(20, RequiresStatementRegex(), _ => { return null; });
 
         Editor.AddEdit(static () => new HereStringUpdater());
+
+        ThreadPool.QueueUserWorkItem(_ => ResolveRequirements());
     }
 
     /// <summary>
@@ -84,60 +85,58 @@ public partial class ResolvableLocalModule : Resolvable
         return ModuleMatch.None;
     }
 
-    public override RequirementGroup ResolveRequirements()
+    public override void ResolveRequirements()
     {
-        if (_requirements != null) return _requirements;
-        var requirementGroup = new RequirementGroup();
-
-        AstHelper.FindDeclaredModules(_ast).ToList().ForEach(module =>
+        lock (Requirements)
         {
-            if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast)
+            AstHelper.FindDeclaredModules(_ast).ToList().ForEach(module =>
+            {
+                if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast)
+                {
+                    Editor.AddExactEdit(
+                        ast.Extent.StartLineNumber - 1,
+                        ast.Extent.StartColumnNumber - 1,
+                        ast.Extent.EndLineNumber - 1,
+                        ast.Extent.EndColumnNumber - 1,
+                    _ => []
+                    );
+                }
+
+                module.Value.TryGetValue("Guid", out var guid);
+                module.Value.TryGetValue("MinimumVersion", out var minimumVersion);
+                module.Value.TryGetValue("MaximumVersion", out var maximumVersion);
+                module.Value.TryGetValue("RequiredVersion", out var requiredVersion);
+                var spec = new ModuleSpec(
+                    module.Key,
+                    (Guid?)guid,
+                    (Version?)minimumVersion,
+                    (Version?)maximumVersion,
+                    (Version?)requiredVersion
+                );
+
+                Requirements.AddRequirement(spec);
+            });
+
+            AstHelper.FindDeclaredNamespaces(_ast).ToList().ForEach(statement =>
             {
                 Editor.AddExactEdit(
-                    ast.Extent.StartLineNumber - 1,
-                    ast.Extent.StartColumnNumber - 1,
-                    ast.Extent.EndLineNumber - 1,
-                    ast.Extent.EndColumnNumber - 1,
-                _ => []
+                    statement.Item2.Extent.StartLineNumber - 1,
+                    statement.Item2.Extent.StartColumnNumber - 1,
+                    statement.Item2.Extent.EndLineNumber - 1,
+                    statement.Item2.Extent.EndColumnNumber - 1,
+                    _ => []
                 );
-            }
 
-            module.Value.TryGetValue("Guid", out var guid);
-            module.Value.TryGetValue("MinimumVersion", out var minimumVersion);
-            module.Value.TryGetValue("MaximumVersion", out var maximumVersion);
-            module.Value.TryGetValue("RequiredVersion", out var requiredVersion);
-            var spec = new ModuleSpec(
-                module.Key,
-                (Guid?)guid,
-                (Version?)minimumVersion,
-                (Version?)maximumVersion,
-                (Version?)requiredVersion
-            );
-
-            requirementGroup.AddRequirement(spec);
-        });
-
-        AstHelper.FindDeclaredNamespaces(_ast).ToList().ForEach(statement =>
-        {
-            Editor.AddExactEdit(
-                statement.Item2.Extent.StartLineNumber - 1,
-                statement.Item2.Extent.StartColumnNumber - 1,
-                statement.Item2.Extent.EndLineNumber - 1,
-                statement.Item2.Extent.EndColumnNumber - 1,
-                _ => []
-            );
-
-            var ns = new UsingNamespace(statement.Item1);
-            requirementGroup.AddRequirement(ns);
-        });
-
-        return _requirements = requirementGroup;
+                var ns = new UsingNamespace(statement.Item1);
+                Requirements.AddRequirement(ns);
+            });
+        }
     }
 
     public override Compiled.Compiled IntoCompiled() => new CompiledLocalModule(
         ModuleSpec,
         CompiledDocument.FromBuilder(Editor, 0),
-        ResolveRequirements()
+        Requirements
     );
 
     public override bool Equals(object? obj)
