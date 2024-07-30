@@ -48,6 +48,26 @@
                 "/p:CoverletOutputFormat=lcov"
             ],
             "problemMatcher": []
+        },
+        {
+            "label": "Generate coverage report",
+            "command": "reportgenerator",
+            "type": "shell",
+            "args": [
+                "-reports:./**/coverage.cobertura.xml",
+                "-targetdir:coverage_report",
+                "-assemblyfilters:'+Compiler;-Compiler.Test'",
+                "-classfilters:'-System.Text.RegularExpressions.Generated*'"
+            ],
+            "dependsOn": ["Generate coverage stats"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Open Coverage Report",
+            "dependsOn": ["Generate coverage report"],
+            "type": "shell",
+            "command": ".\\coverage_report\\index.html",
+            "problemMatcher": []
         }
     ]
 }

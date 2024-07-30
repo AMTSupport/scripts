@@ -36,7 +36,14 @@
             "request": "launch",
             "preLaunchTask": "build",
             "program": "${workspaceFolder}/Output/Debug/Compiler.dll",
-            "args": ["-i", ".\\utils\\test.ps1", "-v", "-o", "test.ps1", "-f"],
+            "args": [
+                "-i",
+                ".\\resources\\test.ps1",
+                "-v",
+                "-o",
+                "test.ps1",
+                "-f"
+            ],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
             "stopAtEntry": false,
