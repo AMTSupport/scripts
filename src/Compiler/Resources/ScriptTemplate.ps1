@@ -29,7 +29,8 @@ begin {
 
         switch ($_.Type) {
             'UTF8String' {
-                $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.psm1";
+                $Local:FileSuffix = if ($null -eq $Script:ScriptPath) { 'ps1' } else { 'psm1' };
+                $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.$Local:FileSuffix";
                 if (-not (Test-Path -Path $Local:InnerModulePath)) {
                     Write-Verbose "Writing content to module file: $Local:InnerModulePath"
                     Set-Content -Path $Local:InnerModulePath -Value $Content;
