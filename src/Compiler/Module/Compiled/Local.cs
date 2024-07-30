@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Management.Automation.Language;
-using System.Security.Cryptography;
 using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -33,7 +32,13 @@ public class CompiledLocalModule : Compiled
         .AppendLine("<#ps1#> @'")
         .AppendJoin('\n', Requirements.GetRequirements().Select(requirement =>
         {
-            var data = new Hashtable() { { "NameSuffix", Convert.ToHexString(requirement.Hash) } };
+            var hash = requirement switch
+            {
+                ModuleSpec req => FindSibling(req)!.ComputedHash,
+                _ => requirement.HashString
+            };
+
+            var data = new Hashtable() { { "NameSuffix", hash } };
             return requirement.GetInsertableLine(data);
         }))
         .AppendLine()

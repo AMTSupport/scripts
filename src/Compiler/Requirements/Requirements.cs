@@ -94,7 +94,14 @@ public abstract class Requirement : IComparable<Requirement>
     ///
     /// This is implemented by the derived class.
     /// </summary>
+    [JsonIgnore]
     public byte[] Hash { get; protected set; } = [];
+
+    /// <summary>
+    /// Used only for serialization purposes.
+    /// </summary>
+    [JsonInclude]
+    internal string HashString => Convert.ToHexString(Hash);
 
     /// <summary>
     /// Checks if the requirement is compatible with another requirement.

@@ -31,7 +31,7 @@ public sealed class PathedModuleSpec : ModuleSpec
         if (other is not PathedModuleSpec && other.Guid == null && other.MinimumVersion == null && other.MaximumVersion == null && other.RequiredVersion == null)
         {
             var otherMaybeFileName = Path.GetFileNameWithoutExtension(other.Name);
-            if (Name == otherMaybeFileName) return ModuleMatch.Same;
+            if (Name == otherMaybeFileName) return ModuleMatch.PreferOurs;
         }
 
         return base.CompareTo(other);
@@ -108,7 +108,7 @@ public class ModuleSpec : Requirement
     public override string GetInsertableLine(Hashtable data)
     {
         var nameSuffix = data.ContainsKey("NameSuffix") ? $"-{data["NameSuffix"]}" : string.Empty;
-        var moduleName = $"{Path.GetFileNameWithoutExtension(Name)}{nameSuffix}";
+        var moduleName = $"{Name}{nameSuffix}";
 
         if (Guid == null && RequiredVersion == null && MinimumVersion == null && MaximumVersion == null)
         {

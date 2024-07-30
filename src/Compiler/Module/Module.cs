@@ -31,17 +31,27 @@ public enum ModuleMatch : short
     Same = 0,
 
     /// <summary>
+    /// This module matches the requirements, but our module should be used instead.
+    /// </summary>
+    PreferOurs = 1,
+
+    /// <summary>
+    /// This module fulfills the requirements, but the other module should be used instead.
+    /// </summary>
+    PreferTheirs = 2,
+
+    /// <summary>
     /// This module fulfills the requirements, but has a looser scope.
     /// </summary>
-    Looser = 1,
+    Looser = 3,
 
     /// <summary>
     /// This module is both stricter and looser than the requirements, and can be merged.
     /// </summary>
-    MergeRequired = 2,
+    MergeRequired = 4,
 
     /// <summary>
     /// This module fulfills the requirements, but has a stricter scope.
     /// </summary>
-    Stricter = 3,
+    Stricter = 5,
 }

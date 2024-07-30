@@ -34,13 +34,19 @@ public partial class ResolvableScript : ResolvableLocalModule
         #endregion
     }
 
-    public override Compiled.Compiled IntoCompiled() => new Compiled.CompiledScript(
-        ModuleSpec,
-        Editor,
-        ResolvableParent,
-        ExtractParameterBlock(),
-        ResolveRequirements()
-    );
+    public override Compiled.Compiled IntoCompiled()
+    {
+        lock (Requirements)
+        {
+            return new Compiled.CompiledScript(
+                ModuleSpec,
+                Editor,
+                ResolvableParent,
+                ExtractParameterBlock(),
+                Requirements
+            );
+        }
+    }
 
     /// <summary>
     /// Looks for the parameter block of the script,
