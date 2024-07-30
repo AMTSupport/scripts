@@ -1,18 +1,18 @@
 Using namespace Pester;
 
 [PesterConfiguration]$Config = [PesterConfiguration]@{
-    Run = @{
+    Run          = @{
         Container = $True;
-        Path = ".";
+        Path      = '.';
     };
     CodeCoverage = @{
-        Enabled = $True;
-        RecursePaths = $True;
+        Enabled               = $True;
+        RecursePaths          = $True;
         CoveragePercentTarget = 80;
-        Path = "$PSScriptRoot/../src/common";
-        OutputPath = "$PSScriptRoot/../artifacts/coverage";
+        Path                  = "$PSScriptRoot/../src/common";
+        OutputPath            = "$PSScriptRoot/../artifacts/coverage";
     };
-    Should = @{
+    Should       = @{
         ErrorAction = 'Continue';
     };
 }
