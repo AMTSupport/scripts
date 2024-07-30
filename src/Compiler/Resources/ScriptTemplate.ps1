@@ -46,8 +46,13 @@ begin {
                 [String]$Local:TempFile = [System.IO.Path]::GetTempFileName();
                 [Byte[]]$Local:Bytes = [System.Convert]::FromHexString($Content);
                 [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
+
                 Write-Verbose "Expanding module file: $Local:TempFile"
                 Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force;
+
+                $Local:ManifestPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:Name.psd1";
+                $Local:NewManifestPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.psd1";
+                Move-Item -Path $Local:ManifestPath -Destination $Local:NewManifestPath -Force;
             }
             Default {
                 Write-Warning "Unknown module type: $($_)";
