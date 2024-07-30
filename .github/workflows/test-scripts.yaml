@@ -18,4 +18,4 @@ jobs:
 
       - name: Run Pester Tests
         shell: pwsh
-        run: 
+        run: .\utils\Invoke-CodeCoverage.ps1
