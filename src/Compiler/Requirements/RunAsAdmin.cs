@@ -5,11 +5,15 @@ using System.Text;
 
 namespace Compiler.Requirements;
 
-public record RunAsAdminRequirement() : Requirement(false)
+public sealed class RunAsAdminRequirement : Requirement
 {
     const string STRING = "#Requires -RunAsAdministrator";
 
-    public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(STRING));
+    public RunAsAdminRequirement() : base()
+    {
+        SupportsMultiple = false;
+        Hash = SHA1.HashData(Encoding.UTF8.GetBytes(STRING));
+    }
 
     [ExcludeFromCodeCoverage(Justification = "It's just a string.")]
     public override string GetInsertableLine(Hashtable _) => STRING;

@@ -63,11 +63,11 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
         return requirementGroup;
     }
 
-    public override Compiled.Compiled IntoCompiled() => new CompiledRemoteModule(ModuleSpec)
-    {
-        MemoryStream = _memoryStream ??= new MemoryStream(File.ReadAllBytes(FindCachedResult() ?? CacheResult()), false),
-        Requirements = ResolveRequirements()
-    };
+    public override Compiled.Compiled IntoCompiled() => new CompiledRemoteModule(
+        ModuleSpec,
+        ResolveRequirements(),
+        _memoryStream ??= new MemoryStream(File.ReadAllBytes(FindCachedResult() ?? CacheResult()), false)
+    );
 
     public override bool Equals(object? obj)
     {
@@ -101,7 +101,7 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
 
         var selectedVersion = versions.Where(version =>
         {
-            var otherSpec = new ModuleSpec(ModuleSpec.Name, ModuleSpec.Guid, RequiredVersion: version);
+            var otherSpec = new ModuleSpec(ModuleSpec.Name, ModuleSpec.Guid, requiredVersion: version);
             var matchType = otherSpec.CompareTo(ModuleSpec);
 
             return matchType == ModuleMatch.Same || matchType == ModuleMatch.Stricter;

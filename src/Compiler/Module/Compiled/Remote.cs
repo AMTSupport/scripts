@@ -1,50 +1,38 @@
 using System.Collections;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using CommandLine;
 using Compiler.Requirements;
 using NLog;
-using NLog.LayoutRenderers;
 
 namespace Compiler.Module.Compiled;
 
-public class CompiledRemoteModule(ModuleSpec moduleSpec) : Compiled(moduleSpec)
+public class CompiledRemoteModule : Compiled
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     private Hashtable? _powerShellManifest;
     private ZipArchive? _zipArchive;
 
-    public required MemoryStream MemoryStream { get; init; }
+    public readonly MemoryStream MemoryStream;
 
-    public override string ComputedHash
+    public override ContentType Type => ContentType.ZipHex;
+
+    public override Version Version { get; }
+
+    internal CompiledRemoteModule(
+        ModuleSpec moduleSpec,
+        RequirementGroup requirements,
+        MemoryStream memoryStream
+    ) : base(moduleSpec, requirements, memoryStream.ToArray())
     {
-        get
+        MemoryStream = memoryStream;
+
+        var manifest = GetPowerShellManifest();
+        Version = manifest["ModuleVersion"] switch
         {
-            var hashableBytes = MemoryStream.ToArray().ToList();
-
-            var requirements = Requirements.GetRequirements();
-            if (requirements.IsEmpty)
-            {
-                Requirements.GetRequirements().ToList().ForEach(requirement =>
-                {
-                    hashableBytes.AddRange(requirement.Hash);
-                });
-            }
-
-            return Convert.ToHexString(SHA1.HashData([.. hashableBytes]));
-        }
-    }
-
-    public override ContentType ContentType => ContentType.ZipHex;
-
-    public override Version Version
-    {
-        get
-        {
-            var manifest = GetPowerShellManifest();
-            if (manifest["ModuleVersion"] is string version) return Version.Parse(version);
-            return new Version(0, 0, 1);
-        }
+            string version => Version.Parse(version),
+            null => new Version(0, 0, 1),
+            _ => throw new Exception($"ModuleVersion must be a string, but was {manifest["ModuleVersion"]?.GetType()}")
+        };
     }
 
     public override string StringifyContent() => $"'{Convert.ToHexString(MemoryStream.ToArray())}'";

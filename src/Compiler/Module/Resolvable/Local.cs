@@ -59,7 +59,7 @@ public partial class ResolvableLocalModule : Resolvable
         // Remove #Requires statements
         Editor.AddRegexEdit(20, RequiresStatementRegex(), _ => { return null; });
 
-        Editor.AddEdit(() => new HereStringUpdater());
+        Editor.AddEdit(static () => new HereStringUpdater());
     }
 
     /// <summary>
@@ -134,10 +134,11 @@ public partial class ResolvableLocalModule : Resolvable
         return _requirements = requirementGroup;
     }
 
-    public override Compiled.Compiled IntoCompiled() => new CompiledLocalModule(ModuleSpec, CompiledDocument.FromBuilder(Editor, 0))
-    {
-        Requirements = ResolveRequirements()
-    };
+    public override Compiled.Compiled IntoCompiled() => new CompiledLocalModule(
+        ModuleSpec,
+        CompiledDocument.FromBuilder(Editor, 0),
+        ResolveRequirements()
+    );
 
     public override bool Equals(object? obj)
     {

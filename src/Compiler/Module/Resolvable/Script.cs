@@ -1,26 +1,15 @@
 using System.Management.Automation.Language;
-using System.Text.RegularExpressions;
 using Compiler.Requirements;
 
 namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableScript : ResolvableLocalModule
 {
-    private static readonly string InvokeRunMain = "(New-Module -ScriptBlock ([ScriptBlock]::Create($Global:EmbeddedModules['{0}'].Content)) -AsCustomObject -ArgumentList {1}.BoundParameters).'Invoke-RunMain'({1}, ({2}));";
-
     private readonly ResolvableParent ResolvableParent;
 
     public ResolvableScript(PathedModuleSpec moduleSpec) : base(moduleSpec)
     {
         ResolvableParent = new ResolvableParent(this);
-
-        // Editor.AddRegexEdit(RunMainRegex(), Text.UpdateOptions.MatchEntireDocument, static match =>
-        // {
-        //     var block = match.Groups["Block"].Value;
-        //     var invocation = match.Groups.ContainsKey("Invocation") ? match.Groups["Invocation"].Value : "$MyInvocation";
-        //     return string.Format(InvokeRunMain, "00-Environment", invocation, block);
-        // });
-
         ResolvableParent.Resolve();
 
         #region Requirement Compatability checking
@@ -49,11 +38,9 @@ public partial class ResolvableScript : ResolvableLocalModule
         ModuleSpec,
         Editor,
         ResolvableParent,
-        ExtractParameterBlock()
-    )
-    {
-        Requirements = ResolveRequirements()
-    };
+        ExtractParameterBlock(),
+        ResolveRequirements()
+    );
 
     /// <summary>
     /// Looks for the parameter block of the script,
@@ -91,7 +78,4 @@ public partial class ResolvableScript : ResolvableLocalModule
 
         return scriptParamBlockAst;
     }
-
-    [GeneratedRegex(@"^Invoke-RunMain\s+(?:\$MyInvocation)?\s+(?<Block>{.+})")]
-    private static partial Regex RunMainRegex();
 }

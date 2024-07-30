@@ -2,20 +2,28 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Compiler.Module;
 using NLog;
 
 namespace Compiler.Requirements;
 
-public record PathedModuleSpec(
-    string FullPath,
-    Guid? Guid = null,
-    Version? MinimumVersion = null,
-    Version? MaximumVersion = null,
-    Version? RequiredVersion = null
-) : ModuleSpec(Path.GetFileNameWithoutExtension(FullPath), Guid, MinimumVersion, MaximumVersion, RequiredVersion)
+public sealed class PathedModuleSpec : ModuleSpec
 {
-    public override byte[] Hash => SHA1.HashData(File.ReadAllBytes(FullPath));
+    public readonly string FullPath;
+
+    public PathedModuleSpec(
+        string fullPath,
+        Guid? guid = null,
+        Version? minimumVersion = null,
+        Version? maximumVersion = null,
+        Version? requiredVersion = null
+    ) : base(Path.GetFileNameWithoutExtension(fullPath), guid, minimumVersion, maximumVersion, requiredVersion)
+    {
+        FullPath = fullPath;
+        Weight = 73;
+        Hash = SHA1.HashData(File.ReadAllBytes(fullPath));
+    }
 
     // TODO - this may not be the best way to do this.
     public override ModuleMatch CompareTo(ModuleSpec other)
@@ -30,19 +38,34 @@ public record PathedModuleSpec(
     }
 }
 
-public record ModuleSpec(
-    string Name,
-    Guid? Guid = null,
-    Version? MinimumVersion = null,
-    Version? MaximumVersion = null,
-    Version? RequiredVersion = null
-) : Requirement(true), IEquatable<ModuleSpec>
+public class ModuleSpec : Requirement
 {
     private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
+    public string Name { get; }
+    public Guid? Guid { get; }
+    public Version? MinimumVersion { get; }
+    public Version? MaximumVersion { get; }
+    public Version? RequiredVersion { get; }
 
-    public override uint Weight => 70;
+    public ModuleSpec(
+        string name,
+        Guid? guid = null,
+        Version? minimumVersion = null,
+        Version? maximumVersion = null,
+        Version? requiredVersion = null
+    ) : base()
+    {
+        SupportsMultiple = true;
+        Weight = 70;
 
-    public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(string.Concat(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion)));
+        Name = name;
+        Guid = guid;
+        MinimumVersion = minimumVersion;
+        MaximumVersion = maximumVersion;
+        RequiredVersion = requiredVersion;
+
+        Hash = SHA1.HashData(Encoding.UTF8.GetBytes(string.Concat(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion)));
+    }
 
     // TODO - Maybe use IsCompatibleWith to do some other check stuff
     public ModuleSpec MergeSpecs(ModuleSpec[] merge)
@@ -56,25 +79,25 @@ public record ModuleSpec(
         {
             if (match.Guid != null && guid == null)
             {
-                Logger.Debug($"Merging {Name} with {match.Name} - {Guid} -> {match.Guid}");
+                Logger.Debug($"Merging {Name} with {match.Name} - {guid?.ToString() ?? "null"} -> {match.Guid}");
                 guid = match.Guid;
             }
 
             if (match.MinimumVersion != null && (minVersion == null || match.MinimumVersion > minVersion))
             {
-                Logger.Debug($"Merging {Name} with {match.Name} - {minVersion} -> {match.MinimumVersion}");
+                Logger.Debug($"Merging {Name} with {match.Name} - {minVersion?.ToString() ?? "null"} -> {match.MinimumVersion}");
                 minVersion = match.MinimumVersion;
             }
 
             if (match.MaximumVersion != null && (maxVersion == null || match.MaximumVersion < maxVersion))
             {
-                Logger.Debug($"Merging {Name} with {match.Name} - {maxVersion} -> {match.MaximumVersion}");
+                Logger.Debug($"Merging {Name} with {match.Name} - {maxVersion?.ToString() ?? "null"} -> {match.MaximumVersion}");
                 maxVersion = match.MaximumVersion;
             }
 
             if (match.RequiredVersion != null && reqVersion == null)
             {
-                Logger.Debug($"Merging {Name} with {match.Name} - {RequiredVersion} -> {match.RequiredVersion}");
+                Logger.Debug($"Merging {Name} with {match.Name} - {RequiredVersion?.ToString() ?? "null"} -> {match.RequiredVersion}");
                 reqVersion = match.RequiredVersion;
             }
         }
@@ -111,6 +134,7 @@ public record ModuleSpec(
 
     public virtual ModuleMatch CompareTo(ModuleSpec other)
     {
+        if (ReferenceEquals(this, other)) return ModuleMatch.Same;
         if (Name != other.Name) return ModuleMatch.None;
         if (Guid != null && other.Guid != null && Guid != other.Guid) return ModuleMatch.None;
 
@@ -187,5 +211,21 @@ public record ModuleSpec(
     public override bool IsCompatibleWith(Requirement other) => true;
 
     public override int GetHashCode() => HashCode.Combine(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion);
+
+    public override int CompareTo(Requirement? other)
+    {
+        if (other is not ModuleSpec) return 0;
+        return CompareTo((ModuleSpec)other).CompareTo(ModuleMatch.Same);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is null) return false;
+        if (obj is not ModuleSpec other) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return Name == other.Name && Guid == other.Guid && MinimumVersion == other.MinimumVersion && MaximumVersion == other.MaximumVersion && RequiredVersion == other.RequiredVersion;
+    }
+
+    public override string ToString() => JsonSerializer.Serialize(this, SerializerOptions);
 }
 

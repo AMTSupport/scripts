@@ -24,8 +24,9 @@ public class CompiledScript : CompiledLocalModule
         PathedModuleSpec moduleSpec,
         TextEditor editor,
         ResolvableParent resolvableParent,
-        ParamBlockAst? scriptParamBlock
-    ) : base(moduleSpec, CompiledDocument.FromBuilder(editor, 0))
+        ParamBlockAst? scriptParamBlock,
+        RequirementGroup requirements
+    ) : base(moduleSpec, CompiledDocument.FromBuilder(editor, 0), requirements)
     {
         var graphviz = resolvableParent.Graph.ToGraphviz(alg =>
         {

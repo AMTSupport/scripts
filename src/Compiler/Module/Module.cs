@@ -13,35 +13,35 @@ public abstract partial class Module(ModuleSpec moduleSpec)
     public override int GetHashCode() => ModuleSpec.GetHashCode();
 }
 
-public enum ModuleMatch
+public enum ModuleMatch : short
 {
-    /// <summary>
-    /// This module matches the requirements and doesn't have any additional restrictions.
-    /// </summary>
-    Same,
-
-    /// <summary>
-    /// This module is both stricter and looser than the requirements, and can be merged.
-    /// </summary>
-    MergeRequired,
-
-    /// <summary>
-    /// This module fulfills the requirements, but has a stricter scope.
-    /// </summary>
-    Stricter,
-
-    /// <summary>
-    /// This module fulfills the requirements, but has a looser scope.
-    /// </summary>
-    Looser,
-
     /// <summary>
     /// This module has incompatible restrictions.
     /// </summary>
-    Incompatible,
+    Incompatible = -2,
 
     /// <summary>
     /// This module does not match the requirements.
     /// </summary>
-    None
+    None = -1,
+
+    /// <summary>
+    /// This module matches the requirements and doesn't have any additional restrictions.
+    /// </summary>
+    Same = 0,
+
+    /// <summary>
+    /// This module fulfills the requirements, but has a looser scope.
+    /// </summary>
+    Looser = 1,
+
+    /// <summary>
+    /// This module is both stricter and looser than the requirements, and can be merged.
+    /// </summary>
+    MergeRequired = 2,
+
+    /// <summary>
+    /// This module fulfills the requirements, but has a stricter scope.
+    /// </summary>
+    Stricter = 3,
 }

@@ -1,4 +1,3 @@
-
 using System.Collections;
 using System.Management.Automation.Language;
 using System.Security.Cryptography;
@@ -11,37 +10,20 @@ namespace Compiler.Module.Compiled;
 
 public class CompiledLocalModule : Compiled
 {
+    public override ContentType Type { get; } = ContentType.UTF8String;
+
+    // Local modules are always version 0.0.1, as they are not versioned.
+    public override Version Version { get; } = new Version(0, 0, 1);
+
     public readonly CompiledDocument Document;
 
     public readonly ScriptBlockAst Ast;
 
-    public override string ComputedHash
-    {
-        get
-        {
-            var hashableBytes = Encoding.UTF8.GetBytes(Document.GetContent()).ToList();
-
-            var requirements = Requirements.GetRequirements();
-            if (requirements.IsEmpty)
-            {
-                Requirements.GetRequirements().ToList().ForEach(requirement =>
-                {
-                    hashableBytes.AddRange(requirement.Hash);
-                });
-            }
-
-            return Convert.ToHexString(SHA1.HashData([.. hashableBytes]));
-        }
-    }
-
-    public override ContentType ContentType => ContentType.UTF8String;
-
-    /// <summary>
-    /// A local modules version is always 0.0.1.
-    /// </summary>
-    public override Version Version => Version.Parse("0.0.1");
-
-    public CompiledLocalModule(PathedModuleSpec moduleSpec, CompiledDocument document) : base(moduleSpec)
+    public CompiledLocalModule(
+        PathedModuleSpec moduleSpec,
+        CompiledDocument document,
+        RequirementGroup requirements
+    ) : base(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent()))
     {
         Document = document;
         Ast = AstHelper.GetAstReportingErrors(string.Join('\n', Document.Lines), moduleSpec.FullPath, ["ModuleNotFoundDuringParse"]);

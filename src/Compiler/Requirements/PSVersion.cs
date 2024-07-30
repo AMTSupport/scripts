@@ -5,9 +5,17 @@ using System.Text;
 
 namespace Compiler.Requirements;
 
-public record PSVersionRequirement(Version Version) : Requirement(false)
+public sealed class PSVersionRequirement : Requirement
 {
-    public override byte[] Hash => SHA1.HashData(Encoding.UTF8.GetBytes(Version.ToString()));
+    public Version Version { get; }
+
+    public PSVersionRequirement(Version version) : base()
+    {
+        SupportsMultiple = false;
+
+        Version = version;
+        Hash = SHA1.HashData(Encoding.UTF8.GetBytes(Version.ToString()));
+    }
 
     public override string GetInsertableLine(Hashtable _)
     {
