@@ -1,3 +1,9 @@
+function Test-IsNableRunner {
+    $WindowName = $Host.UI.RawUI.WindowTitle;
+    if (-not $WindowName) { return $False; };
+    return ($WindowName | Split-Path -Leaf) -eq 'fmplugin.exe';
+}
+
 <#
 .SYNOPSIS
     Gets whether the current terminal supports Unicode characters.
@@ -268,9 +274,9 @@ function Invoke-Warn {
         }
 
         $Local:Params = @{
-            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
-            PSMessage = $Message;
-            PSColour = 'Yellow';
+            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
+            PSMessage   = $Message;
+            PSColour    = 'Yellow';
             ShouldWrite = $Global:Logging.Warning;
         };
 
@@ -301,9 +307,9 @@ function Invoke-Error {
         }
 
         $Local:Params = @{
-            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
-            PSMessage = $Message;
-            PSColour = 'Red';
+            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
+            PSMessage   = $Message;
+            PSColour    = 'Red';
             ShouldWrite = $Global:Logging.Error;
         };
 
@@ -440,7 +446,7 @@ function Invoke-Progress {
         Write-Progress -Id:$Id -Activity:$Activity -PercentComplete 1;
 
         if ($null -eq $Local:InputItems -or $Local:InputItems.Count -eq 0) {
-            Write-Progress -Id:$Id -Activity:$Activity -Status "No items found." -PercentComplete 100 -Completed;
+            Write-Progress -Id:$Id -Activity:$Activity -Status 'No items found.' -PercentComplete 100 -Completed;
             return;
         } else {
             Write-Progress -Id:$Id -Activity:$Activity -Status "Processing $($Local:InputItems.Count) items...";
@@ -457,8 +463,8 @@ function Invoke-Progress {
         foreach ($Item in $Local:InputItems) {
             [String]$ItemName;
             [TimeSpan]$Local:TimeTaken = (Measure-ElaspedTime {
-                $ItemName = if ($Format) { $Format.InvokeReturnAsIs($Item) } else { $Item; };
-            });
+                    $ItemName = if ($Format) { $Format.InvokeReturnAsIs($Item) } else { $Item; };
+                });
             $Local:TotalTime += $Local:TimeTaken;
             $Local:ItemsProcessed++;
 
@@ -472,11 +478,11 @@ function Invoke-Progress {
             Invoke-Debug "Estimated time remaining: $Local:EstimatedTimeRemaining";
 
             $Local:Params = @{
-                Id = $Id;
-                Activity = $Activity;
+                Id               = $Id;
+                Activity         = $Activity;
                 CurrentOperation = "Processing [$ItemName]...";
                 SecondsRemaining = $Local:EstimatedTimeRemaining.TotalSeconds;
-                PercentComplete = [Math]::Ceiling($Local:PercentComplete);
+                PercentComplete  = [Math]::Ceiling($Local:PercentComplete);
             };
 
             if ($Status) {
@@ -486,13 +492,13 @@ function Invoke-Progress {
             Write-Progress @Local:Params;
 
             try {
-                $ErrorActionPreference = "Stop";
+                $ErrorActionPreference = 'Stop';
                 $Process.InvokeReturnAsIs($Item);
             } catch {
                 Invoke-Warn "Failed to process item [$ItemName]";
                 Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                 try {
-                    $ErrorActionPreference = "Stop";
+                    $ErrorActionPreference = 'Stop';
 
                     if ($null -eq $FailedProcessItem) {
                         $Local:FailedItems.Add($Item);
