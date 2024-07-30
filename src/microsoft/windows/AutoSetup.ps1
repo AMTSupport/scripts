@@ -726,6 +726,7 @@ function Invoke-PhaseCleanup {
                     'HP Wolf Security - Console'
                     'HP Wolf Security Application Support for Sure Sense'
                     'HP Wolf Security Application Support for Windows'
+                    'HP Wolf Security Application Support for Chrome'
                 );
 
                 Invoke-Progress `
