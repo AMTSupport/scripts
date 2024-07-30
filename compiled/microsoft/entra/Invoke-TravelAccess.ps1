@@ -33,8 +33,7 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        if ($Global:Logging.Loaded) {
 		            $HasLoggingFunc.InvokeReturnAsIs();
-		        }
-		        else {
+		        } else {
 		            $MissingLoggingFunc.InvokeReturnAsIs();
 		        }
 		    }
@@ -90,8 +89,7 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        if ($HashTable.ContainsKey($Key)) {
 		            return $HashTable[$Key];
-		        }
-		        else {
+		        } else {
 		            return $false;
 		        }
 		    }
@@ -105,8 +103,7 @@ $Global:EmbededModules = [ordered]@{
 		    process {
 		        if (Test-Path Variable:Global:$Name) {
 		            return Get-Variable -Scope Global -Name $Name -ValueOnly;
-		        }
-		        else {
+		        } else {
 		            return $false;
 		        }
 		    }
@@ -179,8 +176,7 @@ $Global:EmbededModules = [ordered]@{
 		                    Set-Content -Path $Private:ModulePath -Value $Value.ToString();
 		                }
 		                Import-Module -Name $Private:ModulePath -Global -Force -Verbose:$False -Debug:$False;
-		            }
-		            else {
+		            } else {
 		                Invoke-EnvDebug -Message "Module $Name is a file or installed module.";
 		                Import-Module -Name $Value -Global -Force -Verbose:$False -Debug:$False;
 		            }
@@ -189,24 +185,20 @@ $Global:EmbededModules = [ordered]@{
 		    if (Test-IsCompiledScript) {
 		        Invoke-EnvVerbose 'Script has been embeded with required modules.';
 		        [HashTable]$Local:ToImport = $Global:EmbededModules;
-		    }
-		    elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
+		    } elseif (Test-Path -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/../../.git") {
 		        Invoke-EnvVerbose 'Script is in git repository; Using local files.';
 		        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$($MyInvocation.MyCommand.Module.Path | Split-Path -Parent)/*.psm1";
-		    }
-		    else {
+		    } else {
 		        [String]$Local:RepoPath = "$($env:TEMP)/AMTScripts";
 		        if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
 		            if (-not (Test-Path -Path $Local:RepoPath)) {
 		                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Cloning repository.';
 		                git clone https://github.com/AMTSupport/scripts.git $Local:RepoPath;
-		            }
-		            else {
+		            } else {
 		                Invoke-EnvVerbose -UnicodePrefix '♻️' -Message 'Updating repository.';
 		                git -C $Local:RepoPath pull;
 		            }
-		        }
-		        else {
+		        } else {
 		            Invoke-EnvInfo -Message 'Git is not installed, unable to update the repository or clone if required.';
 		        }
 		        [HashTable]$Local:ToImport = Get-FilsAsHashTable -Path "$Local:RepoPath/src/common/*.psm1";
@@ -246,8 +238,7 @@ $Global:EmbededModules = [ordered]@{
 		            if (($Private:Module -ne '00-Environment') -and (Test-IsCompiledScript)) {
 		                Remove-Item -Path ($env:TEMP | Join-Path -ChildPath "$($Private:Module)*");
 		            }
-		        }
-		        catch {
+		        } catch {
 		            Invoke-EnvDebug -Message "Failed to remove module $Local:Module";
 		        }
 		    };
@@ -310,8 +301,7 @@ $Global:EmbededModules = [ordered]@{
 		                        $Local:RunBoundParameters
 		                    );
 		                }
-		            }
-		            catch {
+		            } catch {
 		                $Local:CatchingError = $_;
 		                switch ($Local:CatchingError.FullyQualifiedErrorId) {
 		                    'QuickExit' {
@@ -331,8 +321,7 @@ $Global:EmbededModules = [ordered]@{
 		                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:CatchingError -DontExit;
 		                    }
 		                }
-		            }
-		            finally {
+		            } finally {
 		                [Boolean]$Private:WasCompiled = Test-IsCompiledScript;
 		                [Boolean]$Private:WasRestarted = Test-IsRestartedScript;
 		                [Boolean]$Private:IsRestarting = Test-IsRestartingScript;
@@ -367,8 +356,8 @@ $Global:EmbededModules = [ordered]@{
 		        -Main $Main `
 		        -DontImport:$DontImport `
 		        -HideDisclaimer:($HideDisclaimer -or $False) `
-		        -Verbose:(Get-OrFalse $Invocation.BoundParameters 'Verbose') `
-		        -Debug:(Get-OrFalse $Invocation.BoundParameters 'Debug');
+		        -Verbose:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Verbose') `
+		        -Debug:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Debug');
 		}
 		Export-ModuleMember -Function Invoke-RunMain, Import-CommonModules, Remove-CommonModules, Test-IsNableRunner;
     };`
@@ -1125,11 +1114,125 @@ Text: $($Local:Region.Text)
 		function Test-IsRunningAsSystem {
 		    [System.Security.Principal.WindowsIdentity]::GetCurrent().Name -eq 'NT AUTHORITY\SYSTEM';
 		}
+		function Get-BlobCompatableHash {
+		    param(
+		        [Parameter(Mandatory)]
+		        [String]$Path
+		    )
+		    begin {
+		        Enter-Scope;
+		        $Private:Algorithm = [System.Security.Cryptography.HashAlgorithm]::Create('MD5');
+		    }
+		    end { Exit-Scope; }
+		    process {
+		        [Byte[]]$Private:ByteStream = [System.IO.File]::ReadAllBytes($Path);
+		        [Byte[]]$Private:HashBytes = $Private:Algorithm.ComputeHash($Private:ByteStream);
+		        return [System.Convert]::ToBase64String($Private:HashBytes);
+		    }
+		}
+		function Get-FactorOf1MB {
+		    param(
+		        [Parameter(Mandatory)]
+		        [Int]$Size,
+		        [Parameter(Mandatory)]
+		        [Int]$Parts
+		    )
+		    if ($Size -lt 1MB -and $Parts -le 1) {
+		        return $Size;
+		    }
+		    $ChunkSize = $Size / $Parts;
+		    $NumberOfChunks = $ChunkSize % 1MB;
+		    return $ChunkSize + 1MB - $NumberOfChunks;
+		}
+		function Get-ETag {
+		    param(
+		        [Parameter(Mandatory)]
+		        [String]$Path,
+		        [Parameter(Mandatory)]
+		        [Int]$ChunkSize
+		    )
+		    begin {
+		        Enter-Scope;
+		        $Algorithm = [System.Security.Cryptography.HashAlgorithm]::Create('MD5');
+		    }
+		    process {
+		        $Digest = @();
+		        $OpenFile = [System.IO.File]::OpenRead($Path);
+		        try {
+		            do {
+		                $Bytes = New-Object byte[] $ChunkSize;
+		                $OpenFile.Read($Bytes, 0, $ChunkSize) | Out-Null;
+		                $Digest += $Algorithm.ComputeHash($Bytes);
+		            } while ($OpenFile.Position -lt $OpenFile.Length);
+		            $StringBuilder = [System.Text.StringBuilder]::new();
+		            $StringBuilder.Append([System.Convert]::ToHexString($Algorithm.ComputeHash($Digest)));
+		            if ($Digest.Count -gt 1) {
+		                $StringBuilder.Append('-');
+		                $StringBuilder.Append($Digest.Count);
+		            }
+		            return $StringBuilder.ToString();
+		        }
+		        finally {
+		            $OpenFile.Close();
+		        }
+		    }
+		    end { Exit-Scope; }
+		}
+		function Get-PossiblePartSizes {
+		    param(
+		        [Parameter(Mandatory)]
+		        [Int]$Size,
+		        [Parameter(Mandatory)]
+		        [Int]$Parts
+		    )
+		    $PartSizes = @(
+		        8388608, # aws_cli/boto3
+		        15728640, # s3cmd
+		        (Get-FactorOf1MB -Size $FileSize -Parts $Parts)
+		    ) | Where-Object { $_ -lt $FileSize -and ($FileSize / $_) -le $Parts };
+		    if ($PartSizes.Count -eq 0) {
+		        return $Size;
+		    }
+		    return $PartSizes;
+		}
+		function Compare-FileHashToS3ETag {
+		    param(
+		        [Parameter(Mandatory)]
+		        [String]$Path,
+		        [Parameter(Mandatory)]
+		        [String]$ETag
+		    )
+		    begin { Enter-Scope; }
+		    end { Exit-Scope; }
+		    process {
+		        $FileSize = (Get-Item $Path).Length;
+		        $Parts = $ETag.Split('-');
+		        if ($Parts.Count -lt 2) { $Parts = 1; }
+		        else { $Parts = $Parts[1]; }
+		        $PossiblePartSizes = Get-PossiblePartSizes -Size $FileSize -Parts $Parts;
+		        if ($PossiblePartSizes.Count -eq 0) {
+		            Invoke-Debug "No possible part sizes found for $Path with ETag $ETag";
+		            return $False;
+		        }
+		        foreach ($PossiblePartSize in $PossiblePartSizes) {
+		            $Local:OurETag = Get-ETag -Path $Path -ChunkSize $PossiblePartSize;
+		            Invoke-Debug "Comparing Our ETag $Local:OurETag to S3 ETag $ETag";
+		            if ($Local:OurETag -eq $ETag) {
+		                return $True;
+		            }
+		        }
+		    }
+		}
 		Export-ModuleMember -Function * -Alias *;
     };`
 	"01-Logging" = {
         [CmdletBinding(SupportsShouldProcess)]
         Param()
+		function Test-IsNableRunner {
+		    $WindowName = $Host.UI.RawUI.WindowTitle;
+		    if (-not $WindowName) { return $False; };
+		    return ($WindowName | Split-Path -Leaf) -eq 'fmplugin.exe';
+		}
 		function Test-SupportsUnicode {
 		    $null -ne $env:WT_SESSION -and -not (Test-IsNableRunner);
 		}
@@ -1336,9 +1439,9 @@ Text: $($Local:Region.Text)
 		            return;
 		        }
 		        $Local:Params = @{
-		            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
-		            PSMessage = $Message;
-		            PSColour = 'Yellow';
+		            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
+		            PSMessage   = $Message;
+		            PSColour    = 'Yellow';
 		            ShouldWrite = $Global:Logging.Warning;
 		        };
 		        Invoke-Write @Local:Params;
@@ -1363,9 +1466,9 @@ Text: $($Local:Region.Text)
 		            return;
 		        }
 		        $Local:Params = @{
-		            PSPrefix = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
-		            PSMessage = $Message;
-		            PSColour = 'Red';
+		            PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
+		            PSMessage   = $Message;
+		            PSColour    = 'Red';
 		            ShouldWrite = $Global:Logging.Error;
 		        };
 		        Invoke-Write @Local:Params;
@@ -1472,7 +1575,7 @@ Text: $($Local:Region.Text)
 		        [Object[]]$Local:InputItems = $Get.InvokeReturnAsIs();
 		        Write-Progress -Id:$Id -Activity:$Activity -PercentComplete 1;
 		        if ($null -eq $Local:InputItems -or $Local:InputItems.Count -eq 0) {
-		            Write-Progress -Id:$Id -Activity:$Activity -Status "No items found." -PercentComplete 100 -Completed;
+		            Write-Progress -Id:$Id -Activity:$Activity -Status 'No items found.' -PercentComplete 100 -Completed;
 		            return;
 		        } else {
 		            Write-Progress -Id:$Id -Activity:$Activity -Status "Processing $($Local:InputItems.Count) items...";
@@ -1485,8 +1588,8 @@ Text: $($Local:Region.Text)
 		        foreach ($Item in $Local:InputItems) {
 		            [String]$ItemName;
 		            [TimeSpan]$Local:TimeTaken = (Measure-ElaspedTime {
-		                $ItemName = if ($Format) { $Format.InvokeReturnAsIs($Item) } else { $Item; };
-		            });
+		                    $ItemName = if ($Format) { $Format.InvokeReturnAsIs($Item) } else { $Item; };
+		                });
 		            $Local:TotalTime += $Local:TimeTaken;
 		            $Local:ItemsProcessed++;
 		            $Local:AverageTimePerItem = $Local:TotalTime / $Local:ItemsProcessed;
@@ -1496,24 +1599,24 @@ Text: $($Local:Region.Text)
 		            Invoke-Debug "Average time per item: $Local:AverageTimePerItem";
 		            Invoke-Debug "Estimated time remaining: $Local:EstimatedTimeRemaining";
 		            $Local:Params = @{
-		                Id = $Id;
-		                Activity = $Activity;
+		                Id               = $Id;
+		                Activity         = $Activity;
 		                CurrentOperation = "Processing [$ItemName]...";
 		                SecondsRemaining = $Local:EstimatedTimeRemaining.TotalSeconds;
-		                PercentComplete = [Math]::Ceiling($Local:PercentComplete);
+		                PercentComplete  = [Math]::Ceiling($Local:PercentComplete);
 		            };
 		            if ($Status) {
 		                $Local:Params.Status = ($Status -f @($Local:PercentComplete, ($Local:InputItems.IndexOf($Item) + 1), $Local:InputItems.Count));
 		            }
 		            Write-Progress @Local:Params;
 		            try {
-		                $ErrorActionPreference = "Stop";
+		                $ErrorActionPreference = 'Stop';
 		                $Process.InvokeReturnAsIs($Item);
 		            } catch {
 		                Invoke-Warn "Failed to process item [$ItemName]";
 		                Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
 		                try {
-		                    $ErrorActionPreference = "Stop";
+		                    $ErrorActionPreference = 'Stop';
 		                    if ($null -eq $FailedProcessItem) {
 		                        $Local:FailedItems.Add($Item);
 		                    } else { $FailedProcessItem.InvokeReturnAsIs($Item); }
