@@ -144,7 +144,7 @@ function New-ConditionalAccessPrivilegedIdentityManagementPolicy {
 
 #endregion - Conditional Access Policies
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     switch ($Action) {
         'SecurityAlerts' {

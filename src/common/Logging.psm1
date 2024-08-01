@@ -1,4 +1,4 @@
-Using module ./00-PSStyle.psm1
+Using module ./PSStyle.psm1
 Using module @{
     ModuleName      = 'PSReadLine';
     RequiredVersion = '2.3.5';

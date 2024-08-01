@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
-Using module ../../common/00-Environment.psm1;
-Using module ../../common/01-Logging.psm1;
-Using module ../../common/01-Scope.psm1;
-Using module ../../common/02-Exit.psm1;
+Using module ../../common/Environment.psm1;
+Using module ../../common/Logging.psm1;
+Using module ../../common/Scope.psm1;
+Using module ../../common/Exit.psm1;
 Using module PSWindowsUpdate;
 
 # Windows 10 Setup screen raw inputs
@@ -1007,7 +1007,7 @@ function Invoke-PhaseFinish {
 
 #endregion - Phase Functions
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Register-ExitHandler -Name 'Running Flag Removal' -ExitHandler {
         (Get-RunningFlag).Remove();

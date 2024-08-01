@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 
-Using module ./01-Logging.psm1
+Using module ./Logging.psm1
 
 [System.Collections.Stack]$Script:InvocationStack = [System.Collections.Stack]::new();
 [String]$Script:Tab = '  ';

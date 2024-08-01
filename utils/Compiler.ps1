@@ -485,7 +485,7 @@ $(if ($Local:InvokeMain) {
 }
 
 if (-not $InnerInvocation) {
-    Import-Module $PSScriptRoot/../src/common/00-Environment.psm1 -ErrorAction Stop -Global;
+    Import-Module $PSScriptRoot/../src/common/Environment.psm1 -ErrorAction Stop -Global;
 }
 
 function Invoke-Compile {

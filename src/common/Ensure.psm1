@@ -1,8 +1,8 @@
-Using module ./00-Utils.psm1
-Using module ./01-Logging.psm1
-Using module ./01-Scope.psm1
-Using module ./02-Exit.psm1
-Using module ./40-Temp.psm1
+Using module ./Utils.psm1
+Using module ./Logging.psm1
+Using module ./Scope.psm1
+Using module ./Exit.psm1
+Using module ./Temp.psm1
 
 Using module @{
     ModuleName    = 'Microsoft.PowerShell.PSResourceGet';
@@ -159,13 +159,11 @@ function Invoke-EnsureModule {
                 $ErrorActionPreference = 'Stop';
 
                 Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | Out-Null;
-            }
-            catch {
+            } catch {
                 try {
                     Install-PackageProvider -Name NuGet -ForceBootstrap -Force -Confirm:$False;
                     Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
-                }
-                catch {
+                } catch {
                     # TODO :: Handle this better, this is a no network case.
                     Invoke-Warn 'Unable to install the NuGet package provider, some modules may not be installed.';
                     return;
@@ -195,8 +193,7 @@ function Invoke-EnsureModule {
                 }
 
                 [Version]$Local:MinimumVersion = [Version]::Parse($Local:ModuleMinimumVersion);
-            }
-            else {
+            } else {
                 [String]$Local:ModuleName = $Local:Module;
                 [Boolean]$Local:DontRemove = $False;
             }
@@ -235,15 +232,13 @@ function Invoke-EnsureModule {
                             -Global `
                             -Force `
                             -PassThru;
-                    }
-                    else {
+                    } else {
                         [PSModuleInfo]$Local:ImportedModule = Import-Module -Name $ModuleImport -Global -Force -PassThru;
                     }
 
                     Invoke-Info "Module '$ModuleName' imported with version $($Local:ImportedModule.Version).";
                     $Script:SatisfiedModules[$ModuleName] = [Version]::Parse($Local:ImportedModule.Version);
-                }
-                catch {
+                } catch {
                     Invoke-FailedExit -ExitCode $Script:UNABLE_TO_IMPORT_MODULE -FormatArgs $ModuleName;
                 }
             }
@@ -278,8 +273,7 @@ function Invoke-EnsureModule {
                     try {
                         Update-PSResource -Name $Local:ModuleName -Force -RequiredVersion $Local:ModuleMinimumVersion -ErrorAction Stop;
                         Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
-                    }
-                    catch {
+                    } catch {
                         if ($_.FullyQualifiedErrorId -ne 'ModuleNotInstalledUsingInstallModuleCmdlet,Update-Module') {
                             Invoke-Error -Message "Unable to update module '$Local:ModuleName'";
                             Invoke-FailedExit -ExitCode $Script:UNABLE_TO_UPDATE_MODULE -FormatArgs @($Local:ModuleName);
@@ -288,12 +282,10 @@ function Invoke-EnsureModule {
                         Invoke-Verbose 'Module was unable to be updated, will try to install...';
                         [Boolean]$Local:TryInstall = $true
                     }
-                }
-                elseif ($null -eq $Local:CurrentImportedModule -or ($Local:CurrentImportedModule.Version -lt $Local:ModuleMinimumVersion)) {
+                } elseif ($null -eq $Local:CurrentImportedModule -or ($Local:CurrentImportedModule.Version -lt $Local:ModuleMinimumVersion)) {
                     Invoke-Debug "Module '$Local:ModuleName' is installed, but the version is less than the minimum version required, importing...";
                     Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove;
-                }
-                else {
+                } else {
                     Invoke-Debug "Module '$Local:ModuleName' is installed, skipping...";
                     $Script:SatisfiedModules[$Local:ModuleName] = $Local:CurrentImportedModule.Version;
                 }
@@ -309,8 +301,7 @@ function Invoke-EnsureModule {
                     Invoke-Info "Module '$Local:ModuleName' is not installed, installing...";
                     try {
                         $Local:FoundModule | Install-PSResource -Scope CurrentUser -TrustRepository -Quiet -AcceptLicense;
-                    }
-                    catch {
+                    } catch {
                         Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:UNABLE_TO_INSTALL_MODULE -FormatArgs @($Local:ModuleName);
                     }
 
@@ -318,13 +309,11 @@ function Invoke-EnsureModule {
                     # Like an assembly conflict or something.
                     if (-not $Local:Module.RestartIfUpdated) {
                         Import-Module_Internal -ModuleName:$Local:ModuleName -ModuleImport:$Local:ModuleName -DontRemove:$Local:DontRemove -ErrorAction SilentlyContinue;
-                    }
-                    else {
+                    } else {
                         Invoke-Info "Module '$Local:ModuleName' has been installed, restart script...";
                         Restart-Script;
                     }
-                }
-                else {
+                } else {
                     Invoke-Warn "Unable to find module '$Local:ModuleName'.";
                 }
             }
@@ -332,8 +321,7 @@ function Invoke-EnsureModule {
             [PSModuleInfo]$Local:AfterEnsureModule = Get-Module -Name $Local:ModuleName -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1;
             if ($null -eq $Local:AfterEnsureModule) {
                 Invoke-FailedExit -ExitCode $Script:UNABLE_TO_FIND_MODULE -FormatArgs @($Local:ModuleName);
-            }
-            elseif ($Local:CurrentImportedModule -ne $Local:AfterEnsureModule -and $Local:Module.RestartIfUpdated) {
+            } elseif ($Local:CurrentImportedModule -ne $Local:AfterEnsureModule -and $Local:Module.RestartIfUpdated) {
                 Invoke-Info "Module '$Local:ModuleName' has been updated, restart script...";
                 Restart-Script;
             }
@@ -416,8 +404,7 @@ function Invoke-EnsureNetwork(
             if ($WhatIfPreference) {
                 Invoke-Info -Message 'WhatIf is set, skipping network setup...';
                 return $true;
-            }
-            else {
+            } else {
                 Invoke-Info -Message 'Setting up network...';
                 netsh wlan add profile filename="$Local:ProfileFile" | Out-Null;
                 netsh wlan show profiles $Name key=clear | Out-Null;

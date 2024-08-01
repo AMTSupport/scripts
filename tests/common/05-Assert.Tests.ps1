@@ -2,7 +2,7 @@ BeforeDiscovery {
     $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
-Describe '05-Assert.psm1 Tests' {
+Describe 'Assert.psm1 Tests' {
     Context 'Assert-NotNull' {
         It 'Should throw an error if the object is null' {
             { Assert-NotNull -Object $null } | Should -Throw
