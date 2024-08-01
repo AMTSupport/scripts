@@ -39,7 +39,6 @@ function Test-ExplicitlyCalled {
     )
 
     process {
-        $Global:Invocation = $Invocation;
         # $Global:PSCallStack = Get-PSCallStack;
 
         # Being ran from terminal
@@ -197,16 +196,30 @@ function Invoke-RunMain {
                 if (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation) {
                     Invoke-Verbose -UnicodePrefix '🚀' -Message 'Running main function.';
 
-                    $Local:RunBoundParameters = $Cmdlet.MyInvocation.BoundParameters;
-                    $Cmdlet.InvokeCommand.InvokeScript(
+                    $Result = $Cmdlet.InvokeCommand.InvokeScript(
                         $Cmdlet.SessionState,
                         $Main,
                         [System.Management.Automation.Runspaces.PipelineResultTypes]::All,
-                        $Local:RunBoundParameters
+                        $Cmdlet.MyInvocation.BoundParameters
                     );
+
+                    if ($Cmdlet.InvokeCommand.HasErrors) {
+                        Invoke-Info 'Throwing error from main function.';
+                        throw $Cmdlet.InvokeCommand.Streams.Error[0];
+                    }
+
+                    if ($Result.Count -gt 0) {
+                        Invoke-Info 'Writing output from main function.';
+                        $Result | ForEach-Object { Write-Output $_; }
+                    }
+
+                    Invoke-Info 'Main function finished successfully.';
                 }
-            } catch {
-                $Local:CatchingError = $_;
+            } catch [System.Management.Automation.ParseException] {
+                Invoke-Error 'Unable to execute script due to a parse error.';
+                Invoke-FailedExit -ExitCode 9998 -ErrorRecord $_ -DontExit;
+            } catch [System.Management.Automation.RuntimeException] {
+                $Local:CatchingError = $_.Exception.ErrorRecord;
                 switch ($Local:CatchingError.FullyQualifiedErrorId) {
                     'QuickExit' {
                         Invoke-Verbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
@@ -240,7 +253,7 @@ function Invoke-RunMain {
 
                 if ($Script:ScriptRestarting) {
                     Invoke-Verbose -UnicodePrefix '🔄' -Message 'Restarting script.';
-                    Remove-Variable -Scope Global -Name ScriptRestarting;
+                    $Script:ScriptRestarting = $False;
                     $Script:ScriptRestarted = $True; # Bread trail for the script to know it's been restarted.
                     Invoke-Inner @PSBoundParameters;
                 }

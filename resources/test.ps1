@@ -28,7 +28,6 @@ Invoke-RunMain $PSCmdlet {
     # Random comment
     $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
     if ($Restart) {
-        Invoke-Info 'Restarting script...';
         Restart-Script; # Comment at the end of a line!!
     } else {
         Invoke-Info 'Exiting script...';

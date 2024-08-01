@@ -65,4 +65,6 @@ process {
 }
 end {
     $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
+    # TODO - Remove by reverse order of import
+    Get-Module | Where-Object { ($_.ModuleBase | Split-Path -Parent) -eq $Local:PrivatePSModulePath } | Remove-Module -Force;
 }
