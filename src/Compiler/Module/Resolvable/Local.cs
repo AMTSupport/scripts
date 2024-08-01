@@ -12,6 +12,7 @@ public partial class ResolvableLocalModule : Resolvable
     internal readonly ScriptBlockAst _ast;
 
     public readonly TextEditor Editor;
+
     public override PathedModuleSpec ModuleSpec => (PathedModuleSpec)base.ModuleSpec;
 
     /// <summary>
