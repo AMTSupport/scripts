@@ -49,6 +49,7 @@ function Register-CustomReadLineHandlers([Switch]$DontSaveInputs) {
     Set-PSReadLineKeyHandler -Chord Ctrl+c -ScriptBlock {
         Param([System.ConsoleKeyInfo]$Key, $Arg)
 
+        Invoke-Info 'Ctrl+C was pressed, aborting...';
         $Script:ShouldAbort = $True;
         [Microsoft.PowerShell.PSConsoleReadLine]::CancelLine($Key, $Arg);
     };
@@ -174,7 +175,7 @@ function Get-UserInput {
         [Switch]$AllowEmpty
     )
 
-    begin { Enter-Scope; Install-Requirements; }
+    begin { Enter-Scope; }
     end { Exit-Scope -ReturnValue $Local:UserInput; }
 
     process {
@@ -203,8 +204,7 @@ function Get-UserInput {
                     $Private:Value = $Script:ExtraLines + 2;
                     $Script:ExtraLines = 0;
                     $Private:Value;
-                }
-                else {
+                } else {
                     1
                 };
 
@@ -215,8 +215,7 @@ function Get-UserInput {
 
                 $Local:FailedAtLeastOnce = $true;
                 $Script:PressedEnter = $false;
-            }
-            else {
+            } else {
                 Clear-HostLight -Count 1;
                 break;
             }
@@ -295,7 +294,8 @@ function Get-UserSelection {
 
     begin {
         Enter-Scope;
-        Install-Requirements;
+
+        [Console]::TreatControlCAsInput = $True;
 
         #region Setup PSReadLine Key Handlers
         [HashTable]$Local:PreviousFunctions = Register-CustomReadLineHandlers -DontSaveInputs;
@@ -328,8 +328,7 @@ function Get-UserSelection {
             if ($Script:PreviewingChoices -and $Line -eq $Script:PreviewingInput) {
                 if ($Script:ChoicesGoneThrough -eq $Script:MatchedChoices.Count - 1) {
                     $Script:ChoicesGoneThrough = 0;
-                }
-                else {
+                } else {
                     $Script:ChoicesGoneThrough++;
                 }
 
@@ -349,8 +348,7 @@ function Get-UserSelection {
                 $Script:PreviewingInput = $Script:MatchedChoices[$Script:ChoicesGoneThrough];
 
                 [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices[$Script:ChoicesGoneThrough]);
-            }
-            elseif ($Script:MatchedChoices.Count -eq 1) {
+            } elseif ($Script:MatchedChoices.Count -eq 1) {
                 [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $MatchingInput.Length, $Script:MatchedChoices);
             }
         }
@@ -365,8 +363,7 @@ function Get-UserSelection {
             if ($Script:PreviewingChoices -and $Line -eq $Script:PreviewingInput) {
                 if ($Script:ChoicesGoneThrough -eq 0) {
                     $Script:ChoicesGoneThrough = $Script:MatchedChoices.Count - 1;
-                }
-                else {
+                } else {
                     $Script:ChoicesGoneThrough--;
                 }
 
@@ -393,13 +390,20 @@ function Get-UserSelection {
         Write-Host "`r>> " -NoNewline;
 
         do {
+            if ([Console]::KeyAvailable) {
+                $Key = [Console]::ReadKey($True);
+                if ($Key.Modifiers -eq 'Control' -and $Key.Key -eq 'C') {
+                    Invoke-Info 'Ctrl+C was pressed, aborting...';
+                    $Script:ShouldAbort = $True;
+                    break;
+                }
+            }
             $Local:Selection = ([Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext, $?)).Trim();
 
             if (-not $Local:Selection -and $Local:FirstRun -and $null -ne $DefaultChoice) {
                 $Local:Selection = $Choices[$DefaultChoice];
                 Clear-HostLight -Count 1;
-            }
-            elseif ($Local:Selection -notin $ChoicesList) {
+            } elseif ($Local:Selection -notin $ChoicesList) {
                 $Local:ClearLines = if ($Local:FailedAtLeastOnce -and $Script:PressedEnter) { 2 } else { 1 };
                 Clear-HostLight -Count $Local:ClearLines;
 
@@ -416,8 +420,7 @@ function Get-UserSelection {
         if ($Script:ShouldAbort) {
             if (-not $AllowNone) {
                 throw [System.Management.Automation.PipelineStoppedException]::new();
-            }
-            else {
+            } else {
                 return $null;
             }
         }
@@ -431,6 +434,7 @@ function Get-UserSelection {
         if ($Local:PreviousTabFunction -ne 'CustomAction') { Set-PSReadLineKeyHandler -Chord Tab -Function $Local:PreviousTabFunction; }
         if ($Local:PreviousShiftTabFunction -ne 'CustomAction') { Set-PSReadLineKeyHandler -Chord Shift+Tab -Function $Local:PreviousShiftTabFunction; }
         if ($Local:PreviousFunctions) { Unregister-CustomReadLineHandlers -PreviousHandlers $Local:PreviousFunctions; }
+        [Console]::TreatControlCAsInput = $False;
     }
 }
 
@@ -458,27 +462,6 @@ function Get-PopupSelection {
 
     $Local:Selection -and -not $AllowNone | Assert-NotNull -Message "Failed to select a $ItemName.";
     return $Local:Selection;
-}
-
-# TODO :: Make a common way to handle requirements.
-[Boolean]$Script:CompletedSetup = $False;
-function Install-Requirements {
-    if ($Script:CompletedSetup) {
-        return;
-    }
-
-    # Windows comes pre-installed with PSReadLine 2.0.0, so we need to ensure that we have at least 2.3.0;
-    Invoke-EnsureModule @{
-        Name             = 'PSReadLine';
-        MinimumVersion   = '2.3.0';
-        DontRemove       = $True;
-        RestartIfUpdated = $True;
-    };
-
-    $Using = [ScriptBlock]::Create('Using module ''PSReadLine''');
-    . $Using;
-
-    [Boolean]$Script:CompletedSetup = $True;
 }
 
 Export-ModuleMember -Function Get-UserInput, Get-UserConfirmation, Get-UserSelection, Get-PopupSelection -Variable Validations;
