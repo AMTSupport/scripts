@@ -38,6 +38,9 @@ public abstract class Compiled
         ComputedHash = Convert.ToHexString(SHA1.HashData(byteList.ToArray()));
     }
 
+
+    public string GetNameHash() => $"{ModuleSpec.Name}-{ComputedHash[..6]}";
+
     public abstract string StringifyContent();
 
     public abstract IEnumerable<string> GetExportedFunctions();
@@ -52,7 +55,7 @@ public abstract class Compiled
     @{
         Name = '{{ModuleSpec.Name}}';
         Version = '{{Version}}';
-        Hash = '{{ComputedHash}}';
+        Hash = '{{ComputedHash[..6]}}';
         Type = '{{Type}}';
         Content = {{StringifyContent()}}
     }

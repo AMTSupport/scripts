@@ -1,14 +1,19 @@
+#!DEFINE PARAM_BLOCK
 begin {
     [Boolean]$Script:CompiledScript = $True;
     #!DEFINE EMBEDDED_MODULES
+    #!DEFINE IMPORT_ORDER
+
     [String]$Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath 'AMT/PowerShell/Modules';
     if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
         Write-Verbose "Creating module root folder: $Local:PrivatePSModulePath";
         New-Item -Path $Local:PrivatePSModulePath -ItemType Directory | Out-Null;
     }
+
     if (-not ($Env:PSModulePath -like "*$Local:PrivatePSModulePath*")) {
         $Env:PSModulePath = "$Local:PrivatePSModulePath;" + $Env:PSModulePath;
     }
+
     $Script:ScriptPath;
     $Script:EMBEDDED_MODULES | ForEach-Object {
         $Local:Name = $_.Name;
@@ -61,10 +66,10 @@ begin {
     }
 }
 process {
-    & $Script:ScriptPath @PSBoundParameters;
-}
-end {
-    $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
-    # TODO - Remove by reverse order of import
-    Get-Module | Where-Object { ($_.ModuleBase | Split-Path -Parent) -eq $Local:PrivatePSModulePath } | Remove-Module -Force;
+    try {
+        & $Script:ScriptPath @PSBoundParameters;
+    } finally {
+        $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
+        $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force; }
+    }
 }
