@@ -22,8 +22,7 @@ param(
 Set-StrictMode -Version 3;
 
 Invoke-RunMain $PSCmdlet {
-    Write-Output 'Hello, World!';
-    Invoke-Info 'This is an info message!';
+    Invoke-Info "Hello, $Name!";
 
     # Random comment
     $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
