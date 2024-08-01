@@ -86,10 +86,7 @@ public class CompiledScript : CompiledLocalModule
 
         graphviz = Graph.ToGraphviz(alg =>
         {
-            alg.FormatVertex += (sender, args) =>
-            {
-                args.VertexFormat.Label = args.Vertex.ModuleSpec.Name + '-' + args.Vertex.ComputedHash;
-            };
+            alg.FormatVertex += (sender, args) => args.VertexFormat.Label = args.Vertex.GetNameHash();
         });
         Logger.Debug("Compiled graphviz:");
         Logger.Debug(graphviz);
@@ -126,9 +123,26 @@ public class CompiledScript : CompiledLocalModule
         });
         EMBEDDED_MODULES.AppendLine(IndentString(");", 4));
 
+        var PARAM_BLOCK = new StringBuilder();
+        if (ScriptParamBlock != null)
+        {
+            ScriptParamBlock.Attributes.ToList().ForEach(attribute => PARAM_BLOCK.AppendLine(attribute.Extent.Text));
+            PARAM_BLOCK.Append(ScriptParamBlock.Extent.Text);
+        }
+
+        var IMPORT_ORDER = Graph.TopologicalSort()
+            .Skip(1) // Skip the root node.
+            .Reverse()
+            .Select(module => $"'{module.GetNameHash()}'")
+            .Aggregate((a, b) => $"{a}, {b}");
+
         // TODO - Implement a way to replace #!DEFINE macros in the template.
         // This could also be how we can implement secure variables during compilation.
-        template = template.Replace("#!DEFINE EMBEDDED_MODULES", EMBEDDED_MODULES.ToString());
+        template = template
+            .Replace("#!DEFINE EMBEDDED_MODULES", EMBEDDED_MODULES.ToString())
+            .Replace("#!DEFINE PARAM_BLOCK", PARAM_BLOCK.ToString())
+            .Replace("#!DEFINE IMPORT_ORDER", $"$Script:REMOVE_ORDER = @({IMPORT_ORDER});");
+
         return template;
     }
 

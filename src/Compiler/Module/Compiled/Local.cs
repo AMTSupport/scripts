@@ -32,11 +32,11 @@ public class CompiledLocalModule : Compiled
         .AppendLine("<#ps1#> @'")
         .AppendJoin('\n', Requirements.GetRequirements().Select(requirement =>
         {
-            var hash = requirement switch
+            var hash = (requirement switch
             {
                 ModuleSpec req => FindSibling(req)!.ComputedHash,
                 _ => requirement.HashString
-            };
+            })[..6];
 
             var data = new Hashtable() { { "NameSuffix", hash } };
             return requirement.GetInsertableLine(data);
