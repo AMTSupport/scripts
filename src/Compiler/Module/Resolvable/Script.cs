@@ -1,3 +1,4 @@
+using System.Diagnostics.Contracts;
 using System.Management.Automation.Language;
 using Compiler.Requirements;
 
@@ -50,37 +51,14 @@ public partial class ResolvableScript : ResolvableLocalModule
 
     /// <summary>
     /// Looks for the parameter block of the script,
-    /// If there is none it returns null and makes no changes.
-    ///
-    /// If there is a param block it removes it from the script and returns an Ast representing the param block.
     /// </summary>
+    /// <returns>
+    /// The parameter block of the script, if it exists.
+    /// </returns>
     public ParamBlockAst? ExtractParameterBlock()
     {
         var scriptParamBlockAst = _ast.ParamBlock;
-
-        if (scriptParamBlockAst == null)
-        {
-            return null;
-        }
-
-        Editor.AddExactEdit(
-            scriptParamBlockAst.Extent.StartLineNumber - 1,
-            scriptParamBlockAst.Extent.StartColumnNumber - 1,
-            scriptParamBlockAst.Extent.EndLineNumber - 1,
-            scriptParamBlockAst.Extent.EndColumnNumber - 1,
-            lines => []
-        );
-
-        scriptParamBlockAst.Attributes.ToList().ForEach(attribute =>
-        {
-            Editor.AddExactEdit(
-                attribute.Extent.StartLineNumber - 1,
-                attribute.Extent.StartColumnNumber - 1,
-                attribute.Extent.EndLineNumber - 1,
-                attribute.Extent.EndColumnNumber - 1,
-                lines => []
-            );
-        });
+        if (scriptParamBlockAst == null) return null;
 
         return scriptParamBlockAst;
     }
