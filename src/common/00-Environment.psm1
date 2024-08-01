@@ -91,29 +91,6 @@ function Invoke-Teardown {
     $PSDefaultParameterValues.Remove('*:Debug');
 }
 
-function Remove-Modules {
-    # Get the AST of the script and look for all the using module statements.
-    # Then remove the modules in reverse order.
-
-    # Get the AST of the script.
-    [String]$Private:CallingScript = (Get-PSCallStack)[-1].Location;
-    [System.Management.Automation.Language.Ast]$Private:ScriptAst = [Parser]::ParseFile($Private:CallingScript, [ref]$null, [ref]$null);
-
-    # Find all the using module statements.
-    [List[UsingStatementAst]]$Private:UsingStatements = [List[UsingStatementAst]]::new();
-    $Private:ScriptAst.FindAll({ $args[0] -is [UsingStatementAst] -and ($args[0] -as [UsingStatementAst]).UsingStatementKind -eq 'Module' }, $true) | ForEach-Object {
-        $Private:UsingStatements.Add(([UsingStatementAst]$_).Name);
-    };
-
-    Invoke-Verbose -Message "Cleaning up $($Private:UsingStatements.Count) imported modules.";
-    Invoke-Verbose -Message "Removing modules: `n$(($Private:UsingStatements | Sort-Object -Descending) -join "`n")";
-    $Private:UsingStatements | ForEach-Object {
-        $Private:ModuleName = $_;
-        Invoke-Debug -Message "Removing module $Private:ModuleName.";
-        Remove-Module -Name $Private:ModuleName -Force -Verbose:$False -Debug:$False;
-    };
-}
-
 <#
 .SYNOPSIS
     Runs the main function of a script while ensuring that all common modules have been imported.
@@ -219,14 +196,14 @@ function Invoke-RunMain {
                 Invoke-Error 'Unable to execute script due to a parse error.';
                 Invoke-FailedExit -ExitCode 9998 -ErrorRecord $_ -DontExit;
             } catch [System.Management.Automation.RuntimeException] {
-                $Local:CatchingError = $_.Exception.ErrorRecord;
-                switch ($Local:CatchingError.FullyQualifiedErrorId) {
+                $CatchingError = $_.Exception.ErrorRecord;
+                switch ($CatchingError.FullyQualifiedErrorId) {
                     'QuickExit' {
                         Invoke-Verbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
                     }
                     # TODO - Remove the error from the record.
                     'FailedExit' {
-                        [Int]$Local:ExitCode = $Local:CatchingError.TargetObject;
+                        [Int]$Local:ExitCode = $CatchingError.TargetObject;
                         Invoke-Verbose -Message "Script exited with an error code of $Local:ExitCode.";
                         $LASTEXITCODE = $Local:ExitCode;
                         $Error.RemoveAt(0);
@@ -236,19 +213,13 @@ function Invoke-RunMain {
                     }
                     default {
                         Invoke-Error 'Uncaught Exception during script execution';
-                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $Local:CatchingError -DontExit;
+                        Invoke-FailedExit -ExitCode 9999 -ErrorRecord $CatchingError -DontExit;
                     }
                 }
             } finally {
                 if (-not $Local:DontImport) {
                     Invoke-Handlers;
                     Invoke-Teardown;
-
-                    # There is no point in removing the modules if the script is restarting.
-                    if (-not $Script:ScriptRestarting) {
-                        Invoke-Debug 'Cleaning up'
-                        Remove-Modules;
-                    }
                 }
 
                 if ($Script:ScriptRestarting) {
@@ -273,4 +244,4 @@ function Invoke-RunMain {
         -Debug:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Debug');
 }
 
-Export-ModuleMember -Function Invoke-RunMain, Remove-CommonModules, Test-IsNableRunner -Variable ScriptRestarted, ScriptRestarting;
+Export-ModuleMember -Function Invoke-RunMain, Test-IsNableRunner -Variable ScriptRestarted, ScriptRestarting;
