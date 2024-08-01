@@ -6,8 +6,8 @@ Using module ./02-Exit.psm1
 Using namespace System.Management.Automation.Language;
 Using namespace System.Collections.Generic
 
-[System.Boolean]$Global:ScriptRestarted = $False;
-[System.Boolean]$Global:ScriptRestarting = $False;
+[System.Boolean]$Script:ScriptRestarted = $False;
+[System.Boolean]$Script:ScriptRestarting = $False;
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 
 #region - Utility Functions
@@ -29,34 +29,6 @@ function Get-OrFalse {
             return $false;
         }
     }
-}
-
-function Test-OrGetBooleanVariable {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [String]$Name
-    )
-
-    process {
-        if (Test-Path Variable:Global:$Name) {
-            return Get-Variable -Scope Global -Name $Name -ValueOnly;
-        } else {
-            return $false;
-        }
-    }
-}
-
-function Test-IsCompiledScript {
-    Test-OrGetBooleanVariable -Name 'CompiledScript';
-}
-
-function Test-IsRestartingScript {
-    Test-OrGetBooleanVariable -Name 'ScriptRestarting';
-}
-
-function Test-IsRestartedScript {
-    Test-OrGetBooleanVariable -Name 'ScriptRestarted';
 }
 
 function Test-ExplicitlyCalled {
@@ -199,7 +171,7 @@ function Invoke-RunMain {
 
         begin {
             # If the script is being restarted, we have already done this.
-            if (-not $Global:ScriptRestarted) {
+            if (-not $Script:ScriptRestarted) {
                 foreach ($Local:Param in @('Verbose', 'Debug')) {
                     if ($Cmdlet.MyInvocation.BoundParameters.ContainsKey($Local:Param)) {
                         $Logging[$Local:Param] = $Cmdlet.MyInvocation.BoundParameters[$Local:Param];
@@ -247,7 +219,7 @@ function Invoke-RunMain {
                         $Error.RemoveAt(0);
                     }
                     'RestartScript' {
-                        Set-Variable -Scope Global -Name ScriptRestarting -Value $True;
+                        $Script:ScriptRestarting = $True;
                     }
                     default {
                         Invoke-Error 'Uncaught Exception during script execution';
@@ -255,35 +227,21 @@ function Invoke-RunMain {
                     }
                 }
             } finally {
-                [Boolean]$Private:WasCompiled = Test-IsCompiledScript;
-                [Boolean]$Private:WasRestarted = Test-IsRestartedScript;
-                [Boolean]$Private:IsRestarting = Test-IsRestartingScript;
-
                 if (-not $Local:DontImport) {
                     Invoke-Handlers;
                     Invoke-Teardown;
 
                     # There is no point in removing the modules if the script is restarting.
-                    if (-not (Test-IsRestartingScript)) {
+                    if (-not $Script:ScriptRestarting) {
                         Invoke-Debug 'Cleaning up'
                         Remove-Modules;
-
-                        if ($Private:WasCompiled) {
-                            Remove-Variable -Scope Global -Name CompiledScript, EmbeddedModules;
-                        }
-
-                        # Without this explicit check theres a silent error.
-                        # It has no effect but it annoys me.
-                        if ($Private:WasRestarted) {
-                            Remove-Variable -Scope Global -Name ScriptRestarted;
-                        }
                     }
                 }
 
-                if ($Private:IsRestarting) {
+                if ($Script:ScriptRestarting) {
                     Invoke-Verbose -UnicodePrefix '🔄' -Message 'Restarting script.';
                     Remove-Variable -Scope Global -Name ScriptRestarting;
-                    Set-Variable -Scope Global -Name ScriptRestarted -Value $True; # Bread trail for the script to know it's been restarted.
+                    $Script:ScriptRestarted = $True; # Bread trail for the script to know it's been restarted.
                     Invoke-Inner @PSBoundParameters;
                 }
             }

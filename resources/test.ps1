@@ -21,19 +21,16 @@ param(
 
 Set-StrictMode -Version 3;
 
-Invoke-RunMain $MyInvocation {
-    Write-Host 'Hello, World!';
-
-    # Write-Error 'This is an error message!' -Category InvalidOperation;
-    # Invoke-FailedExit 1050;
+Invoke-RunMain $PSCmdlet {
+    Write-Output 'Hello, World!';
+    Invoke-Info 'This is an info message!';
 
     # Random comment
     $Restart = Get-UserConfirmation 'Restart' 'Do you want to restart the script?';
     if ($Restart) {
         Invoke-Info 'Restarting script...';
         Restart-Script; # Comment at the end of a line!!
-    }
-    else {
+    } else {
         Invoke-Info 'Exiting script...';
     };
 }
