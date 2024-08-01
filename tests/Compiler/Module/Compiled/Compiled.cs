@@ -52,7 +52,7 @@ file static class TestData
                         { typeof(ModuleSpec), new HashSet<Requirement> {
                             new ModuleSpec("PSWindowsUpdate"),
                             new ModuleSpec("PSReadLine", requiredVersion: new (2, 3, 5)),
-                            new PathedModuleSpec($"{Environment.CurrentDirectory}/../../../../../src/common/00-Environment.psm1")
+                            new PathedModuleSpec($"{Environment.CurrentDirectory}/../../../../../src/common/Environment.psm1")
                         } },
                         { typeof(PSEditionRequirement), new HashSet<Requirement> {
                             new PSEditionRequirement(PSEdition.Core)
@@ -71,7 +71,7 @@ file static class TestData
                 {
                     StoredRequirements = {
                         { typeof(ModuleSpec), new HashSet<Requirement> {
-                            new PathedModuleSpec($"{Environment.CurrentDirectory}/../../../../../src/common/00-Environment.psm1")
+                            new PathedModuleSpec($"{Environment.CurrentDirectory}/../../../../../src/common/Environment.psm1")
                         } },
                     }
                 }

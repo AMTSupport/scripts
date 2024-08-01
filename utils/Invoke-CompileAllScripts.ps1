@@ -44,7 +44,7 @@ function Invoke-EnsureDirectoryStructure {
     }
 }
 
-Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../src/common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     $SourceDir = [System.IO.Path]::GetFullPath($SourceDir);
     $OutputDir = [System.IO.Path]::GetFullPath($OutputDir);

@@ -1,4 +1,4 @@
-Using module ./01-Logging.psm1
+Using module ./Logging.psm1
 
 function Get-NamedTempFolder {
     Param(

@@ -21,7 +21,7 @@ function Update-User {
     # Remove all licenses (This may need to be done after everything else)
 }
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureModule "$PSScriptRoot/../Common.psm1", 'ExchangeOnlineManagement', 'Microsoft.Graph';
     Connect-Service 'Graph','ExchangeOnline' -Scopes @('User.ReadWrite.All', 'Directory.ReadWrite.All');

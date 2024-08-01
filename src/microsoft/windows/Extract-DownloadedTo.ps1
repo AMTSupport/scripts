@@ -38,7 +38,7 @@ function Get-DownloadedItem(
     }
 }
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     if (-not (Test-Path $ExtractTo)) {
         Invoke-Error "ExtractTo path $ExtractTo does not exist.";

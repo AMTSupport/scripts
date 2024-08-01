@@ -4,7 +4,7 @@ param(
     [String[]]$ApplicationName
 )
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     $Local:Applications = Get-WmiObject -Class Win32_Product | Select-Object -Property Name,Version;
     $Local:LikeApplications = $Local:Applications | Where-Object {

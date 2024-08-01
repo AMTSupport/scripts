@@ -22,7 +22,7 @@
 #Requires -Version 5.1
 #Requires -PSEdition Desktop
 
-Using module ../../common/00-Environment.psm1;
+Using module ../../common/Environment.psm1;
 
 Param(
     [Parameter(Mandatory)]

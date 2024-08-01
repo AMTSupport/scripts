@@ -1,7 +1,7 @@
 Using module Microsoft.Graph.Authentication;
 Using module PartnerCenter;
 
-Using module ../../common/00-Environment.psm1;
+Using module ../../common/Environment.psm1;
 
 [CmdletBinding(DefaultParameterSetName = 'ScriptBlock')]
 param (

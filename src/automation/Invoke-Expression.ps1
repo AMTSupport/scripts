@@ -3,7 +3,7 @@ Param(
     [ScriptBlock]$Expression
 )
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     try {
         & $Expression;
