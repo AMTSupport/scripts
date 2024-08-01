@@ -61,13 +61,7 @@ public abstract class Compiled
     public static void AddRequirementHashBytes(List<byte> hashableBytes, RequirementGroup requirementGroup)
     {
         var requirements = requirementGroup.GetRequirements();
-        if (requirements.IsEmpty)
-        {
-            requirements.ToList().ForEach(requirement =>
-            {
-                hashableBytes.AddRange(requirement.Hash);
-            });
-        }
+        requirements.ToList().ForEach(requirement => hashableBytes.AddRange(requirement.Hash));
     }
 
     protected Compiled GetRootParent()
