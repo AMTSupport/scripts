@@ -1,8 +1,31 @@
 name: Lint
 
-on: [workflow_dispatch]
+on:
+  pull_request:
+    paths: ["src/**", "tests/**", "utils/**", ".github/workflows/**"]
+  push:
+    paths: ["src/**", "tests/**", "utils/**", ".github/workflows/**"]
 
 jobs:
+  powershell:
+    name: PowerShell Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Run PSScriptAnalyzer
+        uses: microsoft/psscriptanalyzer-action@main
+        with:
+          settings: .\PSScriptAnalyzerSettings.psd1
+          output: results.sarif
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -23,3 +46,4 @@ jobs:
           EDITORCONFIG_FILE_NAME: ".editorconfig"
           POWERSHELL_CONFIG_FILE: "PSScriptAnalyzerSettings.psd1"
           FILTER_REGEX_EXCLUDE: ".*compiled/.*|.*docs/.*|LICENSE"
+          SAVE_SUPER_LINTER_OUTPUT: true
