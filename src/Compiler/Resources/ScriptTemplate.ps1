@@ -1,5 +1,5 @@
 begin {
-    [Boolean]$Global:CompiledScript = $True;
+    [Boolean]$Script:CompiledScript = $True;
     #!DEFINE EMBEDDED_MODULES
     [String]$Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath 'AMT/PowerShell/Modules';
     if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
@@ -65,5 +65,4 @@ process {
 }
 end {
     $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
-    Remove-Variable -Scope Global -Name CompiledScript;
 }
