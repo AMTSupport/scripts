@@ -93,15 +93,18 @@ public static class AstHelper
 
     public static List<FunctionDefinitionAst> FindAvailableFunctions(Ast ast, bool onlyExported)
     {
-        // Check for Export-ModuleMember statement, if one exists return only functions listed
-        // Otherwise return all functions
-        var allDefinedFunctions = ast.FindAll(testAst => testAst is FunctionDefinitionAst, true).Cast<FunctionDefinitionAst>().ToList();
+        var allDefinedFunctions = ast
+            .FindAll(testAst => testAst is FunctionDefinitionAst, true)
+            .Cast<FunctionDefinitionAst>()
+            .ToList();
 
-        if (ast.Find(testAst => testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember", true) is not CommandAst command || !onlyExported)
+        // If there is no export command or we are not filtering for only exported functions, return all functions.
+        if (ast.Find(testAst => !onlyExported || testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember", true) is not CommandAst command)
         {
             return allDefinedFunctions;
         }
 
+        // TODO - Support using * to export all of a type.
         var wantingToExport = new List<(string, List<string>)>();
         var namedParameters = ast.FindAll(testAst => testAst is CommandParameterAst commandParameter && commandParameter.Parent == command, true).Cast<CommandParameterAst>().ToList();
         foreach (var (namedParameter, index) in namedParameters.Select((value, i) => (value, i)))
@@ -124,7 +127,13 @@ public static class AstHelper
             wantingToExport.Add((namedParameter.ParameterName, objects.Cast<string>().ToList()));
         }
 
-        return allDefinedFunctions.Where(function => wantingToExport.Any(wanting => wanting.Item2.Contains(function.Name))).ToList();
+        return allDefinedFunctions
+            .Where(function =>
+            {
+                // If the name is scoped to a namespace, remove the namespace.
+                var name = function.Name.Contains(':') ? function.Name.Split(':').Last() : function.Name;
+                return wantingToExport.Any(wanting => wanting.Item2.Contains(name));
+            }).ToList();
     }
 
     /// <summary>
