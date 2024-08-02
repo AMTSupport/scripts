@@ -62,7 +62,9 @@ public static class StaticAnalyser
     {
         var calledFunctions = AstHelper.FindCalledFunctions(module.Ast);
         var availableFunctions = new List<string>();
-        availableFunctions.AddRange(AstHelper.FindAvailableFunctions(module.Ast, false).Select(definition => definition.Name));
+        availableFunctions.AddRange(AstHelper.FindAvailableFunctions(module.Ast, false).Select(definition => {
+            return definition.Name.Contains(':') ? definition.Name.Split(':').Last() : definition.Name;
+        }));
         availableFunctions.AddRange(availableImports.SelectMany(module => module.GetExportedFunctions()));
         var combinedFunctions = availableFunctions.Concat(BuiltinsFunctions).ToList();
         var unknownCalls = calledFunctions.Where(func => !combinedFunctions.Any(availableFunc => availableFunc == func.GetCommandName()));
