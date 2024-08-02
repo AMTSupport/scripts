@@ -29,11 +29,11 @@ class Program : IDisposable
 
     public class Options
     {
-        [Option('v', "verbose", Required = false, HelpText = "Set output to verbose messages.")]
-        public bool Verbose { get; set; }
+        [Option('v', "verbosity", FlagCounter = true, HelpText = "Set the verbosity level of the output.")]
+        public int Verbosity { get; set; }
 
-        [Option('d', "debug", Required = false, HelpText = "Set output to debug messages.")]
-        public bool Debug { get; set; }
+        [Option('q', "quiet", FlagCounter = true, HelpText = "Silence the Info output.")]
+        public int Quiet { get; set; }
 
         [Option('i', "input", Required = true, HelpText = "Input file to be processed.")]
         public string? InputFile { get; set; }
@@ -47,9 +47,15 @@ class Program : IDisposable
 
     public static void Main(string[] args)
     {
-        _ = Parser.Default.ParseArguments<Options>(args).WithParsed(opts =>
+        var parser = new Parser(settings =>
         {
-            IsDebugging = opts.Debug;
+            settings.GetoptMode = true;
+        });
+
+        _ = parser.ParseArguments<Options>(args).WithParsed(opts =>
+        {
+            var logLevel = LogLevel.FromOrdinal(Math.Abs(opts.Quiet - opts.Verbosity + 2));
+            IsDebugging = logLevel <= LogLevel.Debug;
 
             LogManager.Setup().LoadConfiguration(builder =>
             {
@@ -108,9 +114,7 @@ class Program : IDisposable
                     }
                 };
 
-                builder.ForLogger().FilterLevels(LogLevel.Info, LogLevel.Fatal).WriteTo(console);
-                if (opts.Verbose) builder.ForLogger().FilterLevel(LogLevel.Trace).WriteTo(console);
-                if (opts.Debug) builder.ForLogger().FilterLevel(LogLevel.Debug).WriteTo(console);
+                if (logLevel != LogLevel.Off) builder.ForLogger().FilterLevels(logLevel, LogLevel.Fatal).WriteTo(console);
             });
 
             var compiledContent = string.Empty;
@@ -125,7 +129,7 @@ class Program : IDisposable
             {
                 Logger.Error("There was an error compiling the script, please see the error below:");
 
-                var printing = opts.Verbose == true ? e.ToString() : e.Message;
+                var printing = logLevel <= LogLevel.Debug ? e.ToString() : e.Message;
                 Logger.Error(printing);
 
                 Environment.Exit(1);
@@ -145,6 +149,13 @@ class Program : IDisposable
             // Output to console to allow for piping
             Console.OpenStandardOutput().Write(Encoding.UTF8.GetBytes(content));
             return;
+        }
+
+        var outputPath = Path.GetFullPath(options.OutputFile);
+        if (!Directory.Exists(Path.GetDirectoryName(outputPath)))
+        {
+            Logger.Debug($"Creating directory {Path.GetDirectoryName(outputPath)}");
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         }
 
         if (File.Exists(options.OutputFile))
