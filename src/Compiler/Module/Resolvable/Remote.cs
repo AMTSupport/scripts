@@ -149,10 +149,7 @@ public class ResolvableRemoteModule : Resolvable
 
         if (pwsh.HadErrors)
         {
-            Logger.Error($"Failed to download module {ModuleSpec.Name} from the PowerShell Gallery.");
-            pwsh.Streams.Error.ToList().ForEach(error => Logger.Error(error));
-
-            throw new Exception("Failed to download module from the PowerShell Gallery.");
+            throw new Exception("Failed to download module from the PowerShell Gallery.", pwsh.Streams.Error[0]?.Exception);
         }
 
         var returnedResult = result.First().ToString();
