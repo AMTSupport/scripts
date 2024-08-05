@@ -76,7 +76,7 @@ public class CompiledScript : CompiledLocalModule
         Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled =>
         {
             var imports = Graph.OutEdges(compiled).Select(edge => edge.Target);
-            StaticAnalyser.Analyse((CompiledLocalModule)compiled, [.. imports]);
+            Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports]);
         });
     }
 

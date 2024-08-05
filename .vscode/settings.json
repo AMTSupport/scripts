@@ -17,5 +17,9 @@
     "poshProTools.ignoredPaths": "compiled",
     "pester.testFilePath": ["tests/*.[tT]ests.[pP][sS]1"],
     "markiscodecoverage.searchCriteria": "tests\\Compiler\\Coverage/coverage.info",
-    "markiscodecoverage.enableDecorations": true
+    "markiscodecoverage.enableDecorations": true,
+    "poshProTools.disableNewsNotification": true,
+    "poshProTools.toolbar.formDesigner": false,
+    "poshProTools.toolbar.packageAsExecutable": false,
+    "poshProTools.toolbar.quickScripts": false
 }

@@ -11,6 +11,12 @@ param(
 
 # TODO wmic no longer available on Windows 11 need to find alternative.
 Invoke-RunMain $PSCmdlet {
+    [SuppressAnalyser(
+        CheckType = 'UseOfUndefinedFunction',
+        Data = 'wmic',
+        Justification = 'wmic is not available on the builder machine'
+    )]
+    param()
 
     if (Test-IsWindows11) {
         Invoke-Error 'This script is currently broken due to wmic not being available on Windows 11';

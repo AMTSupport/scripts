@@ -1,6 +1,7 @@
 using System.Collections;
 using System.IO.Compression;
 using System.Management.Automation;
+using Compiler.Analyser;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using NLog;
