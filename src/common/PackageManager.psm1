@@ -3,6 +3,7 @@
 Using module ./Logging.psm1
 Using module ./Scope.psm1
 Using module ./Exit.psm1
+Using module ./Utils.psm1
 
 enum PackageManager {
     Chocolatey
@@ -38,6 +39,12 @@ enum PackageManager {
 
 [Boolean]$Script:CompletedSetup = $False;
 function Local:Install-Requirements {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingInvokeExpression',
+        Justification = 'Required to install Chocolatey, there is no other way to do this.'
+    )]
+    param()
+
     if ($Script:CompletedSetup) {
         Invoke-Debug 'Setup already completed. Skipping...';
         return;
@@ -70,8 +77,7 @@ function Local:Install-Requirements {
                     refreshenv | Out-Null;
 
                     return;
-                }
-                else {
+                } else {
                     Invoke-Warn 'Chocolatey bin not found, deleting folder and reinstalling...';
                     Remove-Item -Path "$($env:SystemDrive)\ProgramData\chocolatey" -Recurse -Force;
                 }
@@ -181,8 +187,7 @@ function Update-ManagedPackage(
             if ($LASTEXITCODE -ne 0) {
                 throw "Error Code: $LASTEXITCODE";
             }
-        }
-        catch {
+        } catch {
             Invoke-Error "There was an issue while updating $Local:PackageName.";
             Invoke-Error $_.Exception.Message;
         }

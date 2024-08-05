@@ -1,6 +1,7 @@
 Using module ./Logging.psm1
 Using module ./Scope.psm1
 Using module ./Exit.psm1
+Using module ./Utils.psm1
 
 [Int]$Script:FAILED_FOLDER_CREATION = Register-ExitCode 'Failed to create the cache folder.';
 [Int]$Script:FAILED_FILE_CREATION = Register-ExitCode 'Failed to create the cache file.';

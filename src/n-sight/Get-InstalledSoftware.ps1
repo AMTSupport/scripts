@@ -1,3 +1,8 @@
+Using module ../common/Environment.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Scope.psm1
+Using module ImportExcel
+
 [CmdletBinding()]
 param (
     [String]$Endpoint = 'system-monitor.com',
@@ -142,11 +147,11 @@ function Out-ToExcel {
         # We should also have a matrix called data which is indexed by the row then by the column,
         # We should not have any rows longer than the header length.
         if (-not $Local:Headers -or -not $Local:Matrix) {
-            throw "Invalid data structure. Please ensure the object has headers and rows properties.";
+            throw 'Invalid data structure. Please ensure the object has headers and rows properties.';
         }
 
         if (-not $Local:Headers -is [Array] -or -not $Local:Matrix -is [System.Collections.Generic.List[System.Object]]) {
-            throw "Invalid data structure. Please ensure the headers and rows properties are arrays.";
+            throw 'Invalid data structure. Please ensure the headers and rows properties are arrays.';
         }
         #endregion
 
@@ -191,10 +196,7 @@ function Out-ToExcel {
     }
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
-    Invoke-EnsureModule -Modules 'ImportExcel';
-
     if (-not (Get-Variable Clients -Scope Global)) {
         Invoke-Debug 'Creating global clients variable.';
         $Local:Clients = @{ };

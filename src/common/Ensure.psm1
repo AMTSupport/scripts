@@ -146,8 +146,6 @@ function Invoke-EnsureModule {
     end { Exit-Scope; }
 
     process {
-        $ErrorActionPreference = 'Stop';
-
         if (-not (Test-NetworkConnection)) {
             Invoke-Warn 'No network connection, some modules may not be installed.';
             return;

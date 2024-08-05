@@ -16,7 +16,10 @@
     System, Windows, Power, Boot
 #>
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
+Using module ../common/Environment.psm1
+Using module ../common/Ensure.psm1
+Using module ../common/Registry.psm1
+
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 
