@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Text;
 using CommandLine;
@@ -160,8 +161,19 @@ public static class AstHelper
 
         if (parserErrors.Length != 0)
         {
-            Logger.Error($"There was an issue while parsing {filePath}, {parserErrors.Length} errors were found.");
-            parserErrors.ToList().ForEach(error => PrintPrettyAstError(error.Extent, ast, error.Message));
+            foreach (var error in parserErrors)
+            {
+                Program.Issues.Add(
+                    new Analyser.Issue(
+                        Analyser.IssueSeverity.Error,
+                        error.Message,
+                        error.Extent,
+                        ast
+                    )
+                );
+            }
+
+            throw new ParseException($"Failed to parse {filePath}, encountered {parserErrors.Length} errors.");
         }
 
         return ast;
@@ -234,5 +246,29 @@ public static class AstHelper
         {firstColumnIndentString}{colouredPipe} {errorPointer.Pastel(ConsoleColor.DarkRed)}
         {firstColumnIndentString}{colouredPipe} {message.Pastel(ConsoleColor.DarkRed)}
         """);
+    }
+
+    public static ParamBlockAst? FindClosestParamBlock(Ast ast)
+    {
+        ParamBlockAst? foundParamBlock = null;
+        var parent = ast;
+        while (parent.Parent != null && foundParamBlock is null)
+        {
+            if (parent is ScriptBlockAst scriptBlock && scriptBlock.ParamBlock != null) foundParamBlock = scriptBlock.ParamBlock;
+            parent = parent.Parent;
+        }
+
+        return foundParamBlock;
+    }
+
+    public static Ast FindRoot(Ast ast)
+    {
+        var parent = ast;
+        while (parent.Parent != null)
+        {
+            parent = parent.Parent;
+        }
+
+        return parent;
     }
 }
