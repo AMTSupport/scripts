@@ -1,5 +1,9 @@
 #Requires -Version 7.1
 
+Using module ../src/common/Environment.psm1
+Using module ../src/common/Logging.psm1
+Using module ../src/common/Exit.psm1
+
 [CmdletBinding(SupportsShouldProcess)]
 param (
     [Parameter(HelpMessage = 'This directory to source scripts from.')]
@@ -10,10 +14,9 @@ param (
 
     [Parameter(DontShow, HelpMessage = 'The compiler scripts location.')]
     [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
-    [String]$CompilerScript = "$PSScriptRoot/Compiler.ps1"
+    [String]$Compiler = "$PSScriptRoot/Compiler.ps1"
 )
 
-# Function to create directory structure
 function Invoke-EnsureDirectoryStructure {
     param (
         [Parameter(Mandatory)]
@@ -44,28 +47,33 @@ function Invoke-EnsureDirectoryStructure {
     }
 }
 
-Import-Module $PSScriptRoot/../src/common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
-    $SourceDir = [System.IO.Path]::GetFullPath($SourceDir);
-    $OutputDir = [System.IO.Path]::GetFullPath($OutputDir);
     Invoke-Info "Compiling scripts from $SourceDir to $OutputDir";
 
+    $Errors = @();
     [Object[]]$Local:Items = Get-ChildItem -Path $SourceDir -Recurse -Filter '*.ps1' -Depth 9 -File;
-    $Local:Items | ForEach-Object {
-        $Local:Item = $_;
+    foreach ($Local:Item in $Local:Items) {
         [String]$Local:Content = Get-Content -Path $Local:Item.FullName;
         if (($Local:Content.Length -eq 0) -or (Select-String -InputObject $Local:Content -Pattern '^\s*#.*@compile-ignore')) {
             Invoke-Info "Ignoring $($Local:Item.FullName)";
-            return;
+            continue;
         }
 
         Invoke-Info "Compiling $($Local:Item.FullName)";
 
-        # Get the relative path of the file
         [String]$Local:RelativePath = $Local:Item.DirectoryName.Substring((Get-Item $SourceDir).FullName.Length).TrimStart('\');
         [String]$Local:OutputFolderPath = Join-Path $OutputDir $Local:RelativePath;
+        [String]$Local:OutputFilePath = Join-Path $Local:OutputFolderPath $Local:Item.Name;
         Invoke-EnsureDirectoryStructure -SourcePath $SourceDir -TargetBasePath $OutputDir -CurrentPath ($Local:Item.FullName | Split-Path -Parent);
 
-        & $CompilerScript -CompileScript:$Local:Item.FullName -Output:$Local:OutputFolderPath -Force -InnerInvocation;
+        $Result = Start-Process `
+            -FilePath $Compiler `
+            -ArgumentList "--input ""$($Local:Item.FullName)"" --output ""$Local:OutputFilePath"" --force $($VerbosePreference -eq 'Continue' ? '--verbose' : '') $($DebugPreference -eq 'Continue' ? '--debug' : '')" `
+            -Wait -NoNewWindow -PassThru;
+
+        if ($Result.ExitCode -ne 0) {
+            Invoke-Error "Failed to compile $($Local:Item.FullName)";
+            return;
+        }
     }
 }

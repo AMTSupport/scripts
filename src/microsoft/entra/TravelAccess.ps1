@@ -1,10 +1,8 @@
 #Requires -Version 5.1
 
-Import-Module ../common/Environment.psm1;
+Using module ../common/Environment.psm1
 
 Invoke-RunMain $PSCmdlet {
-    Write-Host "Hello, World!"
-
     # Sign into EntraID
 
     # Ensure that the "Travel Access" Group exists, if not create it.

@@ -1,3 +1,8 @@
+Using module ../common/Environment.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Input.psm1
+Using module ./Common.psm1
+
 [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Update')]
 Param(
     [Parameter(ParameterSetName = 'Update')]
@@ -54,10 +59,7 @@ function New-HuduDatabase {
     $Local:Matches | ConvertTo-Json | Out-File -FilePath "$Database";
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
-    Invoke-EnsureModule -Modules "$PSScriptRoot/Common.psm1";
-
     if ($PSCmdlet.ParameterSetName -eq 'Update') {
         Invoke-Info "Updating companies"
 

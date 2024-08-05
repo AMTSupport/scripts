@@ -24,6 +24,12 @@
     Runs the script with a maximum uptime of 1 day instead of the default 7.
 #>
 
+Using module ../common/Environment.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Scope.psm1
+Using module ../common/Flag.psm1
+Using module ../common/Exit.psm1
+
 param(
     [TimeSpan]$MaxUpTime = [TimeSpan]::FromDays(7)
 )
@@ -79,7 +85,6 @@ function Get-ShouldRestart {
     }
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     $Local:RequiresRestart = Get-ShouldRestart;
     if (-not $Local:RequiresRestart.required) {

@@ -1,3 +1,8 @@
+Using module ../common/Environment.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Scope.psm1
+Using module ./Common.psm1
+
 <#
 .SYNOPSIS
     Update all links for users in passwords.
@@ -27,7 +32,7 @@ function Update-Links {
         Invoke-Info "Updating links for user card $UserCardId";
 
         $MatchingPasswordCard = $PasswordCards | Where-Object {
-            $_.
+            $_
         }
     }
 }
@@ -53,7 +58,6 @@ function Get-Passwords {
 
 }
 
-Import-Module $PSScriptRoot/../src/common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     [PSCustomObject]$Private:Companies = Get-HuduCompanies -Endpoint:$Private:Endpoint;
 

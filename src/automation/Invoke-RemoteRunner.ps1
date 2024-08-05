@@ -1,5 +1,11 @@
 #Requires -Version 5.1
 
+Using module ../common/Environment.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Scope.psm1
+Using module ../common/Exit.psm1
+Using module ../common/Cache.psm1
+
 Param(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
@@ -8,9 +14,26 @@ Param(
     [Parameter(ValueFromRemainingArguments)]
     [String[]]$Arguments,
 
-    [Parameter(HelpMessage="Don't use the cached response, always call the API.")]
+    [Parameter(HelpMessage = "Don't use the cached response, always call the API.")]
     [Switch]$NoCache
 )
+
+
+#region - Error Codes
+$Script:FAILED_WRITE = Register-ExitCode 'Failed to write to the file system.';
+
+$Script:FAILED_RESPONSE = Register-ExitCode 'Failed to get a response from the API.';
+$Script:FAILED_DOWNLOAD = Register-ExitCode 'There was an issue while downloading the executable.';
+
+$Script:FAILED_MISSING_RELEASES = Register-ExitCode 'Unable to find any releases for the repository.';
+$Script:FAILED_MISSING_ARTIFACTS = Register-ExitCode 'Unable to find any artifacts for the current release.';
+$Script:FAILED_MISSING_EXECUTABLE = Register-ExitCode 'Unable to find an executable artifact for the current system.';
+
+$Script:FAILED_MISSING_ARCHITECTURE = Register-ExitCode "Unable to find executable to match the current architecture. (${Env:PROCESSOR_ARCHITECTURE})";
+$Script:FAILED_MISSING_OS = Register-ExitCode "Unable to find executable to match the current operating system. (${Env:OS})";
+
+$Script:FAILED_EXECUTION = Register-ExitCode 'There was an issue while running the executable.';
+#endregion - Error Codes
 
 function Get-RunnerFolder {
     begin { Enter-Scope; }
@@ -81,7 +104,7 @@ function Get-CachableResponse {
         }
 
         if (-not (Test-Path -Path $Local:CachePath)) {
-            Invoke-Verbose "Cache file not found, creating a new one.";
+            Invoke-Verbose 'Cache file not found, creating a new one.';
             [String]$Local:Url = 'https://api.github.com/repos/AMTSupport/tools/releases';
             try {
                 $ErrorActionPreference = 'Stop';
@@ -107,7 +130,7 @@ function Get-VersionComparable(
     end { Exit-Scope -ReturnValue $Local:Concat; }
 
     process {
-        [Int]$Local:Index = $Version.LastIndexOf("-v");
+        [Int]$Local:Index = $Version.LastIndexOf('-v');
         if ($Local:Index -eq -1) {
             throw "Failed to get the version comparable for $Local:Version."
         }
@@ -165,19 +188,19 @@ function Get-ExecutableArtifact(
         #region Setup Variables for finding the correct artifact
         # Get the Executable Suffix for the current system
         [String]$Local:Architecture = switch ($Env:PROCESSOR_ARCHITECTURE) {
-            "AMD64" { "x86_64" }
-            "x86" { "i686" }
+            'AMD64' { 'x86_64' }
+            'x86' { 'i686' }
             default { Invoke-FailedExit -ExitCode $Script:FAILED_MISSING_ARCHITECTURE; }
         };
 
         # https://github.com/PowerShell/PowerShell/issues/6347#issuecomment-372072077
         [Boolean]$Local:IsOSWindows = $env:OS -eq 'Windows_NT' -or $IsWindows;
         [String]$Local:OperatingSystem = if ($Local:IsOSWindows) {
-            "windows"
+            'windows'
         } elseif ($IsLinux) {
-            "linux"
+            'linux'
         } elseif ($IsMacOS) {
-            "macos"
+            'macos'
         } else {
             Invoke-FailedExit -ExitCode $Script:FAILED_MISSING_OS;
         };
@@ -287,27 +310,7 @@ function Invoke-Executable(
     }
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
-    $ErrorActionPreference = 'Stop';
-    #region - Error Codes
-
-    $Script:FAILED_WRITE = Register-ExitCode 'Failed to write to the file system.';
-
-    $Script:FAILED_RESPONSE = Register-ExitCode 'Failed to get a response from the API.';
-    $Script:FAILED_DOWNLOAD = Register-ExitCode 'There was an issue while downloading the executable.';
-
-    $Script:FAILED_MISSING_RELEASES = Register-ExitCode 'Unable to find any releases for the repository.';
-    $Script:FAILED_MISSING_ARTIFACTS = Register-ExitCode 'Unable to find any artifacts for the current release.';
-    $Script:FAILED_MISSING_EXECUTABLE = Register-ExitCode 'Unable to find an executable artifact for the current system.';
-
-    $Script:FAILED_MISSING_ARCHITECTURE = Register-ExitCode "Unable to find executable to match the current architecture. (${Env:PROCESSOR_ARCHITECTURE})";
-    $Script:FAILED_MISSING_OS = Register-ExitCode "Unable to find executable to match the current operating system. (${Env:OS})";
-
-    $Script:FAILED_EXECUTION = Register-ExitCode 'There was an issue while running the executable.';
-
-    #endregion - Error Codes
-
     [PSCustomObject]$Local:LatestRelease = Get-LatestRelease -Program $ProgramName;
     $Local:Artifact = Get-ExecutableArtifact -Program $ProgramName -Release $Local:LatestRelease;
     $Local:ExecutablePath = Get-DownloadedExecutable -Artifact $Local:Artifact;

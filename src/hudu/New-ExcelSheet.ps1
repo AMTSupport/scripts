@@ -1,5 +1,12 @@
 #Requires -Version 5.1
 
+Using module ../common/Environment.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Scope.psm1
+Using module ../common/Ensure.psm1
+Using module ./Common.psm1
+Using module ImportExcel
+
 using namespace OfficeOpenXml;
 
 <#
@@ -22,11 +29,11 @@ using namespace OfficeOpenXml;
 Param(
     [Parameter()]
     [ValidateNotNullOrEmpty()]
-    [String]$ApiKey = "",
+    [String]$ApiKey = '',
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
-    [String]$Endpoint = "",
+    [String]$Endpoint = '',
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
@@ -42,12 +49,12 @@ function New-ExcelPackage {
 
     process {
         [ExcelPackage]$Local:Excel = [ExcelPackage]::new();
-        [ExcelWorksheet]$Local:WorkSheet = $Local:Excel.Workbook.Worksheets.Add("Main");
+        [ExcelWorksheet]$Local:WorkSheet = $Local:Excel.Workbook.Worksheets.Add('Main');
 
         $Local:WorkSheet.InsertColumn(1, 1);
         $Local:WorkSheet.InsertRow(1, 1);
-        $Local:WorkSheet.Cells[1, 1].Value = "Company";
-        $Local:WorkSheet.Cells[1, 2].Value = "Type";
+        $Local:WorkSheet.Cells[1, 1].Value = 'Company';
+        $Local:WorkSheet.Cells[1, 2].Value = 'Type';
 
         return $Local:Excel;
     }
@@ -93,18 +100,16 @@ function Set-Style(
 
 #endregion - Excel Functions
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureUser;
-    Invoke-EnsureModule -Modules 'ImportExcel', "$PSScriptRoot\Common.psm1"; # TODO - This should be imported by compiler in future.
 
     [ExcelPackage]$Local:Excel = New-ExcelPackage;
     [PSCustomObject[]]$Local:Companies = Get-HuduCompanies -Endpoint $Endpoint -OnlyParents;
-    [ExcelWorksheet]$Local:WorkSheet = $Local:Excel.Workbook.Worksheets["Main"];
+    [ExcelWorksheet]$Local:WorkSheet = $Local:Excel.Workbook.Worksheets['Main'];
 
     Set-Companies -WorkSheet $Local:WorkSheet -Companies $Local:Companies;
     Set-Style -WorkSheet $Local:WorkSheet;
 
-    $Local:OutputLocation = Join-Path -Path $OutputPath -ChildPath "Companies.xlsx";
+    $Local:OutputLocation = Join-Path -Path $OutputPath -ChildPath 'Companies.xlsx';
     Close-ExcelPackage $Local:Excel -Show -SaveAs $Local:OutputLocation;
 };

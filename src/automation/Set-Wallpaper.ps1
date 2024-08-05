@@ -1,3 +1,14 @@
+Using module ../common/Environment.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Utils.psm1
+Using module ../common/Scope.psm1
+Using module ../common/Registry.psm1
+Using module ../common/Assert.psm1
+Using module ../common/Ensure.psm1
+Using module ../common/Exit.psm1
+
+Using module RunAsUser
+
 [CmdletBinding(DefaultParameterSetName = 'Set_Base64')]
 param(
     [Parameter(ParameterSetName = 'Set_StorageBlob')]
@@ -23,6 +34,7 @@ param(
 
 function Invoke-EncodeFromFile {
     [CmdletBinding()]
+    [OutputType([String])]
     param(
         [Parameter(Mandatory)]
         [String]$Path
@@ -115,8 +127,7 @@ function Get-FromBlob {
             $Private:Value = if ($Private:Key -eq 'sig') {
                 Invoke-Info "Applying URI encoding to $Private:RawValue...";
                 [URI]::EscapeDataString($Private:RawValue);
-            }
-            else {
+            } else {
                 Invoke-Info "Decoding $Private:RawValue...";
                 $Private:RawValue;
             }
@@ -134,8 +145,7 @@ function Get-FromBlob {
             Invoke-Debug "Response Headers: $Local:ResponseHeaders";
             [String]$Local:MD5 = $Local:ResponseHeaders['Content-MD5'];
             Assert-NotNull -Object:$Local:MD5 -Message:"Failed to get MD5 hash from $Local:Uri";
-        }
-        catch {
+        } catch {
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:ERROR_INVALID_HEADERS -FormatArgs @($Local:Uri);
         }
 
@@ -222,17 +232,13 @@ function Update-PerUserSystemParameters {
         $Local:ScriptBlock = {
             # For some reason, we need to run this multiple times to get it to work
             for ($i = 0; $i -lt 50; $i++) {
-                rundll32.exe user32.dll, UpdatePerUserSystemParameters;
+                rundll32 user32.dll, UpdatePerUserSystemParameters;
             }
         }
 
         if (Test-IsRunningAsSystem) {
-            Install-PackageProvider NuGet -MinimumVersion 2.8.5.201 -Force;
-            Set-PSRepository PSGallery -InstallationPolicy Trusted;
-            Invoke-EnsureModule 'RunAsUser';
             Invoke-AsCurrentUser -ScriptBlock $Local:ScriptBlock;
-        }
-        else {
+        } else {
             & $Local:ScriptBlock;
         }
     }
@@ -253,8 +259,7 @@ function Get-ReusableFile {
         if ($Local:ExistingFile) {
             Remove-Item -Path $Path; # Remove the file if it is the same as an existing file.
             $Path = $Local:ExistingFile;
-        }
-        else {
+        } else {
             # Enter Loop to ensure unique file name
             do {
                 [System.IO.DirectoryInfo]$Local:FileName = [IO.Path]::GetFileNameWithoutExtension([System.IO.Path]::GetRandomFileName()) + '.png';
@@ -269,7 +274,6 @@ function Get-ReusableFile {
     }
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 
