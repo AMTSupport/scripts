@@ -67,7 +67,6 @@
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.2" PrivateAssets="all" />
     <PackageReference Include="NLog" Version="5.3.2" />
     <PackageReference Include="QuikGraph" Version="2.5.0" />
-    <PackageReference Include="QuikGraph.Graphviz" Version="2.5.0" />
   </ItemGroup>
 
   <ItemGroup>

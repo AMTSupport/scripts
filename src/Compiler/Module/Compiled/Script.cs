@@ -8,7 +8,6 @@ using Compiler.Text;
 using NLog;
 using QuikGraph;
 using QuikGraph.Algorithms;
-using QuikGraph.Graphviz;
 
 namespace Compiler.Module.Compiled;
 
@@ -28,16 +27,6 @@ public class CompiledScript : CompiledLocalModule
         RequirementGroup requirements
     ) : base(moduleSpec, CompiledDocument.FromBuilder(editor, 0), requirements)
     {
-        var graphviz = resolvableParent.Graph.ToGraphviz(alg =>
-        {
-            alg.FormatVertex += (sender, args) =>
-            {
-                args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
-            };
-        });
-        Logger.Debug("Initial graphviz:");
-        Logger.Debug(graphviz);
-
         ScriptParamBlock = scriptParamBlock;
         Graph = new BidirectionalGraph<Compiled, Edge<Compiled>>();
         Graph.AddVertex(this);
@@ -55,7 +44,6 @@ public class CompiledScript : CompiledLocalModule
 
             var compiledRequirements = resolvableParent.Graph
                 .OutEdges(resolvable)
-                .AsParallel()
                 .Select(edge =>
                 {
                     try
@@ -83,13 +71,6 @@ public class CompiledScript : CompiledLocalModule
         {
             edge.Target.Parents.Add(edge.Source);
         });
-
-        graphviz = Graph.ToGraphviz(alg =>
-        {
-            alg.FormatVertex += (sender, args) => args.VertexFormat.Label = args.Vertex.GetNameHash();
-        });
-        Logger.Debug("Compiled graphviz:");
-        Logger.Debug(graphviz);
 
         Logger.Trace("Analyzing compiled modules.");
         Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled =>
