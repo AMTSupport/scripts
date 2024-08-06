@@ -68,6 +68,9 @@ class Program
             CleanInput(opts);
             IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
 
+            var filesToCompile = GetFilesToCompile(opts.Input!);
+            EnsureDirectoryStructure(opts.Input!, opts.Output, filesToCompile);
+
             ConcurrentBag<(string, Exception)> compilerErrors = [];
             // TODO - Super parent, Submit completed scripts so they can be resolved by other scripts
             CancelSource.Token.Register(() => Logger.Error("Compilation was cancelled."));
@@ -80,8 +83,9 @@ class Program
                     if (compiledScript == null && opts.FailFast) { CancelSource.Cancel(); }
                     if (compiledScript == null) return;
                     OutputToFile(
+                        opts.Input!,
                         opts.Output,
-                        Path.ChangeExtension(compiledScript.ModuleSpec.Name, "ps1"),
+                        script,
                         compiledScript.GetPowerShellObject(),
                         opts.Force
                     );
@@ -152,8 +156,9 @@ class Program
 
     public static void CleanInput(Options opts)
     {
-        opts.Input = Path.GetFullPath(opts.Input!.Trim());
+        ArgumentException.ThrowIfNullOrWhiteSpace(opts.Input, nameof(opts.Input));
 
+        opts.Input = Path.GetFullPath(opts.Input!.Trim());
         if (opts.Output != null)
         {
             opts.Output = Path.GetFullPath(opts.Output.Trim());
@@ -162,26 +167,6 @@ class Program
                 Logger.Error("Output must be a directory.");
                 Environment.Exit(1);
             }
-        }
-    }
-
-    public static IEnumerable<string> GetFilesToCompile(string input)
-    {
-        if (File.Exists(input))
-        {
-            yield return input;
-        }
-        else if (Directory.Exists(input))
-        {
-            foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories))
-            {
-                yield return file;
-            }
-        }
-        else
-        {
-            Logger.Error("Input must be a file or directory.");
-            Environment.Exit(1);
         }
     }
 
@@ -270,26 +255,77 @@ class Program
         return logLevel;
     }
 
+    public static string GetOutputLocation(
+        string sourceDirectory,
+        string outputDirectory,
+        string targetFile)
+    {
+        if (sourceDirectory == targetFile) return Path.Combine(outputDirectory, Path.GetFileName(targetFile));
+
+        var relativePath = Path.GetRelativePath(sourceDirectory, targetFile);
+        return Path.Combine(outputDirectory, relativePath);
+    }
+
+
+    public static IEnumerable<string> GetFilesToCompile(string input)
+    {
+        if (File.Exists(input))
+        {
+            yield return input;
+        }
+        else if (Directory.Exists(input))
+        {
+            foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories))
+            {
+                yield return file;
+            }
+        }
+        else
+        {
+            Logger.Error("Input must be a file or directory.");
+            Environment.Exit(1);
+        }
+    }
+
+    public static void EnsureDirectoryStructure(
+        string sourceDirectory,
+        string? outputDirectory,
+        IEnumerable<string> scripts
+    )
+    {
+        if (string.IsNullOrWhiteSpace(outputDirectory)) return;
+        if (!Directory.Exists(sourceDirectory)) return;
+
+        if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
+
+        foreach (var script in scripts)
+        {
+            var outputDir = Path.GetDirectoryName(GetOutputLocation(sourceDirectory, outputDirectory, script));
+            if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir!);
+        }
+    }
+
     public static async void OutputToFile(
-        string? directory,
+        string sourceDirectory,
+        string? outputDirectory,
         string fileName,
         string content,
         bool overwrite)
     {
-        if (string.IsNullOrWhiteSpace(directory))
+        if (string.IsNullOrWhiteSpace(outputDirectory))
         {
             // Output to console to allow for piping
             Console.OpenStandardOutput().Write(Encoding.UTF8.GetBytes(content));
             return;
         }
 
-        var output = Path.Combine(directory, fileName);
-        if (File.Exists(output))
+        var outputPath = GetOutputLocation(sourceDirectory, outputDirectory, fileName);
+        if (File.Exists(outputPath))
         {
             var removeFile = overwrite;
             if (!removeFile)
             {
-                Logger.Info($"File {output} already exists. Overwrite? (Y/n)");
+                Logger.Info($"File {outputPath} already exists. Overwrite? (Y/n)");
                 var response = Console.ReadLine();
                 removeFile = string.IsNullOrWhiteSpace(response) || response.Equals("y", StringComparison.CurrentCultureIgnoreCase);
             }
@@ -297,12 +333,12 @@ class Program
             if (removeFile)
             {
                 Logger.Trace("Removing file");
-                File.Delete(output);
+                File.Delete(outputPath);
             }
         }
 
-        Logger.Info($"Writing to file {output}");
-        using var fileStream = File.Open(output, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        Logger.Info($"Writing to file {outputPath}");
+        using var fileStream = File.Open(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await fileStream.WriteAsync(Encoding.UTF8.GetBytes(content));
     }
 
