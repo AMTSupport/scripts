@@ -1,7 +1,6 @@
 using System.Management.Automation.Language;
 using System.Reflection;
 using System.Text;
-using Compiler.Analyser;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -31,11 +30,6 @@ public class CompiledScript : CompiledLocalModule
         Graph = new BidirectionalGraph<Compiled, Edge<Compiled>>();
         Graph.AddVertex(this);
 
-        Graph.VertexAdded += vertex => Logger.Debug($"Vertex added: {vertex.ModuleSpec.Name}");
-        Graph.VertexRemoved += vertex => Logger.Debug($"Vertex removed: {vertex.ModuleSpec.Name}");
-        Graph.EdgeAdded += edge => Logger.Debug($"Edge added: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
-        Graph.EdgeRemoved += edge => Logger.Debug($"Edge removed: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
-
         var loadOrder = resolvableParent.Graph.TopologicalSort();
         var reversedLoadOrder = loadOrder.Reverse();
         reversedLoadOrder.ToList().ForEach(resolvable =>
@@ -44,19 +38,7 @@ public class CompiledScript : CompiledLocalModule
 
             var compiledRequirements = resolvableParent.Graph
                 .OutEdges(resolvable)
-                .Select(edge =>
-                {
-                    try
-                    {
-                        Logger.Trace($"Getting compiled module for {edge.Target.ModuleSpec}");
-                        return Graph.Vertices.First(module => module.ModuleSpec == edge.Target.ModuleSpec);
-                    }
-                    catch
-                    {
-                        Logger.Trace($"Could not find module from edge {edge.Target.ModuleSpec}");
-                        throw;
-                    }
-                });
+                .Select(edge => Graph.Vertices.First(module => module.ModuleSpec == edge.Target.ModuleSpec));
 
             Compiled compiledModule;
             if (resolvable.ModuleSpec == moduleSpec) { compiledModule = this; }
