@@ -90,8 +90,6 @@ public static class AstHelper
         return namespaces;
     }
 
-    public static List<CommandAst> FindCalledFunctions(Ast ast) => [.. ast.FindAll(testAst => testAst is CommandAst, true).Cast<CommandAst>().Where(command => command.GetCommandName() != null)];
-
     public static List<FunctionDefinitionAst> FindAvailableFunctions(Ast ast, bool onlyExported)
     {
         var allDefinedFunctions = ast
