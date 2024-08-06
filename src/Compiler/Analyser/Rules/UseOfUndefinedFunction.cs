@@ -1,11 +1,14 @@
 using System.Management.Automation;
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
+using NLog;
 
 namespace Compiler.Analyser.Rules;
 
 public class UseOfUndefinedFunction : Rule
 {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
     /// <summary>
     /// A list of all the built-in functions that are provided in a standard session.
     /// This includes modules that are imported by default.
@@ -20,7 +23,19 @@ public class UseOfUndefinedFunction : Rule
         if (commandAst.GetCommandName() == null) return false;
         var callName = SanatiseName(commandAst.GetCommandName());
 
-        return !supressions.Any(supression => (string)supression.Data! == callName);
+        return !supressions.Any(supression =>
+        {
+            switch (supression.Data)
+            {
+                case IEnumerable<string> functions:
+                    return functions.Contains(callName);
+                case string function:
+                    return function == callName;
+                default:
+                    Logger.Warn($"Supression data is not a string or IEnumerable<string> for rule {GetType().Name}");
+                    return false;
+            }
+        });
     }
 
     public override IEnumerable<Issue> Analyse(
