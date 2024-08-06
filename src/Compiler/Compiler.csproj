@@ -4,12 +4,13 @@
   <PropertyGroup>
     <MainEntryPoint>Program</MainEntryPoint>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
+    <UseWindowsForms>true</UseWindowsForms>
 
     <LangVersion>preview</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
