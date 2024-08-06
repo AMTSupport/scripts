@@ -104,5 +104,5 @@ public enum ContentType
 {
     UTF8String,
 
-    ZipHex
+    Zip
 }
