@@ -1,5 +1,7 @@
 using System.Collections;
 using System.IO.Compression;
+using System.Management.Automation;
+using System.Management.Automation.Runspaces;
 using CommandLine;
 using Compiler.Requirements;
 using NLog;
@@ -14,7 +16,7 @@ public class CompiledRemoteModule : Compiled
 
     public readonly MemoryStream MemoryStream;
 
-    public override ContentType Type => ContentType.ZipHex;
+    public override ContentType Type => ContentType.Zip;
 
     public override Version Version { get; }
 
@@ -36,28 +38,47 @@ public class CompiledRemoteModule : Compiled
     }
 
     public override string StringifyContent() => $"'{Convert.ToHexString(MemoryStream.ToArray())}'";
+    public IEnumerable<string> GetExported(object? data, CommandTypes commandTypes)
+    {
+        switch (data)
+        {
+            case object[] strings:
+                return strings.Cast<string>();
+            case string starString when starString == "*":
+                var version = GetPowerShellManifest()["ModuleVersion"]!.ToString()!;
+                var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{ModuleSpec.Name}");
+                var tempOutput = Path.Combine(tempModuleRootPath, ModuleSpec.Name, version);
+                if (!Directory.Exists(tempOutput))
+                {
+                    Directory.CreateDirectory(tempOutput);
+                    using var archive = GetZipArchive();
+                    archive.ExtractToDirectory(tempOutput);
+                }
+
+                var sessionState = InitialSessionState.CreateDefault();
+                sessionState.ImportPSModulesFromPath(tempModuleRootPath);
+                var pwsh = PowerShell.Create(sessionState);
+                return pwsh.Runspace.SessionStateProxy.InvokeCommand
+                    .GetCommands("*", commandTypes, true)
+                    .Where(command => command.ModuleName == ModuleSpec.Name)
+                    .Select(command => command.Name);
+            case string str:
+                return [str];
+            case null:
+                return [];
+            default:
+                throw new Exception($"FunctionsToExport must be a string or an array of strings, but was {data.GetType()}");
+        }
+    }
 
     public override IEnumerable<string> GetExportedFunctions()
     {
         var manifest = GetPowerShellManifest();
 
         var exportedFunctions = new List<string>();
-        var functionsToExport = manifest["FunctionsToExport"] switch
-        {
-            string[] functions => functions,
-            string function => [function],
-            object[] functions => functions.Cast<string>(),
-            null => [],
-            _ => throw new Exception($"FunctionsToExport must be a string or an array of strings, but was {manifest["FunctionsToExport"]?.GetType()}")
-        };
-        var cmdletsToExport = manifest["CmdletsToExport"] switch
-        {
-            string[] cmdlets => cmdlets,
-            string cmdlet => [cmdlet],
-            object[] cmdlets => cmdlets.Cast<string>(),
-            null => [],
-            _ => throw new Exception($"CmdletsToExport must be a string or an array of strings, but was {manifest["CmdletsToExport"]?.GetType()}")
-        };
+        var functionsToExport = GetExported(manifest["FunctionsToExport"], CommandTypes.Function);
+        var cmdletsToExport = GetExported(manifest["CmdletsToExport"], CommandTypes.Cmdlet);
+        var aliasesToExport = GetExported(manifest["AliasesToExport"], CommandTypes.Alias);
 
         exportedFunctions.AddRange(functionsToExport);
         exportedFunctions.AddRange(cmdletsToExport);
