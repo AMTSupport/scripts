@@ -37,7 +37,14 @@ public class CompiledRemoteModule : Compiled
         };
     }
 
-    public override string StringifyContent() => $"'{Convert.ToHexString(MemoryStream.ToArray())}'";
+    public override string StringifyContent() {
+        // Convert to a powershell byte array
+        var bytes = new byte[MemoryStream.Length];
+        MemoryStream.Read(bytes, 0, bytes.Length);
+        var base64 = Convert.ToBase64String(bytes);
+        return $"'{base64}'";
+    }
+
     public IEnumerable<string> GetExported(object? data, CommandTypes commandTypes)
     {
         switch (data)
@@ -82,6 +89,7 @@ public class CompiledRemoteModule : Compiled
 
         exportedFunctions.AddRange(functionsToExport);
         exportedFunctions.AddRange(cmdletsToExport);
+        exportedFunctions.AddRange(aliasesToExport);
 
         return exportedFunctions;
     }
