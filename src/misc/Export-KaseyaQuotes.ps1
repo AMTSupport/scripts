@@ -1,3 +1,8 @@
+Using module ../common/Environment.psm1
+Using module ../common/Input.psm1
+Using module ../common/Logging.psm1
+Using module ../common/Exit.psm1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, HelpMessage = 'Where to save the output file.')]
@@ -33,22 +38,19 @@ function Invoke-ApiRequest {
         do {
             if ($null -ne $Parameters -and $Parameters.Count -gt 0) {
                 $Private:UsingUri = $Local:Uri + '?' + ($Parameters.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join '&';
-            }
-            else {
+            } else {
                 $Private:UsingUri = $Local:Uri;
             }
 
             Invoke-Debug "Requesting Uri {{$Private:UsingUri}} with headers {{$($Local:Headers | ConvertTo-Json)}}";
             try {
                 $Local:Response = Invoke-WebRequest -UseBasicParsing -Uri $Local:UsingUri -Headers $Local:Headers;
-            }
-            catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+            } catch [Microsoft.PowerShell.Commands.HttpResponseException] {
                 if ($_.Exception.Response.StatusCode -eq 429) {
                     Invoke-Info 'Rate limit reached, waiting 60 seconds before retrying...';
                     Start-Sleep -Seconds 60;
                     continue;
-                }
-                else {
+                } else {
                     Invoke-Error "There was an error with the API request. Please try again: $($_.Exception.Response.Content)";
                     break;
                 }
@@ -57,13 +59,11 @@ function Invoke-ApiRequest {
 
         if ($Local:Response.StatusCode -eq 200) {
             return $Local:Response.Content | ConvertFrom-Json;
-        }
-        else {
+        } else {
             Invoke-Error "There was an error with the API request. Please try again: $($_.Exception.Response.Content)";
             Invoke-FailedExit -ExitCode 9999;
         }
-    }
-    else {
+    } else {
         $Private:Responses = @();
         while ($True) {
             $Private:NextPage = "${Local:Uri}?page=$($Private:Responses.Count + 1)&pagesize=100";
@@ -74,14 +74,12 @@ function Invoke-ApiRequest {
             Invoke-Debug "Requesting Uri {{$Private:NextPage}} with headers {{$($Local:Headers | ConvertTo-Json)}}";
             try {
                 $Private:Response = Invoke-WebRequest -UseBasicParsing -Uri $Private:NextPage -Headers $Local:Headers
-            }
-            catch [Microsoft.PowerShell.Commands.HttpResponseException] {
+            } catch [Microsoft.PowerShell.Commands.HttpResponseException] {
                 if ($_.Exception.Response.StatusCode -eq 429) {
                     Invoke-Info 'Rate limit reached, waiting 60 seconds before retrying...';
                     Start-Sleep -Seconds 60;
                     continue;
-                }
-                else {
+                } else {
                     Invoke-Error "There was an error with the API request. Please try again: $($_.Exception.Response.Content)";
                     Invoke-FailedExit -ExitCode 9999 -ErrorRecord $_;
                 }
@@ -106,7 +104,6 @@ function Invoke-ApiRequest {
     }
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     trap {
         Remove-Variable -Scope Global -Name 'Quotes' -ErrorAction SilentlyContinue;
@@ -137,8 +134,7 @@ Invoke-RunMain $PSCmdlet {
             if ($null -ne $InputData -and $InputData.ContainsKey($VariableName)) {
                 Invoke-Debug "Setting variable $VariableName from input data.";
                 Set-Variable -Scope Global -Name $VariableName -Value $InputData[$VariableName];
-            }
-            else {
+            } else {
                 Invoke-Debug "Setting variable $VariableName from lazy block.";
                 Set-Variable -Scope Global -Name $VariableName -Value (&$LazyBlock);
             }
@@ -238,8 +234,7 @@ Invoke-RunMain $PSCmdlet {
             Categories         = $Global:Categories;
             Customers          = $Global:Customers;
         } | ConvertTo-Json -Depth 9 | Out-File -FilePath $OutputPath -Force;
-    }
-    else {
+    } else {
         $Global:Quotes | ForEach-Object {
             Invoke-Debug "Processing quote $($_.id)";
 

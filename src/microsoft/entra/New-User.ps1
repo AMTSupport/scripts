@@ -1,3 +1,9 @@
+Using module ../../common/Environment.psm1
+Using module ../../common/Connect.psm1
+Using module ../../common/Input.psm1
+
+Using module Microsoft.Graph.Identity.DirectoryManagement
+
 function Get-RandomPassword {
     # Generate a random password using RPGen
 }
@@ -11,9 +17,8 @@ function New-User {
     # Use a auto complete input box to allow the user to select the licenses
 }
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
-    Invoke-EnsureModule -Modules 'Graph' -Scopes '';
+    Connect-Service -Services @('Graph') -Scopes @('User.ReadWrite.All', 'Directory.ReadWrite.All');
 
     #region - Get user details
 

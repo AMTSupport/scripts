@@ -1,3 +1,8 @@
+Using module ../../common/Environment.psm1
+Using module ../Common.psm1
+Using module ExchangeOnlineManagement
+Using module Microsoft.Graph.Users
+
 Using namespace Microsoft.Graph.PowerShell.Models;
 
 function Update-Mailbox {
@@ -21,9 +26,7 @@ function Update-User {
     # Remove all licenses (This may need to be done after everything else)
 }
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
-    Invoke-EnsureModule "$PSScriptRoot/../Common.psm1", 'ExchangeOnlineManagement', 'Microsoft.Graph';
     Connect-Service 'Graph','ExchangeOnline' -Scopes @('User.ReadWrite.All', 'Directory.ReadWrite.All');
 
     # TODO :: Filter by licensed and enabled
