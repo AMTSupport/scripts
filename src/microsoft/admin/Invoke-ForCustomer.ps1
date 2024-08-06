@@ -1,7 +1,6 @@
-Using module Microsoft.Graph.Authentication;
-Using module PartnerCenter;
-
-Using module ../../common/Environment.psm1;
+Using module ../../common/Environment.psm1
+Using module Microsoft.Graph.Authentication
+Using module PartnerCenter
 
 [CmdletBinding(DefaultParameterSetName = 'ScriptBlock')]
 param (
@@ -226,8 +225,7 @@ function Get-AuthenticationTokens {
             Invoke-Info 'Customer Access Token has been successfully retrieved.';
 
             return $Local:AccessToken;
-        }
-        else {
+        } else {
             return $Local:PartnerAccessToken;
         }
     }
@@ -272,8 +270,7 @@ function Invoke-InCustomerContext {
         Invoke-Info "Executing script in the context of $CustomerTenantId's tenant...";
         if ($ScriptBlock) {
             Invoke-Command -ScriptBlock $ScriptBlock;
-        }
-        elseif ($ScriptFile) {
+        } elseif ($ScriptFile) {
             Invoke-Expression -Command $ScriptFile @Parameters;
         }
         Invoke-Info "Script execution completed in the context of $CustomerTenantId's tenant.";
@@ -308,8 +305,7 @@ function Select-Customer {
     if (-not [string]::IsNullOrWhiteSpace($Local:ExistingToken.AccessToken)) {
         [SecureString]$Local:SecureToken = ConvertTo-SecureString -String $Local:ExistingToken.AccessToken -AsPlainText -Force;
         Connect-Service 'Graph' -Scopes 'Directory.Read.All' -AccessToken:$Local:SecureToken;
-    }
-    else { Connect-Service 'Graph' -Scopes 'Directory.Read.All'; }
+    } else { Connect-Service 'Graph' -Scopes 'Directory.Read.All'; }
 
     [Microsoft.Graph.PowerShell.Models.IMicrosoftGraphContract[]]$Customers = Get-MgContract -All;
     return Get-UserSelection `
@@ -337,11 +333,9 @@ Invoke-RunMain $PSCmdlet -NotStrict -Main {
     $Private:Customer = Select-Customer;
     try {
         Invoke-InCustomerContext -CustomerTenantId:($Private:Customer.CustomerId);
-    }
-    catch {
+    } catch {
         Invoke-FailedExit -ExitCode 999 -ErrorRecord $_;
-    }
-    finally {
+    } finally {
         if ($PreserveTokens) {
             [Environment]::SetEnvironmentVariable('MULTITENANT_ACCESS_TOKENS', ($Script:AccessTokens | ConvertTo-Json -Depth 5));
         }

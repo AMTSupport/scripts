@@ -7,7 +7,7 @@ Using module ../common/Ensure.psm1
 Using module ./Common.psm1
 Using module ImportExcel
 
-using namespace OfficeOpenXml;
+using namespace OfficeOpenXml
 
 <#
 .SYNOPSIS

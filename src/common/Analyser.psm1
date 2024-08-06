@@ -5,12 +5,12 @@ class SupressAnalyserAttribute : System.Attribute {
     [Object]$Data;
     [String]$Justification = '';
 
-    SuppressAnalyser([String]$CheckType, [Object]$Data) {
+    SupressAnalyserAttribute([String]$CheckType, [Object]$Data) {
         $this.CheckType = $CheckType;
         $this.Data = $Data;
     }
 
-    SuppressAnalyser([String]$CheckType, [Object]$Data, [String]$Justification) {
+    SupressAnalyserAttribute([String]$CheckType, [Object]$Data, [String]$Justification) {
         $this.CheckType = $CheckType;
         $this.Data = $Data;
         $this.Justification = $Justification;

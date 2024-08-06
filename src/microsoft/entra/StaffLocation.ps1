@@ -24,8 +24,8 @@ param()
 Class CountryNames : System.Management.Automation.IValidateSetValuesGenerator {
     [String[]]GetValidValues() {
         return [CultureInfo]::GetCultures([System.Globalization.CultureTypes]::SpecificCultures) `
-            | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
-            | Select-Object -Unique | Sort-Object;
+        | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
+        | Select-Object -Unique | Sort-Object;
     }
 }
 
@@ -92,7 +92,7 @@ function Set-SecurityGroup {
         -MailEnabled:$True `
         -SecurityEnabled:$True `
         -MailNickname:$GroupName `
-        -Description:"Staff Security Group";
+        -Description:'Staff Security Group';
 
     Invoke-Info "Security Group $GroupName has been updated.";
 
@@ -179,8 +179,8 @@ function Set-ConditionalAccessPolicy {
     #     -Question 'Please enter the name which will be used to create the security group, named location and conditional access policy.';
 
     [String[]]$Local:PossibleCountries = [CultureInfo]::GetCultures([System.Globalization.CultureTypes]::SpecificCultures) `
-        | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
-        | Select-Object -Unique | Sort-Object;
+    | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
+    | Select-Object -Unique | Sort-Object;
 
     Invoke-Info 'Please select the primary country first and then select the secondary countries.';
     [String[]]$Local:Countries = @();
@@ -209,7 +209,7 @@ function Set-ConditionalAccessPolicy {
             [Boolean]$Local:ValidatedPolicy = Test-ConditionalAccessPolicy -PolicyName:$Local:PolicyName;
 
             if ($Local:ValidatedGroup -and $Local:ValidatedLocation -and $Local:ValidatedPolicy) {
-                Invoke-Info "Staff Location is setup correctly.";
+                Invoke-Info 'Staff Location is setup correctly.';
             } else {
                 Invoke-Info "
                 Component Test Results:
@@ -217,7 +217,7 @@ function Set-ConditionalAccessPolicy {
                 - Named Location: $Local:LocationName
                 - Conditional Access Policy: $Local:PolicyName
                 ".Trim();
-                Invoke-Info "Staff Location is not setup correctly.";
+                Invoke-Info 'Staff Location is not setup correctly.';
                 Invoke-Info "Please run the script with the 'Set' action to create the missing components.";
             }
         }
@@ -249,7 +249,7 @@ dynamicparam {
 
     $Parameters = $Local:ScriptBlock.Ast.ParamBlock.Parameters;
     if ($Parameters.Count -eq 0) {
-        Write-Host "No parameters found.";
+        Write-Host 'No parameters found.';
         return;
     } else {
         Write-Host "Found $($Parameters.Count) parameters.";
