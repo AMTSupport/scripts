@@ -1,5 +1,6 @@
 using System.Management.Automation;
 using System.Management.Automation.Language;
+using System.Management.Automation.Runspaces;
 using Compiler.Module.Compiled;
 using NLog;
 
@@ -77,8 +78,11 @@ public class UseOfUndefinedFunction : Rule
     public static IEnumerable<string> GetDefaultSessionFunctions()
     {
         var defaultFunctions = new List<string>();
-        defaultFunctions.AddRange(PowerShell.Create().Runspace.SessionStateProxy.InvokeCommand
-            .GetCommands("*", CommandTypes.Application | CommandTypes.Function | CommandTypes.Alias | CommandTypes.Cmdlet, true)
+
+        var sessionState = InitialSessionState.CreateDefault();
+        var pwsh = PowerShell.Create(sessionState);
+        defaultFunctions.AddRange(pwsh.Runspace.SessionStateProxy.InvokeCommand
+            .GetCommands("*", CommandTypes.All, true)
             .Select(command => command.Name));
 
         var modulesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules");
