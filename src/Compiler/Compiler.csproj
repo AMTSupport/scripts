@@ -21,6 +21,7 @@
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
     <DefineConstants>$(DefineConstants);PSV7;CORECLR</DefineConstants>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <!-- <PropertyGroup>
