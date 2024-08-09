@@ -40,21 +40,6 @@ jobs:
             src_deleted:
               - deleted: 'src/**'
 
-  protect-directory:
-    runs-on: ubuntu-latest
-    needs: changes
-    # Only run if changes have been made to the 'compiled' directory
-    if: ${{ needs.changes.outputs.compiled == 'true' && github.actor != 'github-actions' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-        # Don't run if the push was forced, as this is likely a cleanup.
-      - if: ${{ github.event_name != 'push' && !github.event.forced }}
-        run: |
-          echo "Manual changes to 'compiled' directory are not allowed."
-          exit 1
-
   cleanup-directory:
     runs-on: ubuntu-latest
     needs: changes

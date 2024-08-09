@@ -4,7 +4,7 @@ on: ["push", "pull_request"]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       contents: read
     steps:
@@ -21,4 +21,9 @@ jobs:
         run: dotnet restore --locked-mode
 
       - name: Build
-        run: dotnet build
+        run: dotnet publish .\src\Compiler\Compiler.csproj --sc -c Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Compiler
+          path: .\src\Compiler\bin\Release\win-x64\publish\Compiler.exe
