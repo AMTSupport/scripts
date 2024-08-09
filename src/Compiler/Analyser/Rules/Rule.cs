@@ -16,7 +16,7 @@ public abstract class Rule
     /// </returns>
     public abstract bool ShouldProcess(
         Ast node,
-        IEnumerable<Supression> supressions
+        IEnumerable<Suppression> supressions
     );
 
     public abstract IEnumerable<Issue> Analyse(

@@ -11,7 +11,7 @@ param(
 
 # TODO wmic no longer available on Windows 11 need to find alternative.
 Invoke-RunMain $PSCmdlet {
-    [SuppressAnalyserAttribute(
+    [Compiler.Analyser.SuppressAnalyserAttribute(
         CheckType = 'UseOfUndefinedFunction',
         Data = 'wmic',
         Justification = 'wmic is not available on the builder machine'

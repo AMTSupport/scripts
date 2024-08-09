@@ -1,6 +1,11 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSAvoidGlobalVars',
+    'Global:CompiledScript',
+    Justification = 'Required to inform modules of runtime type.'
+)]
 #!DEFINE PARAM_BLOCK
 begin {
-    [Boolean]$Script:CompiledScript = $True;
+    [Boolean]$Global:CompiledScript = $True;
     #!DEFINE EMBEDDED_MODULES
     #!DEFINE IMPORT_ORDER
 
@@ -72,4 +77,7 @@ process {
         $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
         $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force; }
     }
+}
+end {
+    Remove-Variable -Name CompiledScript -Scope Global;
 }

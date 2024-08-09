@@ -18,7 +18,7 @@ public class UseOfUndefinedFunction : Rule
 
     public override bool ShouldProcess(
         Ast node,
-        IEnumerable<Supression> supressions)
+        IEnumerable<Suppression> supressions)
     {
         if (node is not CommandAst commandAst) return false;
         if (commandAst.GetCommandName() == null) return false;

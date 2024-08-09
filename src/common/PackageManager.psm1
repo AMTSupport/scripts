@@ -43,7 +43,7 @@ function Local:Install-Requirements {
         'PSAvoidUsingInvokeExpression',
         Justification = 'Required to install Chocolatey, there is no other way to do this.'
     )]
-    [SuppressAnalyserAttribute(
+    [Compiler.Analyser.SuppressAnalyserAttribute(
         'UseOfUndefinedFunction',
         'refreshenv',
         Justification = 'Will be defined by the imported module.'

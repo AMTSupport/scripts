@@ -63,31 +63,31 @@ file class TestData
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule"
-            )).Returns("Using module 'MyModule'").SetName("Only name");
+            )).Returns("Using module 'MyModule'");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};}""").SetName("Name and guid");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';}""").SetName("Name, guid and minimum version");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
                 maximumVersion: new Version("2.0.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};MaximumVersion = '2.0.0';}""").SetName("Name, guid and maximum version");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};MaximumVersion = '2.0.0';}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';}""").SetName("Name, guid, minimum and maximum version");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -95,7 +95,7 @@ file class TestData
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};RequiredVersion = '1.5.0';}""").SetName("All properties");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};RequiredVersion = '1.5.0';}""");
         }
     }
 
@@ -110,7 +110,7 @@ file class TestData
                 "MyModule"
             ), new ModuleSpec(
                 "MyModule"
-            )).Returns(ModuleMatch.Same).SetName("Same match with name");
+            )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -118,7 +118,7 @@ file class TestData
             ), new ModuleSpec(
                 "MyModule",
                 guid
-            )).Returns(ModuleMatch.Same).SetName("Same match with guid");
+            )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -128,7 +128,7 @@ file class TestData
                 "MyModule",
                 guid,
                 new Version("1.0.0")
-            )).Returns(ModuleMatch.Same).SetName("Same match with guid and minimum version");
+            )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -140,7 +140,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Same).SetName("Same match with guid, minimum and maximum version");
+            )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -154,7 +154,7 @@ file class TestData
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
-            )).Returns(ModuleMatch.Same).SetName("Same match with all properties");
+            )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -165,7 +165,7 @@ file class TestData
                 "MyModule",
                 guid,
                 new Version("1.0.0")
-            )).Returns(ModuleMatch.MergeRequired).SetName("Merge Required because both are stricter in different ways");
+            )).Returns(ModuleMatch.MergeRequired);
             #endregion
 
             #region Looser matches
@@ -179,7 +179,7 @@ file class TestData
                 guid,
                 new Version("1.3.0"),
                 new Version("1.9.0")
-            )).Returns(ModuleMatch.Looser).SetName("Looser match from smaller version range");
+            )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -192,7 +192,7 @@ file class TestData
                 null,
                 null,
                 new Version("1.5.0")
-            )).Returns(ModuleMatch.Looser).SetName("Looser match from required version");
+            )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -201,7 +201,7 @@ file class TestData
                 "MyModule",
                 guid,
                 new Version("1.0.0")
-            )).Returns(ModuleMatch.Looser).SetName("Looser match with minimum version because of missing minimum version");
+            )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -211,7 +211,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Looser).SetName("Looser match with version range because of missing version range");
+            )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -223,7 +223,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("1.8.0")
-            )).Returns(ModuleMatch.Looser).SetName("Looser match with maximum version because of smaller version range");
+            )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -235,7 +235,7 @@ file class TestData
                 guid,
                 new Version("1.1.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Looser).SetName("Looser match with minimum version because of smaller version range");
+            )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -248,7 +248,7 @@ file class TestData
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
-            )).Returns(ModuleMatch.Looser).SetName("Looser match from bigger version range with new required version");
+            )).Returns(ModuleMatch.Looser);
             #endregion
 
             #region Stricter matches
@@ -262,7 +262,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Stricter).SetName("Stricter match from bigger version range");
+            )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -275,7 +275,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Stricter).SetName("Stricter match from bigger version range with existing required version");
+            )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -287,7 +287,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Stricter).SetName("Stricter match with maximum version because of bigger version range");
+            )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -299,7 +299,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Stricter).SetName("Stricter match with minimum version because of bigger version range");
+            )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -309,7 +309,7 @@ file class TestData
             ), new ModuleSpec(
                 "MyModule",
                 guid
-            )).Returns(ModuleMatch.Stricter).SetName("Stricter match with version range because of missing version range");
+            )).Returns(ModuleMatch.Stricter);
             #endregion
 
             #region Incompatible matches
@@ -322,7 +322,7 @@ file class TestData
                 guid,
                 null,
                 new Version("0.9.0")
-            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of maximum version lower than minimum version");
+            )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -334,7 +334,7 @@ file class TestData
                 guid,
                 new Version("2.1.0"),
                 new Version("2.5.0")
-            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of minimum version higher than maximum version");
+            )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -347,7 +347,7 @@ file class TestData
                 null,
                 null,
                 new Version("2.5.0")
-            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version higher than maximum version");
+            )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -359,7 +359,7 @@ file class TestData
                 null,
                 null,
                 new Version("0.5.0")
-            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version lower than minimum version");
+            )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -369,7 +369,7 @@ file class TestData
                 "MyModule",
                 guid,
                 requiredVersion: new Version("1.0.1")
-            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of different required version");
+            )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -382,7 +382,7 @@ file class TestData
                 guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version higher than maximum version");
+            )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
@@ -394,7 +394,7 @@ file class TestData
                 "MyModule",
                 guid,
                 new Version("1.0.0")
-            )).Returns(ModuleMatch.Incompatible).SetName("Incompatible match because of required version lower than minimum version");
+            )).Returns(ModuleMatch.Incompatible);
             #endregion
         }
     }
@@ -407,7 +407,7 @@ file class TestData
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule"
-            ), Array.Empty<ModuleSpec>()).SetName("No additional specs").Returns(new ModuleSpec(
+            ), Array.Empty<ModuleSpec>()).Returns(new ModuleSpec(
                 "MyModule"
             ));
 
@@ -418,7 +418,7 @@ file class TestData
                     "MyModule",
                     guid
                 )
-            }).SetName("Same name").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid
             ));
@@ -431,7 +431,7 @@ file class TestData
                     guid,
                     new Version("1.0.0")
                 )
-            }).SetName("Same name and guid").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0")
@@ -446,7 +446,7 @@ file class TestData
                     new Version("1.0.0"),
                     new Version("2.0.0")
                 )
-            }).SetName("Same name, Update guid, minimum, and maximum version").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0"),
@@ -463,7 +463,7 @@ file class TestData
                     new Version("1.0.0"),
                     new Version("2.0.0")
                 )
-            }).SetName("Same name and guid, Update minimum, and maximum version").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0"),
@@ -481,7 +481,7 @@ file class TestData
                     guid,
                     requiredVersion: new Version("1.5.0")
                 )
-            }).SetName("Update required version").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0"),
@@ -500,7 +500,7 @@ file class TestData
                     guid,
                     new Version("1.5.0")
                 )
-            }).SetName("Update minimum version").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.5.0"),
@@ -518,7 +518,7 @@ file class TestData
                     guid,
                     maximumVersion: new Version("1.5.0")
                 )
-            }).SetName("Update maximum version").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.0.0"),
@@ -537,7 +537,7 @@ file class TestData
                     new Version("1.5.0"),
                     new Version("1.8.0")
                 )
-            }).SetName("Update minimum and maximum version").Returns(new ModuleSpec(
+            }).Returns(new ModuleSpec(
                 "MyModule",
                 guid,
                 new Version("1.5.0"),
@@ -556,22 +556,22 @@ file class TestData
             yield return new TestCaseData(
                 new PathedModuleSpec(testScript1),
                 new PathedModuleSpec(testScript1)
-            ).Returns(ModuleMatch.Same).SetName("Same match");
+            ).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(
                 new PathedModuleSpec(testScript1),
                 new PathedModuleSpec(testScript2)
-            ).Returns(ModuleMatch.None).SetName("Different name");
+            ).Returns(ModuleMatch.None);
 
             yield return new TestCaseData(
                 new PathedModuleSpec(testScript1),
                 new ModuleSpec("./test.ps1")
-            ).Returns(ModuleMatch.Same).SetName("Same match with relative path");
+            ).Returns(ModuleMatch.PreferOurs);
 
             yield return new TestCaseData(
                 new PathedModuleSpec(testScript1),
                 new ModuleSpec("./test2.ps1")
-            ).Returns(ModuleMatch.None).SetName("Different name with relative path");
+            ).Returns(ModuleMatch.None);
         }
     }
 }
