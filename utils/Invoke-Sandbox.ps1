@@ -52,7 +52,7 @@ function Invoke-Sandbox {
     Remove-Item -Path:$Private:TempSandboxPath;
 }
 
-Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../src/common/Environment.psm1;
 Invoke-RunMain $MyInvocation {
     Import-Module "$PSScriptRoot/Compiler.ps1" -Function * -Global;
 

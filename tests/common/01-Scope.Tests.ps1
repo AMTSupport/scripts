@@ -2,7 +2,7 @@ BeforeDiscovery {
     $Script:ModuleName = & $PSScriptRoot/Base.ps1;
 }
 
-Describe '01-Scope.psm1 Tests' {
+Describe 'Scope.psm1 Tests' {
     Context 'Formatting Tests' {
         It 'Should format a single scope correctly' {
             Mock -Verifiable -ModuleName:$ModuleName -CommandName Get-StackTop -MockWith { return @{Invocation = @{MyCommand = @{Name = 'It' } }; }; };

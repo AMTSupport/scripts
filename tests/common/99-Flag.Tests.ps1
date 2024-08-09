@@ -3,7 +3,7 @@ BeforeDiscovery {
 }
 
 
-Describe "99-Flag.psm1 Tests" {
+Describe 'Flags.psm1 Tests' {
     AfterEach { $Flag.Remove(); }
 
     Context 'Base Flag Class' {

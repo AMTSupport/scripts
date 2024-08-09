@@ -1,3 +1,7 @@
+Using module ../../common/Environment.psm1
+Using module ../../common/Connect.psm1
+Using module ExchangeOnlineManagement
+
 function Get-SharedMailboxes {
     Get-Mailbox -RecipientTypeDetails SharedMailbox -ResultSize:Unlimited | ForEach-Object { Get-MailboxPermission -Identity $_.WindowsEmailAddress } | Select-Object Identity, User, AccessRights | Where-Object { ($_.user -like '*@*') } | Export-Csv sharedfolders.csv -NoTypeInformation
     Get-Mailbox -RecipientTypeDetails SharedMailbox -ResultSize:Unlimited | Where-Object { $_.DisplayName -notlike 'zArchived - *' } | ForEach-Object { Get-MailboxFolderPermission -Identity $_.PrimarySmtpAddress } | Select-Object Identity, User, AccessRights | Export-Csv sharedfolders.csv -NoTypeInformation -Append

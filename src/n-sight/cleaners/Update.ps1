@@ -67,7 +67,7 @@ Function Invoke-UpdateScript {
     Invoke-Info "File '$ScriptName' has been updated.";
 }
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     foreach ($File in $FilesToFetch) {
         Invoke-UpdateScript -BaseUrl:$BaseUrl -ScriptName:$File;

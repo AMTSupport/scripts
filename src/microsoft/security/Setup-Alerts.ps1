@@ -55,7 +55,7 @@ function Update-SecurityAndCompilence(
 }
 
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
+Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Connect-Service -Services SecurityComplience,Graph -Scopes 'SecurityEvents.ReadWrite.All';
 

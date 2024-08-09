@@ -18,9 +18,9 @@
             "request": "launch",
             "script": "${file}",
             "cwd": "${cwd}",
-            "args": [ "-Verbose", "-Debug" ],
+            "args": ["-Verbose", "-Debug"],
             "createTemporaryIntegratedConsole": true,
-            "attachDotnetDebugger": true,
+            "attachDotnetDebugger": true
         },
         {
             "name": "PowerShell: Launch Current File",
@@ -29,6 +29,25 @@
             "script": "${file}",
             "cwd": "${workspaceFolder}",
             "createTemporaryIntegratedConsole": true
+        },
+        {
+            "name": ".NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/Output/Debug/Compiler.dll",
+            "args": ["-i", ".\\src\\automation\\", "-vvv", "-o", ".\\", "-f"],
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "stopAtEntry": false,
+            "requireExactSource": true,
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
         }
     ]
 }
