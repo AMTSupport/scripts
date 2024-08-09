@@ -1,16 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <MainEntryPoint>Program</MainEntryPoint>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
-    <UseWindowsForms>true</UseWindowsForms>
 
     <LangVersion>preview</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -21,10 +19,9 @@
     <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
     <DefineConstants>$(DefineConstants);PSV7;CORECLR</DefineConstants>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
-  <!-- <PropertyGroup>
+  <PropertyGroup>
     <Version>0.0.1</Version>
     <PackageVersion>0.0.1</PackageVersion>
     <AssemblyVersion>0.0.1</AssemblyVersion>
@@ -35,13 +32,12 @@
     <RepositoryUrl>https://github.com/AMTSupport/scripts</RepositoryUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
-  </PropertyGroup> -->
+  </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>../../Output/Debug/</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -52,7 +48,6 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>embedded</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>../../Output/Release/</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -64,15 +59,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Windows.Forms" Version="4.0.0" />
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="Pastel" Version="5.1.0" />
     <PackageReference Include="System.Management.Automation" Version="7.4.2" />
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.2" PrivateAssets="all" />
     <PackageReference Include="NLog" Version="5.3.2" />
     <PackageReference Include="QuikGraph" Version="2.5.0" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="PowerShellStandard.Library" Version="7.0.0-preview.1" />
     <PackageReference Include="NuGet.Commands" Version="6.9.1" />
     <PackageReference Include="NuGet.Common" Version="6.9.1" />
