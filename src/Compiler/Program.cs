@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Management.Automation;
+using System.Management.Automation.Language;
 using System.Management.Automation.Runspaces;
 using System.Text;
 using CommandLine;
@@ -11,7 +12,9 @@ using Compiler.Requirements;
 using NLog;
 using NLog.Targets;
 
-class Program
+namespace Compiler;
+
+public class Program
 {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -57,7 +60,7 @@ class Program
 
     public static void Main(string[] args)
     {
-        var parser = new Parser(settings =>
+        var parser = new CommandLine.Parser(settings =>
         {
             settings.GetoptMode = true;
         });
@@ -294,9 +297,9 @@ class Program
     )
     {
         if (string.IsNullOrWhiteSpace(outputDirectory)) return;
-        if (!Directory.Exists(sourceDirectory)) return;
 
         if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
+        if (!Directory.Exists(sourceDirectory)) return;
 
         foreach (var script in scripts)
         {
@@ -349,11 +352,53 @@ class Program
         return pwsh;
     }
 
-    internal static Collection<PSObject> RunPowerShell(string script)
+    internal static Collection<PSObject> RunPowerShell(string script, params object[] args)
     {
         var pwsh = GetPowerShellSession();
         pwsh.AddScript(script);
-        return pwsh.Invoke();
+        args.ToList().ForEach(arg => pwsh.AddArgument(arg));
+
+        var result = pwsh.Invoke();
+
+        pwsh.Streams.Verbose.ToList().ForEach(log => Logger.Debug(log.Message));
+        pwsh.Streams.Debug.ToList().ForEach(log => Logger.Debug(log.Message));
+        pwsh.Streams.Information.ToList().ForEach(log => Logger.Info(log.MessageData));
+        pwsh.Streams.Warning.ToList().ForEach(log => Logger.Warn(log.Message));
+
+        if (pwsh.HadErrors)
+        {
+            var ast = AstHelper.GetAstReportingErrors(script, null, []);
+
+            pwsh.Streams.Error.ToList().ForEach(log =>
+            {
+                Logger.Debug(log.InvocationInfo.ScriptLineNumber);
+                Logger.Debug(log.InvocationInfo.OffsetInLine);
+                Logger.Debug(log.InvocationInfo.Line);
+
+                var startPosition = new ScriptPosition(
+                    "In-Memory-Script",
+                    log.InvocationInfo.ScriptLineNumber,
+                    log.InvocationInfo.OffsetInLine,
+                    log.InvocationInfo.Line
+                );
+                var endPosition = new ScriptPosition(
+                    "In-Memory-Script",
+                    log.InvocationInfo.ScriptLineNumber,
+                    log.InvocationInfo.Line.Length,
+                    log.InvocationInfo.Line
+                );
+
+                var errorMessage = log.ErrorDetails?.Message ?? log.Exception?.Message ?? log.FullyQualifiedErrorId;
+
+                AstHelper.PrintPrettyAstError(
+                    new ScriptExtent(startPosition, endPosition),
+                    ast,
+                    errorMessage
+                );
+            });
+        }
+
+        return result;
     }
 
     ~Program()

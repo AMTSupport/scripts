@@ -1,22 +1,24 @@
 Using module ./Utils.psm1
 
-class SupressAnalyserAttribute : System.Attribute {
-    [String]$CheckType;
-    [Object]$Data;
-    [String]$Justification = '';
+if (-not (Get-Variable -Name 'GlobalScript' -Scope Global -ValueOnly)) {
+    Add-Type -LiteralPath $PSScriptRoot\..\Compiler\Analyser\Suppression.cs;
+} else {
+    $SuppressionCSharp = @'
+using System;
 
-    SupressAnalyserAttribute([String]$CheckType, [Object]$Data) {
-        $this.CheckType = $CheckType;
-        $this.Data = $Data;
-    }
+namespace Compiler.Analyser {
+    [AttributeUsage(AttributeTargets.All, AllowMultiple = true, Inherited = false)]
+    public sealed class SuppressAnalyserAttribute(
+        string CheckType,
+        object Data,
+        string Justification = ''
+    ) : Attribute
+}
+'@;
 
-    SupressAnalyserAttribute([String]$CheckType, [Object]$Data, [String]$Justification) {
-        $this.CheckType = $CheckType;
-        $this.Data = $Data;
-        $this.Justification = $Justification;
-    }
+    Add-Type -TypeDefinition $SuppressionCSharp -Language CSharp;
 }
 
 Export-Types -Types @(
-    [SupressAnalyserAttribute]
+    [Compiler.Analyser.SuppressAnalyserAttribute]
 )

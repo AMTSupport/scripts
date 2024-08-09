@@ -151,7 +151,6 @@ public static class AstHelper
         string? filePath,
         [NotNull] IEnumerable<string> ignoredErrors)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(filePath, nameof(filePath));
         ArgumentNullException.ThrowIfNull(ignoredErrors, nameof(ignoredErrors));
 
         var ast = System.Management.Automation.Language.Parser.ParseInput(astContent, filePath, out _, out var parserErrors);
@@ -248,19 +247,21 @@ public static class AstHelper
 
     public static ParamBlockAst? FindClosestParamBlock(Ast ast)
     {
-        ParamBlockAst? foundParamBlock = null;
         var parent = ast;
-        while (parent.Parent != null && foundParamBlock is null)
+        while (parent != null)
         {
-            if (parent is ScriptBlockAst scriptBlock && scriptBlock.ParamBlock != null) foundParamBlock = scriptBlock.ParamBlock;
+            if (parent is ScriptBlockAst scriptBlock && scriptBlock.ParamBlock != null) return scriptBlock.ParamBlock;
             parent = parent.Parent;
         }
 
-        return foundParamBlock;
+        return null;
     }
 
-    public static Ast FindRoot(Ast ast)
+    [return: NotNullIfNotNull(nameof(ast))]
+    public static Ast FindRoot([NotNull] Ast ast)
     {
+        ArgumentNullException.ThrowIfNull(ast);
+
         var parent = ast;
         while (parent.Parent != null)
         {

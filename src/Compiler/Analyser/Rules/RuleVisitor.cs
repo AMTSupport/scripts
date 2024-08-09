@@ -1,5 +1,6 @@
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
+using NLog;
 
 namespace Compiler.Analyser.Rules;
 
@@ -7,6 +8,8 @@ public sealed class RuleVisitor(
     IEnumerable<Rule> rules,
     IEnumerable<Compiled> imports) : AstVisitor
 {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
     private readonly IEnumerable<Rule> _rules = rules;
     private readonly IEnumerable<Compiled> _imports = imports;
 
@@ -24,46 +27,11 @@ public sealed class RuleVisitor(
         return AstVisitAction.Continue;
     }
 
-    public IEnumerable<Supression> GetSupressions(Ast ast)
+    public static IEnumerable<Suppression> GetSupressions(Ast ast)
     {
         var paramBlock = AstHelper.FindClosestParamBlock(ast);
-        if (paramBlock == null) yield break;
+        if (paramBlock == null) return [];
 
-        foreach (var attribute in paramBlock.Attributes)
-        {
-            if (attribute.TypeName.Name != "SuppressAnalyser") continue;
-
-            var justification = string.Empty;
-            Type? type = null;
-            object? data = null;
-
-            foreach (var arg in attribute.NamedArguments)
-            {
-                var lowerArgName = arg.ArgumentName.ToLower();
-                if (lowerArgName == "justification")
-                {
-                    justification = (string)arg.Argument.SafeGetValue();
-                    continue;
-                }
-
-                if (lowerArgName == "checktype")
-                {
-                    type = _rules.First(rule => rule.GetType().Name == (string)arg.Argument.SafeGetValue()).GetType();
-                    continue;
-                }
-
-                if (lowerArgName == "data")
-                {
-                    data = arg.Argument.SafeGetValue();
-                    continue;
-                }
-
-                throw new NotImplementedException($"Unknown argument {arg.ArgumentName}/{lowerArgName}");
-            }
-
-            if (type == null) throw new NotImplementedException("Type is required for a suppression");
-
-            yield return new Supression(justification, type, data);
-        }
+        return SuppressAnalyserAttribute.FromAttributes(paramBlock.Attributes).Select(attr => attr.GetSupression());
     }
 }
