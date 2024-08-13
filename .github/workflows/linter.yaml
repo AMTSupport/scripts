@@ -25,7 +25,7 @@ jobs:
         with:
           path: .\
           recurse: true
-          ignorePattern: "n-sight/cleaners"
+          ignorePattern: '"n-sight/cleaners", "compiled/"'
           settings: .\PSScriptAnalyzerSettings.psd1
           output: results.sarif
 
