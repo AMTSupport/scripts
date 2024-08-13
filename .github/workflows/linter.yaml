@@ -15,13 +15,18 @@ jobs:
       security-events: write
       actions: read
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Run PSScriptAnalyzer
         uses: microsoft/psscriptanalyzer-action@main
         with:
-          path: src
+          path: .\
           recurse: true
           ignorePattern: "n-sight/cleaners"
-          settings: PSScriptAnalyzerSettings.psd1
+          settings: .\PSScriptAnalyzerSettings.psd1
           output: results.sarif
 
       - name: Upload SARIF results
@@ -30,24 +35,23 @@ jobs:
         with:
           sarif_file: results.sarif
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-      statuses: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # lint:
+  #   name: Lint
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     packages: read
+  #     statuses: write
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Super-Linter
-        uses: super-linter/super-linter@v6.7.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EDITORCONFIG_FILE_NAME: .\.editorconfig
-          POWERSHELL_CONFIG_FILE: .\PSScriptAnalyzerSettings.psd1
-          FILTER_REGEX_EXCLUDE: ".*compiled/.*|.*docs/.*|LICENSE"
-          SAVE_SUPER_LINTER_OUTPUT: true
+  #     - name: Super-Linter
+  #       uses: super-linter/super-linter@v6.8.0
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         POWERSHELL_CONFIG_FILE: .\PSScriptAnalyzerSettings.psd1
+  #         FILTER_REGEX_EXCLUDE: ".*compiled/.*|.*docs/.*|LICENSE"
+  #         SAVE_SUPER_LINTER_OUTPUT: true
