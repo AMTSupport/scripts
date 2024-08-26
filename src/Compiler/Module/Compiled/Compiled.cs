@@ -1,11 +1,13 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Diagnostics.Contracts;
 using System.Security.Cryptography;
 using Compiler.Requirements;
 
 namespace Compiler.Module.Compiled;
 
-public abstract class Compiled
-{
+public abstract class Compiled {
     internal List<Compiled> Parents = [];
 
     public readonly ModuleSpec ModuleSpec;
@@ -28,18 +30,17 @@ public abstract class Compiled
     public abstract ContentType Type { get; }
 
     [Pure]
-    protected Compiled(ModuleSpec moduleSpec, RequirementGroup requirements, byte[] hashableBytes)
-    {
-        ModuleSpec = moduleSpec;
-        Requirements = requirements;
+    protected Compiled(ModuleSpec moduleSpec, RequirementGroup requirements, byte[] hashableBytes) {
+        this.ModuleSpec = moduleSpec;
+        this.Requirements = requirements;
 
         var byteList = new List<byte>(hashableBytes);
         AddRequirementHashBytes(byteList, requirements);
-        ComputedHash = Convert.ToHexString(SHA1.HashData(byteList.ToArray()));
+        this.ComputedHash = Convert.ToHexString(SHA1.HashData(byteList.ToArray()));
     }
 
 
-    public string GetNameHash() => $"{ModuleSpec.Name}-{ComputedHash[..6]}";
+    public string GetNameHash() => $"{this.ModuleSpec.Name}-{this.ComputedHash[..6]}";
 
     public abstract string StringifyContent();
 
@@ -53,55 +54,49 @@ public abstract class Compiled
     /// </returns>
     public virtual string GetPowerShellObject() => $$"""
     @{
-        Name = '{{ModuleSpec.Name}}';
-        Version = '{{Version}}';
-        Hash = '{{ComputedHash[..6]}}';
-        Type = '{{Type}}';
-        Content = {{StringifyContent()}}
+        Name = '{{this.ModuleSpec.Name}}';
+        Version = '{{this.Version}}';
+        Hash = '{{this.ComputedHash[..6]}}';
+        Type = '{{this.Type}}';
+        Content = {{this.StringifyContent()}}
     }
     """;
 
-    public static void AddRequirementHashBytes(List<byte> hashableBytes, RequirementGroup requirementGroup)
-    {
+    public static void AddRequirementHashBytes(List<byte> hashableBytes, RequirementGroup requirementGroup) {
         var requirements = requirementGroup.GetRequirements();
         requirements.ToList().ForEach(requirement => hashableBytes.AddRange(requirement.Hash));
     }
 
-    protected Compiled GetRootParent()
-    {
-        if (Parents.Count == 0) return this;
+    protected Compiled GetRootParent() {
+        if (this.Parents.Count == 0) return this;
 
         // All parents should point to the same root parent eventually.
-        var parent = Parents[0];
-        while (parent.Parents.Count > 0)
-        {
+        var parent = this.Parents[0];
+        while (parent.Parents.Count > 0) {
             parent = parent.Parents[0];
         }
 
         return parent;
     }
 
-    protected Compiled[] GetSiblings()
-    {
-        var rootParent = GetRootParent();
+    protected Compiled[] GetSiblings() {
+        var rootParent = this.GetRootParent();
         if (rootParent is not CompiledScript script) return [];
 
         return script.Graph.Vertices.Where(compiled => compiled != this).ToArray();
     }
 
-    protected Compiled? FindSibling(ModuleSpec moduleSpec)
-    {
-        if (ReferenceEquals(moduleSpec, ModuleSpec)) return this;
+    protected Compiled? FindSibling(ModuleSpec moduleSpec) {
+        if (ReferenceEquals(moduleSpec, this.ModuleSpec)) return this;
 
-        var siblings = GetSiblings();
+        var siblings = this.GetSiblings();
         if (siblings.Length == 0) return null;
 
         return siblings.FirstOrDefault(compiled => compiled.ModuleSpec == moduleSpec);
     }
 }
 
-public enum ContentType
-{
+public enum ContentType {
     UTF8String,
 
     Zip

@@ -1,20 +1,23 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using Compiler.Requirements;
 
 namespace Compiler.Module;
 
-public abstract partial class Module(ModuleSpec moduleSpec)
-{
+#pragma warning disable CA1716
+public abstract partial class Module(ModuleSpec moduleSpec) {
+#pragma warning restore CA1716
     public virtual ModuleSpec ModuleSpec { get; } = moduleSpec;
 
     public RequirementGroup Requirements { get; } = new();
 
     public abstract ModuleMatch GetModuleMatchFor(ModuleSpec requirement);
 
-    public override int GetHashCode() => ModuleSpec.GetHashCode();
+    public override int GetHashCode() => this.ModuleSpec.GetHashCode();
 }
 
-public enum ModuleMatch : short
-{
+public enum ModuleMatch : short {
     /// <summary>
     /// This module has incompatible restrictions.
     /// </summary>

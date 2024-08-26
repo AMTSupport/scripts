@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 using System.IO.Compression;
 using System.Management.Automation;
@@ -8,11 +11,10 @@ using NLog;
 
 namespace Compiler.Module.Compiled;
 
-public class CompiledRemoteModule : Compiled
-{
+public class CompiledRemoteModule : Compiled {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    private Hashtable? _powerShellManifest;
-    private ZipArchive? _zipArchive;
+    private Hashtable? PowerShellManifest;
+    private ZipArchive? ZipArchive;
 
     public readonly MemoryStream MemoryStream;
 
@@ -24,13 +26,11 @@ public class CompiledRemoteModule : Compiled
         ModuleSpec moduleSpec,
         RequirementGroup requirements,
         MemoryStream memoryStream
-    ) : base(moduleSpec, requirements, memoryStream.ToArray())
-    {
-        MemoryStream = memoryStream;
+    ) : base(moduleSpec, requirements, memoryStream.ToArray()) {
+        this.MemoryStream = memoryStream;
 
-        var manifest = GetPowerShellManifest();
-        Version = manifest["ModuleVersion"] switch
-        {
+        var manifest = this.GetPowerShellManifest();
+        this.Version = manifest["ModuleVersion"] switch {
             string version => Version.Parse(version),
             null => new Version(0, 0, 1),
             _ => throw new Exception($"ModuleVersion must be a string, but was {manifest["ModuleVersion"]?.GetType()}")
@@ -39,26 +39,23 @@ public class CompiledRemoteModule : Compiled
 
     public override string StringifyContent() {
         // Convert to a powershell byte array
-        var bytes = new byte[MemoryStream.Length];
-        MemoryStream.Read(bytes, 0, bytes.Length);
+        var bytes = new byte[this.MemoryStream.Length];
+        this.MemoryStream.Read(bytes, 0, bytes.Length);
         var base64 = Convert.ToBase64String(bytes);
         return $"'{base64}'";
     }
 
-    public IEnumerable<string> GetExported(object? data, CommandTypes commandTypes)
-    {
-        switch (data)
-        {
+    public IEnumerable<string> GetExported(object? data, CommandTypes commandTypes) {
+        switch (data) {
             case object[] strings:
                 return strings.Cast<string>();
             case string starString when starString == "*":
-                var version = GetPowerShellManifest()["ModuleVersion"]!.ToString()!;
-                var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{ModuleSpec.Name}");
-                var tempOutput = Path.Combine(tempModuleRootPath, ModuleSpec.Name, version);
-                if (!Directory.Exists(tempOutput))
-                {
+                var version = this.GetPowerShellManifest()["ModuleVersion"]!.ToString()!;
+                var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{this.ModuleSpec.Name}");
+                var tempOutput = Path.Combine(tempModuleRootPath, this.ModuleSpec.Name, version);
+                if (!Directory.Exists(tempOutput)) {
                     Directory.CreateDirectory(tempOutput);
-                    using var archive = GetZipArchive();
+                    using var archive = this.GetZipArchive();
                     archive.ExtractToDirectory(tempOutput);
                 }
 
@@ -67,7 +64,7 @@ public class CompiledRemoteModule : Compiled
                 var pwsh = PowerShell.Create(sessionState);
                 return pwsh.Runspace.SessionStateProxy.InvokeCommand
                     .GetCommands("*", commandTypes, true)
-                    .Where(command => command.ModuleName == ModuleSpec.Name)
+                    .Where(command => command.ModuleName == this.ModuleSpec.Name)
                     .Select(command => command.Name);
             case string str:
                 return [str];
@@ -78,14 +75,13 @@ public class CompiledRemoteModule : Compiled
         }
     }
 
-    public override IEnumerable<string> GetExportedFunctions()
-    {
-        var manifest = GetPowerShellManifest();
+    public override IEnumerable<string> GetExportedFunctions() {
+        var manifest = this.GetPowerShellManifest();
 
         var exportedFunctions = new List<string>();
-        var functionsToExport = GetExported(manifest["FunctionsToExport"], CommandTypes.Function);
-        var cmdletsToExport = GetExported(manifest["CmdletsToExport"], CommandTypes.Cmdlet);
-        var aliasesToExport = GetExported(manifest["AliasesToExport"], CommandTypes.Alias);
+        var functionsToExport = this.GetExported(manifest["FunctionsToExport"], CommandTypes.Function);
+        var cmdletsToExport = this.GetExported(manifest["CmdletsToExport"], CommandTypes.Cmdlet);
+        var aliasesToExport = this.GetExported(manifest["AliasesToExport"], CommandTypes.Alias);
 
         exportedFunctions.AddRange(functionsToExport);
         exportedFunctions.AddRange(cmdletsToExport);
@@ -94,11 +90,8 @@ public class CompiledRemoteModule : Compiled
         return exportedFunctions;
     }
 
-    private ZipArchive GetZipArchive() => _zipArchive ??= new ZipArchive(MemoryStream, ZipArchiveMode.Read, true);
+    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(this.MemoryStream, ZipArchiveMode.Read, true);
 
-    private Hashtable GetPowerShellManifest()
-    {
-        if (_powerShellManifest != null) return _powerShellManifest;
 
         var archive = GetZipArchive();
         var psd1Entry = archive.GetEntry($"{ModuleSpec.Name}.psd1");
@@ -108,6 +101,8 @@ public class CompiledRemoteModule : Compiled
             _powerShellManifest = [];
             return _powerShellManifest;
         }
+    private Hashtable GetPowerShellManifest() {
+        if (this.PowerShellManifest != null) return this.PowerShellManifest;
 
         using var psd1Stream = psd1Entry.Open();
         if (Program.RunPowerShell(new StreamReader(psd1Stream).ReadToEnd())[0].BaseObject is not Hashtable psd1)

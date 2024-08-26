@@ -1,22 +1,22 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Text.RegularExpressions;
 using Compiler.Text.Updater;
 using NLog;
 
 namespace Compiler.Text;
 
-public partial class TextDocument(string[] lines)
-{
+public partial class TextDocument(string[] lines) {
     public readonly List<string> Lines = new(lines);
 }
 
-public class CompiledDocument(string[] lines) : TextDocument(lines)
-{
+public class CompiledDocument(string[] lines) : TextDocument(lines) {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-    public string GetContent() => string.Join('\n', Lines);
+    public string GetContent() => string.Join('\n', this.Lines);
 
-    public static CompiledDocument FromBuilder(TextEditor builder, int indentBy = 0)
-    {
+    public static CompiledDocument FromBuilder(TextEditor builder, int indentBy = 0) {
         Logger.Trace($"Creating CompiledDocument from {builder}");
 
         builder.AddEdit(() => new IndentUpdater(indentBy));
@@ -24,8 +24,7 @@ public class CompiledDocument(string[] lines) : TextDocument(lines)
         var lines = builder.Document.Lines;
         var spanUpdates = new List<SpanUpdateInfo>();
         var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Priority).ToList();
-        foreach (var textUpdater in sortedUpdaters)
-        {
+        foreach (var textUpdater in sortedUpdaters) {
             // Logger.Debug($"Applying updater {textUpdater} with priority {textUpdater.Priority}");
             spanUpdates.ForEach(textUpdater.PushByUpdate);
             textUpdater.Apply(ref lines).ToList().ForEach(spanUpdates.Add);
@@ -35,36 +34,32 @@ public class CompiledDocument(string[] lines) : TextDocument(lines)
     }
 }
 
-public class TextEditor(TextDocument document)
-{
+public class TextEditor(TextDocument document) {
     public readonly TextDocument OriginalCopy = document;
     public readonly TextDocument Document = document;
     public readonly List<TextSpanUpdater> TextUpdaters = [];
 
-    public void AddEdit(Func<TextSpanUpdater> updater)
-    {
-        TextUpdaters.Add(updater());
-    }
+    public void AddEdit(Func<TextSpanUpdater> updater) => this.TextUpdaters.Add(updater());
 
     public void AddPatternEdit(
         Regex openingPattern,
         Regex closingPattern,
         Func<string[], string[]> updater
-    ) => AddPatternEdit(50, openingPattern, closingPattern, updater);
+    ) => this.AddPatternEdit(50, openingPattern, closingPattern, updater);
 
     public void AddPatternEdit(
         uint priority,
         Regex openingPattern,
         Regex closingPattern,
         Func<string[], string[]> updater
-    ) => AddPatternEdit(priority, openingPattern, closingPattern, UpdateOptions.None, updater);
+    ) => this.AddPatternEdit(priority, openingPattern, closingPattern, UpdateOptions.None, updater);
 
     public void AddPatternEdit(
         Regex openingPattern,
         Regex closingPattern,
         UpdateOptions options,
         Func<string[], string[]> updater
-    ) => AddPatternEdit(50, openingPattern, closingPattern, options, updater);
+    ) => this.AddPatternEdit(50, openingPattern, closingPattern, options, updater);
 
     public void AddPatternEdit(
         uint priority,
@@ -72,7 +67,7 @@ public class TextEditor(TextDocument document)
         Regex closingPattern,
         UpdateOptions options,
         Func<string[], string[]> updater
-    ) => AddEdit(() => new PatternUpdater(
+    ) => this.AddEdit(() => new PatternUpdater(
         priority,
         openingPattern,
         closingPattern,
@@ -83,26 +78,26 @@ public class TextEditor(TextDocument document)
     public void AddRegexEdit(
         Regex pattern,
         Func<Match, string?> updater
-    ) => AddRegexEdit(50, pattern, updater);
+    ) => this.AddRegexEdit(50, pattern, updater);
 
     public void AddRegexEdit(
         Regex pattern,
         UpdateOptions options,
         Func<Match, string?> updater
-    ) => AddRegexEdit(50, pattern, options, updater);
+    ) => this.AddRegexEdit(50, pattern, options, updater);
 
     public void AddRegexEdit(
         uint priority,
         Regex pattern,
         Func<Match, string?> updater
-    ) => AddRegexEdit(priority, pattern, UpdateOptions.None, updater);
+    ) => this.AddRegexEdit(priority, pattern, UpdateOptions.None, updater);
 
     public void AddRegexEdit(
         uint priority,
         Regex pattern,
         UpdateOptions options,
         Func<Match, string?> updater
-    ) => AddEdit(() => new RegexUpdater(
+    ) => this.AddEdit(() => new RegexUpdater(
         priority,
         pattern,
         options,
@@ -115,7 +110,7 @@ public class TextEditor(TextDocument document)
         int endingIndex,
         int endingColumn,
         Func<string[], string[]> updater
-    ) => AddExactEdit(50, startingIndex, startingColumn, endingIndex, endingColumn, updater);
+    ) => this.AddExactEdit(50, startingIndex, startingColumn, endingIndex, endingColumn, updater);
 
     public void AddExactEdit(
         uint priority,
@@ -124,7 +119,7 @@ public class TextEditor(TextDocument document)
         int endingIndex,
         int endingColumn,
         Func<string[], string[]> updater
-    ) => AddExactEdit(
+    ) => this.AddExactEdit(
         priority,
         startingIndex,
         startingColumn,
@@ -142,7 +137,7 @@ public class TextEditor(TextDocument document)
         int endingColumn,
         UpdateOptions options,
         Func<string[], string[]> updater
-    ) => AddEdit(() => new ExactUpdater(
+    ) => this.AddEdit(() => new ExactUpdater(
         priority,
         startingIndex,
         startingColumn,

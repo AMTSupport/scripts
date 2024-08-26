@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Management.Automation.Runspaces;
@@ -6,8 +9,7 @@ using NLog;
 
 namespace Compiler.Analyser.Rules;
 
-public class UseOfUndefinedFunction : Rule
-{
+public class UseOfUndefinedFunction : Rule {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
     /// <summary>
@@ -18,22 +20,19 @@ public class UseOfUndefinedFunction : Rule
 
     public override bool ShouldProcess(
         Ast node,
-        IEnumerable<Suppression> supressions)
-    {
+        IEnumerable<Suppression> supressions) {
         if (node is not CommandAst commandAst) return false;
         if (commandAst.GetCommandName() == null) return false;
         var callName = SanatiseName(commandAst.GetCommandName());
 
-        return !supressions.Any(supression =>
-        {
-            switch (supression.Data)
-            {
+        return !supressions.Any(supression => {
+            switch (supression.Data) {
                 case IEnumerable<string> functions:
                     return functions.Contains(callName);
                 case string function:
                     return function == callName;
                 default:
-                    Logger.Warn($"Supression data is not a string or IEnumerable<string> for rule {GetType().Name}");
+                    Logger.Warn($"Supression data is not a string or IEnumerable<string> for rule {this.GetType().Name}");
                     return false;
             }
         });
@@ -41,8 +40,7 @@ public class UseOfUndefinedFunction : Rule
 
     public override IEnumerable<Issue> Analyse(
         Ast node,
-        IEnumerable<Compiled> imports)
-    {
+        IEnumerable<Compiled> imports) {
         var commandAst = (CommandAst)node;
         var callName = SanatiseName(commandAst.GetCommandName());
         if (BuiltinsFunctions.Contains(callName)) yield break;
@@ -57,8 +55,7 @@ public class UseOfUndefinedFunction : Rule
         );
     }
 
-    public static string SanatiseName(string name)
-    {
+    public static string SanatiseName(string name) {
         var withOutExtension = name.Contains('.') ? name.Split('.').First() : name;
         var withoutScope = withOutExtension.Contains(':') ? withOutExtension.Split(':').Last() : withOutExtension;
 
@@ -75,8 +72,7 @@ public class UseOfUndefinedFunction : Rule
     /// - A few manual inclusions to cover some edge cases.
     /// </list>
     /// </summary>
-    public static IEnumerable<string> GetDefaultSessionFunctions()
-    {
+    public static IEnumerable<string> GetDefaultSessionFunctions() {
         var defaultFunctions = new List<string>();
 
         var sessionState = InitialSessionState.CreateDefault();

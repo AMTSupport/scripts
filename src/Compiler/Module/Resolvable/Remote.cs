@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 using System.IO.Compression;
 using System.Management.Automation;
@@ -7,22 +10,18 @@ using NLog;
 
 namespace Compiler.Module.Resolvable;
 
-public class ResolvableRemoteModule : Resolvable
-{
+public class ResolvableRemoteModule : Resolvable {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-    private MemoryStream? _memoryStream;
-    private string? _cachedFile;
+    private MemoryStream? MemoryStream;
+    private string? CachedFile;
 
-    public ResolvableRemoteModule(ModuleSpec moduleSpec) : base(moduleSpec)
-    {
-        ThreadPool.QueueUserWorkItem(_ => ResolveRequirements());
-    }
+    public ResolvableRemoteModule(ModuleSpec moduleSpec) : base(moduleSpec) => this.QueueResolve();
 
     private string CachePath => Path.Join(
         Path.GetTempPath(),
         "PowerShellGet",
-        ModuleSpec.Name
+        this.ModuleSpec.Name
     );
 
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) => ModuleSpec.CompareTo(requirement);
@@ -67,57 +66,55 @@ public class ResolvableRemoteModule : Resolvable
     }
 
     public override Compiled.Compiled IntoCompiled() => new CompiledRemoteModule(
-        ModuleSpec,
-        Requirements,
-        _memoryStream ??= new MemoryStream(File.ReadAllBytes(FindCachedResult() ?? CacheResult()), false)
+        this.ModuleSpec,
+        this.Requirements,
+        this.MemoryStream ??= new MemoryStream(File.ReadAllBytes(this.FindCachedResult() ?? this.CacheResult().ThrowIfFail()), false)
     );
 
-    public override bool Equals(object? obj)
-    {
+    public override bool Equals(object? obj) {
         if (obj is null) return false;
         if (ReferenceEquals(this, obj)) return true;
         return obj is ResolvableRemoteModule other &&
-               ModuleSpec.CompareTo(other.ModuleSpec) == ModuleMatch.Same;
+               this.ModuleSpec.CompareTo(other.ModuleSpec) == ModuleMatch.Same;
     }
 
-    public string? FindCachedResult()
-    {
-        if (_cachedFile != null) return _cachedFile;
+    public string? FindCachedResult() {
+        if (this.CachedFile != null) return this.CachedFile;
 
-        if (!Directory.Exists(CachePath)) return null;
+        if (!Directory.Exists(this.CachePath)) return null;
 
-        var files = Directory.GetFiles(CachePath, "*.nupkg");
+        var files = Directory.GetFiles(this.CachePath, "*.nupkg");
         if (files.Length == 0) return null;
 
-        var versions = files.Where(file =>
-        {
+        var versions = files.Where(file => {
             var fileName = Path.GetFileName(file);
-            return fileName.StartsWith(ModuleSpec.Name);
-        }).Select(file =>
-        {
+            return fileName.StartsWith(this.ModuleSpec.Name, StringComparison.OrdinalIgnoreCase);
+        }).Select(file => {
             var fileName = Path.GetFileName(file);
-            var version = fileName.Substring(ModuleSpec.Name.Length + 1, fileName.Length - ModuleSpec.Name.Length - 1 - ".nupkg".Length);
+            var version = fileName.Substring(this.ModuleSpec.Name.Length + 1, fileName.Length - this.ModuleSpec.Name.Length - 1 - ".nupkg".Length);
 
-            try { return new Version(version); }
-            catch { throw new Exception($"Failed to parse version {version} from file {file}"); }
+            try {
+                return new Version(version);
+            } catch {
+                throw new Exception($"Failed to parse version {version} from file {file}");
+            }
         });
 
-        var selectedVersion = versions.Where(version =>
-        {
-            var otherSpec = new ModuleSpec(ModuleSpec.Name, ModuleSpec.Guid, requiredVersion: version);
-            var matchType = otherSpec.CompareTo(ModuleSpec);
+        var selectedVersion = versions.Where(version => {
+            var otherSpec = new ModuleSpec(this.ModuleSpec.Name, this.ModuleSpec.Id, requiredVersion: version);
+            var matchType = otherSpec.CompareTo(this.ModuleSpec);
 
-            return matchType == ModuleMatch.Same || matchType == ModuleMatch.Stricter;
+            return matchType is ModuleMatch.Same or ModuleMatch.Stricter;
         }).OrderByDescending(version => version).FirstOrDefault();
 
-        return selectedVersion == null ? null : _cachedFile = Path.Join(CachePath, $"{ModuleSpec.Name}.{selectedVersion}.nupkg");
+        return selectedVersion == null ? null : this.CachedFile = Path.Join(this.CachePath, $"{this.ModuleSpec.Name}.{selectedVersion}.nupkg");
     }
 
     public string CacheResult()
     {
-        var versionString = ConvertVersionParameters(ModuleSpec.RequiredVersion?.ToString(), ModuleSpec.MinimumVersion?.ToString(), ModuleSpec.MaximumVersion?.ToString());
-        var PowerShellCode = /*ps1*/ $$"""
-        Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
+        var versionString = ConvertVersionParameters(this.ModuleSpec.RequiredVersion?.ToString(), this.ModuleSpec.MinimumVersion?.ToString(), this.ModuleSpec.MaximumVersion?.ToString());
+        var powerShellCode = /*ps1*/ $$"""
+        Set-StrictMode -Version 3;
 
         try {
             $Module = Find-PSResource -Name '{{ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
@@ -134,12 +131,14 @@ public class ResolvableRemoteModule : Resolvable
         return $env:TEMP | Join-Path -ChildPath "PowerShellGet/{{ModuleSpec.Name}}/{{ModuleSpec.Name}}.$($Module.Version).nupkg";
         """;
 
-        Logger.Debug("Running PowerShell code to download module from the PowerShell Gallery.");
-        Logger.Debug(PowerShellCode);
+        Logger.Debug(
+            "Running PowerShell code to download module from the PowerShell Gallery."
+            + Environment.NewLine
+            + powerShellCode
+        );
 
-        if (!Directory.Exists(CachePath))
-        {
-            Directory.CreateDirectory(CachePath);
+        if (!Directory.Exists(this.CachePath)) {
+            Directory.CreateDirectory(this.CachePath);
         }
 
         var pwsh = PowerShell.Create(RunspaceMode.NewRunspace);
@@ -161,8 +160,7 @@ public class ResolvableRemoteModule : Resolvable
     private static string? ConvertVersionParameters(
         string? requiredVersion,
         string? minimumVersion,
-        string? maximumVersion) => (requiredVersion, minimumVersion, maximumVersion) switch
-        {
+        string? maximumVersion) => (requiredVersion, minimumVersion, maximumVersion) switch {
             (null, null, null) => null,
             (string ver, null, null) => ver,
             (_, string min, null) => $"[{min},)",
@@ -170,5 +168,5 @@ public class ResolvableRemoteModule : Resolvable
             (_, string min, string max) => $"[{min},{max}]"
         };
 
-    public override int GetHashCode() => ModuleSpec.GetHashCode();
+    public override int GetHashCode() => this.ModuleSpec.GetHashCode();
 }

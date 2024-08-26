@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation.Language;
 
@@ -14,28 +17,23 @@ public sealed class SuppressAnalyserAttribute(
     string CheckType,
     object? Data,
     string Justification
-) : Attribute
-{
+) : Attribute {
     [return: NotNull]
-    public Suppression GetSupression()
-    {
+    public Suppression GetSupression() {
         var assemblyName = "Compiler.Analyser.Rules." + CheckType;
         var type = Type.GetType(assemblyName, false, true) ?? throw new ArgumentException($"Could not find rule for suppression {CheckType}");
         return new Suppression(type, Data, Justification);
     }
 
-    public static IEnumerable<SuppressAnalyserAttribute> FromAttributes(IEnumerable<AttributeAst> attributes)
-    {
-        foreach (var attr in attributes)
-        {
+    public static IEnumerable<SuppressAnalyserAttribute> FromAttributes(IEnumerable<AttributeAst> attributes) {
+        foreach (var attr in attributes) {
             var suppression = FromAttributeAst(attr);
             if (suppression is not null) yield return suppression;
         }
     }
 
-    public static SuppressAnalyserAttribute? FromAttributeAst([NotNull] AttributeAst attrAst)
-    {
-        ArgumentNullException.ThrowIfNull(attrAst, nameof(attrAst));
+    public static SuppressAnalyserAttribute? FromAttributeAst([NotNull] AttributeAst attrAst) {
+        ArgumentNullException.ThrowIfNull(attrAst);
 
         if (attrAst.TypeName.GetReflectionType() != typeof(SuppressAnalyserAttribute)) return null;
 

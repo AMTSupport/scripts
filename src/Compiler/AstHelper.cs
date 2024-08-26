@@ -1,25 +1,23 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Text;
-using CommandLine;
 using NLog;
 using Pastel;
 
 namespace Compiler;
 
-public static class AstHelper
-{
+public static class AstHelper {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-    public static Dictionary<string, Dictionary<string, object>> FindDeclaredModules(Ast ast)
-    {
+    public static Dictionary<string, Dictionary<string, object>> FindDeclaredModules(Ast ast) {
         var modules = new Dictionary<string, Dictionary<string, object>>();
 
-        foreach (var usingStatement in ast.FindAll(testAst => testAst is UsingStatementAst usingAst && usingAst.UsingStatementKind == UsingStatementKind.Module, true))
-        {
-            switch (usingStatement)
-            {
+        foreach (var usingStatement in ast.FindAll(testAst => testAst is UsingStatementAst usingAst && usingAst.UsingStatementKind == UsingStatementKind.Module, true)) {
+            switch (usingStatement) {
                 case UsingStatementAst usingStatementAst when usingStatementAst.Name is not null:
                     modules.Add(usingStatementAst.Name.Value, new Dictionary<string, object> {
                         { "AST", usingStatementAst }
@@ -31,18 +29,16 @@ public static class AstHelper
                         { "AST", usingStatementAst }
                     };
                     var pairs = usingStatementAst.ModuleSpecification.KeyValuePairs.GetEnumerator();
-                    while (pairs.MoveNext())
-                    {
-                        var key = pairs.Current.Item1.SafeGetValue().Cast<string>();
+                    while (pairs.MoveNext()) {
+                        var key = (string)pairs.Current.Item1.SafeGetValue();
                         var value = pairs.Current.Item2.SafeGetValue();
                         table.Add(key, value);
                     }
 
                     if (!table.TryGetValue("ModuleName", out var moduleName)) throw new Exception("ModuleSpecification does not contain a 'ModuleName' key.");
-                    if (table.TryGetValue("Guid", out var guid)) table["Guid"] = Guid.Parse(guid.Cast<string>());
-                    foreach (var versionKey in new[] { "ModuleVersion", "MaximumVersion", "RequiredVersion" })
-                    {
-                        if (table.TryGetValue(versionKey, out var version)) table[versionKey] = Version.Parse(version.Cast<string>());
+                    if (table.TryGetValue("Guid", out var guid)) table["Guid"] = Guid.Parse((string)guid);
+                    foreach (var versionKey in new[] { "ModuleVersion", "MaximumVersion", "RequiredVersion" }) {
+                        if (table.TryGetValue(versionKey, out var version)) table[versionKey] = Version.Parse((string)version);
                     }
 
                     modules.Add((string)moduleName, table);
@@ -53,12 +49,10 @@ public static class AstHelper
             }
         }
 
-        if (ast is ScriptBlockAst scriptBlockAst)
-        {
+        if (ast is ScriptBlockAst scriptBlockAst) {
             if (scriptBlockAst.ScriptRequirements is null) return modules;
 
-            scriptBlockAst.ScriptRequirements.RequiredModules.ToList().ForEach(module =>
-            {
+            scriptBlockAst.ScriptRequirements.RequiredModules.ToList().ForEach(module => {
                 Logger.Debug($"Found required module: {module.Name}");
 
                 var table = new Dictionary<string, object>();
@@ -74,15 +68,13 @@ public static class AstHelper
         return modules;
     }
 
-    public static List<(string, UsingStatementAst)> FindDeclaredNamespaces(Ast ast)
-    {
+    public static List<(string, UsingStatementAst)> FindDeclaredNamespaces(Ast ast) {
         var namespaces = new List<(string, UsingStatementAst)>();
 
         ast.FindAll(testAst => testAst is UsingStatementAst usingAst && usingAst.UsingStatementKind == UsingStatementKind.Namespace, true)
             .Cast<UsingStatementAst>()
             .ToList()
-            .ForEach(usingStatement =>
-            {
+            .ForEach(usingStatement => {
                 if (usingStatement.Name is null) throw new Exception("UsingStatementAst does not contain a Name.");
                 namespaces.Add((usingStatement.Name.Value, usingStatement));
             });
@@ -90,34 +82,29 @@ public static class AstHelper
         return namespaces;
     }
 
-    public static List<FunctionDefinitionAst> FindAvailableFunctions(Ast ast, bool onlyExported)
-    {
+    public static List<FunctionDefinitionAst> FindAvailableFunctions(Ast ast, bool onlyExported) {
         var allDefinedFunctions = ast
             .FindAll(testAst => testAst is FunctionDefinitionAst, true)
             .Cast<FunctionDefinitionAst>()
             .ToList();
 
         // If there is no export command or we are not filtering for only exported functions, return all functions.
-        if (ast.Find(testAst => !onlyExported || testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember", true) is not CommandAst command)
-        {
+        if (ast.Find(testAst => !onlyExported || (testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember"), true) is not CommandAst command) {
             return allDefinedFunctions;
         }
 
         // TODO - Support using * to export all of a type.
         var wantingToExport = new List<(string, List<string>)>();
         var namedParameters = ast.FindAll(testAst => testAst is CommandParameterAst commandParameter && commandParameter.Parent == command, true).Cast<CommandParameterAst>().ToList();
-        foreach (var (namedParameter, index) in namedParameters.Select((value, i) => (value, i)))
-        {
-            if (namedParameter.ParameterName != "Function" && namedParameter.ParameterName != "Alias")
-            {
+        foreach (var (namedParameter, index) in namedParameters.Select((value, i) => (value, i))) {
+            if (namedParameter.ParameterName is not "Function" and not "Alias") {
                 continue;
             }
 
-            ExpressionAst? value = namedParameter.Argument;
+            var value = namedParameter.Argument;
             value ??= command.CommandElements[command.CommandElements.IndexOf(namedParameter) + 1] as ExpressionAst;
 
-            var objects = value switch
-            {
+            var objects = value switch {
                 StringConstantExpressionAst stringConstantExpressionAst => [stringConstantExpressionAst.Value],
                 ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()),
                 _ => throw new NotImplementedException($"Export-ModuleMember parameter must be a string or array of strings, got: {value}"),
@@ -127,8 +114,7 @@ public static class AstHelper
         }
 
         return allDefinedFunctions
-            .Where(function =>
-            {
+            .Where(function => {
                 // If the name is scoped to a namespace, remove the namespace.
                 var name = function.Name.Contains(':') ? function.Name.Split(':').Last() : function.Name;
                 return wantingToExport.Any(wanting => wanting.Item2.Contains(name));
@@ -141,12 +127,15 @@ public static class AstHelper
     /// <param name="astContent">
     /// The content to parse into the AST.
     /// </param>
+    /// <param name="filePath">
+    /// The file path of the content, or None if it is not from a file.
+    /// </param>
     /// <param name="ignoredErrors">
     /// A list of ErrorIds to ignore if they are encountered.
     /// </param>
-    /// <returns></returns>
-    /// <exception cref="ParseException"></exception>
-    public static ScriptBlockAst GetAstReportingErrors(
+    /// <returns>
+    /// The AST of the content if it was successfully parsed.
+    /// </returns>
         [NotNull] string astContent,
         string? filePath,
         [NotNull] IEnumerable<string> ignoredErrors)
@@ -156,7 +145,6 @@ public static class AstHelper
         var ast = System.Management.Automation.Language.Parser.ParseInput(astContent, filePath, out _, out var parserErrors);
         parserErrors = [.. parserErrors.Where(error => !ignoredErrors.Contains(error.ErrorId))];
 
-        if (parserErrors.Length != 0)
         {
             foreach (var error in parserErrors)
             {
@@ -171,6 +159,7 @@ public static class AstHelper
             }
 
             throw new ParseException($"Failed to parse {filePath}, encountered {parserErrors.Length} errors.");
+        if (parserErrors.Length != 0) {
         }
 
         return ast;
@@ -184,29 +173,26 @@ public static class AstHelper
     {
         ArgumentNullException.ThrowIfNull(extent);
         ArgumentNullException.ThrowIfNull(parentAst);
-        ArgumentException.ThrowIfNullOrEmpty(message);
+        ArgumentNullException.ThrowIfNull(message);
 
         var startingLine = extent.StartLineNumber;
         var endingLine = extent.EndLineNumber;
         var startingColumn = extent.StartColumnNumber - 1;
         var endingColumn = extent.EndColumnNumber - 1;
 
-        var firstColumnIndent = Math.Max(endingLine.ToString().Length + 1, 5);
+        var firstColumnIndent = Math.Max(endingLine.ToString(CultureInfo.InvariantCulture).Length + 1, 5);
         var firstColumnIndentString = new string(' ', firstColumnIndent);
         var colouredPipe = "|".Pastel(ConsoleColor.Cyan);
 
-        while (parentAst.Parent != null)
-        {
+        while (parentAst.Parent != null) {
             parentAst = parentAst.Parent;
         };
         var extentRegion = parentAst.Extent.Text.Split('\n')[(startingLine - 1)..endingLine];
 
         var printableLines = new string[extentRegion.Length];
-        for (var i = 0; i < extentRegion.Length; i++)
-        {
+        for (var i = 0; i < extentRegion.Length; i++) {
             var line = extentRegion[i];
-            line = i switch
-            {
+            line = i switch {
                 0 when i == extentRegion.Length - 1 => string.Concat(line[0..startingColumn], line[startingColumn..endingColumn].Pastel(ConsoleColor.DarkRed), line[endingColumn..]),
                 0 => string.Concat(line[0..startingColumn], line[startingColumn..].Pastel(ConsoleColor.DarkRed)),
                 var _ when i == extentRegion.Length - 1 => string.Concat(line[0..endingColumn].Pastel(ConsoleColor.DarkRed), line[endingColumn..]),
@@ -214,7 +200,7 @@ public static class AstHelper
             };
 
             var sb = new StringBuilder()
-                .Append((i + startingLine).ToString().PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan))
+                .Append((i + startingLine).ToString(CultureInfo.InvariantCulture).PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan))
                 .Append(colouredPipe)
                 .Append(' ')
                 .Append(line);
@@ -223,12 +209,9 @@ public static class AstHelper
         }
 
         string errorPointer;
-        if (startingLine == endingLine)
-        {
+        if (startingLine == endingLine) {
             errorPointer = string.Concat([new(' ', startingColumn), new('~', endingColumn - startingColumn)]);
-        }
-        else
-        {
+        } else {
             var squigleEndColumn = extentRegion.Max(line => line.TrimEnd().Length);
             var leastWhitespaceBeforeText = extentRegion.Min(line => line.Length - line.TrimStart().Length);
             errorPointer = string.Concat([new(' ', leastWhitespaceBeforeText), new('~', squigleEndColumn - leastWhitespaceBeforeText)]);
@@ -236,7 +219,7 @@ public static class AstHelper
 
         var fileName = parentAst.Extent.File is null ? "Unknown file" : parentAst.Extent.File;
 
-        Console.WriteLine($"""
+        return $"""
         {"File".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {fileName.Pastel(ConsoleColor.Gray)}
         {"Line".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe}
         {string.Join('\n', printableLines)}
@@ -245,11 +228,9 @@ public static class AstHelper
         """);
     }
 
-    public static ParamBlockAst? FindClosestParamBlock(Ast ast)
-    {
+    public static ParamBlockAst? FindClosestParamBlock(Ast ast) {
         var parent = ast;
-        while (parent != null)
-        {
+        while (parent != null) {
             if (parent is ScriptBlockAst scriptBlock && scriptBlock.ParamBlock != null) return scriptBlock.ParamBlock;
             parent = parent.Parent;
         }
@@ -258,13 +239,11 @@ public static class AstHelper
     }
 
     [return: NotNullIfNotNull(nameof(ast))]
-    public static Ast FindRoot([NotNull] Ast ast)
-    {
+    public static Ast FindRoot([NotNull] Ast ast) {
         ArgumentNullException.ThrowIfNull(ast);
 
         var parent = ast;
-        while (parent.Parent != null)
-        {
+        while (parent.Parent != null) {
             parent = parent.Parent;
         }
 

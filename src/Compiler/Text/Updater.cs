@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Diagnostics.CodeAnalysis;
 using Compiler.Text.Updater;
 
@@ -5,13 +8,11 @@ namespace Compiler.Text;
 
 public record SpanUpdateInfo(
     TextSpan TextSpan,
-    int Offset)
-{
-    public override string ToString() => $"{nameof(PatternUpdater)}({TextSpan} +- {Offset})";
+    int Offset) {
+    public override string ToString() => $"{nameof(PatternUpdater)}({this.TextSpan} +- {this.Offset})";
 }
 
-public abstract class TextSpanUpdater(uint priority = 50)
-{
+public abstract class TextSpanUpdater(uint priority = 50) {
     public readonly uint Priority = priority;
 
     /// <summary>

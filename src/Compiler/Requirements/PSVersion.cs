@@ -1,44 +1,42 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace Compiler.Requirements;
 
-public sealed class PSVersionRequirement : Requirement
-{
+public sealed class PSVersionRequirement : Requirement {
     public Version Version { get; }
 
-    public PSVersionRequirement(Version version) : base()
-    {
-        SupportsMultiple = false;
+    public PSVersionRequirement(Version version) : base() {
+        this.SupportsMultiple = false;
 
-        Version = version;
-        Hash = SHA1.HashData(Encoding.UTF8.GetBytes(Version.ToString()));
+        this.Version = version;
+        this.Hash = SHA256.HashData(Encoding.UTF8.GetBytes(this.Version.ToString()));
     }
 
-    public override string GetInsertableLine(Hashtable _)
-    {
+    public override string GetInsertableLine(Hashtable data) {
         var sb = new StringBuilder();
         sb.Append("#Requires -Version ");
-        sb.Append(Version.Major);
+        sb.Append(this.Version.Major);
 
-        var hasBuild = Version.Build > 0;
-        if (Version.Minor > 0 || hasBuild)
-        {
-            sb.Append($".{Version.Minor}");
+        var hasBuild = this.Version.Build > 0;
+        if (this.Version.Minor > 0 || hasBuild) {
+            sb.Append(CultureInfo.InvariantCulture, $".{this.Version.Minor}");
 
-            if (hasBuild)
-            {
-                sb.Append($".{Version.Build}");
+            if (hasBuild) {
+                sb.Append(CultureInfo.InvariantCulture, $".{this.Version.Build}");
             }
         }
 
         return sb.ToString();
     }
 
-    public override bool IsCompatibleWith([NotNull] Requirement other) => (this, other) switch
-    {
+    public override bool IsCompatibleWith([NotNull] Requirement other) => (this, other) switch {
         // TODO - Check modules for version compatibility
         // Short circuit for non-version requirements
         (_, var otherRequirement) when otherRequirement is not PSVersionRequirement => true,

@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -5,54 +8,41 @@ using System.Text.Json.Serialization;
 
 namespace Compiler.Requirements;
 
-public sealed class RequirementGroup
-{
+public sealed class RequirementGroup {
     public Dictionary<Type, HashSet<Requirement>> StoredRequirements { get; init; }
 
-    public RequirementGroup()
-    {
-        StoredRequirements ??= [];
-    }
+    public RequirementGroup() => this.StoredRequirements ??= [];
 
-    public bool AddRequirement<T>(T value) where T : Requirement
-    {
+    public bool AddRequirement<T>(T value) where T : Requirement {
         var typeName = typeof(T);
-        if (!StoredRequirements.TryGetValue(typeName, out HashSet<Requirement>? requirementList))
-        {
-            StoredRequirements.Add(typeName, [value]);
+        if (!this.StoredRequirements.TryGetValue(typeName, out var requirementList)) {
+            this.StoredRequirements.Add(typeName, [value]);
             return true;
-        }
-        else
-        {
+        } else {
             return requirementList.Add(value);
         }
     }
 
-    public ImmutableList<T> GetRequirements<T>() where T : Requirement
-    {
+    public ImmutableList<T> GetRequirements<T>() where T : Requirement {
         var typeName = typeof(T);
-        if (StoredRequirements.TryGetValue(typeName, out HashSet<Requirement>? value))
-        {
+        if (this.StoredRequirements.TryGetValue(typeName, out var value)) {
             return value.Cast<T>().ToImmutableList();
         }
 
         return [];
     }
 
-    public bool RemoveRequirement<T>(T value) where T : Requirement
-    {
+    public bool RemoveRequirement<T>(T value) where T : Requirement {
         var typeName = typeof(T);
-        if (StoredRequirements.TryGetValue(typeName, out HashSet<Requirement>? collection))
-        {
+        if (this.StoredRequirements.TryGetValue(typeName, out var collection)) {
             return collection.Remove(value);
         }
 
         return false;
     }
 
-    public ImmutableList<Requirement> GetRequirements()
-    {
-        var rawRequirements = StoredRequirements.Values;
+    public ImmutableList<Requirement> GetRequirements() {
+        var rawRequirements = this.StoredRequirements.Values;
         if (rawRequirements.Count == 0) return [];
 
         var flattenedList = rawRequirements.ToList().SelectMany(x => x);
@@ -64,13 +54,8 @@ public sealed class RequirementGroup
 /// <summary>
 ///  Represents a requirement, which is a condition that must be met in order to run the script.
 /// </summary>
-/// <param name="SupportsMultiple">
-/// True if the requirement supports multiple instances, false otherwise.
-/// </param>
-public abstract class Requirement : IComparable<Requirement>
-{
-    protected static readonly JsonSerializerOptions SerializerOptions = new()
-    {
+public abstract class Requirement : IComparable<Requirement> {
+    protected static readonly JsonSerializerOptions SerializerOptions = new() {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
@@ -101,7 +86,7 @@ public abstract class Requirement : IComparable<Requirement>
     /// Used only for serialization purposes.
     /// </summary>
     [JsonInclude]
-    internal string HashString => Convert.ToHexString(Hash);
+    internal string HashString => Convert.ToHexString(this.Hash);
 
     /// <summary>
     /// Checks if the requirement is compatible with another requirement.
@@ -117,18 +102,45 @@ public abstract class Requirement : IComparable<Requirement>
     public virtual int CompareTo(Requirement? other) => 0;
 
     public override string ToString() => JsonSerializer.Serialize(this, SerializerOptions);
+
+    public override bool Equals(object? obj) {
+        if (ReferenceEquals(this, obj)) return true;
+        if (obj is null) return false;
+
+        return obj is Requirement requirement
+            && this.SupportsMultiple == requirement.SupportsMultiple
+            && this.Weight == requirement.Weight
+            && this.Hash.SequenceEqual(requirement.Hash);
+    }
+
+    public override int GetHashCode() => HashCode.Combine(this.SupportsMultiple, this.Weight, this.Hash);
+
+    public static bool operator ==(Requirement left, Requirement right) {
+        if (left is null) return right is null;
+
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(Requirement left, Requirement right) => !(left == right);
+
+    public static bool operator <(Requirement left, Requirement right) => left is null ? right is not null : left.CompareTo(right) < 0;
+
+    public static bool operator <=(Requirement left, Requirement right) => left is null || left.CompareTo(right) <= 0;
+
+    public static bool operator >(Requirement left, Requirement right) => left is not null && left.CompareTo(right) > 0;
+
+    public static bool operator >=(Requirement left, Requirement right) => left is null ? right is null : left.CompareTo(right) >= 0;
 }
 
 /// <summary>
 /// Sorts requirements by their weight.
 /// </summary>
-public sealed class RequirementWeightSorter : IComparer<Requirement>
-{
-    public int Compare(Requirement? x, Requirement? y)
-    {
+public sealed class RequirementWeightSorter : IComparer<Requirement> {
+    public int Compare(Requirement? x, Requirement? y) {
         if (ReferenceEquals(x, y)) return 0;
-        if (x == null) return y == null ? 0 : -1;
-        if (y == null) return x == null ? 0 : 1;
+
+        if (x is null) return y is null ? 0 : -1;
+        if (y is null) return x is null ? 0 : 1;
 
         var weight = x.Weight.CompareTo(y?.Weight);
         if (weight != 0) return weight;
