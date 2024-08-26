@@ -1,10 +1,12 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
 
 namespace Compiler.Analyser.Rules;
 
-public abstract class Rule
-{
+public abstract class Rule {
     /// <summary>
     /// Determines if the rule should be processed for this Ast node.
     /// </summary>

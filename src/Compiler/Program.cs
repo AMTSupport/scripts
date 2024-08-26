@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Management.Automation;
@@ -14,8 +17,7 @@ using NLog.Targets;
 
 namespace Compiler;
 
-public class Program
-{
+public class Program {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
     internal static bool IsDebugging;
@@ -24,8 +26,7 @@ public class Program
 
     internal static readonly CancellationTokenSource CancelSource = new();
 
-    public static readonly Lazy<RunspacePool> RunspacePool = new(() =>
-    {
+    public static readonly Lazy<RunspacePool> RunspacePool = new(() => {
         var sessionState = InitialSessionState.CreateDefault2();
         sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
         sessionState.ImportPSModule(new[] { "Microsoft.PowerShell.PSResourceGet" });
@@ -37,8 +38,7 @@ public class Program
         return rsPool;
     });
 
-    public class Options
-    {
+    public class Options {
         [Option('v', "verbosity", FlagCounter = true, HelpText = "Set the verbosity level of the output.")]
         public int Verbosity { get; set; }
 
@@ -157,32 +157,26 @@ public class Program
         }
     }, ct);
 
-    public static void CleanInput(Options opts)
-    {
+    public static void CleanInput(Options opts) {
         ArgumentException.ThrowIfNullOrWhiteSpace(opts.Input, nameof(opts.Input));
 
         opts.Input = Path.GetFullPath(opts.Input!.Trim());
-        if (opts.Output != null)
-        {
+        if (opts.Output != null) {
             opts.Output = Path.GetFullPath(opts.Output.Trim());
-            if (File.Exists(opts.Output))
-            {
+            if (File.Exists(opts.Output)) {
                 Logger.Error("Output must be a directory.");
                 Environment.Exit(1);
             }
         }
     }
 
-    public static LogLevel SetupLogger(Options opts)
-    {
+    public static LogLevel SetupLogger(Options opts) {
         var logLevel = LogLevel.FromOrdinal(Math.Abs(Math.Min(opts.Quiet, 3) - Math.Min(opts.Verbosity, 2) + 2));
-        LogManager.Setup().LoadConfiguration(builder =>
-        {
+        LogManager.Setup().LoadConfiguration(builder => {
             var layout = "${pad:padding=5:inner=${level:uppercase=true}}|${message}";
             if (logLevel <= LogLevel.Debug) layout = "[${threadid}] " + layout;
 
-            var console = new ColoredConsoleTarget("console")
-            {
+            var console = new ColoredConsoleTarget("console") {
                 Layout = layout,
                 DetectConsoleAvailable = true,
                 EnableAnsiOutput = true,
@@ -205,53 +199,54 @@ public class Program
                     }
                 },
                 WordHighlightingRules = {
-                    new ConsoleWordHighlightingRule
-                    {
+                    new ConsoleWordHighlightingRule {
                         Regex = "\\b(?:error|exception|fail|fatal|warn|warning)\\b",
                         ForegroundColor = ConsoleOutputColor.DarkRed
                     },
-                    new ConsoleWordHighlightingRule
-                    {
+                    new ConsoleWordHighlightingRule {
                         Regex = "\\b(?:info|log|message|success)\\b",
                         ForegroundColor = ConsoleOutputColor.Green
                     },
-                    new ConsoleWordHighlightingRule
-                    {
+                    new ConsoleWordHighlightingRule {
                         Regex = "\\b(?:debug)\\b",
                         ForegroundColor = ConsoleOutputColor.Blue
                     },
-                    new ConsoleWordHighlightingRule
-                    {
+                    new ConsoleWordHighlightingRule {
                         Regex = "\\b(?:trace)\\b",
                         ForegroundColor = ConsoleOutputColor.Gray
                     }
                 }
             };
 
-            var errorConsole = new ColoredConsoleTarget("errorConsole")
-            {
+            var errorConsole = new ColoredConsoleTarget("errorConsole") {
                 Layout = layout,
                 DetectConsoleAvailable = console.DetectConsoleAvailable,
                 EnableAnsiOutput = console.EnableAnsiOutput,
                 StdErr = true,
                 RowHighlightingRules = {
-                    new ConsoleRowHighlightingRule
-                    {
+                    new ConsoleRowHighlightingRule {
                         Condition = "level == LogLevel.Fatal",
                         ForegroundColor = ConsoleOutputColor.Red
                     },
-                    new ConsoleRowHighlightingRule
-                    {
+                    new ConsoleRowHighlightingRule {
                         Condition = "level == LogLevel.Error",
                         ForegroundColor = ConsoleOutputColor.DarkRed
                     },
                 }
             };
 
-            if (logLevel != LogLevel.Off)
-            {
-                if (logLevel <= LogLevel.Fatal) builder.ForLogger().FilterLevels(LogLevel.FromOrdinal(Math.Max(logLevel.Ordinal, LogLevel.Error.Ordinal)), LogLevel.Fatal).WriteTo(errorConsole);
-                if (logLevel <= LogLevel.Warn) builder.ForLogger().FilterLevels(logLevel, LogLevel.FromOrdinal(Math.Max(logLevel.Ordinal, LogLevel.Warn.Ordinal))).WriteTo(console);
+            if (logLevel != LogLevel.Off) {
+                if (logLevel <= LogLevel.Fatal) {
+                    builder.ForLogger()
+                        .FilterLevels(LogLevel.FromOrdinal(Math.Max(logLevel.Ordinal, LogLevel.Error.Ordinal)), LogLevel.Fatal)
+                        .WriteTo(errorConsole);
+                }
+
+                if (logLevel <= LogLevel.Warn) {
+                    builder.ForLogger()
+                        .FilterLevels(logLevel, LogLevel.FromOrdinal(Math.Max(logLevel.Ordinal, LogLevel.Warn.Ordinal)))
+                        .WriteTo(console);
+                }
             }
         });
 
@@ -261,8 +256,7 @@ public class Program
     public static string GetOutputLocation(
         string sourceDirectory,
         string outputDirectory,
-        string targetFile)
-    {
+        string targetFile) {
         if (sourceDirectory == targetFile) return Path.Combine(outputDirectory, Path.GetFileName(targetFile));
 
         var relativePath = Path.GetRelativePath(sourceDirectory, targetFile);
@@ -270,21 +264,14 @@ public class Program
     }
 
 
-    public static IEnumerable<string> GetFilesToCompile(string input)
-    {
-        if (File.Exists(input))
-        {
+    public static IEnumerable<string> GetFilesToCompile(string input) {
+        if (File.Exists(input)) {
             yield return input;
-        }
-        else if (Directory.Exists(input))
-        {
-            foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories))
-            {
+        } else if (Directory.Exists(input)) {
+            foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories)) {
                 yield return file;
             }
-        }
-        else
-        {
+        } else {
             Logger.Error("Input must be a file or directory.");
             Environment.Exit(1);
         }
@@ -294,15 +281,13 @@ public class Program
         string sourceDirectory,
         string? outputDirectory,
         IEnumerable<string> scripts
-    )
-    {
+    ) {
         if (string.IsNullOrWhiteSpace(outputDirectory)) return;
 
         if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
         if (!Directory.Exists(sourceDirectory)) return;
 
-        foreach (var script in scripts)
-        {
+        foreach (var script in scripts) {
             var outputDir = Path.GetDirectoryName(GetOutputLocation(sourceDirectory, outputDirectory, script));
             if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir!);
         }
@@ -313,28 +298,23 @@ public class Program
         string? outputDirectory,
         string fileName,
         string content,
-        bool overwrite)
-    {
-        if (string.IsNullOrWhiteSpace(outputDirectory))
-        {
+        bool overwrite) {
+        if (string.IsNullOrWhiteSpace(outputDirectory)) {
             // Output to console to allow for piping
             Console.OpenStandardOutput().Write(Encoding.UTF8.GetBytes(content));
             return;
         }
 
         var outputPath = GetOutputLocation(sourceDirectory, outputDirectory, fileName);
-        if (File.Exists(outputPath))
-        {
+        if (File.Exists(outputPath)) {
             var removeFile = overwrite;
-            if (!removeFile)
-            {
+            if (!removeFile) {
                 Logger.Info($"File {outputPath} already exists. Overwrite? (Y/n)");
                 var response = Console.ReadLine();
-                removeFile = string.IsNullOrWhiteSpace(response) || response.Equals("y", StringComparison.CurrentCultureIgnoreCase);
+                removeFile = string.IsNullOrWhiteSpace(response) || response.Equals("y", StringComparison.OrdinalIgnoreCase);
             }
 
-            if (removeFile)
-            {
+            if (removeFile) {
                 Logger.Trace("Removing file");
                 File.Delete(outputPath);
             }
@@ -345,8 +325,7 @@ public class Program
         await fileStream.WriteAsync(Encoding.UTF8.GetBytes(content));
     }
 
-    internal static PowerShell GetPowerShellSession()
-    {
+    internal static PowerShell GetPowerShellSession() {
         var pwsh = PowerShell.Create(RunspacePool.Value.InitialSessionState);
         pwsh.RunspacePool = RunspacePool.Value;
         return pwsh;
@@ -362,15 +341,13 @@ public class Program
 
         pwsh.Streams.Verbose.ToList().ForEach(log => Logger.Debug(log.Message));
         pwsh.Streams.Debug.ToList().ForEach(log => Logger.Debug(log.Message));
-        pwsh.Streams.Information.ToList().ForEach(log => Logger.Info(log.MessageData));
+        pwsh.Streams.Information.ToList().ForEach(log => Logger.Info(CultureInfo.CurrentCulture, log.MessageData));
         pwsh.Streams.Warning.ToList().ForEach(log => Logger.Warn(log.Message));
 
-        if (pwsh.HadErrors)
-        {
             var ast = AstHelper.GetAstReportingErrors(script, null, []);
+        if (pwsh.HadErrors) {
 
-            pwsh.Streams.Error.ToList().ForEach(log =>
-            {
+            var errors = pwsh.Streams.Error.Select(log => {
                 Logger.Debug(log.InvocationInfo.ScriptLineNumber);
                 Logger.Debug(log.InvocationInfo.OffsetInLine);
                 Logger.Debug(log.InvocationInfo.Line);
@@ -401,8 +378,7 @@ public class Program
         return result;
     }
 
-    ~Program()
-    {
+    ~Program() {
         RunspacePool.Value.Close();
         RunspacePool.Value.Dispose();
         LogManager.Shutdown();

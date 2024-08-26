@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 using System.Management.Automation.Language;
 using System.Text;
@@ -7,8 +10,7 @@ using Compiler.Text;
 namespace Compiler.Module.Compiled;
 
 
-public class CompiledLocalModule : Compiled
-{
+public class CompiledLocalModule : Compiled {
     public override ContentType Type { get; } = ContentType.UTF8String;
 
     // Local modules are always version 0.0.1, as they are not versioned.
@@ -22,19 +24,16 @@ public class CompiledLocalModule : Compiled
         PathedModuleSpec moduleSpec,
         CompiledDocument document,
         RequirementGroup requirements
-    ) : base(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent()))
-    {
-        Document = document;
-        Ast = AstHelper.GetAstReportingErrors(string.Join('\n', Document.Lines), moduleSpec.FullPath, ["ModuleNotFoundDuringParse"]);
+    ) : base(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent())) {
+        this.Document = document;
+        this.Ast = AstHelper.GetAstReportingErrors(string.Join('\n', this.Document.Lines), Some(moduleSpec.FullPath), ["ModuleNotFoundDuringParse"]).ThrowIfFail();
     }
 
     public override string StringifyContent() => new StringBuilder()
         .AppendLine("<#ps1#> @'")
-        .AppendJoin('\n', Requirements.GetRequirements().Select(requirement =>
-        {
-            var hash = (requirement switch
-            {
-                ModuleSpec req => FindSibling(req)!.ComputedHash,
+        .AppendJoin('\n', this.Requirements.GetRequirements().Select(requirement => {
+            var hash = (requirement switch {
+                ModuleSpec req => this.FindSibling(req)!.ComputedHash,
                 _ => requirement.HashString
             })[..6];
 
@@ -42,9 +41,9 @@ public class CompiledLocalModule : Compiled
             return requirement.GetInsertableLine(data);
         }))
         .AppendLine()
-        .AppendLine(Document.GetContent())
+        .AppendLine(this.Document.GetContent())
         .Append("'@;")
         .ToString();
 
-    public override IEnumerable<string> GetExportedFunctions() => AstHelper.FindAvailableFunctions(Ast, true).Select(function => function.Name);
+    public override IEnumerable<string> GetExportedFunctions() => AstHelper.FindAvailableFunctions(this.Ast, true).Select(function => function.Name);
 }

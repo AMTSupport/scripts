@@ -1,5 +1,9 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -8,140 +12,123 @@ using NLog;
 
 namespace Compiler.Requirements;
 
-public sealed class PathedModuleSpec : ModuleSpec
-{
+public sealed class PathedModuleSpec : ModuleSpec {
     public readonly string FullPath;
 
     public PathedModuleSpec(
         string fullPath,
-        Guid? guid = null,
+        Guid? id = null,
         Version? minimumVersion = null,
         Version? maximumVersion = null,
         Version? requiredVersion = null
-    ) : base(Path.GetFileNameWithoutExtension(fullPath), guid, minimumVersion, maximumVersion, requiredVersion)
-    {
-        FullPath = fullPath;
-        Weight = 73;
-        Hash = SHA1.HashData(File.ReadAllBytes(fullPath));
+    ) : base(Path.GetFileNameWithoutExtension(fullPath), id, minimumVersion, maximumVersion, requiredVersion) {
+        this.FullPath = fullPath;
+        this.Weight = 73;
+        this.Hash = SHA256.HashData(File.ReadAllBytes(fullPath));
     }
 
     // TODO - this may not be the best way to do this.
-    public override ModuleMatch CompareTo(ModuleSpec other)
-    {
-        if (other is not PathedModuleSpec && other.Guid == null && other.MinimumVersion == null && other.MaximumVersion == null && other.RequiredVersion == null)
-        {
+    public override ModuleMatch CompareTo(ModuleSpec other) {
+        if (other is not PathedModuleSpec && other.Id == null && other.MinimumVersion == null && other.MaximumVersion == null && other.RequiredVersion == null) {
             var otherMaybeFileName = Path.GetFileNameWithoutExtension(other.Name);
-            if (Name == otherMaybeFileName) return ModuleMatch.PreferOurs;
+            if (this.Name == otherMaybeFileName) return ModuleMatch.PreferOurs;
         }
 
         return base.CompareTo(other);
     }
 }
 
-public class ModuleSpec : Requirement
-{
-    private readonly static Logger Logger = LogManager.GetCurrentClassLogger();
+public class ModuleSpec : Requirement {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     public string Name { get; }
-    public Guid? Guid { get; }
+    public Guid? Id { get; }
     public Version? MinimumVersion { get; }
     public Version? MaximumVersion { get; }
     public Version? RequiredVersion { get; }
 
     public ModuleSpec(
         string name,
-        Guid? guid = null,
+        Guid? id = null,
         Version? minimumVersion = null,
         Version? maximumVersion = null,
         Version? requiredVersion = null
-    ) : base()
-    {
-        SupportsMultiple = true;
-        Weight = 70;
+    ) : base() {
+        this.SupportsMultiple = true;
+        this.Weight = 70;
 
-        Name = name;
-        Guid = guid;
-        MinimumVersion = minimumVersion;
-        MaximumVersion = maximumVersion;
-        RequiredVersion = requiredVersion;
+        this.Name = name;
+        this.Id = id;
+        this.MinimumVersion = minimumVersion;
+        this.MaximumVersion = maximumVersion;
+        this.RequiredVersion = requiredVersion;
 
-        Hash = SHA1.HashData(Encoding.UTF8.GetBytes(string.Concat(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion)));
+        this.Hash = SHA256.HashData(Encoding.UTF8.GetBytes(string.Concat(this.Name, this.Id, this.MinimumVersion, this.MaximumVersion, this.RequiredVersion)));
     }
 
     // TODO - Maybe use IsCompatibleWith to do some other check stuff
-    public ModuleSpec MergeSpecs(ModuleSpec[] merge)
-    {
-        var guid = Guid;
-        var minVersion = MinimumVersion;
-        var maxVersion = MaximumVersion;
-        var reqVersion = RequiredVersion;
+    public ModuleSpec MergeSpecs(ModuleSpec[] merge) {
+        var guid = this.Id;
+        var minVersion = this.MinimumVersion;
+        var maxVersion = this.MaximumVersion;
+        var reqVersion = this.RequiredVersion;
 
-        foreach (var match in merge)
-        {
-            if (match.Guid != null && guid == null)
-            {
-                Logger.Debug($"Merging {Name} with {match.Name} - {guid?.ToString() ?? "null"} -> {match.Guid}");
-                guid = match.Guid;
+        foreach (var match in merge) {
+            if (match.Id != null && guid == null) {
+                Logger.Debug($"Merging {this.Name} with {match.Name} - {guid?.ToString() ?? "null"} -> {match.Id}");
+                guid = match.Id;
             }
 
-            if (match.MinimumVersion != null && (minVersion == null || match.MinimumVersion > minVersion))
-            {
-                Logger.Debug($"Merging {Name} with {match.Name} - {minVersion?.ToString() ?? "null"} -> {match.MinimumVersion}");
+            if (match.MinimumVersion != null && (minVersion == null || match.MinimumVersion > minVersion)) {
+                Logger.Debug($"Merging {this.Name} with {match.Name} - {minVersion?.ToString() ?? "null"} -> {match.MinimumVersion}");
                 minVersion = match.MinimumVersion;
             }
 
-            if (match.MaximumVersion != null && (maxVersion == null || match.MaximumVersion < maxVersion))
-            {
-                Logger.Debug($"Merging {Name} with {match.Name} - {maxVersion?.ToString() ?? "null"} -> {match.MaximumVersion}");
+            if (match.MaximumVersion != null && (maxVersion == null || match.MaximumVersion < maxVersion)) {
+                Logger.Debug($"Merging {this.Name} with {match.Name} - {maxVersion?.ToString() ?? "null"} -> {match.MaximumVersion}");
                 maxVersion = match.MaximumVersion;
             }
 
-            if (match.RequiredVersion != null && reqVersion == null)
-            {
-                Logger.Debug($"Merging {Name} with {match.Name} - {RequiredVersion?.ToString() ?? "null"} -> {match.RequiredVersion}");
+            if (match.RequiredVersion != null && reqVersion == null) {
+                Logger.Debug($"Merging {this.Name} with {match.Name} - {this.RequiredVersion?.ToString() ?? "null"} -> {match.RequiredVersion}");
                 reqVersion = match.RequiredVersion;
             }
         }
 
-        return new ModuleSpec(Name, guid, minVersion, maxVersion, reqVersion);
+        return new ModuleSpec(this.Name, guid, minVersion, maxVersion, reqVersion);
     }
 
-    public override string GetInsertableLine(Hashtable data)
-    {
+    public override string GetInsertableLine(Hashtable data) {
         var nameSuffix = data.ContainsKey("NameSuffix") ? $"-{data["NameSuffix"]}" : string.Empty;
-        var moduleName = $"{Name}{nameSuffix}";
+        var moduleName = $"{this.Name}{nameSuffix}";
 
-        if (Guid == null && RequiredVersion == null && MinimumVersion == null && MaximumVersion == null)
-        {
+        if (this.Id == null && this.RequiredVersion == null && this.MinimumVersion == null && this.MaximumVersion == null) {
             return $"Using module '{moduleName}'";
         }
 
         var sb = new StringBuilder("Using module @{");
-        sb.Append($"ModuleName = '{moduleName}';");
-        if (Guid != null) sb.Append($"GUID = {Guid};");
+        sb.Append(CultureInfo.InvariantCulture, $"ModuleName = '{moduleName}';");
+        if (this.Id != null) sb.Append(CultureInfo.InvariantCulture, $"GUID = {this.Id};");
 
-        switch (RequiredVersion, MinimumVersion, MaximumVersion)
-        {
+        switch (this.RequiredVersion, this.MinimumVersion, this.MaximumVersion) {
             case (null, null, null): break;
-            case (null, var min, var max) when min != null && max != null: sb.Append($"ModuleVersion = '{min}';MaximumVersion = '{max}';"); break;
-            case (null, var min, _) when min != null: sb.Append($"ModuleVersion = '{min}';"); break;
-            case (null, _, var max) when max != null: sb.Append($"MaximumVersion = '{max}';"); break;
-            case (var req, _, _): sb.Append($"RequiredVersion = '{req}';"); break;
+            case (null, var min, var max) when min != null && max != null: sb.Append(CultureInfo.InvariantCulture, $"ModuleVersion = '{min}';MaximumVersion = '{max}';"); break;
+            case (null, var min, _) when min != null: sb.Append(CultureInfo.InvariantCulture, $"ModuleVersion = '{min}';"); break;
+            case (null, _, var max) when max != null: sb.Append(CultureInfo.InvariantCulture, $"MaximumVersion = '{max}';"); break;
+            case (var req, _, _): sb.Append(CultureInfo.InvariantCulture, $"RequiredVersion = '{req}';"); break;
         }
 
         sb.Append('}');
         return sb.ToString();
     }
 
-    public virtual ModuleMatch CompareTo(ModuleSpec other)
-    {
+    public virtual ModuleMatch CompareTo(ModuleSpec other) {
         if (ReferenceEquals(this, other)) return ModuleMatch.Same;
-        if (Name != other.Name) return ModuleMatch.None;
-        if (Guid != null && other.Guid != null && Guid != other.Guid) return ModuleMatch.None;
+        if (this.Name != other.Name) return ModuleMatch.None;
+        if (this.Id != null && other.Id != null && this.Id != other.Id) return ModuleMatch.None;
 
         var isStricter = false;
         var isLooser = false;
-        switch ((MinimumVersion, other.MinimumVersion))
-        {
+        switch ((this.MinimumVersion, other.MinimumVersion)) {
             case (null, null):
                 break;
             case (null, _):
@@ -158,8 +145,7 @@ public class ModuleSpec : Requirement
                 break;
         }
 
-        switch ((MaximumVersion, other.MaximumVersion))
-        {
+        switch ((this.MaximumVersion, other.MaximumVersion)) {
             case (null, null):
                 break;
             case (null, _):
@@ -176,14 +162,13 @@ public class ModuleSpec : Requirement
                 break;
         }
 
-        if (MinimumVersion != null && other.MaximumVersion != null && MinimumVersion > other.MaximumVersion) return ModuleMatch.Incompatible;
-        if (other.MinimumVersion != null && MaximumVersion != null && other.MinimumVersion > MaximumVersion) return ModuleMatch.Incompatible;
+        if (this.MinimumVersion != null && other.MaximumVersion != null && this.MinimumVersion > other.MaximumVersion) return ModuleMatch.Incompatible;
+        if (other.MinimumVersion != null && this.MaximumVersion != null && other.MinimumVersion > this.MaximumVersion) return ModuleMatch.Incompatible;
 
-        switch ((RequiredVersion, other.RequiredVersion))
-        {
+        switch ((this.RequiredVersion, other.RequiredVersion)) {
             case (null, null):
                 break;
-            case (null, var b) when (MinimumVersion != null && b < MinimumVersion) || (MaximumVersion != null && b > MaximumVersion):
+            case (null, var b) when (this.MinimumVersion != null && b < this.MinimumVersion) || (this.MaximumVersion != null && b > this.MaximumVersion):
                 return ModuleMatch.Incompatible;
             case (var a, null) when (other.MinimumVersion != null && a < other.MinimumVersion) || (other.MaximumVersion != null && a > other.MaximumVersion):
                 return ModuleMatch.Incompatible;
@@ -210,20 +195,18 @@ public class ModuleSpec : Requirement
     [ExcludeFromCodeCoverage(Justification = "Just a bool flag.")]
     public override bool IsCompatibleWith(Requirement other) => true;
 
-    public override int GetHashCode() => HashCode.Combine(Name, Guid, MinimumVersion, MaximumVersion, RequiredVersion);
+    public override int GetHashCode() => HashCode.Combine(this.Name, this.Id, this.MinimumVersion, this.MaximumVersion, this.RequiredVersion);
 
-    public override int CompareTo(Requirement? other)
-    {
+    public override int CompareTo(Requirement? other) {
         if (other is not ModuleSpec) return 0;
-        return CompareTo((ModuleSpec)other).CompareTo(ModuleMatch.Same);
+        return this.CompareTo((ModuleSpec)other).CompareTo(ModuleMatch.Same);
     }
 
-    public override bool Equals(object? obj)
-    {
+    public override bool Equals(object? obj) {
         if (obj is null) return false;
         if (obj is not ModuleSpec other) return false;
         if (ReferenceEquals(this, other)) return true;
-        return Name == other.Name && Guid == other.Guid && MinimumVersion == other.MinimumVersion && MaximumVersion == other.MaximumVersion && RequiredVersion == other.RequiredVersion;
+        return this.Name == other.Name && this.Id == other.Id && this.MinimumVersion == other.MinimumVersion && this.MaximumVersion == other.MaximumVersion && this.RequiredVersion == other.RequiredVersion;
     }
 
     public override string ToString() => JsonSerializer.Serialize(this, SerializerOptions);

@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
 using System.Management.Automation.Language;
@@ -9,16 +12,13 @@ public partial class HereStringUpdater() : AstUpdater(
     static ast => ast is StringConstantExpressionAst stringConstantAst && stringConstantAst.StringConstantType is StringConstantType.SingleQuotedHereString or StringConstantType.DoubleQuotedHereString,
     static hereString => InternalApply(hereString),
     UpdateOptions.InsertInline
-)
-{
+) {
     [Pure]
-    public static string[] InternalApply([NotNull] Ast ast)
-    {
+    public static string[] InternalApply([NotNull] Ast ast) {
         ArgumentNullException.ThrowIfNull(ast);
         if (ast is not StringConstantExpressionAst stringConstant) return [];
 
-        var linesAfterMaybeUpdate = stringConstant.StringConstantType switch
-        {
+        var linesAfterMaybeUpdate = stringConstant.StringConstantType switch {
             StringConstantType.SingleQuotedHereString => UpdateTerminators(stringConstant),
             StringConstantType.DoubleQuotedHereString => stringConstant.Extent.Text.Split('\n'),
             // This should never happen, but if it does, throw an exception.
@@ -41,15 +41,12 @@ public partial class HereStringUpdater() : AstUpdater(
     /// An array of strings with the indentation removed.
     /// </returns>
     [Pure]
-    internal static string[] UpdateIndentation([NotNull] IEnumerable<string> lines)
-    {
+    internal static string[] UpdateIndentation([NotNull] IEnumerable<string> lines) {
         // Get the multiline indent level from the last line of the string.
         // This is used so we don't remove any whitespace that is part of the actual string formatting.
         var indentLevel = lines.Last().TakeWhile(char.IsWhiteSpace).Count();
-        var updatedLines = lines.Select((line, index) =>
-        {
-            if (index < 1 || string.IsNullOrWhiteSpace(line))
-            {
+        var updatedLines = lines.Select((line, index) => {
+            if (index < 1 || string.IsNullOrWhiteSpace(line)) {
                 return line;
             }
 
@@ -72,8 +69,7 @@ public partial class HereStringUpdater() : AstUpdater(
     /// A string with the same content as the AST, but with double quoted terminators.
     /// </returns>
     [Pure]
-    internal static string[] UpdateTerminators([NotNull] StringConstantExpressionAst stringConstant)
-    {
+    internal static string[] UpdateTerminators([NotNull] StringConstantExpressionAst stringConstant) {
         ArgumentNullException.ThrowIfNull(stringConstant);
 
         return ["@\"", stringConstant.Value, "\"@"];

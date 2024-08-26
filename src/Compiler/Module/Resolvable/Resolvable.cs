@@ -1,11 +1,13 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using Compiler.Requirements;
 using NLog;
 using QuikGraph;
 
 namespace Compiler.Module.Resolvable;
 
-public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleSpec)
-{
+public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleSpec) {
     /// <summary>
     /// Resolves the requirements of the module.
     /// </summary>
@@ -19,8 +21,7 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
 /// This is useful for resolving a group of modules that have dependencies between each other.
 /// While resolving, the resolvables will check for circular dependencies and resolve them in the correct order.
 /// </summary>
-public class ResolvableParent
-{
+public class ResolvableParent {
     public record ResolvedMatch(Resolvable Resolvable, ModuleMatch Match);
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
@@ -33,24 +34,18 @@ public class ResolvableParent
         Graph.AddVertex(rootModule);
 
         #region Deduplication and merging of Resolvables using events
-        Graph.VertexAdded += vertex => Logger.Debug($"Vertex added: {vertex.ModuleSpec.Name}");
-        Graph.VertexRemoved += vertex => Logger.Debug($"Vertex removed: {vertex.ModuleSpec.Name}");
-        Graph.EdgeRemoved += edge =>
-        {
+        this.Graph.VertexAdded += vertex => Logger.Debug($"Vertex added: {vertex.ModuleSpec.Name}");
+        this.Graph.VertexRemoved += vertex => Logger.Debug($"Vertex removed: {vertex.ModuleSpec.Name}");
+        this.Graph.EdgeRemoved += edge => {
             Logger.Debug($"Edge removed: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
-            lock (edge.Source.Requirements)
-            {
-                var didRemove = edge.Source.Requirements.RemoveRequirement(edge.Target.ModuleSpec);
-                if (!didRemove) Logger.Warn($"Failed to remove requirement {edge.Target.ModuleSpec} from {edge.Source.ModuleSpec}.");
+            lock (edge.Source.Requirements) {
+                edge.Source.Requirements.RemoveRequirement(edge.Target.ModuleSpec);
             }
         };
-        Graph.EdgeAdded += edge =>
-        {
+        this.Graph.EdgeAdded += edge => {
             Logger.Debug($"Edge added: {edge.Source.ModuleSpec.Name} -> {edge.Target.ModuleSpec.Name}");
-            lock (edge.Source.Requirements)
-            {
-                var didAdd = edge.Source.Requirements.AddRequirement(edge.Target.ModuleSpec);
-                if (!didAdd) Logger.Warn($"Failed to add requirement {edge.Target.ModuleSpec} to {edge.Source.ModuleSpec}.");
+            lock (edge.Source.Requirements) {
+                edge.Source.Requirements.AddRequirement(edge.Target.ModuleSpec);
             }
         };
         #endregion
@@ -61,11 +56,11 @@ public class ResolvableParent
     /// </summary>
     /// <param name="moduleSpec"></param>
     /// <returns></returns>
-    public ResolvedMatch? FindResolvable(ModuleSpec moduleSpec)
-    {
-        var resolvable = Graph.Vertices.FirstOrDefault(resolvable => resolvable.ModuleSpec.CompareTo(moduleSpec) != ModuleMatch.None);
+    public ResolvedMatch? FindResolvable(ModuleSpec moduleSpec) {
+        var resolvable = this.Graph.Vertices.FirstOrDefault(resolvable => resolvable.ModuleSpec.CompareTo(moduleSpec) != ModuleMatch.None);
         if (resolvable == null) return null;
 
+        Logger.Debug($"Found resolvable {resolvable.ModuleSpec.Name} for {moduleSpec.Name}.");
         return new(resolvable, resolvable.ModuleSpec.CompareTo(moduleSpec));
     }
 
@@ -80,8 +75,7 @@ public class ResolvableParent
                 Logger.Trace($"Resolving {workingModuleSpec} with parent {parentResolvable?.ModuleSpec}.");
 
                 // If the parent module has already been resolved this will be an orphan.
-                if (parentResolvable != null && !Graph.ContainsVertex(parentResolvable))
-                {
+                if (parentResolvable != null && !this.Graph.ContainsVertex(parentResolvable)) {
                     Logger.Debug("Parent module had already been resolved, skipping orphan.");
                     continue;
                 }
@@ -89,8 +83,7 @@ public class ResolvableParent
                 var workingResolvable = LinkFindingPossibleResolved(parentResolvable, workingModuleSpec);
 
                 // If it was null or there are out edges it means this module has already been resolved.
-                if (workingResolvable == null || Graph.TryGetOutEdges(workingResolvable, out var outEdges) && outEdges.Any())
-                {
+                if (workingResolvable.IsNone || (this.Graph.TryGetOutEdges(workingResolvable.ValueUnsafe()!, out var outEdges) && outEdges.Any())) {
                     Logger.Debug("Module has already been resolved, skipping.");
                     continue;
                 }
