@@ -7,18 +7,23 @@ using Compiler.Module.Compiled;
 namespace Compiler.Analyser.Rules;
 
 public sealed class RuleVisitor(
+    Compiled module,
     IEnumerable<Rule> rules,
     IEnumerable<Compiled> imports) : AstVisitor {
-    private readonly IEnumerable<Rule> _rules = rules;
-    private readonly IEnumerable<Compiled> _imports = imports;
+
+    private readonly Compiled Module = module;
+    private readonly IEnumerable<Rule> Rules = rules;
+    private readonly IEnumerable<Compiled> Imports = imports;
 
     public readonly List<Issue> Issues = [];
 
     public override AstVisitAction DefaultVisit(Ast ast) {
         var supressions = GetSupressions(ast);
-        foreach (var rule in this._rules) {
+        foreach (var rule in this.Rules) {
             if (!rule.ShouldProcess(ast, supressions)) continue;
-            this.Issues.AddRange(rule.Analyse(ast, this._imports));
+            foreach (var issue in rule.Analyse(ast, this.Imports)) {
+                this.Issues.Add(issue.Enrich(this.Module.ModuleSpec));
+            }
         }
 
         return AstVisitAction.Continue;

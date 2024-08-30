@@ -1,4 +1,8 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Compiler.Requirements;
@@ -6,30 +10,22 @@ using Compiler.Requirements;
 namespace Compiler.Test.Requirements;
 
 [TestFixture]
-public class RequirementsTests
-{
+public class RequirementsTests {
     private RequirementGroup Requirements;
 
     [SetUp]
-    public void SetUp()
-    {
-        Requirements = new RequirementGroup();
-    }
+    public void SetUp() => this.Requirements = new RequirementGroup();
 
     [TestCaseSource(typeof(TestData), nameof(TestData.CaseForEachRequirementType))]
-    public void AddRequirement_AddSingleRequirement_ReturnCollection(Requirement requirement)
-    {
-        Requirements.AddRequirement(requirement);
+    public void AddRequirement_AddSingleRequirement_ReturnCollection(Requirement requirement) {
+        this.Requirements.AddRequirement(requirement);
 
-        Assert.That(Requirements.GetRequirements(), Is.EqualTo(new List<Requirement> { requirement }));
+        Assert.That(this.Requirements.GetRequirements(), Is.EqualTo(new List<Requirement> { requirement }));
     }
 
-    public static class TestData
-    {
-        public static IEnumerable CaseForEachRequirementType
-        {
-            get
-            {
+    public static class TestData {
+        public static IEnumerable CaseForEachRequirementType {
+            get {
                 yield return new TestCaseData(new ModuleSpec("TestModule")).SetCategory("ModuleSpec");
                 yield return new TestCaseData(new PSEditionRequirement(PSEdition.Desktop)).SetCategory("PSEditionRequirement");
                 yield return new TestCaseData(new PSVersionRequirement(new Version(7, 0))).SetCategory("PSVersionRequirement");
@@ -40,44 +36,36 @@ public class RequirementsTests
 }
 
 [TestFixture]
-public class RequirementGroupTests
-{
+public class RequirementGroupTests {
     [TestCaseSource(typeof(TestData), nameof(TestData.AddRequirementTests))]
-    public void AddRequirement(Requirement[] requirements)
-    {
+    public void AddRequirement(Requirement[] requirements) {
         var requirementGroup = new RequirementGroup();
-        foreach (var requirement in requirements)
-        {
+        foreach (var requirement in requirements) {
             requirementGroup.AddRequirement(requirement);
         }
 
         var storedRequirements = requirementGroup.GetRequirements<Requirement>();
-        Assert.Multiple(() =>
-        {
+        Assert.Multiple(() => {
             Assert.That(storedRequirements, Has.Count.EqualTo(requirements.Length));
             Assert.That(storedRequirements, Is.EquivalentTo(requirements));
         });
     }
 
     [TestCaseSource(typeof(TestData), nameof(TestData.AddRequirementTests))]
-    public void RemoveRequirement(Requirement[] requirements)
-    {
+    public void RemoveRequirement(Requirement[] requirements) {
         var requirementGroup = new RequirementGroup();
-        foreach (var requirement in requirements)
-        {
+        foreach (var requirement in requirements) {
             requirementGroup.AddRequirement(requirement);
         }
 
         var removingCount = (int)Math.Ceiling(requirements.Length / 2.0); // Ensure we remove at least one
         var removed = 0;
-        for (var i = 0; i < removingCount; i++)
-        {
+        for (var i = 0; i < removingCount; i++) {
             if (requirementGroup.RemoveRequirement(requirements[i])) removed++;
         }
 
         var storedRequirements = requirementGroup.GetRequirements<Requirement>();
-        Assert.Multiple(() =>
-        {
+        Assert.Multiple(() => {
             Assert.That(removed, Is.EqualTo(removingCount));
             Assert.That(storedRequirements, Has.Count.EqualTo(requirements.Length - removed));
             Assert.That(storedRequirements, Is.EquivalentTo(requirements.Skip(removingCount)));
@@ -85,24 +73,20 @@ public class RequirementGroupTests
     }
 
     [Test, Repeat(1000)]
-    public void GetRequirements_ShouldReturnAllRequirementsInOrderOfHashWhenSameWeight()
-    {
+    public void GetRequirements_ShouldReturnAllRequirementsInOrderOfHashWhenSameWeight() {
         var requirementGroup = new RequirementGroup();
         var requirementsList = new List<Requirement>();
-        for (var i = 0; i < 100; i++)
-        {
-            var requirement = new TestData.SampleRequirement(i.ToString());
+        for (var i = 0; i < 100; i++) {
+            var requirement = new TestData.SampleRequirement(i.ToString(CultureInfo.InvariantCulture));
             requirementsList.Add(requirement);
             requirementGroup.AddRequirement(requirement);
         }
 
         var requirements = requirementGroup.GetRequirements();
-        Assert.Multiple(() =>
-        {
+        Assert.Multiple(() => {
             Assert.That(requirements, Has.Count.EqualTo(100));
             Assert.That(requirements, Is.Ordered.By(nameof(Requirement.Weight)));
-            for (var i = 0; i < 100; i++)
-            {
+            for (var i = 0; i < 100; i++) {
                 Assert.That(requirements.ElementAt(i), Is.EqualTo(requirementsList[i]));
             }
         });
@@ -110,77 +94,69 @@ public class RequirementGroupTests
 }
 
 [TestFixture]
-public class RequirementWeightSorterTests
-{
+public class RequirementWeightSorterTests {
     [Test]
-    public void Compare_WhenBothRequirementsAreNull_ReturnsZero()
-    {
+    public void Compare_WhenBothRequirementsAreNull_ReturnsZero() {
         var sorter = new RequirementWeightSorter();
-        int result = sorter.Compare(null, null);
+        var result = sorter.Compare(null, null);
 
         Assert.That(result, Is.EqualTo(0));
     }
 
     [Test]
-    public void Compare_WhenFirstRequirementIsNull_ReturnsNegativeOne()
-    {
+    public void Compare_WhenFirstRequirementIsNull_ReturnsNegativeOne() {
         var sorter = new RequirementWeightSorter();
         var requirement = new TestData.TestRequirement(true);
-        int result = sorter.Compare(null, requirement);
+        var result = sorter.Compare(null, requirement);
 
         Assert.That(result, Is.EqualTo(-1));
     }
 
     [Test]
-    public void Compare_WhenSecondRequirementIsNull_ReturnsOne()
-    {
+    public void Compare_WhenSecondRequirementIsNull_ReturnsOne() {
         var sorter = new RequirementWeightSorter();
         var requirement = new TestData.TestRequirement(true);
-        int result = sorter.Compare(requirement, null);
+        var result = sorter.Compare(requirement, null);
 
         Assert.That(result, Is.EqualTo(1));
     }
 
     [Test]
-    public void Compare_WhenBothRequirementsHaveSameWeight_ReturnsZero()
-    {
+    public void Compare_WhenBothRequirementsHaveSameWeight_ReturnsZero() {
         var sorter = new RequirementWeightSorter();
         var requirement1 = new TestData.TestRequirement(true);
         var requirement2 = new TestData.TestRequirement(true);
-        int result = sorter.Compare(requirement1, requirement2);
+        var result = sorter.Compare(requirement1, requirement2);
 
         Assert.That(result, Is.EqualTo(0));
     }
 
     [Test]
-    public void Compare_WhenFirstRequirementHasLowerWeight_ReturnsNegativeOne()
-    {
+    public void Compare_WhenFirstRequirementHasLowerWeight_ReturnsNegativeOne() {
         var sorter = new RequirementWeightSorter();
         var requirement1 = new TestData.TestRequirement(true, 50);
         var requirement2 = new TestData.TestRequirement(true, 100);
-        int result = sorter.Compare(requirement1, requirement2);
+        var result = sorter.Compare(requirement1, requirement2);
 
         Assert.That(result, Is.EqualTo(-1));
     }
 
     [Test]
-    public void Compare_WhenFirstRequirementHasHigherWeight_ReturnsOne()
-    {
+    public void Compare_WhenFirstRequirementHasHigherWeight_ReturnsOne() {
         var sorter = new RequirementWeightSorter();
         var requirement1 = new TestData.TestRequirement(true, 100);
         var requirement2 = new TestData.TestRequirement(true, 50);
-        int result = sorter.Compare(requirement1, requirement2);
+        var result = sorter.Compare(requirement1, requirement2);
 
         Assert.That(result, Is.EqualTo(1));
     }
 
     [Test]
-    public void Compare_WhenRequirementsHaveSameWeight_ReturnsZero()
-    {
+    public void Compare_WhenRequirementsHaveSameWeight_ReturnsZero() {
         var sorter = new RequirementWeightSorter();
         var requirement1 = new TestData.TestRequirement(true, hash: [1, 2, 3]);
         var requirement2 = new TestData.TestRequirement(true, hash: [1, 2, 4]);
-        int result = sorter.Compare(requirement1, requirement2);
+        var result = sorter.Compare(requirement1, requirement2);
 
         Assert.That(result, Is.EqualTo(0));
     }
@@ -189,13 +165,11 @@ public class RequirementWeightSorterTests
     public void Compare(
         Requirement requirement1,
         Requirement requirement2,
-        int expected)
-    {
+        int expected) {
         var sorter = new RequirementWeightSorter();
-        int result = sorter.Compare(requirement1, requirement2);
+        var result = sorter.Compare(requirement1, requirement2);
 
-        switch (result)
-        {
+        switch (result) {
             case var _ when result < 0:
                 Assert.That(result, Is.LessThanOrEqualTo(expected));
                 break;
@@ -209,21 +183,17 @@ public class RequirementWeightSorterTests
     }
 }
 
-file class TestData
-{
-    private static int _counter = 0;
-    public static Requirement GetNewRequirement() => new SampleRequirement(_counter++.ToString());
-    public static Requirement[] GetNewRequirements(int count)
-    {
+file sealed class TestData {
+    private static int Counter = 0;
+    public static Requirement GetNewRequirement() => new SampleRequirement(Counter++.ToString());
+    public static Requirement[] GetNewRequirements(int count) {
         var requirements = new Requirement[count];
         for (var i = 0; i < count; i++) { requirements[i] = GetNewRequirement(); }
         return requirements;
     }
 
-    public static IEnumerable CaseForEachRequirementType
-    {
-        get
-        {
+    public static IEnumerable CaseForEachRequirementType {
+        get {
             yield return new TestCaseData(
                 new RunAsAdminRequirement(),
                 new RunAsAdminRequirement(),
@@ -274,10 +244,8 @@ file class TestData
         }
     }
 
-    public static IEnumerable AddRequirementTests
-    {
-        get
-        {
+    public static IEnumerable AddRequirementTests {
+        get {
             yield return new TestCaseData(
                 arg: GetNewRequirements(1)
             ).SetDescription("Single Requirement");
@@ -292,45 +260,37 @@ file class TestData
         }
     }
 
-    internal sealed class TestRequirement : Requirement
-    {
+    internal sealed class TestRequirement : Requirement {
         public TestRequirement(
             bool supportsMultiple,
             uint weight = 50,
-            byte[]? hash = null) : base()
-        {
-            SupportsMultiple = supportsMultiple;
-            Weight = weight;
-            Hash = hash ?? SHA1.HashData(Encoding.UTF8.GetBytes(weight.ToString()));
+            byte[]? hash = null) : base() {
+            this.SupportsMultiple = supportsMultiple;
+            this.Weight = weight;
+            this.Hash = hash ?? SHA256.HashData(Encoding.UTF8.GetBytes(weight.ToString(CultureInfo.InvariantCulture)));
         }
 
         public override string GetInsertableLine(Hashtable data) => throw new NotImplementedException();
         public override bool IsCompatibleWith(Requirement other) => throw new NotImplementedException();
     }
 
-    internal sealed class SampleRequirement : Requirement
-    {
-        private readonly string _data;
-        public SampleRequirement(string data) : base()
-        {
-            _data = data;
-            SupportsMultiple = true;
-            Hash = SHA1.HashData(Encoding.UTF8.GetBytes(data));
+    internal sealed class SampleRequirement : Requirement {
+        public SampleRequirement(string data) : base() {
+            this.SupportsMultiple = true;
+            this.Hash = SHA256.HashData(Encoding.UTF8.GetBytes(data));
         }
 
         public override bool IsCompatibleWith(Requirement other) => true;
-        public override string GetInsertableLine(Hashtable _data) => string.Empty;
+        public override string GetInsertableLine(Hashtable data) => string.Empty;
     }
 
-    internal sealed class IncompatibleRequirement : Requirement
-    {
-        public IncompatibleRequirement() : base()
-        {
-            SupportsMultiple = false;
-            Hash = SHA1.HashData(Encoding.UTF8.GetBytes("Incompatible"));
+    internal sealed class IncompatibleRequirement : Requirement {
+        public IncompatibleRequirement() : base() {
+            this.SupportsMultiple = false;
+            this.Hash = SHA256.HashData(Encoding.UTF8.GetBytes("Incompatible"));
         }
 
         public override bool IsCompatibleWith(Requirement other) => false;
-        public override string GetInsertableLine(Hashtable _data) => string.Empty;
+        public override string GetInsertableLine(Hashtable data) => string.Empty;
     }
 }

@@ -31,13 +31,13 @@ public static class Analyser {
 
         Logger.Trace($"Analyzing module {module.ModuleSpec.Name}");
 
-        var visitor = new RuleVisitor(Rules, availableImports);
-        module.Ast.Visit(visitor);
-        visitor.Issues.ForEach(Program.Issues.Add);
+        var visitor = new RuleVisitor(module, Rules, availableImports);
+        module.Document.Ast.Visit(visitor);
 
         lock (Cache) {
             _ = Cache.Add(key);
         }
 
+        return visitor.Issues;
     }
 }

@@ -40,15 +40,14 @@ public class UseOfUndefinedFunction : Rule {
 
     public override IEnumerable<Issue> Analyse(
         Ast node,
-        IEnumerable<Compiled> imports) {
+        IEnumerable<Compiled> importedModules) {
         var commandAst = (CommandAst)node;
         var callName = SanatiseName(commandAst.GetCommandName());
         if (BuiltinsFunctions.Contains(callName)) yield break;
         if (AstHelper.FindAvailableFunctions(AstHelper.FindRoot(node), false).Select(definition => SanatiseName(definition.Name)).Any(name => name == callName)) yield break;
-        if (imports.Any(module => module.GetExportedFunctions().Contains(callName))) yield break;
+        if (importedModules.Any(module => module.GetExportedFunctions().Contains(callName))) yield break;
 
-        yield return new Issue(
-            IssueSeverity.Warning,
+        yield return Issue.Warning(
             $"Undefined function '{callName}'",
             commandAst.CommandElements[0].Extent,
             commandAst

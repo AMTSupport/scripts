@@ -21,7 +21,7 @@ public class PatternUpdater(
     public Regex StartingPattern { get; } = startingPattern;
     public Regex EndingPattern { get; } = endingPattern;
 
-    public override SpanUpdateInfo[] Apply(ref List<string> lines) {
+    public override LanguageExt.Fin<SpanUpdateInfo[]> Apply(List<string> lines) {
         var spanUpdateInfo = new List<SpanUpdateInfo>();
         var skipRanges = new HashSet<Range>();
         var offset = 0;
@@ -32,23 +32,21 @@ public class PatternUpdater(
                 break;
             }
 
-            var span = new TextSpan(
-                startIndex,
-                0,
-                endIndex,
-                lines[endIndex].Length
-            );
+            var spanResult = TextSpan.New(startIndex, 0, endIndex, lines[endIndex].Length);
+            if (spanResult.IsErr(out var err, out var span)) {
+                return FinFail<SpanUpdateInfo[]>(err);
+            }
 
             var updatingLines = lines[startIndex..(endIndex + 1)].ToArray();
             var newLines = this.Updater(updatingLines);
-            var thisOffset = span.SetContent(ref lines, options, newLines);
+            var thisOffset = span.SetContent(lines, options, newLines);
 
             offset += thisOffset;
             skipRanges.Add(new Range(startIndex, endIndex));
             spanUpdateInfo.Add(new SpanUpdateInfo(span, thisOffset));
         }
 
-        return [.. spanUpdateInfo];
+        return FinSucc(spanUpdateInfo.ToArray());
     }
 
     private (int, int) FindStartToEndBlock(

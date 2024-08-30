@@ -3,12 +3,10 @@
   <PropertyGroup>
     <MainEntryPoint>Program</MainEntryPoint>
     <TargetFramework>net8.0</TargetFramework>
-    <OutputType>Exe</OutputType>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
 
     <LangVersion>preview</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -54,6 +52,8 @@
     <WarningLevel>3</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
     <PublishTrimmed>true</PublishTrimmed>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -61,6 +61,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Extended.Collections" Version="1.1.1" />
+    <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-07" />
+    <PackageReference Include="QuikGraph.Graphviz" Version="2.5.0" />
     <PackageReference Include="System.Windows.Forms" Version="4.0.0" />
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="Pastel" Version="5.1.0" />

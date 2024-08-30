@@ -3,15 +3,17 @@
 
 using System.Collections;
 using System.IO.Compression;
-using System.Management.Automation;
+using System.Security.Cryptography;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
+using LanguageExt;
+using LanguageExt.Traits;
 using NLog;
-
 namespace Compiler.Module.Resolvable;
 
 public class ResolvableRemoteModule : Resolvable {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+    private static readonly object UsingPSRepoLock = new();
 
     private MemoryStream? MemoryStream;
     private string? CachedFile;
@@ -24,52 +26,69 @@ public class ResolvableRemoteModule : Resolvable {
         this.ModuleSpec.Name
     );
 
-    public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) => ModuleSpec.CompareTo(requirement);
+    public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) => this.ModuleSpec.CompareTo(requirement);
 
-    public override void ResolveRequirements()
-    {
-        lock (Requirements)
-        {
-            var memoryStream = _memoryStream ??= new MemoryStream(File.ReadAllBytes(FindCachedResult() ?? CacheResult()), false);
-            using var archive = new ZipArchive(memoryStream, ZipArchiveMode.Read, true);
-            var psd1Entry = archive.GetEntry($"{ModuleSpec.Name}.psd1");
-            if (psd1Entry == null)
-            {
-                Logger.Debug($"Failed to find the PSD1 file for module {ModuleSpec.Name}, assuming no requirements.");
-                return;
-            }
+    public override Option<Error> ResolveRequirements() {
+        this.MemoryStream ??= new MemoryStream(File.ReadAllBytes(this.FindCachedResult() ?? this.CacheResult().Match(
+            Fail: error => throw error,
+            Succ: path => path
+        )), false);
 
-            // Read the PSD1 file and parse it as a hashtable.
-            using var psd1Stream = psd1Entry.Open();
-            if (PowerShell.Create().AddScript(new StreamReader(psd1Stream).ReadToEnd()).Invoke()[0].BaseObject is not Hashtable psd1)
-            {
-                Logger.Debug($"Failed to parse the PSD1 file for module {ModuleSpec.Name}, assuming no requirements.");
-                return;
-            }
+        return this.MemoryStream.AsOption()
+            .Filter(static memoryStream => memoryStream == null || memoryStream.Length != 0)
+            .Map(static memoryStream => new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
+            .Map(archive => archive.GetEntry($"{this.ModuleSpec.Name}.psd1"))
+            .Filter(static entry => entry != null)
+            .Select(entry => entry!.Open())
+            .Filter(static stream => stream != null)
+            .Map(static stream => new StreamReader(stream!))
+            .Map(static reader => reader.ReadToEnd())
+            .Filter(static psd1String => !string.IsNullOrWhiteSpace(psd1String))
+            .ToFin()
+            .Bind(psd1String => Program.RunPowerShell(psd1String))
+            .Map(static objects => (Hashtable)objects.First().BaseObject)
+            .Match(
+                Fail: static error => Some(error),
+                Succ: psd1 => {
+                    if (psd1["PowerShellVersion"] is string psVersion)
+                        this.Requirements.AddRequirement(new PSVersionRequirement(Version.Parse(psVersion)));
+                    if (psd1["RequiredModules"] is object[] requiredModules) {
+                        foreach (var requiredModule in requiredModules.Cast<Hashtable>()) {
+                            var moduleName = requiredModule["ModuleName"]!.ToString();
+                            _ = Version.TryParse((string?)requiredModule["ModuleVersion"], out var minimumVersion);
+                            _ = Version.TryParse((string?)requiredModule["MaximumVersion"], out var maximumVersion);
+                            _ = Version.TryParse((string?)requiredModule["RequiredVersion"], out var requiredVersion);
+                            _ = Guid.TryParse((string?)requiredModule["Guid"], out var guid);
 
-            if (psd1["PowerShellVersion"] is string psVersion) Requirements.AddRequirement(new PSVersionRequirement(Version.Parse(psVersion)));
-            if (psd1["RequiredModules"] is object[] requiredModules)
-            {
-                foreach (var requiredModule in requiredModules.Cast<Hashtable>())
-                {
-                    var moduleName = requiredModule["ModuleName"]!.ToString();
-                    _ = Version.TryParse((string?)requiredModule["ModuleVersion"], out var minimumVersion);
-                    _ = Version.TryParse((string?)requiredModule["MaximumVersion"], out var maximumVersion);
-                    _ = Version.TryParse((string?)requiredModule["RequiredVersion"], out var requiredVersion);
-                    _ = Guid.TryParse((string?)requiredModule["Guid"], out var guid);
+                            var requiredModuleSpec = new ModuleSpec(moduleName!, guid, minimumVersion, maximumVersion, requiredVersion);
+                            this.Requirements.AddRequirement(requiredModuleSpec);
+                        }
+                    }
 
-                    var requiredModuleSpec = new ModuleSpec(moduleName!, guid, minimumVersion, maximumVersion, requiredVersion);
-                    Requirements.AddRequirement(requiredModuleSpec);
+                    return None;
                 }
-            }
-        }
+            );
     }
 
-    public override Compiled.Compiled IntoCompiled() => new CompiledRemoteModule(
-        this.ModuleSpec,
-        this.Requirements,
-        this.MemoryStream ??= new MemoryStream(File.ReadAllBytes(this.FindCachedResult() ?? this.CacheResult().ThrowIfFail()), false)
-    );
+    public override Fin<Compiled.Compiled> IntoCompiled() {
+        if (this.MemoryStream == null) {
+            var memoryStreamResult = this.FindCachedResult().AsOption().ToFin()
+                .BiBind(
+                    Succ: value => FinSucc(value),
+                    Fail: _ => this.CacheResult().Catch(err => err.Enrich(this.ModuleSpec)).As())
+                .AndThen(File.ReadAllBytes)
+                .AndThen(bytes => new MemoryStream([.. bytes], false));
+
+            if (memoryStreamResult.IsErr(out var error, out _)) return error;
+            this.MemoryStream = memoryStreamResult.Unwrap();
+        }
+
+        return new CompiledRemoteModule(
+            this.ModuleSpec,
+            this.Requirements,
+            this.MemoryStream
+        );
+    }
 
     public override bool Equals(object? obj) {
         if (obj is null) return false;
@@ -89,14 +108,14 @@ public class ResolvableRemoteModule : Resolvable {
         var versions = files.Where(file => {
             var fileName = Path.GetFileName(file);
             return fileName.StartsWith(this.ModuleSpec.Name, StringComparison.OrdinalIgnoreCase);
-        }).Select(file => {
+        }).Bind(file => {
             var fileName = Path.GetFileName(file);
             var version = fileName.Substring(this.ModuleSpec.Name.Length + 1, fileName.Length - this.ModuleSpec.Name.Length - 1 - ".nupkg".Length);
 
             try {
-                return new Version(version);
+                return Some(new Version(version));
             } catch {
-                throw new Exception($"Failed to parse version {version} from file {file}");
+                return Option<Version>.None; // Ignore invalid versions.
             }
         });
 
@@ -110,25 +129,17 @@ public class ResolvableRemoteModule : Resolvable {
         return selectedVersion == null ? null : this.CachedFile = Path.Join(this.CachePath, $"{this.ModuleSpec.Name}.{selectedVersion}.nupkg");
     }
 
-    public string CacheResult()
-    {
+    public Fin<string> CacheResult() {
         var versionString = ConvertVersionParameters(this.ModuleSpec.RequiredVersion?.ToString(), this.ModuleSpec.MinimumVersion?.ToString(), this.ModuleSpec.MaximumVersion?.ToString());
         var powerShellCode = /*ps1*/ $$"""
         Set-StrictMode -Version 3;
 
-        try {
-            $Module = Find-PSResource -Name '{{ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
-        } catch {
-            exit 10;
-        }
+        Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
 
-        try {
-            $Module | Save-PSResource -Path '{{CachePath}}' -AsNupkg -SkipDependencyCheck;
-        } catch {
-            exit 11;
-        }
+        $Module = Find-PSResource -Name '{{this.ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
+        $Module | Save-PSResource -Path '{{this.CachePath}}' -AsNupkg -SkipDependencyCheck;
 
-        return $env:TEMP | Join-Path -ChildPath "PowerShellGet/{{ModuleSpec.Name}}/{{ModuleSpec.Name}}.$($Module.Version).nupkg";
+        return "$env:TEMP/PowerShellGet/{{this.ModuleSpec.Name}}/{{this.ModuleSpec.Name}}.$($Module.Version).nupkg";
         """;
 
         Logger.Debug(
@@ -141,19 +152,12 @@ public class ResolvableRemoteModule : Resolvable {
             Directory.CreateDirectory(this.CachePath);
         }
 
-        var pwsh = PowerShell.Create(RunspaceMode.NewRunspace);
-        pwsh.RunspacePool = Program.RunspacePool.Value;
-        pwsh.AddScript(PowerShellCode);
-        var result = pwsh.Invoke();
-
-        if (pwsh.HadErrors)
-        {
-            throw new Exception("Failed to download module from the PowerShell Gallery.", pwsh.Streams.Error[0]?.Exception);
+        // Only one process can download a module at a time.
+        lock (UsingPSRepoLock) {
+            return Program.RunPowerShell(powerShellCode)
+                .Map(objects => objects.First().ToString())
+                .Tap(path => this.CachedFile = path);
         }
-
-        var returnedResult = result.First().ToString();
-        Logger.Debug($"Downloaded module {ModuleSpec.Name} from the PowerShell Gallery to {returnedResult}.");
-        return returnedResult;
     }
 
     // Based on https://github.com/PowerShell/PowerShellGet/blob/c6aea39ea05491c648efd7aebdefab1ae7c5b213/src/PowerShellGet.psm1#L111-L144

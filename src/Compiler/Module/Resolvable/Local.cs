@@ -8,10 +8,14 @@ using Compiler.Requirements;
 using Compiler.Text;
 using Compiler.Text.Updater.Built;
 using LanguageExt;
+using LanguageExt.Traits;
+using NLog;
 
 namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableLocalModule : Resolvable {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
     internal readonly ScriptBlockAst Ast;
 
     public readonly TextEditor Editor;
@@ -33,6 +37,11 @@ public partial class ResolvableLocalModule : Resolvable {
     /// <exception cref="AggregateException">
     /// Thrown when the ast cannot be generated from the file.
     /// </exception>
+    /// <exception cref="InvalidModulePathError">
+    /// Thrown when the path is not a valid module path.
+    /// This may be because the path is not a file or
+    /// the parent path is not an absolute path.
+    /// </exception>
     public ResolvableLocalModule(
         string parentPath,
         ModuleSpec moduleSpec
@@ -41,8 +50,8 @@ public partial class ResolvableLocalModule : Resolvable {
             ? pathedModuleSpec
             : new PathedModuleSpec(Path.GetFullPath(Path.Combine(parentPath, moduleSpec.Name)))
         ) {
-        if (!Path.IsPathRooted(parentPath)) throw new InvalidModulePathException("The parent path must be an absolute path.");
-        if (!Directory.Exists(parentPath)) throw new InvalidModulePathException("The parent path must be a file.");
+        if (!Path.IsPathRooted(parentPath)) throw InvalidModulePathError.NotAnAbsolutePath(parentPath);
+        if (!Directory.Exists(parentPath)) throw InvalidModulePathError.ParentNotADirectory(parentPath);
     }
 
     /// <summary>
@@ -56,13 +65,18 @@ public partial class ResolvableLocalModule : Resolvable {
     /// Thrown when the ast cannot be generated from the file.
     /// </exception>
     public ResolvableLocalModule(PathedModuleSpec moduleSpec) : base(moduleSpec) {
-        if (!File.Exists(moduleSpec.FullPath)) throw new InvalidModulePathException($"The module path must be a file, got {moduleSpec.FullPath}");
+        if (!File.Exists(moduleSpec.FullPath)) {
+            throw InvalidModulePathError.NotAFile(moduleSpec.FullPath);
+        } else {
+            Logger.Debug($"Loading Local Module: {moduleSpec.FullPath}");
+        }
 
         this.Editor = new TextEditor(new TextDocument(File.ReadAllLines(moduleSpec.FullPath)));
-        this.Ast = AstHelper.GetAstReportingErrors(string.Join('\n', this.Editor.Document.Lines), Some(moduleSpec.FullPath), ["ModuleNotFoundDuringParse"]).Match(
-            ast => ast,
-            err => throw err
-        );
+        this.Ast = AstHelper.GetAstReportingErrors(
+            string.Join('\n', this.Editor.Document.Lines),
+            Some(moduleSpec.FullPath),
+            ["ModuleNotFoundDuringParse"]
+        ).Catch(err => err.Enrich(this.ModuleSpec)).As().ThrowIfFail();
 
         this.QueueResolve();
 
@@ -108,59 +122,59 @@ public partial class ResolvableLocalModule : Resolvable {
         return ModuleMatch.None;
     }
 
-    public override void ResolveRequirements()
-    {
-        lock (Requirements)
-        {
-            AstHelper.FindDeclaredModules(_ast).ToList().ForEach(module =>
-            {
-                if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast)
-                {
-                    Editor.AddExactEdit(
-                        ast.Extent.StartLineNumber - 1,
-                        ast.Extent.StartColumnNumber - 1,
-                        ast.Extent.EndLineNumber - 1,
-                        ast.Extent.EndColumnNumber - 1,
-                    _ => []
-                    );
-                }
-
-                module.Value.TryGetValue("Guid", out var guid);
-                module.Value.TryGetValue("MinimumVersion", out var minimumVersion);
-                module.Value.TryGetValue("MaximumVersion", out var maximumVersion);
-                module.Value.TryGetValue("RequiredVersion", out var requiredVersion);
-                var spec = new ModuleSpec(
-                    module.Key,
-                    (Guid?)guid,
-                    (Version?)minimumVersion,
-                    (Version?)maximumVersion,
-                    (Version?)requiredVersion
+    public override Option<Error> ResolveRequirements() {
+        AstHelper.FindDeclaredModules(this.Ast).ToList().ForEach(module => {
+            if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast) {
+                this.Editor.AddExactEdit(
+                    ast.Extent.StartLineNumber - 1,
+                    ast.Extent.StartColumnNumber - 1,
+                    ast.Extent.EndLineNumber - 1,
+                    ast.Extent.EndColumnNumber - 1,
+                _ => []
                 );
+            }
 
-                Requirements.AddRequirement(spec);
-            });
+            module.Value.TryGetValue("Guid", out var guid);
+            module.Value.TryGetValue("MinimumVersion", out var minimumVersion);
+            module.Value.TryGetValue("MaximumVersion", out var maximumVersion);
+            module.Value.TryGetValue("RequiredVersion", out var requiredVersion);
+            var spec = new ModuleSpec(
+                module.Key,
+                (Guid?)guid,
+                (Version?)minimumVersion,
+                (Version?)maximumVersion,
+                (Version?)requiredVersion
+            );
 
-            AstHelper.FindDeclaredNamespaces(_ast).ToList().ForEach(statement =>
-            {
-                Editor.AddExactEdit(
-                    statement.Item2.Extent.StartLineNumber - 1,
-                    statement.Item2.Extent.StartColumnNumber - 1,
-                    statement.Item2.Extent.EndLineNumber - 1,
-                    statement.Item2.Extent.EndColumnNumber - 1,
-                    _ => []
-                );
+            lock (this.Requirements) {
+                this.Requirements.AddRequirement(spec);
+            }
+        });
 
-                var ns = new UsingNamespace(statement.Item1);
-                Requirements.AddRequirement(ns);
-            });
-        }
+        AstHelper.FindDeclaredNamespaces(this.Ast).ToList().ForEach(statement => {
+            this.Editor.AddExactEdit(
+                statement.Item2.Extent.StartLineNumber - 1,
+                statement.Item2.Extent.StartColumnNumber - 1,
+                statement.Item2.Extent.EndLineNumber - 1,
+                statement.Item2.Extent.EndColumnNumber - 1,
+                _ => []
+            );
+
+            var ns = new UsingNamespace(statement.Item1);
+            lock (this.Requirements) {
+                this.Requirements.AddRequirement(ns);
+            }
+        });
+
+        return None;
     }
 
-    public override Compiled.Compiled IntoCompiled() => new CompiledLocalModule(
-        this.ModuleSpec,
-        CompiledDocument.FromBuilder(this.Editor, 0),
-        this.Requirements
-    );
+    public override Fin<Compiled.Compiled> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
+        .AndThenTry(doc => new CompiledLocalModule(
+            this.ModuleSpec,
+            doc,
+            this.Requirements
+        ) as Compiled.Compiled);
 
     public override bool Equals(object? obj) {
         if (obj is null) return false;
@@ -193,4 +207,3 @@ public partial class ResolvableLocalModule : Resolvable {
     #endregion
 }
 
-public class InvalidModulePathException(string message) : Exception(message);

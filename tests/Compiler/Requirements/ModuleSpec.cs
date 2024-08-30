@@ -1,16 +1,16 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using Compiler.Module;
 using Compiler.Requirements;
 using System.Collections;
-using System.Security.Policy;
 
 namespace Compiler.Test.Requirements;
 
 [TestFixture]
-public class ModuleSpecTests
-{
+public class ModuleSpecTests {
     [TestCaseSource(typeof(TestData), nameof(TestData.InsetableLinesCases))]
-    public string GetInsertableLine_ReturnsCorrectLine(ModuleSpec moduleSpec)
-    {
+    public string GetInsertableLine_ReturnsCorrectLine(ModuleSpec moduleSpec) {
         return moduleSpec.GetInsertableLine([]);
     }
 
@@ -18,8 +18,7 @@ public class ModuleSpecTests
     public ModuleMatch CompareTo(
         ModuleSpec moduleSpec1,
         ModuleSpec moduleSpec2
-    )
-    {
+    ) {
         var moduleMatch = moduleSpec1.CompareTo(moduleSpec2);
         return moduleMatch;
     }
@@ -28,12 +27,10 @@ public class ModuleSpecTests
     public ModuleSpec MergeSpec(
         ModuleSpec baseModuleSpec,
         ModuleSpec[] otherModuleSpecs
-    )
-    {
+    ) {
         var mergedSpec = baseModuleSpec.MergeSpecs(otherModuleSpecs);
 
-        Assert.Multiple(() =>
-        {
+        Assert.Multiple(() => {
             Assert.That(mergedSpec.IsCompatibleWith(baseModuleSpec), Is.True);
             otherModuleSpecs.ToList().ForEach(otherModuleSpecs => Assert.That(mergedSpec.IsCompatibleWith(otherModuleSpecs), Is.True));
         });
@@ -43,8 +40,7 @@ public class ModuleSpecTests
 }
 
 [TestFixture]
-public class PathedModuleSpecTests
-{
+public class PathedModuleSpecTests {
     [TestCaseSource(typeof(TestData), nameof(TestData.MatchTestCases))]
     [TestCaseSource(typeof(TestData), nameof(TestData.ComparePathedSpecCases))]
     public ModuleMatch CompareTo(
@@ -53,12 +49,9 @@ public class PathedModuleSpecTests
     ) => moduleSpec1.CompareTo(moduleSpec2);
 }
 
-file class TestData
-{
-    public static IEnumerable InsetableLinesCases
-    {
-        get
-        {
+file sealed class TestData {
+    public static IEnumerable InsetableLinesCases {
+        get {
             var guid = Guid.NewGuid();
 
             yield return new TestCaseData(new ModuleSpec(
@@ -99,10 +92,8 @@ file class TestData
         }
     }
 
-    public static IEnumerable MatchTestCases
-    {
-        get
-        {
+    public static IEnumerable MatchTestCases {
+        get {
             var guid = Guid.NewGuid();
 
             #region Same matches
@@ -399,10 +390,8 @@ file class TestData
         }
     }
 
-    public static IEnumerable MergeSpecCases
-    {
-        get
-        {
+    public static IEnumerable MergeSpecCases {
+        get {
             var guid = Guid.NewGuid();
 
             yield return new TestCaseData(new ModuleSpec(
@@ -546,10 +535,8 @@ file class TestData
         }
     }
 
-    public static IEnumerable ComparePathedSpecCases
-    {
-        get
-        {
+    public static IEnumerable ComparePathedSpecCases {
+        get {
             var testScript1 = Path.GetFullPath($"{TestUtils.RepositoryDirectory()}/resources/test.ps1");
             var testScript2 = Path.GetFullPath($"{TestUtils.RepositoryDirectory()}/resources/test2.ps1");
 

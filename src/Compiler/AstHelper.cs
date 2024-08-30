@@ -2,9 +2,12 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Diagnostics.CodeAnalysis;
-using System.Management.Automation;
+using System.Globalization;
 using System.Management.Automation.Language;
 using System.Text;
+using Compiler.Analyser;
+using LanguageExt;
+using LanguageExt.UnsafeValueAccess;
 using NLog;
 using Pastel;
 
@@ -35,7 +38,7 @@ public static class AstHelper {
                         table.Add(key, value);
                     }
 
-                    if (!table.TryGetValue("ModuleName", out var moduleName)) throw new Exception("ModuleSpecification does not contain a 'ModuleName' key.");
+                    if (!table.TryGetValue("ModuleName", out var moduleName)) throw new InvalidDataException("ModuleSpecification does not contain a 'ModuleName' key.");
                     if (table.TryGetValue("Guid", out var guid)) table["Guid"] = Guid.Parse((string)guid);
                     foreach (var versionKey in new[] { "ModuleVersion", "MaximumVersion", "RequiredVersion" }) {
                         if (table.TryGetValue(versionKey, out var version)) table[versionKey] = Version.Parse((string)version);
@@ -75,7 +78,8 @@ public static class AstHelper {
             .Cast<UsingStatementAst>()
             .ToList()
             .ForEach(usingStatement => {
-                if (usingStatement.Name is null) throw new Exception("UsingStatementAst does not contain a Name.");
+                // I don't think this is possible, but just in case.
+                if (usingStatement.Name is null) throw new InvalidDataException("UsingStatementAst does not contain a Name.");
                 namespaces.Add((usingStatement.Name.Value, usingStatement));
             });
 
@@ -136,41 +140,34 @@ public static class AstHelper {
     /// <returns>
     /// The AST of the content if it was successfully parsed.
     /// </returns>
+    [return: NotNull]
+    public static Fin<ScriptBlockAst> GetAstReportingErrors(
         [NotNull] string astContent,
-        string? filePath,
-        [NotNull] IEnumerable<string> ignoredErrors)
-    {
-        ArgumentNullException.ThrowIfNull(ignoredErrors, nameof(ignoredErrors));
+        [NotNull] Option<string> filePath,
+        [NotNull] IEnumerable<string> ignoredErrors) {
+        ArgumentNullException.ThrowIfNull(astContent);
+        ArgumentNullException.ThrowIfNull(filePath);
+        ArgumentNullException.ThrowIfNull(ignoredErrors);
 
-        var ast = System.Management.Automation.Language.Parser.ParseInput(astContent, filePath, out _, out var parserErrors);
+        var ast = Parser.ParseInput(astContent, filePath.ValueUnsafe(), out _, out var parserErrors);
         parserErrors = [.. parserErrors.Where(error => !ignoredErrors.Contains(error.ErrorId))];
 
-        {
-            foreach (var error in parserErrors)
-            {
-                Program.Issues.Add(
-                    new Analyser.Issue(
-                        Analyser.IssueSeverity.Error,
-                        error.Message,
-                        error.Extent,
-                        ast
-                    )
-                );
-            }
-
-            throw new ParseException($"Failed to parse {filePath}, encountered {parserErrors.Length} errors.");
         if (parserErrors.Length != 0) {
+            var issues = parserErrors.Select(error => Issue.Error(error.Message, error.Extent, ast));
+            var errors = Error.Many(issues.ToArray());
+            return Fin<ScriptBlockAst>.Fail(errors);
         }
 
         return ast;
     }
 
-    // TODO, ability to translate the virtual cleaned line numbers to the actual line numbers in the file.
-    public static void PrintPrettyAstError(
+    // TODO - ability to translate the virtual cleaned line numbers to the actual line numbers in the file.
+    [return: NotNull]
+    public static string GetPrettyAstError(
         [NotNull] IScriptExtent extent,
         [NotNull] Ast parentAst,
-        [NotNull] string message)
-    {
+        [NotNull] Option<string> message,
+        [NotNull] Option<string> realFilePath = default) {
         ArgumentNullException.ThrowIfNull(extent);
         ArgumentNullException.ThrowIfNull(parentAst);
         ArgumentNullException.ThrowIfNull(message);
@@ -217,15 +214,15 @@ public static class AstHelper {
             errorPointer = string.Concat([new(' ', leastWhitespaceBeforeText), new('~', squigleEndColumn - leastWhitespaceBeforeText)]);
         }
 
-        var fileName = parentAst.Extent.File is null ? "Unknown file" : parentAst.Extent.File;
+        var fileName = realFilePath.UnwrapOrElse(() => parentAst.Extent.File is null ? "Unknown file" : parentAst.Extent.File);
 
         return $"""
         {"File".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {fileName.Pastel(ConsoleColor.Gray)}
         {"Line".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe}
         {string.Join('\n', printableLines)}
         {firstColumnIndentString}{colouredPipe} {errorPointer.Pastel(ConsoleColor.DarkRed)}
-        {firstColumnIndentString}{colouredPipe} {message.Pastel(ConsoleColor.DarkRed)}
-        """);
+        {firstColumnIndentString}{colouredPipe} {message.UnwrapOrElse(static () => "Unknown Error").Pastel(ConsoleColor.DarkRed)}
+        """;
     }
 
     public static ParamBlockAst? FindClosestParamBlock(Ast ast) {
