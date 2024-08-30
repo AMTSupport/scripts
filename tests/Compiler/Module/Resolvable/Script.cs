@@ -1,5 +1,7 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
-using System.Text.RegularExpressions;
 using Compiler.Module.Resolvable;
 using Compiler.Text;
 using Compiler.Text.Updater;
@@ -7,20 +9,18 @@ using Compiler.Text.Updater;
 namespace Compiler.Test.Module.Resolvable;
 
 [TestFixture]
-public class CompiledScriptTest
-{
-    static readonly string TEST_SCRIPT = Path.Combine(Environment.CurrentDirectory, "resources", "test.ps1");
+public class CompiledScriptTest {
+    private static readonly string TEST_SCRIPT = Path.Combine(Environment.CurrentDirectory, "resources", "test.ps1");
 
     [TestCaseSource(typeof(TestData), nameof(TestData.TestCases))]
     public string Test(
         TextSpanUpdater updater,
         string content
-    )
-    {
+    ) {
         var document = new TextEditor(new TextDocument(content.Split('\n')))!;
         document.AddEdit(() => updater);
 
-        var compiled = CompiledDocument.FromBuilder(document);
+        var compiled = CompiledDocument.FromBuilder(document).ThrowIfFail();
         return compiled.GetContent();
     }
 
@@ -28,21 +28,16 @@ public class CompiledScriptTest
     public string? ExtractParameterBlock(
         bool expectNull,
         string scriptText
-    )
-    {
+    ) {
         var scriptLines = scriptText.Split('\n');
-        var script = new ResolvableScript(TestUtils.GetModuleSpecFromContent(scriptText));
+        var script = new ResolvableScript(TestUtils.GetModuleSpecFromContent(scriptText), new ResolvableParent());
 
         var result = script.ExtractParameterBlock();
 
-        Assert.Multiple(() =>
-        {
-            if (expectNull)
-            {
+        Assert.Multiple(() => {
+            if (expectNull) {
                 Assert.That(result, Is.Null);
-            }
-            else
-            {
+            } else {
                 Assert.That(result, Is.Not.Null);
             }
         });
@@ -51,12 +46,9 @@ public class CompiledScriptTest
     }
 
 
-    public static class TestData
-    {
-        public static IEnumerable ExtractParameterBlockCases
-        {
-            get
-            {
+    public static class TestData {
+        public static IEnumerable ExtractParameterBlockCases {
+            get {
                 // yield return new TestCaseData(false, TEST_SCRIPT).Returns("""
                 // param(
                 //     [Parameter()]
@@ -80,10 +72,8 @@ public class CompiledScriptTest
             }
         }
 
-        public static IEnumerable TestCases
-        {
-            get
-            {
+        public static IEnumerable TestCases {
+            get {
                 // yield return new TestCaseData(
                 //     new PatternUpdater(
                 //         50,

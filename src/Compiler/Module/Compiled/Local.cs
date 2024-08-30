@@ -2,10 +2,10 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
-using System.Management.Automation.Language;
 using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
+using LanguageExt;
 
 namespace Compiler.Module.Compiled;
 
@@ -18,16 +18,11 @@ public class CompiledLocalModule : Compiled {
 
     public readonly CompiledDocument Document;
 
-    public readonly ScriptBlockAst Ast;
-
-    public CompiledLocalModule(
+    internal CompiledLocalModule(
         PathedModuleSpec moduleSpec,
         CompiledDocument document,
         RequirementGroup requirements
-    ) : base(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent())) {
-        this.Document = document;
-        this.Ast = AstHelper.GetAstReportingErrors(string.Join('\n', this.Document.Lines), Some(moduleSpec.FullPath), ["ModuleNotFoundDuringParse"]).ThrowIfFail();
-    }
+    ) : base(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent())) => this.Document = document;
 
     public override string StringifyContent() => new StringBuilder()
         .AppendLine("<#ps1#> @'")
@@ -45,5 +40,6 @@ public class CompiledLocalModule : Compiled {
         .Append("'@;")
         .ToString();
 
-    public override IEnumerable<string> GetExportedFunctions() => AstHelper.FindAvailableFunctions(this.Ast, true).Select(function => function.Name);
+    public override IEnumerable<string> GetExportedFunctions() =>
+        AstHelper.FindAvailableFunctions(this.Document.Ast, true).Select(function => function.Name);
 }

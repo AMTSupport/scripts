@@ -1,43 +1,36 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using Compiler.Analyser;
 using System.Collections;
 using System.Management.Automation.Language;
 
 namespace Compiler.Test;
 
-public class AstHelperTests
-{
+public class AstHelperTests {
     [TestCaseSource(typeof(TestData), nameof(TestData.ChildAndRoot))]
     public void FindRoot_ReturnsRootAst(
         Ast parentAst,
         Ast childAst,
         bool _,
-        bool __)
-    {
-        Assert.That(AstHelper.FindRoot(childAst), Is.EqualTo(parentAst));
-    }
+        bool __) => Assert.That(AstHelper.FindRoot(childAst), Is.EqualTo(parentAst));
 
     [TestCaseSource(typeof(TestData), nameof(TestData.ChildAndRoot))]
     public void FindClosestParamBlock_ReturnsParamBlock(
         Ast _,
         Ast childAst,
         bool hasParamBlock,
-        bool attributePresentOnClosestParamBlock)
-    {
-        if (!hasParamBlock)
-        {
+        bool attributePresentOnClosestParamBlock) {
+        if (!hasParamBlock) {
             Assert.That(AstHelper.FindClosestParamBlock(childAst), Is.Null);
-        }
-        else
-        {
+        } else {
             var result = AstHelper.FindClosestParamBlock(childAst);
 
-            Assert.Multiple(() =>
-            {
+            Assert.Multiple(() => {
                 Assert.That(result, Is.Not.Null);
                 Assert.That(result, Is.TypeOf<ParamBlockAst>());
 
-                if (attributePresentOnClosestParamBlock)
-                {
+                if (attributePresentOnClosestParamBlock) {
                     Assert.That(result?.Attributes, Is.Not.Null);
                     Assert.That(result?.Attributes, Has.Count.EqualTo(1));
 
@@ -51,14 +44,14 @@ public class AstHelperTests
     }
 }
 
-static class TestData
-{
+file static class TestData {
     public static string USING_STATEMENTS = /*ps1*/ $$"""
     using assembly '{{typeof(AstHelper).Assembly.Location}}'
+    using namespace Compiler.Analyser
     """;
 
     public static string ATTRIBUTE = /*ps1*/ """
-    [SuppressAnalyserAttribute('UseOfUnknownFunction', 'unknown-function', 'Justification')]
+    [SuppressAnalyser('UseOfUnknownFunction', 'unknown-function', 'Justification')]
     """;
 
     public static string NO_PARAM_GLOBAL = /*ps1*/ $$"""
@@ -166,10 +159,8 @@ static class TestData
     public static Ast ATTRIBUTE_NESTED_NO_PARAM_AST = Parser.ParseInput(ATTRIBUTE_NESTED_NO_PARAM, out _, out _);
     public static Ast ATTRIBUTE_NESTED_PARAM_AST = Parser.ParseInput(ATTRIBUTE_NESTED_PARAM, out _, out _);
 
-    public static IEnumerable ChildAndRoot
-    {
-        get
-        {
+    public static IEnumerable ChildAndRoot {
+        get {
             var commandFinder = new Func<Ast, bool>(ast => ast is CommandAst commandAst && commandAst.GetCommandName() == "unknown-function");
 
             yield return new TestCaseData(

@@ -1,15 +1,18 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation.Language;
 using Compiler.Requirements;
+using Compiler.Text;
+using LanguageExt;
 
 namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableScript : ResolvableLocalModule {
     private readonly ResolvableParent ResolvableParent;
 
-    public ResolvableScript(PathedModuleSpec moduleSpec, ResolvableParent superParent) : base(moduleSpec) {
+    public ResolvableScript([NotNull] PathedModuleSpec moduleSpec, [NotNull] ResolvableParent superParent) : base(moduleSpec) {
         this.ResolvableParent = superParent;
 
         #region Requirement Compatability checking
@@ -18,36 +21,34 @@ public partial class ResolvableScript : ResolvableLocalModule {
         RunAsAdminRequirement? foundRunAsAdmin = null;
         foreach (var resolvable in this.ResolvableParent.Graph.Vertices) {
             var versionRequirement = resolvable.Requirements.GetRequirements<PSVersionRequirement>().FirstOrDefault();
-            if (versionRequirement != null && versionRequirement.Version > highestPSVersion?.Version) highestPSVersion = versionRequirement;
+            if (versionRequirement is not null && versionRequirement.Version > highestPSVersion?.Version) highestPSVersion = versionRequirement;
 
             var editionRequirement = resolvable.Requirements.GetRequirements<PSEditionRequirement>().FirstOrDefault();
-            if (editionRequirement != null
-                && foundPSEdition != null
-                && editionRequirement.Edition != foundPSEdition.Edition
-            ) throw new Exception("Multiple PSEditions found in resolved modules.");
+            if (editionRequirement is not null && foundPSEdition is not null) {
+                if (!editionRequirement.IsCompatibleWith(foundPSEdition)) {
+                    throw new IncompatableRequirementsError([editionRequirement, foundPSEdition]);
+                }
+            }
 
             foundPSEdition ??= editionRequirement;
 
             foundRunAsAdmin ??= resolvable.Requirements.GetRequirements<RunAsAdminRequirement>().FirstOrDefault();
         }
 
-        if (highestPSVersion != null) _ = this.Requirements.AddRequirement(highestPSVersion);
-        if (foundPSEdition != null) _ = this.Requirements.AddRequirement(foundPSEdition);
-        if (foundRunAsAdmin != null) _ = this.Requirements.AddRequirement(foundRunAsAdmin);
+        if (highestPSVersion is not null) this.Requirements.AddRequirement(highestPSVersion);
+        if (foundPSEdition is not null) this.Requirements.AddRequirement(foundPSEdition);
+        if (foundRunAsAdmin is not null) this.Requirements.AddRequirement(foundRunAsAdmin);
         #endregion
     }
 
-    public override Compiled.Compiled IntoCompiled() {
-        lock (this.Requirements) {
-            return new Compiled.CompiledScript(
-                this.ModuleSpec,
-                this.Editor,
-                this.ResolvableParent,
-                this.ExtractParameterBlock(),
-                this.Requirements
-            );
-        }
-    }
+    public override Fin<Compiled.Compiled> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
+        .AndThenTry(doc => new Compiled.CompiledScript(
+            this,
+            doc,
+            this.ResolvableParent,
+            this.ExtractParameterBlock(),
+            this.Requirements
+        ) as Compiled.Compiled);
 
     /// <summary>
     /// Looks for the parameter block of the script,

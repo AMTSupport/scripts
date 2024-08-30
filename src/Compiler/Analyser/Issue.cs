@@ -1,39 +1,67 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Contracts;
 using System.Management.Automation.Language;
+using System.Runtime.Serialization;
+using Compiler.Requirements;
+using LanguageExt;
 
 namespace Compiler.Analyser;
 
+[DataContract]
 public record Issue(
-    IssueSeverity Severity,
-    string Message,
-    IScriptExtent Extent,
-    Ast Parent
-)
-{
-    public void Print()
-    {
-        AstHelper.PrintPrettyAstError(Extent, Parent, Message);
-    }
+    [NotNull] IssueSeverity Severity,
+    [NotNull] string Message,
+    [NotNull] IScriptExtent Extent,
+    [NotNull] Ast Parent,
+    [NotNull] Option<ModuleSpec> Module = default
+) : Error() {
+    public override bool IsExceptional { get; } = Severity == IssueSeverity.Error;
+
+    public override bool IsExpected { get; } = Severity == IssueSeverity.Warning;
+
+    public override string Message { get; } = Message;
+
+    public override string ToString() => AstHelper.GetPrettyAstError(
+        this.Extent,
+        this.Parent,
+        Some(this.Message),
+        this.Module.Map(mod => mod is PathedModuleSpec pathed ? pathed.FullPath : mod.Name)
+    );
+
+    [Pure]
+    [return: NotNull]
+    public override ErrorException ToErrorException() => new WrappedErrorExceptionalException(this);
+
+    [Pure]
+    [return: NotNull]
+    public Issue Enrich([NotNull] ModuleSpec module) => this with {
+        Module = Some(module)
+    };
+
+    [Pure]
+    [return: NotNull]
+    public static Issue Error(
+        [NotNull] string message,
+        [NotNull] IScriptExtent extent,
+        [NotNull] Ast parent,
+        [NotNull] Option<ModuleSpec> module = default) => new(IssueSeverity.Error, message, extent, parent, module);
+
+    [Pure]
+    [return: NotNull]
+    public static Issue Warning(
+        [NotNull] string message,
+        [NotNull] IScriptExtent extent,
+        [NotNull] Ast parent,
+        [NotNull] Option<ModuleSpec> module = default) => new(IssueSeverity.Warning, message, extent, parent, module);
+
+    public override bool Is<TE>() => false;
 }
 
-public sealed class IssueException(
-    string message,
-    IScriptExtent extent,
-    Ast parent,
-    Exception? inner) : Exception(message, inner)
-{
-    public readonly Issue Issue = new(IssueSeverity.Error, message, extent, parent);
-
-    public IssueException(
-        string message,
-        IScriptExtent extent,
-        Ast parent) : this(message, extent, parent, null) { }
-}
-
-public enum IssueSeverity
-{
+public enum IssueSeverity {
     Error,
     Warning
 }
+

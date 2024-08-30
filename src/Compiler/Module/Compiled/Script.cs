@@ -1,15 +1,18 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Reflection;
 using System.Text;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Compiler.Text;
+using LanguageExt;
 using NLog;
 using QuikGraph;
 using QuikGraph.Algorithms;
+using QuikGraph.Graphviz;
 
 namespace Compiler.Module.Compiled;
 
@@ -20,45 +23,60 @@ public class CompiledScript : CompiledLocalModule {
 
     public readonly BidirectionalGraph<Compiled, Edge<Compiled>> Graph;
 
-    public CompiledScript(
-        PathedModuleSpec moduleSpec,
-        TextEditor editor,
+    /// <summary>
+    /// Creates a new compiled script.
+    /// </summary>
+    /// <param name="moduleSpec"></param>
+    /// <param name="document"></param>
+    /// <param name="resolvableParent"></param>
+    /// <param name="scriptParamBlock"></param>
+    /// <param name="requirements"></param>
+    internal CompiledScript(
+        ResolvableScript thisResolvable,
+        CompiledDocument document,
         ResolvableParent resolvableParent,
         ParamBlockAst? scriptParamBlock,
         RequirementGroup requirements
-    ) : base(moduleSpec, CompiledDocument.FromBuilder(editor, 0), requirements) {
+    ) : base(thisResolvable.ModuleSpec, document, requirements) {
         this.ScriptParamBlock = scriptParamBlock;
+
         this.Graph = new BidirectionalGraph<Compiled, Edge<Compiled>>();
-        _ = this.Graph.AddVertex(this);
+        this.Graph.AddVertex(this);
+        // Add the parent-child relationships to each module.
+        this.Graph.EdgeAdded += edge => edge.Target.Parents.Add(edge.Source);
+        var thisGraph = resolvableParent.GetGraphFromRoot(thisResolvable);
+        var dotGraph = thisGraph.ToGraphviz(alg => {
+            alg.FormatVertex += (sender, args) => args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
+        });
+        Logger.Debug($"Graph for {thisResolvable.ModuleSpec.Name}:\n{dotGraph}");
 
-        var loadOrder = resolvableParent.Graph.TopologicalSort();
+        var loadOrder = thisGraph.TopologicalSort();
         var reversedLoadOrder = loadOrder.Reverse();
-        reversedLoadOrder.ToList().ForEach(resolvable => {
-            Logger.Trace($"Compiling {resolvable.ModuleSpec.Name}");
-
-            var compiledRequirements = resolvableParent.Graph
+        reversedLoadOrder.ToList().ForEach(async resolvable => {
+            var compiledRequirements = await Task.WhenAll(thisGraph
                 .OutEdges(resolvable)
-                .Select(edge => this.Graph.Vertices.First(module => module.ModuleSpec == edge.Target.ModuleSpec));
+                .Select(async edge => {
+                    return this.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec)
+                        ?? (await resolvableParent.WaitForCompiled(edge.Target.ModuleSpec)).ThrowIfFail();
+                }));
 
-            var compiledModule = resolvable.ModuleSpec == moduleSpec ? this : resolvable.IntoCompiled();
+            var compiledModule = resolvable.ModuleSpec == thisResolvable.ModuleSpec
+                ? this
+                : (await resolvableParent.WaitForCompiled(resolvable.ModuleSpec)).ThrowIfFail();
 
-            if (compiledRequirements.Any()) {
-                _ = this.Graph.AddVerticesAndEdgeRange(compiledRequirements.Select(requirement => new Edge<Compiled>(compiledModule, requirement)));
+            if (compiledRequirements.Length != 0) {
+                this.Graph.AddVerticesAndEdgeRange(
+                    compiledRequirements.Select(requirement => new Edge<Compiled>(compiledModule, requirement))
+                );
             } else {
-                _ = this.Graph.AddVertex(compiledModule);
+                this.Graph.AddVertex(compiledModule);
             }
         });
 
-        // Iterate over the graph and add the parent-child relationships.
-        this.Graph.Edges.ToList().ForEach(edge => {
-            edge.Target.Parents.Add(edge.Source);
-        });
-
-        Logger.Trace("Analyzing compiled modules.");
         this.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled => {
             var imports = this.Graph.OutEdges(compiled).Select(edge => edge.Target);
             Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports])
-                .ForEach(issue => Program.Errors.Add(issue.AsException()));
+                .ForEach(issue => Program.Errors.Add(issue.ToErrorException()));
         });
     }
 
@@ -87,6 +105,8 @@ public class CompiledScript : CompiledLocalModule {
         if (this.ScriptParamBlock != null) {
             this.ScriptParamBlock.Attributes.ToList().ForEach(attribute => paramBlock.AppendLine(attribute.Extent.Text));
             paramBlock.Append(this.ScriptParamBlock.Extent.Text);
+        } else {
+            paramBlock.AppendLine("[CmdletBinding()]\nparam()");
         }
 
         var importOrder = this.Graph.TopologicalSort()

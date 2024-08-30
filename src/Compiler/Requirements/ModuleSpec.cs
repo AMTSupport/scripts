@@ -8,13 +8,37 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Compiler.Module;
+using LanguageExt;
 using NLog;
 
 namespace Compiler.Requirements;
 
 public sealed class PathedModuleSpec : ModuleSpec {
+    private Option<byte[]> LazyHash = None;
+
     public readonly string FullPath;
 
+    public override byte[] Hash {
+        get {
+            if (this.LazyHash.IsSome(out var hash)) return hash;
+            var newHash = SHA256.HashData(File.ReadAllBytes(this.FullPath));
+            this.LazyHash = Some(newHash);
+            return newHash;
+        }
+        protected set => this.LazyHash = Some(value);
+    }
+
+    /// <summary>
+    /// Creates a new PathedModuleSpec from a full path.
+    /// </summary>
+    /// <param name="fullPath"></param>
+    /// <param name="id"></param>
+    /// <param name="minimumVersion"></param>
+    /// <param name="maximumVersion"></param>
+    /// <param name="requiredVersion"></param>
+    /// <exception cref="FileNotFoundException">
+    /// Thrown when the file cannot be found, or read.
+    /// </exception>
     public PathedModuleSpec(
         string fullPath,
         Guid? id = null,
@@ -24,7 +48,6 @@ public sealed class PathedModuleSpec : ModuleSpec {
     ) : base(Path.GetFileNameWithoutExtension(fullPath), id, minimumVersion, maximumVersion, requiredVersion) {
         this.FullPath = fullPath;
         this.Weight = 73;
-        this.Hash = SHA256.HashData(File.ReadAllBytes(fullPath));
     }
 
     // TODO - this may not be the best way to do this.

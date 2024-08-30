@@ -1,26 +1,25 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 using Compiler.Requirements;
 
 namespace Compiler.Test.Requirements;
 
 [TestFixture]
-public class PSEditionTests
-{
+public class PSEditionTests {
 
     [Test, TestCaseSource(typeof(TestData), nameof(TestData.CaseForEachEdition))]
-    public string GetInsertableStringFromEdition(PSEdition edition)
-    {
+    public string GetInsertableStringFromEdition(PSEdition edition) {
         return new PSEditionRequirement(edition).GetInsertableLine([]);
     }
 
     [Test]
-    public void AreIncompatableWithEachOther()
-    {
+    public void AreIncompatableWithEachOther() {
         var desktop = new PSEditionRequirement(PSEdition.Desktop);
         var core = new PSEditionRequirement(PSEdition.Core);
 
-        Assert.Multiple(() =>
-        {
+        Assert.Multiple(() => {
             Assert.That(desktop.IsCompatibleWith(core), Is.False);
             Assert.That(core.IsCompatibleWith(desktop), Is.False);
         });
@@ -31,19 +30,15 @@ public class PSEditionTests
         var desktop = new PSEditionRequirement(PSEdition.Desktop);
         var core = new PSEditionRequirement(PSEdition.Core);
 
-        Assert.Multiple(() =>
-        {
+        Assert.Multiple(() => {
             Assert.That(desktop.IsCompatibleWith(other), Is.True);
             Assert.That(core.IsCompatibleWith(other), Is.True);
         });
     }
 
-    public static class TestData
-    {
-        public static IEnumerable CaseForEachEdition
-        {
-            get
-            {
+    public static class TestData {
+        public static IEnumerable CaseForEachEdition {
+            get {
                 yield return new TestCaseData(PSEdition.Desktop).SetCategory("Desktop").Returns("#Requires -PSEdition Desktop");
                 yield return new TestCaseData(PSEdition.Core).SetCategory("Core").Returns("#Requires -PSEdition Core");
             }

@@ -1,22 +1,30 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Management.Automation.Language;
 using System.Text.RegularExpressions;
 using Compiler.Text.Updater;
+using LanguageExt;
 using NLog;
 
 namespace Compiler.Text;
 
-public partial class TextDocument(string[] lines) {
+public partial class TextDocument([NotNull] string[] lines) {
     public readonly List<string> Lines = new(lines);
 }
 
-public class CompiledDocument(string[] lines) : TextDocument(lines) {
+public sealed class CompiledDocument(
+    string[] lines,
+    ScriptBlockAst ast
+) : TextDocument(lines) {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
+    public ScriptBlockAst Ast { get; private init; } = ast;
 
     public string GetContent() => string.Join('\n', this.Lines);
 
-    public static CompiledDocument FromBuilder(TextEditor builder, int indentBy = 0) {
+    public static Fin<CompiledDocument> FromBuilder(TextEditor builder, int indentBy = 0) {
         Logger.Trace($"Creating CompiledDocument from {builder}");
 
         builder.AddEdit(() => new IndentUpdater(indentBy));
@@ -27,10 +35,21 @@ public class CompiledDocument(string[] lines) : TextDocument(lines) {
         foreach (var textUpdater in sortedUpdaters) {
             // Logger.Debug($"Applying updater {textUpdater} with priority {textUpdater.Priority}");
             spanUpdates.ForEach(textUpdater.PushByUpdate);
-            textUpdater.Apply(ref lines).ToList().ForEach(spanUpdates.Add);
+            var updateResult = textUpdater.Apply(lines);
+            Logger.Debug($"Update result: {updateResult}");
+
+            updateResult.IfSucc(spanUpdates.AddRange);
+            if (updateResult.IsErr(out var err, out _)) {
+                Logger.Error($"Error while applying updater {textUpdater}: {err}");
+                return err;
+            }
         }
 
-        return new CompiledDocument([.. lines]);
+        return AstHelper.GetAstReportingErrors(
+            string.Join('\n', lines),
+            None,
+            ["ModuleNotFoundDuringParse"]
+        ).AndThen(ast => new CompiledDocument([.. lines], ast));
     }
 }
 
@@ -67,13 +86,7 @@ public class TextEditor(TextDocument document) {
         Regex closingPattern,
         UpdateOptions options,
         Func<string[], string[]> updater
-    ) => this.AddEdit(() => new PatternUpdater(
-        priority,
-        openingPattern,
-        closingPattern,
-        options,
-        updater
-    ));
+    ) => this.AddEdit(() => new PatternUpdater(priority, openingPattern, closingPattern, options, updater));
 
     public void AddRegexEdit(
         Regex pattern,
@@ -97,12 +110,7 @@ public class TextEditor(TextDocument document) {
         Regex pattern,
         UpdateOptions options,
         Func<Match, string?> updater
-    ) => this.AddEdit(() => new RegexUpdater(
-        priority,
-        pattern,
-        options,
-        updater
-    ));
+    ) => this.AddEdit(() => new RegexUpdater(priority, pattern, options, updater));
 
     public void AddExactEdit(
         int startingIndex,
@@ -110,7 +118,16 @@ public class TextEditor(TextDocument document) {
         int endingIndex,
         int endingColumn,
         Func<string[], string[]> updater
-    ) => this.AddExactEdit(50, startingIndex, startingColumn, endingIndex, endingColumn, updater);
+    ) => this.AddExactEdit(startingIndex, startingColumn, endingIndex, endingColumn, UpdateOptions.None, updater);
+
+    public void AddExactEdit(
+        int startingIndex,
+        int startingColumn,
+        int endingIndex,
+        int endingColumn,
+        UpdateOptions options,
+        Func<string[], string[]> updater
+    ) => this.AddExactEdit(50, startingIndex, startingColumn, endingIndex, endingColumn, options, updater);
 
     public void AddExactEdit(
         uint priority,
@@ -119,15 +136,7 @@ public class TextEditor(TextDocument document) {
         int endingIndex,
         int endingColumn,
         Func<string[], string[]> updater
-    ) => this.AddExactEdit(
-        priority,
-        startingIndex,
-        startingColumn,
-        endingIndex,
-        endingColumn,
-        UpdateOptions.None,
-        updater
-    );
+    ) => this.AddExactEdit(priority, startingIndex, startingColumn, endingIndex, endingColumn, UpdateOptions.None, updater);
 
     public void AddExactEdit(
         uint priority,
@@ -137,13 +146,5 @@ public class TextEditor(TextDocument document) {
         int endingColumn,
         UpdateOptions options,
         Func<string[], string[]> updater
-    ) => this.AddEdit(() => new ExactUpdater(
-        priority,
-        startingIndex,
-        startingColumn,
-        endingIndex,
-        endingColumn,
-        options,
-        updater
-    ));
+    ) => this.AddEdit(() => new ExactUpdater(priority, startingIndex, startingColumn, endingIndex, endingColumn, options, updater));
 }

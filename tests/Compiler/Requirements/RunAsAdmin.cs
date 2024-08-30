@@ -1,3 +1,6 @@
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Security.Cryptography;
 using System.Text;
 using Compiler.Requirements;
@@ -5,20 +8,17 @@ using Compiler.Requirements;
 namespace Compiler.Test.Requirements;
 
 [TestFixture]
-public class RunAsAdminRequirementTests
-{
+public class RunAsAdminRequirementTests {
     [Test]
-    public void Hash_ShouldReturnHashOfString()
-    {
+    public void Hash_ShouldReturnHashOfString() {
         var requirement = new RunAsAdminRequirement();
         var hash = requirement.Hash;
 
-        Assert.That(hash, Is.EqualTo(SHA1.HashData(Encoding.UTF8.GetBytes("#Requires -RunAsAdministrator"))));
+        Assert.That(hash, Is.EqualTo(SHA256.HashData(Encoding.UTF8.GetBytes("#Requires -RunAsAdministrator"))));
     }
 
     [Test]
-    public void Hash_ShouldAlwaysBeTheSame()
-    {
+    public void Hash_ShouldAlwaysBeTheSame() {
         var requirement = new RunAsAdminRequirement();
         var requirement1 = new RunAsAdminRequirement();
 
@@ -26,8 +26,7 @@ public class RunAsAdminRequirementTests
     }
 
     [Test]
-    public void GetInsertableLine_ShouldReturnString()
-    {
+    public void GetInsertableLine_ShouldReturnString() {
         var requirement = new RunAsAdminRequirement();
 
         var insertableLine = requirement.GetInsertableLine([]);
@@ -36,8 +35,7 @@ public class RunAsAdminRequirementTests
     }
 
     [Test]
-    public void IsCompatibleWith_ShouldReturnTrue()
-    {
+    public void IsCompatibleWith_ShouldReturnTrue() {
         var requirement = new RunAsAdminRequirement();
 
         var isCompatible = requirement.IsCompatibleWith(new RunAsAdminRequirement());

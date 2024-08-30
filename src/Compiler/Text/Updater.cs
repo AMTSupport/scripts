@@ -3,12 +3,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Compiler.Text.Updater;
+using LanguageExt;
 
 namespace Compiler.Text;
 
 public record SpanUpdateInfo(
-    TextSpan TextSpan,
-    int Offset) {
+    [NotNull] TextSpan TextSpan,
+    [NotNull] int Offset
+) {
     public override string ToString() => $"{nameof(PatternUpdater)}({this.TextSpan} +- {this.Offset})";
 }
 
@@ -24,7 +26,7 @@ public abstract class TextSpanUpdater(uint priority = 50) {
     /// <returns>
     /// The number of lines changed by the update.
     /// </returns>
-    public abstract SpanUpdateInfo[] Apply(ref List<string> lines);
+    public abstract Fin<SpanUpdateInfo[]> Apply(List<string> lines);
 
     /// <summary>
     /// Use informaiton from another update to possibly update this ones variables.

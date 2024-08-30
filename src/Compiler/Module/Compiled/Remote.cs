@@ -2,11 +2,13 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
+using System.Diagnostics.Contracts;
 using System.IO.Compression;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using CommandLine;
 using Compiler.Requirements;
+using LanguageExt;
 using NLog;
 
 namespace Compiler.Module.Compiled;
@@ -33,7 +35,7 @@ public class CompiledRemoteModule : Compiled {
         this.Version = manifest["ModuleVersion"] switch {
             string version => Version.Parse(version),
             null => new Version(0, 0, 1),
-            _ => throw new Exception($"ModuleVersion must be a string, but was {manifest["ModuleVersion"]?.GetType()}")
+            var other => throw new InvalidDataException($"ModuleVersion must be a string, but was {other.GetType()}")
         };
     }
 
@@ -71,7 +73,7 @@ public class CompiledRemoteModule : Compiled {
             case null:
                 return [];
             default:
-                throw new Exception($"FunctionsToExport must be a string or an array of strings, but was {data.GetType()}");
+                throw new InvalidDataException($"FunctionsToExport must be a string or an array of strings, but was {data.GetType()}");
         }
     }
 
@@ -92,26 +94,35 @@ public class CompiledRemoteModule : Compiled {
 
     private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(this.MemoryStream, ZipArchiveMode.Read, true);
 
-
-        var archive = GetZipArchive();
-        var psd1Entry = archive.GetEntry($"{ModuleSpec.Name}.psd1");
-        if (psd1Entry == null)
-        {
-            Logger.Debug($"Failed to find the PSD1 file for module {ModuleSpec.Name}, assuming no requirements.");
-            _powerShellManifest = [];
-            return _powerShellManifest;
-        }
     private Hashtable GetPowerShellManifest() {
         if (this.PowerShellManifest != null) return this.PowerShellManifest;
 
-        using var psd1Stream = psd1Entry.Open();
-        if (Program.RunPowerShell(new StreamReader(psd1Stream).ReadToEnd())[0].BaseObject is not Hashtable psd1)
-        {
-            Logger.Debug($"Failed to parse the PSD1 file for module {ModuleSpec.Name}, assuming no requirements.");
-            _powerShellManifest = [];
-            return _powerShellManifest;
+        var archive = this.GetZipArchive();
+        ZipArchiveEntry? psd1Entry;
+        try {
+            psd1Entry = archive.GetEntry($"{this.ModuleSpec.Name}.psd1");
+        } catch (InvalidDataException err) {
+            Logger.Error($"Unable to open entry for {this.ModuleSpec.Name} to find the PSD1 file: {err.Message}");
+            return this.PowerShellManifest = [];
         }
 
-        return _powerShellManifest = psd1;
+        if (psd1Entry == null) {
+            this.PowerShellManifest = [];
+            return this.PowerShellManifest;
+        }
+
+        using var psd1Stream = psd1Entry.Open();
+        using var psd1Reader = new StreamReader(psd1Stream);
+        var psd1String = psd1Reader.ReadToEnd();
+
+        return Program.RunPowerShell(psd1String)
+            .Map(objects => (Hashtable)objects[0].BaseObject)
+            .Match(
+                Succ: psd1 => this.PowerShellManifest = psd1,
+                Fail: err => {
+                    Logger.Debug($"Failed to parse the PSD1 file for module {this.ModuleSpec.Name}, assuming no requirements.");
+                    return this.PowerShellManifest = [];
+                }
+            );
     }
 }

@@ -41,62 +41,50 @@ public sealed class SuppressAnalyserAttribute(
         object? data = null;
         string? justification = null;
 
-        if (attrAst != null)
-        {
-            var positionalArguments = attrAst.PositionalArguments;
-            var namedArguments = attrAst.NamedArguments;
+        var positionalArguments = attrAst.PositionalArguments;
+        var namedArguments = attrAst.NamedArguments;
 
-            int lastPositionalArgumentsOffset = -1;
+        var lastPositionalArgumentsOffset = -1;
 
-            if (positionalArguments != null && positionalArguments.Count != 0)
-            {
-                int count = positionalArguments.Count;
-                lastPositionalArgumentsOffset = positionalArguments[^1].Extent.StartOffset;
-                switch (count)
-                {
-                    case 3:
-                        if (positionalArguments[2] is not StringConstantExpressionAst justificationAst) throw new ArgumentException("Justification must be a string constant");
-                        justification = justificationAst.Value;
-                        goto case 2;
-                    case 2:
-                        data = positionalArguments[1].SafeGetValue();
-                        goto case 1;
-                    case 1:
-                        if (positionalArguments[0] is not StringConstantExpressionAst checkTypeAst) throw new ArgumentException("CheckType must be a string constant");
-                        checkType = checkTypeAst.Value;
-                        goto default;
-                    default:
-                        break;
-                }
+        if (positionalArguments != null && positionalArguments.Count != 0) {
+            var count = positionalArguments.Count;
+            lastPositionalArgumentsOffset = positionalArguments[^1].Extent.StartOffset;
+            switch (count) {
+                case 3:
+                    if (positionalArguments[2] is not StringConstantExpressionAst justificationAst) throw new ArgumentException("Justification must be a string constant");
+                    justification = justificationAst.Value;
+                    goto case 2;
+                case 2:
+                    data = positionalArguments[1].SafeGetValue();
+                    goto case 1;
+                case 1:
+                    if (positionalArguments[0] is not StringConstantExpressionAst checkTypeAst) throw new ArgumentException("CheckType must be a string constant");
+                    checkType = checkTypeAst.Value;
+                    goto default;
+                default:
+                    break;
             }
+        }
 
-            if (namedArguments != null && namedArguments.Count != 0)
-            {
-                foreach (var name in namedArguments)
-                {
-                    if (name.Extent.StartOffset < lastPositionalArgumentsOffset) throw new ArgumentException("Named arguments must come after positional arguments");
+        if (namedArguments != null && namedArguments.Count != 0) {
+            foreach (var name in namedArguments) {
+                if (name.Extent.StartOffset < lastPositionalArgumentsOffset) throw new ArgumentException("Named arguments must come after positional arguments");
 
-                    var argumentName = name.ArgumentName;
-                    if (argumentName.Equals("checkType", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (!string.IsNullOrWhiteSpace(checkType)) throw new ArgumentException("Named and positional arguments conflict for checkType");
+                var argumentName = name.ArgumentName;
+                if (argumentName.Equals("checkType", StringComparison.OrdinalIgnoreCase)) {
+                    if (!string.IsNullOrWhiteSpace(checkType)) throw new ArgumentException("Named and positional arguments conflict for checkType");
 
-                        if (name.Argument is not StringConstantExpressionAst checkTypeAst) throw new ArgumentException("CheckType must be a string constant");
-                        checkType = checkTypeAst.Value;
-                    }
-                    else if (argumentName.Equals("data", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (data is not null) throw new ArgumentException("Named and positional arguments conflict for data");
+                    if (name.Argument is not StringConstantExpressionAst checkTypeAst) throw new ArgumentException("CheckType must be a string constant");
+                    checkType = checkTypeAst.Value;
+                } else if (argumentName.Equals("data", StringComparison.OrdinalIgnoreCase)) {
+                    if (data is not null) throw new ArgumentException("Named and positional arguments conflict for data");
 
-                        data = name.Argument.SafeGetValue();
-                    }
-                    else if (argumentName.Equals("justification", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (!string.IsNullOrWhiteSpace(justification)) throw new ArgumentException("Named and positional arguments conflict for justification");
+                    data = name.Argument.SafeGetValue();
+                } else if (argumentName.Equals("justification", StringComparison.OrdinalIgnoreCase)) {
+                    if (!string.IsNullOrWhiteSpace(justification)) throw new ArgumentException("Named and positional arguments conflict for justification");
 
-                        if (name.Argument is not StringConstantExpressionAst justificationAst) throw new ArgumentException("Justification must be a string constant");
-                        justification = justificationAst.Value;
-                    }
+                    if (name.Argument is not StringConstantExpressionAst justificationAst) throw new ArgumentException("Justification must be a string constant");
+                    justification = justificationAst.Value;
                 }
             }
         }

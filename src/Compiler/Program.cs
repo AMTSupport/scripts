@@ -1,6 +1,10 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+global using LanguageExt.Common;
+global using static LanguageExt.Prelude;
+global using LanguageExt.Pipes;
+
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Management.Automation;
@@ -14,6 +18,10 @@ using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using NLog;
 using NLog.Targets;
+using System.Globalization;
+using Extended.Collections.Generic;
+using NuGet.Packaging;
+using LanguageExt;
 
 namespace Compiler;
 
@@ -22,7 +30,9 @@ public class Program {
 
     internal static bool IsDebugging;
 
-    internal static readonly ConcurrentBag<Issue> Issues = [];
+    internal static readonly AutoResetEvent AutoEvent = new(false);
+
+    internal static readonly ConcurrentBag<LanguageExt.Common.Error> Errors = [];
 
     internal static readonly CancellationTokenSource CancelSource = new();
 
@@ -58,104 +68,135 @@ public class Program {
         public bool Force { get; set; }
     }
 
-    public static void Main(string[] args)
-    {
-        var parser = new CommandLine.Parser(settings =>
-        {
-            settings.GetoptMode = true;
-        });
+    private static async Task<int> Main(string[] args) {
+        var parser = new CommandLine.Parser(settings => settings.GetoptMode = true);
 
-
-        _ = parser.ParseArguments<Options>(args).WithParsed(async opts =>
-        {
+        var result = parser.ParseArguments<Options>(args).MapResult(opts => {
             CleanInput(opts);
             IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
 
             var filesToCompile = GetFilesToCompile(opts.Input!);
             EnsureDirectoryStructure(opts.Input!, opts.Output, filesToCompile);
 
+            var superParent = new ResolvableParent();
+
             ConcurrentBag<(string, Exception)> compilerErrors = [];
-            // TODO - Super parent, Submit completed scripts so they can be resolved by other scripts
-            CancelSource.Token.Register(() => Logger.Error("Compilation was cancelled."));
-            var compilerTask = Parallel.ForEachAsync(
-                GetFilesToCompile(opts.Input!),
-                CancelSource.Token,
-                async (script, ct) =>
-                {
-                    var compiledScript = await CompileScript(script, compilerErrors, ct);
-                    if (compiledScript == null && opts.FailFast) { CancelSource.Cancel(); }
-                    if (compiledScript == null) return;
+            GetFilesToCompile(opts.Input!).ToList().ForEach(scriptPath => {
+                var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
+                ResolvableScript resolvableScript;
+                try {
+                    resolvableScript = new ResolvableScript(pathedModuleSpec, superParent);
+                } catch (Exception e) {
+                    compilerErrors.Add((scriptPath, e));
+                    return;
+                }
+
+                superParent.QueueResolve(resolvableScript, compiled => {
                     OutputToFile(
                         opts.Input!,
                         opts.Output,
-                        script,
-                        compiledScript.GetPowerShellObject(),
-                        opts.Force
-                    );
-                    Logger.Debug($"Compiled {script}");
-                }
-            );
+                        scriptPath,
+                        compiled.GetPowerShellObject(),
+                        opts.Force);
+                    Logger.Debug($"Compiled {scriptPath}");
+                });
+            });
 
-            do
-            {
-                if (compilerTask.Status == TaskStatus.Canceled || compilerTask.Status == TaskStatus.Canceled || !compilerErrors.IsEmpty)
-                {
-                    await CancelSource.CancelAsync();
-                    LogManager.Flush();
-
-                    Logger.Error("There was an error compiling the script, please see the errors below:");
-                    if (compilerTask.Exception != null)
-                    {
-                        Logger.Error(compilerTask.Exception.Message);
-                    }
-
-                    foreach (var (scriptPath, e) in compilerErrors)
-                    {
-                        Logger.Error($"Error compiling script {scriptPath}");
-                        var printing = IsDebugging ? e.ToString() : e.Message;
-                        Logger.Error(printing);
-                    }
-
-                    break;
-                }
-
-                Task.Delay(25).Wait();
-            } while (compilerTask.Status != TaskStatus.RanToCompletion);
-        }).WithNotParsed(errors =>
-        {
-            Console.Error.WriteLine("There was an error parsing the command line arguments.");
-            foreach (var err in errors)
-            {
-                Console.Error.WriteLine(err);
+            try {
+                superParent.StartCompilation();
+            } catch (Exception err) {
+                Errors.Add(err);
             }
-            errors.Output();
-            Environment.Exit(1);
-        });
 
-        if (!Issues.IsEmpty)
-        {
-            Logger.Warn("There were issues found by the analyser during compilation.");
-            Issues.ToList().ForEach(issue => issue.Print());
+            Logger.Debug("Finished compilation.");
+
+            if (compilerErrors.IsEmpty) return 0;
+
+            foreach (var (scriptPath, e) in compilerErrors) {
+                Errors.Add(LanguageExt.Common.Error.New($"Error compiling {scriptPath}", e));
+            }
+
+            return 1;
+        },
+            errors => {
+                Console.Error.WriteLine("There was an error parsing the command line arguments.");
+                foreach (var err in errors) {
+                    Console.Error.WriteLine(err);
+                }
+                errors.Output();
+
+                return 1;
+            }
+        );
+
+        if (!Errors.IsEmpty) {
+            do {
+                ThreadPool.GetAvailableThreads(out var workerThreads, out _);
+                ThreadPool.GetMaxThreads(out var maxThreads, out _);
+                Logger.Debug($"Waiting for all threads to finish, {ThreadPool.PendingWorkItemCount} items left using {ThreadPool.ThreadCount} threads.");
+                Logger.Debug($"Worker threads: {workerThreads} Max threads: {maxThreads}");
+                await Task.Delay(25);
+            } while (ThreadPool.PendingWorkItemCount != 0);
+
+            // Seriously .NET, why is there no fucking double ended queue.
+            var printedBefore = false; // This is to prevent a newline before the first error
+            var errorQueue = new Deque<LanguageExt.Common.Error>();
+            errorQueue.AddRange(Errors);
+            do {
+                var err = errorQueue.PopFirst();
+
+                // Flatten ManyErrors into the indiviuals
+                if (err is ManyErrors manyErrors) {
+                    errorQueue.PushRangeFirst(manyErrors.Errors);
+                    continue;
+                }
+
+                var type = err.IsExceptional ? LogLevel.Error : LogLevel.Warn;
+
+                if (printedBefore) {
+                    if (type == LogLevel.Error) {
+                        Console.Error.WriteLine();
+                    } else {
+                        Console.WriteLine();
+                    }
+                } else {
+                    printedBefore = true;
+                }
+
+                var message = err is Issue
+                    ? err.ToString()
+                    : err.Message
+                        + (IsDebugging
+                            ? (err.Exception.IsSome(out var exception)
+                                ? Environment.NewLine + exception.StackTrace
+                                : "")
+                            : ""
+                        );
+
+                Logger.Log(type, message);
+            } while (errorQueue.Count > 0);
+
+            return 1;
         }
 
-        Environment.Exit(0);
+        return result;
     }
 
-    public static async Task<CompiledScript?> CompileScript(string scriptPath, ConcurrentBag<(string, Exception)> compilerErrors, CancellationToken ct) => await Task.Run(() =>
-    {
-        var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
-        var resolvableScript = new ResolvableScript(pathedModuleSpec);
+    public static async Task<CompiledScript?> CompileScript(
+        string scriptPath,
+        ResolvableParent superParent,
+        ConcurrentBag<(string, Exception)> compilerErrors,
+        CancellationToken ct) => await Task.Run(() => {
+            var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
+            var resolvableScript = new ResolvableScript(pathedModuleSpec, superParent);
 
-        try
-        {
-            return (CompiledScript)resolvableScript.IntoCompiled();
-        }
-        catch (Exception e)
-        {
-            lock (compilerErrors) { compilerErrors.Add((scriptPath, e)); }
-            return null;
-        }
-    }, ct);
+            try {
+                return (CompiledScript)resolvableScript.IntoCompiled();
+            } catch (Exception e) {
+                lock (compilerErrors) { compilerErrors.Add((scriptPath, e)); }
+                return null;
+            }
+        }, ct);
 
     public static void CleanInput(Options opts) {
         ArgumentException.ThrowIfNullOrWhiteSpace(opts.Input, nameof(opts.Input));
@@ -266,9 +307,11 @@ public class Program {
 
     public static IEnumerable<string> GetFilesToCompile(string input) {
         if (File.Exists(input)) {
+            Logger.Debug($"Found file {input}");
             yield return input;
         } else if (Directory.Exists(input)) {
             foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories)) {
+                Logger.Debug($"Found file {file}");
                 yield return file;
             }
         } else {
@@ -331,8 +374,7 @@ public class Program {
         return pwsh;
     }
 
-    internal static Collection<PSObject> RunPowerShell(string script, params object[] args)
-    {
+    internal static Fin<Collection<PSObject>> RunPowerShell(string script, params object[] args) {
         var pwsh = GetPowerShellSession();
         pwsh.AddScript(script);
         args.ToList().ForEach(arg => pwsh.AddArgument(arg));
@@ -344,8 +386,14 @@ public class Program {
         pwsh.Streams.Information.ToList().ForEach(log => Logger.Info(CultureInfo.CurrentCulture, log.MessageData));
         pwsh.Streams.Warning.ToList().ForEach(log => Logger.Warn(log.Message));
 
-            var ast = AstHelper.GetAstReportingErrors(script, null, []);
         if (pwsh.HadErrors) {
+            var ast = AstHelper.GetAstReportingErrors(script, None, ["ModuleNotFoundDuringParse"]).Match(
+                ast => ast,
+                error => {
+                    Logger.Error("Unable to parse ast of script for error reporting.");
+                    throw error;
+                }
+            );
 
             var errors = pwsh.Streams.Error.Select(log => {
                 Logger.Debug(log.InvocationInfo.ScriptLineNumber);
@@ -366,16 +414,15 @@ public class Program {
                 );
 
                 var errorMessage = log.ErrorDetails?.Message ?? log.Exception?.Message ?? log.FullyQualifiedErrorId;
+                var extent = new ScriptExtent(startPosition, endPosition);
 
-                AstHelper.PrintPrettyAstError(
-                    new ScriptExtent(startPosition, endPosition),
-                    ast,
-                    errorMessage
-                );
+                return Issue.Error(errorMessage, extent, ast);
             });
+
+            return FinFail<Collection<PSObject>>(LanguageExt.Common.Error.Many(errors.ToArray()));
         }
 
-        return result;
+        return FinSucc(result);
     }
 
     ~Program() {

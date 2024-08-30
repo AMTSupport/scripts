@@ -1,10 +1,12 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Contracts;
 using System.Management.Automation;
 using System.Text;
-using JetBrains.Annotations;
-using NLog;
+using LanguageExt;
+using QuikGraph.Algorithms.Search;
 
 namespace Compiler.Text;
 
@@ -18,18 +20,71 @@ public enum UpdateOptions {
     InsertInline = 2
 }
 
-public class TextSpan(
-    [NonNegativeValue] int startingIndex,
-    [NonNegativeValue] int startingColumn,
-    [NonNegativeValue] int endingIndex,
-    [NonNegativeValue] int endingColumn
-) {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+public record TextSpan {
+    [NotNull, JetBrains.Annotations.NonNegativeValue]
+    public int StartingIndex { get; init; }
+    [NotNull, JetBrains.Annotations.NonNegativeValue]
+    public int StartingColumn { get; init; }
+    [NotNull, JetBrains.Annotations.NonNegativeValue]
+    public int EndingIndex { get; init; }
+    [NotNull, JetBrains.Annotations.NonNegativeValue]
+    public int EndingColumn { get; init; }
 
-    [ValidateRange(0, int.MaxValue)] public int StartingIndex = startingIndex;
-    [ValidateRange(0, int.MaxValue)] public int StartingColumn = startingColumn;
-    [ValidateRange(0, int.MaxValue)] public int EndingIndex = endingIndex;
-    [ValidateRange(0, int.MaxValue)] public int EndingColumn = endingColumn;
+    /// <summary>
+    /// Initialises a new instance of the TextSpan class allowing for logical spans of text to be defined.
+    /// </summary>
+    /// <param name="startingIndex"></param>
+    /// <param name="startingColumn"></param>
+    /// <param name="endingIndex"></param>
+    /// <param name="endingColumn"></param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown if any of the parameters are null.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown if any of the parameters are negative,
+    /// or if the starting index is greater than the ending index,
+    /// or if the starting index is equal to the ending index and the starting column is greater than the ending column.
+    /// </exception>
+    private TextSpan(
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int startingIndex,
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int startingColumn,
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int endingIndex,
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int endingColumn
+    ) {
+        ArgumentNullException.ThrowIfNull(startingIndex);
+        ArgumentNullException.ThrowIfNull(startingColumn);
+        ArgumentNullException.ThrowIfNull(endingIndex);
+        ArgumentNullException.ThrowIfNull(endingColumn);
+
+        ArgumentOutOfRangeException.ThrowIfNegative(startingIndex);
+        ArgumentOutOfRangeException.ThrowIfNegative(startingColumn);
+        ArgumentOutOfRangeException.ThrowIfNegative(endingIndex);
+        ArgumentOutOfRangeException.ThrowIfNegative(endingColumn);
+
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(startingIndex, endingIndex);
+        if (startingIndex == endingIndex) ArgumentOutOfRangeException.ThrowIfGreaterThan(startingColumn, endingColumn);
+
+        this.StartingIndex = startingIndex;
+        this.StartingColumn = startingColumn;
+        this.EndingIndex = endingIndex;
+        this.EndingColumn = endingColumn;
+    }
+
+    /// <summary>
+    /// Creates a new Instance of the TextSpan class, catching any exceptions that may be thrown.
+    /// </summary>
+    public static Fin<TextSpan> New(
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int startingIndex,
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int startingColumn,
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int endingIndex,
+        [NotNull, JetBrains.Annotations.NonNegativeValue] int endingColumn
+    ) {
+        try {
+            return new TextSpan(startingIndex, startingColumn, endingIndex, endingColumn);
+        } catch (Exception err) when (err is ArgumentNullException or ArgumentOutOfRangeException) {
+            return FinFail<TextSpan>(err);
+        }
+    }
 
     public static TextSpan WrappingEntireDocument(TextDocument document) => WrappingEntireDocument([.. document.Lines]);
 
@@ -60,6 +115,7 @@ public class TextSpan(
     public string GetContent(TextDocument document) => this.GetContent([.. document.Lines]);
 
     [Pure]
+    [return: NotNull]
     public string GetContent(string[] lines) {
         if (lines.Length == 0) return string.Empty;
 
@@ -102,10 +158,14 @@ public class TextSpan(
     /// The number of lines added or removed by the update.
     /// </returns>
     public int SetContent(
-        ref List<string> lines,
-        UpdateOptions options,
-        string[] content
+        [NotNull] List<string> lines,
+        [NotNull] UpdateOptions options,
+        [NotNull] string[] content
     ) {
+        ArgumentNullException.ThrowIfNull(lines);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(content);
+
         if (this.StartingIndex < 0 || this.StartingIndex >= lines.Count) {
             throw new ArgumentOutOfRangeException(nameof(lines), $"Starting index {this.StartingIndex} is out of range for document with {lines.Count} lines");
         }
@@ -159,13 +219,13 @@ public class TextSpan(
                 lineContent.Append(firstLineBefore);
             }
 
-            if (content.Length > 1) {
+            if (content.Length > 0) {
                 lineContent.Append(content[0]);
 
-                lines.InsertRange(this.StartingIndex, content.Skip(1));
-                offset += content.Length - 1;
-            } else {
-                lineContent.Append(content[0]);
+                if (content.Length > 1) {
+                    lines.InsertRange(this.StartingIndex, content.Skip(1));
+                    offset += content.Length - 1;
+                }
             }
 
             if (!string.IsNullOrEmpty(lastLineAfter)) {
@@ -200,18 +260,7 @@ public class TextSpan(
         return offset;
     }
 
-    public int RemoveContent(ref List<string> lines) => this.SetContent(ref lines, UpdateOptions.None, []);
-
-    public override bool Equals(object? obj) {
-        if (obj is TextSpan span) {
-            return span.StartingIndex == this.StartingIndex &&
-                   span.StartingColumn == this.StartingColumn &&
-                   span.EndingIndex == this.EndingIndex &&
-                   span.EndingColumn == this.EndingColumn;
-        }
-
-        return false;
-    }
+    public int RemoveContent(List<string> lines) => this.SetContent(lines, UpdateOptions.None, []);
 
     public override int GetHashCode() => HashCode.Combine(this.StartingIndex, this.StartingColumn, this.EndingIndex, this.EndingColumn);
 

@@ -1,6 +1,7 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
 using System.Security.Cryptography;
 using Compiler.Requirements;
@@ -36,7 +37,7 @@ public abstract class Compiled {
 
         var byteList = new List<byte>(hashableBytes);
         AddRequirementHashBytes(byteList, requirements);
-        this.ComputedHash = Convert.ToHexString(SHA1.HashData(byteList.ToArray()));
+        this.ComputedHash = Convert.ToHexString(SHA256.HashData(byteList.ToArray()));
     }
 
 
@@ -79,6 +80,14 @@ public abstract class Compiled {
         return parent;
     }
 
+    /// <summary>
+    /// Finds all modules which are dependencies of this modules absolute parent.
+    /// </summary>
+    /// <returns>
+    /// An array of compiled modules.
+    /// </returns>
+    [Pure]
+    [return: NotNull]
     protected Compiled[] GetSiblings() {
         var rootParent = this.GetRootParent();
         if (rootParent is not CompiledScript script) return [];
@@ -86,7 +95,17 @@ public abstract class Compiled {
         return script.Graph.Vertices.Where(compiled => compiled != this).ToArray();
     }
 
-    protected Compiled? FindSibling(ModuleSpec moduleSpec) {
+    /// <summary>
+    /// Finds a sibling of this module, if it exists.
+    /// </summary>
+    /// <param name="moduleSpec">
+    /// The module spec of the sibling to find.
+    /// </param>
+    /// <returns>
+    /// The sibling if it exists, otherwise null.
+    /// </returns>
+    [Pure]
+    protected Compiled? FindSibling([NotNull] ModuleSpec moduleSpec) {
         if (ReferenceEquals(moduleSpec, this.ModuleSpec)) return this;
 
         var siblings = this.GetSiblings();

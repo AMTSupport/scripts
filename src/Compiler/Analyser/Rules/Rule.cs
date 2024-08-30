@@ -23,6 +23,6 @@ public abstract class Rule {
 
     public abstract IEnumerable<Issue> Analyse(
         Ast node,
-        IEnumerable<Compiled> imports
+        IEnumerable<Compiled> importedModules
     );
 }

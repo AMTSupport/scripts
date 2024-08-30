@@ -72,15 +72,15 @@ public abstract class Requirement : IComparable<Requirement> {
     /// This weight is used for the order when inserting the requirements.
     /// </summary>
     [JsonIgnore]
-    public uint Weight { get; protected set; } = 50;
 
+    public uint Weight { get; protected set; } = 50;
     /// <summary>
     /// Gets the hash of the requirement.
     ///
     /// This is implemented by the derived class.
     /// </summary>
     [JsonIgnore]
-    public byte[] Hash { get; protected set; } = [];
+    public virtual byte[] Hash { get; protected set; } = [];
 
     /// <summary>
     /// Used only for serialization purposes.

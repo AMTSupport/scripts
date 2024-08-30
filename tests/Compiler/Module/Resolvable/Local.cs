@@ -1,12 +1,12 @@
-using Compiler.Module.Resolvable;
-using Compiler.Text;
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Collections;
 
 namespace Compiler.Test.Module.Resolvable;
 
 [TestFixture]
-public class LocalModuleTests
-{
+public class LocalModuleTests {
     // [TestCaseSource(typeof(TestData), nameof(TestData.FixLinesCases))]
     // public string TestCompileDocument(string testContent)
     // {
@@ -15,8 +15,7 @@ public class LocalModuleTests
     //     return compiledDocument.GetContent();
     // }
 
-    public class TestData
-    {
+    public class TestData {
         private static readonly string MULTILINE_STRING_LINES = """
                 @"
             Doing cool stuff with this indented multiline string!
@@ -31,10 +30,8 @@ public class LocalModuleTests
                 "@;
         """;
 
-        public static IEnumerable FixLinesCases
-        {
-            get
-            {
+        public static IEnumerable FixLinesCases {
+            get {
                 yield return new TestCaseData(
                     MULTILINE_STRING_LINES
                 ).Returns("""
