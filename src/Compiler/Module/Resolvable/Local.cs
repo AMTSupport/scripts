@@ -153,14 +153,14 @@ public partial class ResolvableLocalModule : Resolvable {
 
         AstHelper.FindDeclaredNamespaces(this.Ast).ToList().ForEach(statement => {
             this.Editor.AddExactEdit(
-                statement.Item2.Extent.StartLineNumber - 1,
-                statement.Item2.Extent.StartColumnNumber - 1,
-                statement.Item2.Extent.EndLineNumber - 1,
-                statement.Item2.Extent.EndColumnNumber - 1,
+                statement.Extent.StartLineNumber - 1,
+                statement.Extent.StartColumnNumber - 1,
+                statement.Extent.EndLineNumber - 1,
+                statement.Extent.EndColumnNumber - 1,
                 _ => []
             );
 
-            var ns = new UsingNamespace(statement.Item1);
+            var ns = new UsingNamespace(statement.Name.Value);
             lock (this.Requirements) {
                 this.Requirements.AddRequirement(ns);
             }
@@ -206,4 +206,3 @@ public partial class ResolvableLocalModule : Resolvable {
     private static partial Regex RequiresStatementRegex();
     #endregion
 }
-

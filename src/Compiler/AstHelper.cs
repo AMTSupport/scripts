@@ -71,17 +71,13 @@ public static class AstHelper {
         return modules;
     }
 
-    public static List<(string, UsingStatementAst)> FindDeclaredNamespaces(Ast ast) {
-        var namespaces = new List<(string, UsingStatementAst)>();
+    public static List<UsingStatementAst> FindDeclaredNamespaces(Ast ast) {
+        var namespaces = new List<UsingStatementAst>();
 
         ast.FindAll(testAst => testAst is UsingStatementAst usingAst && usingAst.UsingStatementKind == UsingStatementKind.Namespace, true)
             .Cast<UsingStatementAst>()
             .ToList()
-            .ForEach(usingStatement => {
-                // I don't think this is possible, but just in case.
-                if (usingStatement.Name is null) throw new InvalidDataException("UsingStatementAst does not contain a Name.");
-                namespaces.Add((usingStatement.Name.Value, usingStatement));
-            });
+            .ForEach(namespaces.Add);
 
         return namespaces;
     }
@@ -92,37 +88,48 @@ public static class AstHelper {
             .Cast<FunctionDefinitionAst>()
             .ToList();
 
-        // If there is no export command or we are not filtering for only exported functions, return all functions.
-        if (ast.Find(testAst => !onlyExported || (testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember"), true) is not CommandAst command) {
+        // Short circuit so we don't have to do any more work if we are not filtering for only exported functions.
+        if (!onlyExported) {
             return allDefinedFunctions;
         }
 
-        // TODO - Support using * to export all of a type.
-        var wantingToExport = new List<(string, List<string>)>();
-        var namedParameters = ast.FindAll(testAst => testAst is CommandParameterAst commandParameter && commandParameter.Parent == command, true).Cast<CommandParameterAst>().ToList();
-        foreach (var (namedParameter, index) in namedParameters.Select((value, i) => (value, i))) {
-            if (namedParameter.ParameterName is not "Function" and not "Alias") {
-                continue;
-            }
+        var exportCommands = ast.FindAll(testAst =>
+            testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember", true
+        ).Cast<CommandAst>();
 
-            var value = namedParameter.Argument;
-            value ??= command.CommandElements[command.CommandElements.IndexOf(namedParameter) + 1] as ExpressionAst;
-
-            var objects = value switch {
-                StringConstantExpressionAst stringConstantExpressionAst => [stringConstantExpressionAst.Value],
-                ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()),
-                _ => throw new NotImplementedException($"Export-ModuleMember parameter must be a string or array of strings, got: {value}"),
-            };
-
-            wantingToExport.Add((namedParameter.ParameterName, objects.Cast<string>().ToList()));
+        // If there are no Export-ModuleMember commands, we are exporting everything.
+        if (!exportCommands.Any()) {
+            return allDefinedFunctions;
         }
 
-        return allDefinedFunctions
-            .Where(function => {
-                // If the name is scoped to a namespace, remove the namespace.
-                var name = function.Name.Contains(':') ? function.Name.Split(':').Last() : function.Name;
-                return wantingToExport.Any(wanting => wanting.Item2.Contains(name));
-            }).ToList();
+        var wantingToExport = new List<(string, IEnumerable<string>)>();
+        foreach (var exportCommand in exportCommands) {
+            // TODO - Support unnamed export param eg `Export-ModuleMember *`
+            var namedParameters = exportCommand.CommandElements
+                .Where(commandElement => commandElement is CommandParameterAst)
+                .Cast<CommandParameterAst>()
+                .Where(param => param.ParameterName is "Function" or "Alias");
+
+            foreach (var namedParameter in namedParameters) {
+                var value = namedParameter.Argument
+                    ?? exportCommand.CommandElements[exportCommand.CommandElements.IndexOf(namedParameter) + 1] as ExpressionAst;
+
+                var objects = value switch {
+                    StringConstantExpressionAst starAst when starAst.Value == "*" => allDefinedFunctions.Select(function => NameWithoutNamespace(function.Name)),
+                    StringConstantExpressionAst stringConstantAst => [stringConstantAst.Value],
+                    ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()),
+                    _ => [], // We don't know what to do with this value, so we will just ignore it.
+                };
+
+                wantingToExport.Add((namedParameter.ParameterName, objects.Cast<string>()));
+            }
+        }
+
+        return allDefinedFunctions.Where(function => {
+            return wantingToExport.Any(wanting =>
+                wanting.Item2.Contains(NameWithoutNamespace(function.Name))
+            );
+        }).ToList();
     }
 
     /// <summary>
@@ -246,4 +253,7 @@ public static class AstHelper {
 
         return parent;
     }
+
+    [return: NotNull]
+    private static string NameWithoutNamespace(string name) => name.Contains(':') ? name.Split(':').Last() : name;
 }
