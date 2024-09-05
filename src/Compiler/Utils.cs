@@ -12,6 +12,7 @@ namespace Compiler;
 /// <summary>
 /// Helper methods to make it a little more rust-like.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public static class Utils {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Option<T> AsOption<T>(this T? value) where T : class =>

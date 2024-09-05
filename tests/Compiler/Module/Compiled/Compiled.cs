@@ -14,7 +14,7 @@ public class CompiledTests {
         byte[] hashableBytes,
         RequirementGroup requirementGroup
     ) {
-        var random = new Random();
+        var random = TestContext.CurrentContext.Random;
         List<byte> bytesList;
         var hashResults = new List<byte[]>();
         do {
@@ -35,7 +35,7 @@ public class CompiledTests {
 file static class TestData {
     public static IEnumerable AddRequirementHashData {
         get {
-            var random = new Random();
+            var random = TestContext.CurrentContext.Random;
             var hashableBytes = new byte[random.Next(10, 100)];
             random.NextBytes(hashableBytes);
 

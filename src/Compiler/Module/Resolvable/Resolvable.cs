@@ -29,13 +29,14 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
     /// </returns>
     [return: NotNull]
 
-    public abstract Option<Error> ResolveRequirements();
-    [return: NotNull]
-    public abstract Fin<Compiled.Compiled> IntoCompiled();
+    public abstract Task<Option<Error>> ResolveRequirements();
 
-    protected void QueueResolve() => ThreadPool.QueueUserWorkItem(_ => {
+    [return: NotNull]
+    public abstract Task<Fin<Compiled.Compiled>> IntoCompiled();
+
+    protected virtual void QueueResolve() => ThreadPool.QueueUserWorkItem(async _ => {
         try {
-            this.ResolveRequirements().Match(
+            (await this.ResolveRequirements()).Match(
                 exception => {
                     Program.Errors.Add(exception);
                     Program.CancelSource.Cancel(true);
@@ -79,7 +80,9 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
             var parentPath = Path.GetDirectoryName(localParent.ModuleSpec.FullPath)!;
             try {
                 Logger.Debug($"Looking for {moduleSpec.Name} module in {parentPath}.");
-                return FinSucc(new ResolvableLocalModule(parentPath, moduleSpec) as Resolvable);
+                var localModule = new ResolvableLocalModule(parentPath, moduleSpec);
+                localModule.QueueResolve();
+                return FinSucc(localModule as Resolvable);
             } catch (ExceptionalException err) when (err.ToError() is InvalidModulePathError) {
                 // Silent fall through to remote.
             } catch (ExceptionalException err) {
@@ -92,9 +95,22 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
         }
 
         try {
-            return FinSucc(new ResolvableRemoteModule(moduleSpec) as Resolvable);
+            var remote = new ResolvableRemoteModule(moduleSpec);
+            remote.QueueResolve();
+
+            return FinSucc(remote as Resolvable);
         } catch (Exception err) {
             return FinFail<Resolvable>(err);
+        }
+    }
+
+    internal static Fin<ResolvableScript> TryCreateScript([NotNull] PathedModuleSpec moduleSpec, [NotNull] ResolvableParent parent) {
+        try {
+            var script = new ResolvableScript(moduleSpec, parent);
+            script.QueueResolve();
+            return FinSucc(script);
+        } catch (Exception err) {
+            return FinFail<ResolvableScript>(err);
         }
     }
 }
@@ -115,7 +131,7 @@ public class ResolvableParent {
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-    private readonly Dictionary<ModuleSpec, ResolvableInfo> Resolvables = [];
+    public readonly Dictionary<ModuleSpec, ResolvableInfo> Resolvables = [];
 
     /// <summary>
     /// A graph of resolvable roots and their dependencies.
@@ -195,7 +211,7 @@ public class ResolvableParent {
         }
 
         if (!resolvable.RequirementsResolved) {
-            await resolvable.RequirementsWaitHandle.WaitOneAsync(-1, Program.CancelSource.Token);
+            await resolvable.RequirementsWaitHandle.WaitOneAsync(10000, Program.CancelSource.Token);
         }
 
         if (!this.Resolvables.TryGetValue(moduleSpec, out var resolvableInfo)) {
@@ -215,17 +231,20 @@ public class ResolvableParent {
         // otherwise we need to start the compilation.
         if (waitHandle.IsSome(out var handle)) {
             Logger.Debug($"Waiting for IntoCompiled to finish for {moduleSpec.Name}.");
-            await handle.WaitOneAsync(-1, Program.CancelSource.Token);
+            await handle.WaitOneAsync(10000, Program.CancelSource.Token);
 
-            resolvableInfo = this.Resolvables.GetValueOrDefault(moduleSpec)!; // Safety: We know its valid due to previous calls.
-            (compiledOpt, _, _) = resolvableInfo;
+            if (this.Resolvables.TryGetValue(moduleSpec, out resolvableInfo)) {
+                (compiledOpt, _, _) = resolvableInfo;
 
-            // Safety: We know its going to be some here due waitHandle being some and having triggered.
-            if (compiledOpt.Unwrap().IsErr(out var err, out var compiled)) {
-                return FinFail<Compiled.Compiled>(err);
+                // Safety: We know its going to be some here due waitHandle being some and having triggered.
+                if (compiledOpt.Unwrap().IsErr(out var err, out var compiled)) {
+                    return FinFail<Compiled.Compiled>(err);
+                }
+
+                return FinSucc(compiled);
             }
 
-            return FinSucc(compiled);
+            return FinFail<Compiled.Compiled>(Error.New($"Failed to find compiled module for {moduleSpec.Name} after waiting for it."));
         } else {
             var newWaitHandle = new ManualResetEvent(false);
             lock (this.Resolvables) {
@@ -234,7 +253,7 @@ public class ResolvableParent {
                 };
             }
 
-            var newlyCompiledModule = resolvable.IntoCompiled();
+            var newlyCompiledModule = await resolvable.IntoCompiled();
             newlyCompiledModule.IfFail(err => Logger.Error(err.Message));
 
             lock (this.Resolvables) {
@@ -252,8 +271,8 @@ public class ResolvableParent {
         }
     }
 
-    public void StartCompilation() {
-        this.ResolveDepedencyGraph();
+    public async Task StartCompilation() {
+        await this.ResolveDepedencyGraph();
 
         // Get a list of the scripts which are roots and have no scripts depending on them.
         var topLevelScripts = this.Graph.Vertices.Where(resolvable => !this.Graph.TryGetInEdges(resolvable, out var inEdges) || !inEdges.Any());
@@ -272,66 +291,64 @@ public class ResolvableParent {
     /// <summary>
     /// Creates all the links between the modules and their dependencies.
     /// </summary>
-    private void ResolveDepedencyGraph() {
-        lock (this.Graph) {
-            var iterating = new Queue<(Resolvable?, ModuleSpec)>(this.Graph.Vertices.Select(resolvable => ((Resolvable?)null, resolvable.ModuleSpec)));
-            while (iterating.Count > 0) {
-                var (parentResolvable, workingModuleSpec) = iterating.Dequeue();
-                Logger.Trace($"Resolving {workingModuleSpec} with parent {parentResolvable?.ModuleSpec}.");
+    private async Task ResolveDepedencyGraph() {
+        var iterating = new Queue<(Resolvable?, ModuleSpec)>(this.Graph.Vertices.Select(resolvable => ((Resolvable?)null, resolvable.ModuleSpec)));
+        while (iterating.Count > 0) {
+            var (parentResolvable, workingModuleSpec) = iterating.Dequeue();
+            Logger.Trace($"Resolving {workingModuleSpec} with parent {parentResolvable?.ModuleSpec}.");
 
-                // If the parent module has already been resolved this will be an orphan.
-                if (parentResolvable != null && !this.Graph.ContainsVertex(parentResolvable)) {
-                    Logger.Debug("Parent module had already been resolved, skipping orphan.");
+            // If the parent module has already been resolved this will be an orphan.
+            if (parentResolvable != null && !this.Graph.ContainsVertex(parentResolvable)) {
+                Logger.Debug("Parent module had already been resolved, skipping orphan.");
+                continue;
+            }
+
+            var resolvableResult = this.LinkFindingPossibleResolved(parentResolvable, workingModuleSpec);
+
+            Option<Resolvable> workingResolvable = None;
+            switch (resolvableResult) {
+                case var fail when fail.IsFail:
+                    Logger.Error($"Failed to link {workingModuleSpec} to {parentResolvable?.ModuleSpec}.");
+                    fail.IfFail(Program.Errors.Add);
                     continue;
-                }
+                case var succ when succ.IsSucc:
+                    Logger.Debug($"Linked {workingModuleSpec} to {parentResolvable?.ModuleSpec}.");
+                    workingResolvable = succ.Unwrap();
+                    break;
+                default:
+                    break;
+            }
 
-                var resolvableResult = this.LinkFindingPossibleResolved(parentResolvable, workingModuleSpec);
+            // If it was null or there are out edges it means this module has already been resolved.
+            if (workingResolvable.IsNone || (this.Graph.TryGetOutEdges(workingResolvable.ValueUnsafe()!, out var outEdges) && outEdges.Any())) {
+                Logger.Debug("Module has already been resolved, skipping.");
+                continue;
+            }
 
-                Option<Resolvable> workingResolvable = None;
-                switch (resolvableResult) {
-                    case var fail when fail.IsFail:
-                        Logger.Error($"Failed to link {workingModuleSpec} to {parentResolvable?.ModuleSpec}.");
-                        fail.IfFail(Program.Errors.Add);
-                        continue;
-                    case var succ when succ.IsSucc:
-                        Logger.Debug($"Linked {workingModuleSpec} to {parentResolvable?.ModuleSpec}.");
-                        workingResolvable = succ.Unwrap();
-                        break;
-                    default:
-                        break;
-                }
-
-                // If it was null or there are out edges it means this module has already been resolved.
-                if (workingResolvable.IsNone || (this.Graph.TryGetOutEdges(workingResolvable.ValueUnsafe()!, out var outEdges) && outEdges.Any())) {
-                    Logger.Debug("Module has already been resolved, skipping.");
+            var safeWorkingResolvable = workingResolvable.ValueUnsafe()!;
+            // TODO Maybe push to the end of the queue or something.
+            if (!safeWorkingResolvable.RequirementsResolved) {
+                if (iterating.Count == 0) {
+                    Logger.Debug("Requirements not resolved, waiting for them to be resolved.");
+                    await safeWorkingResolvable.RequirementsWaitHandle.WaitOneAsync(-1, Program.CancelSource.Token);
+                } else {
+                    Logger.Debug("Requirements not resolved, pushing to the end of the queue.");
+                    iterating.Enqueue((parentResolvable, workingModuleSpec));
                     continue;
-                }
-
-                var safeWorkingResolvable = workingResolvable.ValueUnsafe()!;
-                // TODO Maybe push to the end of the queue or something.
-                if (!safeWorkingResolvable.RequirementsResolved) {
-                    if (iterating.Count == 0) {
-                        Logger.Debug("Requirements not resolved, waiting for them to be resolved.");
-                        safeWorkingResolvable.RequirementsWaitHandle.WaitOne();
-                    } else {
-                        Logger.Debug("Requirements not resolved, pushing to the end of the queue.");
-                        iterating.Enqueue((parentResolvable, workingModuleSpec));
-                        continue;
-                    }
-                }
-
-                lock (safeWorkingResolvable.Requirements) {
-                    safeWorkingResolvable.Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(requirement => iterating.Enqueue((safeWorkingResolvable, requirement)));
                 }
             }
 
-            var dotGraph = this.Graph.ToGraphviz(alg => {
-                alg.FormatVertex += (sender, args) => {
-                    args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
-                };
-            });
-            Console.WriteLine(dotGraph);
+            lock (safeWorkingResolvable.Requirements) {
+                safeWorkingResolvable.Requirements.GetRequirements<ModuleSpec>().ToList().ForEach(requirement => iterating.Enqueue((safeWorkingResolvable, requirement)));
+            }
         }
+
+        var dotGraph = this.Graph.ToGraphviz(alg => {
+            alg.FormatVertex += (sender, args) => {
+                args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
+            };
+        });
+        Console.WriteLine(dotGraph);
     }
 
     /// <summary>
@@ -384,15 +401,14 @@ public class ResolvableParent {
                         [.. mergeWith]
                     );
 
-                    if (fin.IsErr(out var err, out _) && err is InvalidModulePathError) {
+                    if (fin.IsErr(out var err, out var resolvable) && err is InvalidModulePathError) {
                         Logger.Debug($"Failed to find local module {moduleToResolve.Name}, trying remote.");
                     } else if (err is not null) {
                         return FinFail<Option<Resolvable>>(err);
+                    } else {
+                        resultingResolvable = resolvable;
                     }
 
-                    resultingResolvable = fin.UnwrapOrElse(() => {
-                        return new ResolvableRemoteModule(moduleToResolve.MergeSpecs([foundResolvable.ModuleSpec]));
-                    });
                     break;
                 case ModuleMatch.None or ModuleMatch.PreferTheirs or ModuleMatch.Looser:
                     goto default;

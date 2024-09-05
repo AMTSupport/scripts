@@ -10,3 +10,11 @@ using System.Diagnostics.CodeAnalysis;
     Scope = "namespaceanddescendants",
     Target = "~N:Compiler.Test"
 )]
+
+[assembly: SuppressMessage(
+    "Naming",
+    "CA1716:Identifiers should not match keywords",
+    Justification = "Thats just how it is",
+    Scope = "namespaceanddescendants",
+    Target = "~N:Compiler.Test"
+)]

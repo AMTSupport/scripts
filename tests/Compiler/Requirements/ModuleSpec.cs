@@ -10,9 +10,7 @@ namespace Compiler.Test.Requirements;
 [TestFixture]
 public class ModuleSpecTests {
     [TestCaseSource(typeof(TestData), nameof(TestData.InsetableLinesCases))]
-    public string GetInsertableLine_ReturnsCorrectLine(ModuleSpec moduleSpec) {
-        return moduleSpec.GetInsertableLine([]);
-    }
+    public string GetInsertableLine_ReturnsCorrectLine(ModuleSpec moduleSpec) => moduleSpec.GetInsertableLine([]);
 
     [TestCaseSource(typeof(TestData), nameof(TestData.MatchTestCases))]
     public ModuleMatch CompareTo(
@@ -50,52 +48,49 @@ public class PathedModuleSpecTests {
 }
 
 file sealed class TestData {
+    public static Guid Guid = Guid.Parse("d1b3b3b3-3b3b-3b3b-3b3b-3b3b3b3b3b3b");
+
     public static IEnumerable InsetableLinesCases {
         get {
-            var guid = Guid.NewGuid();
-
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule"
             )).Returns("Using module 'MyModule'");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};}""");
+                Guid
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{Guid}};}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';}""");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{Guid}};ModuleVersion = '1.0.0';}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 maximumVersion: new Version("2.0.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};MaximumVersion = '2.0.0';}""");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{Guid}};MaximumVersion = '2.0.0';}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';}""");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{Guid}};ModuleVersion = '1.0.0';MaximumVersion = '2.0.0';}""");
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
-            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{guid}};RequiredVersion = '1.5.0';}""");
+            )).Returns($$"""Using module @{ModuleName = 'MyModule';GUID = {{Guid}};RequiredVersion = '1.5.0';}""");
         }
     }
-
     public static IEnumerable MatchTestCases {
         get {
-            var guid = Guid.NewGuid();
-
             #region Same matches
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule"
@@ -105,43 +100,43 @@ file sealed class TestData {
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid
+                Guid
             ), new ModuleSpec(
                 "MyModule",
-                guid
+                Guid
             )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
@@ -149,12 +144,12 @@ file sealed class TestData {
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 null,
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             )).Returns(ModuleMatch.MergeRequired);
             #endregion
@@ -162,24 +157,24 @@ file sealed class TestData {
             #region Looser matches
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.3.0"),
                 new Version("1.9.0")
             )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 null,
                 null,
                 new Version("1.5.0")
@@ -187,55 +182,55 @@ file sealed class TestData {
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid
+                Guid
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid
+                Guid
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("1.8.0")
             )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.1.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Looser);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
@@ -245,96 +240,96 @@ file sealed class TestData {
             #region Stricter matches
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.3.0"),
                 new Version("1.9.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("1.8.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.1.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Stricter);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid
+                Guid
             )).Returns(ModuleMatch.Stricter);
             #endregion
 
             #region Incompatible matches
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 null,
                 new Version("0.9.0")
             )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("2.1.0"),
                 new Version("2.5.0")
             )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 null,
                 null,
                 new Version("2.5.0")
@@ -342,11 +337,11 @@ file sealed class TestData {
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 null,
                 null,
                 new Version("0.5.0")
@@ -354,36 +349,36 @@ file sealed class TestData {
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 requiredVersion: new Version("1.0.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 requiredVersion: new Version("1.0.1")
             )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 null,
                 null,
                 new Version("2.5.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             )).Returns(ModuleMatch.Incompatible);
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 null,
                 null,
                 new Version("0.5.0")
             ), new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             )).Returns(ModuleMatch.Incompatible);
             #endregion
@@ -392,8 +387,6 @@ file sealed class TestData {
 
     public static IEnumerable MergeSpecCases {
         get {
-            var guid = Guid.NewGuid();
-
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule"
             ), Array.Empty<ModuleSpec>()).Returns(new ModuleSpec(
@@ -405,11 +398,11 @@ file sealed class TestData {
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid
+                    Guid
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid
+                Guid
             ));
 
             yield return new TestCaseData(new ModuleSpec(
@@ -417,12 +410,12 @@ file sealed class TestData {
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid,
+                    Guid,
                     new Version("1.0.0")
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0")
             ));
 
@@ -431,48 +424,48 @@ file sealed class TestData {
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid,
+                    Guid,
                     new Version("1.0.0"),
                     new Version("2.0.0")
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ));
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid
+                Guid
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid,
+                    Guid,
                     new Version("1.0.0"),
                     new Version("2.0.0")
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ));
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid,
+                    Guid,
                     requiredVersion: new Version("1.5.0")
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0"),
                 new Version("1.5.0")
@@ -480,55 +473,55 @@ file sealed class TestData {
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid,
+                    Guid,
                     new Version("1.5.0")
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.5.0"),
                 new Version("2.0.0")
             ));
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid,
+                    Guid,
                     maximumVersion: new Version("1.5.0")
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("1.5.0")
             ));
 
             yield return new TestCaseData(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.0.0"),
                 new Version("2.0.0")
             ), new ModuleSpec[] {
                 new(
                     "MyModule",
-                    guid,
+                    Guid,
                     new Version("1.5.0"),
                     new Version("1.8.0")
                 )
             }).Returns(new ModuleSpec(
                 "MyModule",
-                guid,
+                Guid,
                 new Version("1.5.0"),
                 new Version("1.8.0")
             ));

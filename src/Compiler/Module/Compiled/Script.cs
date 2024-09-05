@@ -52,7 +52,7 @@ public class CompiledScript : CompiledLocalModule {
 
         var loadOrder = thisGraph.TopologicalSort();
         var reversedLoadOrder = loadOrder.Reverse();
-        reversedLoadOrder.ToList().ForEach(async resolvable => {
+        Task.WhenAll(reversedLoadOrder.Select(async resolvable => {
             var compiledRequirements = await Task.WhenAll(thisGraph
                 .OutEdges(resolvable)
                 .Select(async edge => {
@@ -71,7 +71,7 @@ public class CompiledScript : CompiledLocalModule {
             } else {
                 this.Graph.AddVertex(compiledModule);
             }
-        });
+        })).Wait();
 
         this.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled => {
             var imports = this.Graph.OutEdges(compiled).Select(edge => edge.Target);

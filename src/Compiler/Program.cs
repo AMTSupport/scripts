@@ -13,7 +13,6 @@ using System.Management.Automation.Runspaces;
 using System.Text;
 using CommandLine;
 using Compiler.Analyser;
-using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using NLog;
@@ -71,54 +70,54 @@ public class Program {
     private static async Task<int> Main(string[] args) {
         var parser = new CommandLine.Parser(settings => settings.GetoptMode = true);
 
-        var result = parser.ParseArguments<Options>(args).MapResult(opts => {
-            CleanInput(opts);
-            IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
+        var result = await parser.ParseArguments<Options>(args).MapResult(
+            async opts => {
+                CleanInput(opts);
+                IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
 
-            var filesToCompile = GetFilesToCompile(opts.Input!);
-            EnsureDirectoryStructure(opts.Input!, opts.Output, filesToCompile);
+                var filesToCompile = GetFilesToCompile(opts.Input!);
+                EnsureDirectoryStructure(opts.Input!, opts.Output, filesToCompile);
 
-            var superParent = new ResolvableParent();
+                var superParent = new ResolvableParent();
 
-            ConcurrentBag<(string, Exception)> compilerErrors = [];
-            GetFilesToCompile(opts.Input!).ToList().ForEach(scriptPath => {
-                var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
-                ResolvableScript resolvableScript;
+                ConcurrentBag<(string, Exception)> compilerErrors = [];
+                GetFilesToCompile(opts.Input!).ToList().ForEach(scriptPath => {
+                    var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
+                    if (Resolvable.TryCreateScript(pathedModuleSpec, superParent).IsErr(out var error, out var resolvableScript)) {
+                        compilerErrors.Add((scriptPath, error));
+                        return;
+                    }
+
+                    superParent.QueueResolve(resolvableScript, compiled => {
+                        OutputToFile(
+                            opts.Input!,
+                            opts.Output,
+                            scriptPath,
+                            compiled.GetPowerShellObject(),
+                            opts.Force);
+                        Logger.Debug($"Compiled {scriptPath}");
+                    });
+                });
+
                 try {
-                    resolvableScript = new ResolvableScript(pathedModuleSpec, superParent);
-                } catch (Exception e) {
-                    compilerErrors.Add((scriptPath, e));
-                    return;
+                    await superParent.StartCompilation();
+                } catch (Exception err) {
+                    Errors.Add(err);
                 }
 
-                superParent.QueueResolve(resolvableScript, compiled => {
-                    OutputToFile(
-                        opts.Input!,
-                        opts.Output,
-                        scriptPath,
-                        compiled.GetPowerShellObject(),
-                        opts.Force);
-                    Logger.Debug($"Compiled {scriptPath}");
-                });
-            });
+                Logger.Debug("Finished compilation.");
 
-            try {
-                superParent.StartCompilation();
-            } catch (Exception err) {
-                Errors.Add(err);
-            }
+                if (compilerErrors.IsEmpty) return 0;
 
-            Logger.Debug("Finished compilation.");
+                foreach (var (scriptPath, e) in compilerErrors) {
+                    Errors.Add(LanguageExt.Common.Error.New($"Error compiling {scriptPath}", e));
+                }
 
-            if (compilerErrors.IsEmpty) return 0;
-
-            foreach (var (scriptPath, e) in compilerErrors) {
-                Errors.Add(LanguageExt.Common.Error.New($"Error compiling {scriptPath}", e));
-            }
-
-            return 1;
-        },
-            errors => {
+                return 1;
+            },
+#pragma warning disable CS1998
+            async errors => {
+#pragma warning restore CS1998
                 Console.Error.WriteLine("There was an error parsing the command line arguments.");
                 foreach (var err in errors) {
                     Console.Error.WriteLine(err);
@@ -181,22 +180,6 @@ public class Program {
 
         return result;
     }
-
-    public static async Task<CompiledScript?> CompileScript(
-        string scriptPath,
-        ResolvableParent superParent,
-        ConcurrentBag<(string, Exception)> compilerErrors,
-        CancellationToken ct) => await Task.Run(() => {
-            var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
-            var resolvableScript = new ResolvableScript(pathedModuleSpec, superParent);
-
-            try {
-                return (CompiledScript)resolvableScript.IntoCompiled();
-            } catch (Exception e) {
-                lock (compilerErrors) { compilerErrors.Add((scriptPath, e)); }
-                return null;
-            }
-        }, ct);
 
     public static void CleanInput(Options opts) {
         ArgumentException.ThrowIfNullOrWhiteSpace(opts.Input, nameof(opts.Input));
