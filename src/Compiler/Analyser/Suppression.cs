@@ -14,15 +14,15 @@ public record Suppression(
 
 [AttributeUsage(AttributeTargets.All, AllowMultiple = true, Inherited = false)]
 public sealed class SuppressAnalyserAttribute(
-    string CheckType,
-    object? Data,
-    string Justification
+    string checkType,
+    object? data,
+    string justification
 ) : Attribute {
     [return: NotNull]
     public Suppression GetSupression() {
-        var assemblyName = "Compiler.Analyser.Rules." + CheckType;
-        var type = Type.GetType(assemblyName, false, true) ?? throw new ArgumentException($"Could not find rule for suppression {CheckType}");
-        return new Suppression(type, Data, Justification);
+        var assemblyName = "Compiler.Analyser.Rules." + checkType;
+        var type = Type.GetType(assemblyName, false, true) ?? throw new ArgumentException($"Could not find rule for suppression {checkType}");
+        return new Suppression(type, data, justification);
     }
 
     public static IEnumerable<SuppressAnalyserAttribute> FromAttributes(IEnumerable<AttributeAst> attributes) {

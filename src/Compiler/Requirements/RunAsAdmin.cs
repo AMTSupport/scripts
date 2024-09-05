@@ -16,9 +16,7 @@ public sealed class RunAsAdminRequirement : Requirement {
         this.Hash = SHA256.HashData(Encoding.UTF8.GetBytes(STRING));
     }
 
-    [ExcludeFromCodeCoverage(Justification = "It's just a string.")]
     public override string GetInsertableLine(Hashtable data) => STRING;
 
-    [ExcludeFromCodeCoverage(Justification = "Just a sick as fuck bool man!")]
     public override bool IsCompatibleWith(Requirement other) => true;
 }

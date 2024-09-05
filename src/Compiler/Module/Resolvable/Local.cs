@@ -78,8 +78,6 @@ public partial class ResolvableLocalModule : Resolvable {
             ["ModuleNotFoundDuringParse"]
         ).Catch(err => err.Enrich(this.ModuleSpec)).As().ThrowIfFail();
 
-        this.QueueResolve();
-
         // Remove empty lines
         this.Editor.AddRegexEdit(0, EntireEmptyLineRegex(), _ => { return null; });
 
@@ -122,7 +120,7 @@ public partial class ResolvableLocalModule : Resolvable {
         return ModuleMatch.None;
     }
 
-    public override Option<Error> ResolveRequirements() {
+    public override Task<Option<Error>> ResolveRequirements() {
         AstHelper.FindDeclaredModules(this.Ast).ToList().ForEach(module => {
             if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast) {
                 this.Editor.AddExactEdit(
@@ -166,15 +164,15 @@ public partial class ResolvableLocalModule : Resolvable {
             }
         });
 
-        return None;
+        return Option<Error>.None.AsTask();
     }
 
-    public override Fin<Compiled.Compiled> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
+    public override Task<Fin<Compiled.Compiled>> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
         .AndThenTry(doc => new CompiledLocalModule(
             this.ModuleSpec,
             doc,
             this.Requirements
-        ) as Compiled.Compiled);
+        ) as Compiled.Compiled).AsTask();
 
     public override bool Equals(object? obj) {
         if (obj is null) return false;
@@ -206,3 +204,4 @@ public partial class ResolvableLocalModule : Resolvable {
     private static partial Regex RequiresStatementRegex();
     #endregion
 }
+

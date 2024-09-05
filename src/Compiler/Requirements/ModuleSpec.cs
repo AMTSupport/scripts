@@ -221,8 +221,24 @@ public class ModuleSpec : Requirement {
     public override int GetHashCode() => HashCode.Combine(this.Name, this.Id, this.MinimumVersion, this.MaximumVersion, this.RequiredVersion);
 
     public override int CompareTo(Requirement? other) {
+        if (other is null) return 1;
+        if (ReferenceEquals(this, other)) return 0;
         if (other is not ModuleSpec) return 0;
-        return this.CompareTo((ModuleSpec)other).CompareTo(ModuleMatch.Same);
+
+        var otherSpec = (other as ModuleSpec)!;
+        var nameComparison = string.Compare(this.Name, otherSpec.Name, StringComparison.Ordinal);
+        var idComparison = this.Id?.CompareTo(otherSpec.Id) ?? 0;
+        var minVersionComparison = this.MinimumVersion?.CompareTo(otherSpec.MinimumVersion) ?? 0;
+        var maxVersionComparison = this.MaximumVersion?.CompareTo(otherSpec.MaximumVersion) ?? 0;
+        var reqVersionComparison = this.RequiredVersion?.CompareTo(otherSpec.RequiredVersion) ?? 0;
+        var weightComparison = this.Weight.CompareTo(otherSpec.Weight);
+        var supportsMultipleComparison = this.SupportsMultiple.CompareTo(otherSpec.SupportsMultiple);
+
+        return Math.Clamp(
+            nameComparison + idComparison + minVersionComparison + maxVersionComparison + reqVersionComparison + weightComparison + supportsMultipleComparison,
+            -1,
+            1
+        );
     }
 
     public override bool Equals(object? obj) {

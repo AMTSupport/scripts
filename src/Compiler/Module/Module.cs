@@ -8,7 +8,7 @@ namespace Compiler.Module;
 #pragma warning disable CA1716
 public abstract partial class Module(ModuleSpec moduleSpec) {
 #pragma warning restore CA1716
-    public virtual ModuleSpec ModuleSpec { get; } = moduleSpec;
+    public virtual ModuleSpec ModuleSpec { get; init; } = moduleSpec;
 
     public RequirementGroup Requirements { get; } = new();
 

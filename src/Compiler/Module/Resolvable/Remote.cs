@@ -2,8 +2,8 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
+using System.Diagnostics.Contracts;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using LanguageExt;
@@ -11,25 +11,29 @@ using LanguageExt.Traits;
 using NLog;
 namespace Compiler.Module.Resolvable;
 
-public class ResolvableRemoteModule : Resolvable {
+public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSpec), IDisposable {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     private static readonly object UsingPSRepoLock = new();
-
     private MemoryStream? MemoryStream;
-    private string? CachedFile;
 
-    public ResolvableRemoteModule(ModuleSpec moduleSpec) : base(moduleSpec) => this.QueueResolve();
+    // Only public for testing purposes.
+    public Atom<Either<string, ManualResetEventSlim>>? CachedFile;
 
-    private string CachePath => Path.Join(
+    public string CachePath => Path.Join(
         Path.GetTempPath(),
         "PowerShellGet",
         this.ModuleSpec.Name
     );
 
+    ~ResolvableRemoteModule() {
+        this.MemoryStream?.Dispose();
+    }
+
+    [Pure]
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) => this.ModuleSpec.CompareTo(requirement);
 
-    public override Option<Error> ResolveRequirements() {
-        this.MemoryStream ??= new MemoryStream(File.ReadAllBytes(this.FindCachedResult() ?? this.CacheResult().Match(
+    public override async Task<Option<Error>> ResolveRequirements() {
+        this.MemoryStream ??= new MemoryStream(File.ReadAllBytes((await this.FindCachedResult()).ToFin().BindFail(_ => this.CacheResult()).Match(
             Fail: error => throw error,
             Succ: path => path
         )), false);
@@ -70,9 +74,9 @@ public class ResolvableRemoteModule : Resolvable {
             );
     }
 
-    public override Fin<Compiled.Compiled> IntoCompiled() {
+    public override async Task<Fin<Compiled.Compiled>> IntoCompiled() {
         if (this.MemoryStream == null) {
-            var memoryStreamResult = this.FindCachedResult().AsOption().ToFin()
+            var memoryStreamResult = (await this.FindCachedResult()).ToFin()
                 .BiBind(
                     Succ: value => FinSucc(value),
                     Fail: _ => this.CacheResult().Catch(err => err.Enrich(this.ModuleSpec)).As())
@@ -90,20 +94,30 @@ public class ResolvableRemoteModule : Resolvable {
         );
     }
 
+    [Pure]
     public override bool Equals(object? obj) {
         if (obj is null) return false;
         if (ReferenceEquals(this, obj)) return true;
-        return obj is ResolvableRemoteModule other &&
-               this.ModuleSpec.CompareTo(other.ModuleSpec) == ModuleMatch.Same;
+        return obj is ResolvableRemoteModule other && this.GetModuleMatchFor(other.ModuleSpec) == ModuleMatch.Same;
     }
 
-    public string? FindCachedResult() {
-        if (this.CachedFile != null) return this.CachedFile;
+    public async Task<Option<string>> FindCachedResult() {
+        if (this.CachedFile is not null) {
+            var either = this.CachedFile.Value;
+            if (either.IsLeft) return (string)either;
 
-        if (!Directory.Exists(this.CachePath)) return null;
+            var waitingForResetEvent = (ManualResetEventSlim)either;
+            await waitingForResetEvent.WaitHandle.WaitOneAsync(500, Program.CancelSource.Token);
+            await Task.Delay(10); // I don't know why this is needed, but it is.
+            if (waitingForResetEvent.IsSet) return (string)this.CachedFile.Value;
+        } else {
+            this.CachedFile = Atom<Either<string, ManualResetEventSlim>>(new ManualResetEventSlim(false));
+        }
+
+        if (!Directory.Exists(this.CachePath)) return None;
 
         var files = Directory.GetFiles(this.CachePath, "*.nupkg");
-        if (files.Length == 0) return null;
+        if (files.Length == 0) return None;
 
         var versions = files.Where(file => {
             var fileName = Path.GetFileName(file);
@@ -119,14 +133,24 @@ public class ResolvableRemoteModule : Resolvable {
             }
         });
 
-        var selectedVersion = versions.Where(version => {
-            var otherSpec = new ModuleSpec(this.ModuleSpec.Name, this.ModuleSpec.Id, requiredVersion: version);
-            var matchType = otherSpec.CompareTo(this.ModuleSpec);
+        Func<Version, bool> findBestVersionFunc = (this.ModuleSpec.RequiredVersion, this.ModuleSpec.MinimumVersion, this.ModuleSpec.MaximumVersion) switch {
+            (Version requiredVersion, _, _) => version => version == requiredVersion,
+            (_, Version minimumVersion, Version maximumVersion) => version => version >= minimumVersion && version <= maximumVersion,
+            (_, Version minimumVersion, null) => version => version >= minimumVersion,
+            (_, null, Version maximumVersion) => version => version <= maximumVersion,
+            (null, null, null) => (_) => true
+        };
 
-            return matchType is ModuleMatch.Same or ModuleMatch.Stricter;
-        }).OrderByDescending(version => version).FirstOrDefault();
+        var posibleVersions = versions.Where(version => findBestVersionFunc(version)).ToArray();
+        var selectedVersion = posibleVersions.OrderByDescending(version => version).FirstOrDefault();
+        if (selectedVersion == null) return None;
 
-        return selectedVersion == null ? null : this.CachedFile = Path.Join(this.CachePath, $"{this.ModuleSpec.Name}.{selectedVersion}.nupkg");
+        var selectedFile = Path.Join(this.CachePath, $"{this.ModuleSpec.Name}.{selectedVersion}.nupkg");
+        var resetEvent = (ManualResetEventSlim)this.CachedFile.Value;
+        this.CachedFile.Swap(_ => Left(selectedFile));
+        resetEvent.Set();
+
+        return selectedFile;
     }
 
     public Fin<string> CacheResult() {
@@ -139,7 +163,7 @@ public class ResolvableRemoteModule : Resolvable {
         $Module = Find-PSResource -Name '{{this.ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
         $Module | Save-PSResource -Path '{{this.CachePath}}' -AsNupkg -SkipDependencyCheck;
 
-        return "$env:TEMP/PowerShellGet/{{this.ModuleSpec.Name}}/{{this.ModuleSpec.Name}}.$($Module.Version).nupkg";
+        return "{{this.CachePath}}/{{this.ModuleSpec.Name}}.$($Module.Version).nupkg";
         """;
 
         Logger.Debug(
@@ -156,21 +180,41 @@ public class ResolvableRemoteModule : Resolvable {
         lock (UsingPSRepoLock) {
             return Program.RunPowerShell(powerShellCode)
                 .Map(objects => objects.First().ToString())
-                .Tap(path => this.CachedFile = path);
+                .Tap(path => {
+                    if (this.CachedFile is null) {
+                        this.CachedFile = Atom<Either<string, ManualResetEventSlim>>(Left(path));
+                    } else {
+                        this.CachedFile.Swap(v => {
+                            if (v.IsRight) {
+                                var resetEvent = (ManualResetEventSlim)v;
+                                resetEvent.Set();
+                            }
+
+                            return Left(path);
+                        });
+                    }
+                });
         }
     }
 
     // Based on https://github.com/PowerShell/PowerShellGet/blob/c6aea39ea05491c648efd7aebdefab1ae7c5b213/src/PowerShellGet.psm1#L111-L144
-    private static string? ConvertVersionParameters(
+    [Pure]
+    public static string? ConvertVersionParameters(
         string? requiredVersion,
         string? minimumVersion,
         string? maximumVersion) => (requiredVersion, minimumVersion, maximumVersion) switch {
             (null, null, null) => null,
-            (string ver, null, null) => ver,
+            (string ver, _, _) => ver,
             (_, string min, null) => $"[{min},)",
             (_, null, string max) => $"(,{max}]",
             (_, string min, string max) => $"[{min},{max}]"
         };
 
+    [Pure]
     public override int GetHashCode() => this.ModuleSpec.GetHashCode();
+
+    public void Dispose() {
+        this.MemoryStream?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }

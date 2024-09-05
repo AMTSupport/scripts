@@ -41,14 +41,14 @@ public partial class ResolvableScript : ResolvableLocalModule {
         #endregion
     }
 
-    public override Fin<Compiled.Compiled> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
+    public override Task<Fin<Compiled.Compiled>> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
         .AndThenTry(doc => new Compiled.CompiledScript(
             this,
             doc,
             this.ResolvableParent,
             this.ExtractParameterBlock(),
             this.Requirements
-        ) as Compiled.Compiled);
+        ) as Compiled.Compiled).AsTask();
 
     /// <summary>
     /// Looks for the parameter block of the script,
