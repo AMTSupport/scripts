@@ -29,12 +29,7 @@
             "label": "watch",
             "command": "dotnet",
             "type": "process",
-            "args": [
-                "watch",
-                "run",
-                "--project",
-                "${workspaceFolder}/scripts.sln"
-            ],
+            "args": ["watch", "run", "--project", "${workspaceFolder}/scripts.sln"],
             "problemMatcher": "$msCompile"
         },
         {
@@ -43,6 +38,7 @@
             "type": "shell",
             "args": [
                 "test",
+                "--collect:\\\"XPlat Code Coverage\\\"",
                 "/p:CollectCoverage=true",
                 "/p:CoverletOutput=Coverage/",
                 "/p:CoverletOutputFormat=lcov"
@@ -54,7 +50,7 @@
             "command": "reportgenerator",
             "type": "shell",
             "args": [
-                "-reports:./**/coverage.cobertura.xml",
+                "-reports:./tests/Compiler/TestResults/**/coverage.cobertura.xml",
                 "-targetdir:coverage_report",
                 "-assemblyfilters:'+Compiler;-Compiler.Test'",
                 "-classfilters:'-System.Text.RegularExpressions.Generated*'"
