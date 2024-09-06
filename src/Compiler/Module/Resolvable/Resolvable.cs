@@ -330,7 +330,7 @@ public class ResolvableParent {
             if (!safeWorkingResolvable.RequirementsResolved) {
                 if (iterating.Count == 0) {
                     Logger.Debug("Requirements not resolved, waiting for them to be resolved.");
-                    await safeWorkingResolvable.RequirementsWaitHandle.WaitOneAsync(-1, Program.CancelSource.Token);
+                    await safeWorkingResolvable.RequirementsWaitHandle.WaitOneAsync(10000, Program.CancelSource.Token);
                 } else {
                     Logger.Debug("Requirements not resolved, pushing to the end of the queue.");
                     iterating.Enqueue((parentResolvable, workingModuleSpec));

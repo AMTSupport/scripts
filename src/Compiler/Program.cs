@@ -178,6 +178,10 @@ public class Program {
             return 1;
         }
 
+        RunspacePool.Value.Close();
+        RunspacePool.Value.Dispose();
+        LogManager.Shutdown();
+
         return result;
     }
 
@@ -406,11 +410,5 @@ public class Program {
         }
 
         return FinSucc(result);
-    }
-
-    ~Program() {
-        RunspacePool.Value.Close();
-        RunspacePool.Value.Dispose();
-        LogManager.Shutdown();
     }
 }
