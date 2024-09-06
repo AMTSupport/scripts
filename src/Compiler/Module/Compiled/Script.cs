@@ -53,7 +53,8 @@ public class CompiledScript(
             var compiledRequirements = await Task.WhenAll(thisGraph
                 .OutEdges(resolvable)
                 .Select(async edge => {
-                    return this.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec)
+                    var verticies = this.Graph.Vertices.ToList(); // Prevents concurrent modification exception.
+                    return verticies.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec)
                         ?? (await resolvableParent.WaitForCompiled(edge.Target.ModuleSpec)).ThrowIfFail();
                 }));
 
