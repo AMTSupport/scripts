@@ -11,10 +11,10 @@ using LanguageExt.Traits;
 using NLog;
 namespace Compiler.Module.Resolvable;
 
-public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSpec), IDisposable {
+public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSpec) {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     private static readonly object UsingPSRepoLock = new();
-    private MemoryStream? MemoryStream;
+    private byte[]? Bytes;
 
     // Only public for testing purposes.
     public Atom<Either<string, ManualResetEventSlim>>? CachedFile;
@@ -25,22 +25,18 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
         this.ModuleSpec.Name
     );
 
-    ~ResolvableRemoteModule() {
-        this.MemoryStream?.Dispose();
-    }
-
     [Pure]
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) => this.ModuleSpec.CompareTo(requirement);
 
     public override async Task<Option<Error>> ResolveRequirements() {
-        this.MemoryStream ??= new MemoryStream(File.ReadAllBytes((await this.FindCachedResult()).ToFin().BindFail(_ => this.CacheResult()).Match(
+        this.Bytes ??= File.ReadAllBytes((await this.FindCachedResult()).ToFin().BindFail(_ => this.CacheResult()).Match(
             Fail: error => throw error,
             Succ: path => path
-        )), false);
+        ));
 
-        return this.MemoryStream.AsOption()
-            .Filter(static memoryStream => memoryStream == null || memoryStream.Length != 0)
-            .Map(static memoryStream => new ZipArchive(memoryStream, ZipArchiveMode.Read, true))
+        return this.Bytes.AsOption()
+            .Filter(static bytes => bytes == null || bytes.Length != 0)
+            .Map(static bytes => new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, false))
             .Map(archive => archive.GetEntry($"{this.ModuleSpec.Name}.psd1"))
             .Filter(static entry => entry != null)
             .Select(entry => entry!.Open())
@@ -75,22 +71,21 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
     }
 
     public override async Task<Fin<Compiled.Compiled>> IntoCompiled() {
-        if (this.MemoryStream == null) {
-            var memoryStreamResult = (await this.FindCachedResult()).ToFin()
+        if (this.Bytes == null) {
+            var bytesResult = (await this.FindCachedResult()).ToFin()
                 .BiBind(
                     Succ: value => FinSucc(value),
                     Fail: _ => this.CacheResult().Catch(err => err.Enrich(this.ModuleSpec)).As())
-                .AndThen(File.ReadAllBytes)
-                .AndThen(bytes => new MemoryStream([.. bytes], false));
+                .AndThen(File.ReadAllBytes);
 
-            if (memoryStreamResult.IsErr(out var error, out _)) return error;
-            this.MemoryStream = memoryStreamResult.Unwrap();
+            if (bytesResult.IsErr(out var error, out _)) return error;
+            this.Bytes = bytesResult.Unwrap();
         }
 
         return new CompiledRemoteModule(
             this.ModuleSpec,
             this.Requirements,
-            this.MemoryStream
+            this.Bytes
         );
     }
 
@@ -212,9 +207,4 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
 
     [Pure]
     public override int GetHashCode() => this.ModuleSpec.GetHashCode();
-
-    public void Dispose() {
-        this.MemoryStream?.Dispose();
-        GC.SuppressFinalize(this);
-    }
 }

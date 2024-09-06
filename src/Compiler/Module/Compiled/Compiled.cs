@@ -35,7 +35,7 @@ public abstract class Compiled {
         this.ModuleSpec = moduleSpec;
         this.Requirements = requirements;
 
-        var byteList = new List<byte>(hashableBytes);
+        var byteList = new List<byte>((byte[])hashableBytes.Clone());
         AddRequirementHashBytes(byteList, requirements);
         this.ComputedHash = Convert.ToHexString(SHA256.HashData(byteList.ToArray()));
     }
@@ -62,11 +62,6 @@ public abstract class Compiled {
         Content = {{this.StringifyContent()}}
     }
     """;
-
-    public static void AddRequirementHashBytes(List<byte> hashableBytes, RequirementGroup requirementGroup) {
-        var requirements = requirementGroup.GetRequirements();
-        requirements.ToList().ForEach(requirement => hashableBytes.AddRange(requirement.Hash));
-    }
 
     protected Compiled GetRootParent() {
         if (this.Parents.Count == 0) return this;
@@ -112,6 +107,14 @@ public abstract class Compiled {
         if (siblings.Length == 0) return null;
 
         return siblings.FirstOrDefault(compiled => compiled.ModuleSpec == moduleSpec);
+    }
+
+    public static void AddRequirementHashBytes(
+        [NotNull] List<byte> hashableBytes,
+        [NotNull] RequirementGroup requirementGroup
+    ) {
+        var requirements = requirementGroup.GetRequirements();
+        requirements.ToList().ForEach(requirement => hashableBytes.AddRange(requirement.Hash));
     }
 }
 
