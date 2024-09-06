@@ -106,11 +106,13 @@ public class CompiledScript(
             paramBlock.AppendLine("[CmdletBinding()]\nparam()");
         }
 
-        var importOrder = this.Graph.TopologicalSort()
-            .Skip(1) // Skip the root node.
-            .Reverse()
-            .Select(module => $"'{module.GetNameHash()}'")
-            .Aggregate((a, b) => $"{a}, {b}");
+        var importOrder = this.Graph.VertexCount > 1
+            ? this.Graph.TopologicalSort()
+                .Skip(1) // Skip the root node.
+                .Reverse()
+                .Select(module => $"'{module.ModuleSpec.Name}'")
+                .Aggregate((a, b) => $"{a}, {b}")
+            : string.Empty;
 
         // TODO - Implement a way to replace #!DEFINE macros in the template.
         // This could also be how we can implement secure variables during compilation.
