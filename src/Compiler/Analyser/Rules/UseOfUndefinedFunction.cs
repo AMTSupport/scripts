@@ -28,7 +28,7 @@ public class UseOfUndefinedFunction : Rule {
         return !supressions.Any(supression => {
             switch (supression.Data) {
                 case IEnumerable<string> functions:
-                    return functions.Contains(callName);
+                    return functions.Any(function => function.Equals(callName, StringComparison.OrdinalIgnoreCase));
                 case string function:
                     return function == callName;
                 default:
@@ -44,8 +44,8 @@ public class UseOfUndefinedFunction : Rule {
         var commandAst = (CommandAst)node;
         var callName = SanatiseName(commandAst.GetCommandName());
         if (BuiltinsFunctions.Contains(callName)) yield break;
-        if (AstHelper.FindAvailableFunctions(AstHelper.FindRoot(node), false).Select(definition => SanatiseName(definition.Name)).Any(name => name == callName)) yield break;
-        if (importedModules.Any(module => module.GetExportedFunctions().Contains(callName))) yield break;
+        if (AstHelper.FindAvailableFunctions(AstHelper.FindRoot(node), false).Select(definition => SanatiseName(definition.Name)).Contains(callName)) yield break;
+        if (importedModules.Any(module => module.GetExportedFunctions().Select(SanatiseName).Contains(callName))) yield break;
 
         yield return Issue.Warning(
             $"Undefined function '{callName}'",
@@ -58,7 +58,7 @@ public class UseOfUndefinedFunction : Rule {
         var withOutExtension = name.Contains('.') ? name.Split('.').First() : name;
         var withoutScope = withOutExtension.Contains(':') ? withOutExtension.Split(':').Last() : withOutExtension;
 
-        return withoutScope;
+        return withoutScope.ToLowerInvariant();
     }
 
     /// <summary>
@@ -89,6 +89,6 @@ public class UseOfUndefinedFunction : Rule {
             Get-Command * | Select-Object -ExpandProperty Name
         """).Invoke();
         defaultFunctions.AddRange(ps.Select(commandName => ((string)commandName.BaseObject).Replace(".exe", "")));
-        return defaultFunctions.Distinct();
+        return defaultFunctions.Distinct().Select(SanatiseName);
     }
 }
