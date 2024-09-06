@@ -18,7 +18,7 @@ public class CompiledRemoteModule : Compiled {
     private Hashtable? PowerShellManifest;
     private ZipArchive? ZipArchive;
 
-    public readonly MemoryStream MemoryStream;
+    public readonly byte[] Bytes;
 
     public override ContentType Type => ContentType.Zip;
 
@@ -27,9 +27,9 @@ public class CompiledRemoteModule : Compiled {
     internal CompiledRemoteModule(
         ModuleSpec moduleSpec,
         RequirementGroup requirements,
-        MemoryStream memoryStream
-    ) : base(moduleSpec, requirements, memoryStream.ToArray()) {
-        this.MemoryStream = memoryStream;
+        byte[] bytes
+    ) : base(moduleSpec, requirements, bytes) {
+        this.Bytes = bytes;
 
         var manifest = this.GetPowerShellManifest();
         this.Version = manifest["ModuleVersion"] switch {
@@ -40,10 +40,7 @@ public class CompiledRemoteModule : Compiled {
     }
 
     public override string StringifyContent() {
-        // Convert to a powershell byte array
-        var bytes = new byte[this.MemoryStream.Length];
-        this.MemoryStream.Read(bytes, 0, bytes.Length);
-        var base64 = Convert.ToBase64String(bytes);
+        var base64 = Convert.ToBase64String(this.Bytes);
         return $"'{base64}'";
     }
 
@@ -92,7 +89,7 @@ public class CompiledRemoteModule : Compiled {
         return exportedFunctions;
     }
 
-    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(this.MemoryStream, ZipArchiveMode.Read, true);
+    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(new MemoryStream((byte[])this.Bytes.Clone()), ZipArchiveMode.Read, false);
 
     private Hashtable GetPowerShellManifest() {
         if (this.PowerShellManifest != null) return this.PowerShellManifest;
