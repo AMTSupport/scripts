@@ -1,7 +1,6 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
-using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Reflection;
 using System.Text;
@@ -16,12 +15,16 @@ using QuikGraph.Graphviz;
 
 namespace Compiler.Module.Compiled;
 
-public class CompiledScript : CompiledLocalModule {
+public class CompiledScript(
+    PathedModuleSpec moduleSpec,
+    CompiledDocument document,
+    RequirementGroup requirements
+) : CompiledLocalModule(moduleSpec, document, requirements) {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-    public readonly ParamBlockAst? ScriptParamBlock;
+    public virtual ParamBlockAst? ScriptParamBlock { get; }
 
-    public readonly BidirectionalGraph<Compiled, Edge<Compiled>> Graph;
+    public virtual BidirectionalGraph<Compiled, Edge<Compiled>> Graph { get; } = new();
 
     /// <summary>
     /// Creates a new compiled script.
@@ -37,10 +40,9 @@ public class CompiledScript : CompiledLocalModule {
         ResolvableParent resolvableParent,
         ParamBlockAst? scriptParamBlock,
         RequirementGroup requirements
-    ) : base(thisResolvable.ModuleSpec, document, requirements) {
+    ) : this(thisResolvable.ModuleSpec, document, requirements) {
         this.ScriptParamBlock = scriptParamBlock;
 
-        this.Graph = new BidirectionalGraph<Compiled, Edge<Compiled>>();
         this.Graph.AddVertex(this);
         // Add the parent-child relationships to each module.
         this.Graph.EdgeAdded += edge => edge.Target.Parents.Add(edge.Source);

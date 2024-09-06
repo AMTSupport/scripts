@@ -27,9 +27,6 @@ public class ResolvableRemoteModuleTests {
         }
     }
 
-    [TearDown]
-    public void Teardown() => this.ResolvableRemoteModule.Dispose();
-
     [Test]
     public void CachePath_IsCorrect() {
         var cachePath = this.ResolvableRemoteModule.CachePath;
