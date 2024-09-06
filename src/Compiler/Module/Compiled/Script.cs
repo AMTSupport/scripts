@@ -47,11 +47,6 @@ public class CompiledScript(
         // Add the parent-child relationships to each module.
         this.Graph.EdgeAdded += edge => edge.Target.Parents.Add(edge.Source);
         var thisGraph = resolvableParent.GetGraphFromRoot(thisResolvable);
-        var dotGraph = thisGraph.ToGraphviz(alg => {
-            alg.FormatVertex += (sender, args) => args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
-        });
-        Logger.Debug($"Graph for {thisResolvable.ModuleSpec.Name}:\n{dotGraph}");
-
         var loadOrder = thisGraph.TopologicalSort();
         var reversedLoadOrder = loadOrder.Reverse();
         Task.WhenAll(reversedLoadOrder.Select(async resolvable => {
@@ -73,7 +68,7 @@ public class CompiledScript(
             } else {
                 this.Graph.AddVertex(compiledModule);
             }
-        })).Wait();
+        })).Wait(10000);
 
         this.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled => {
             var imports = this.Graph.OutEdges(compiled).Select(edge => edge.Target);
