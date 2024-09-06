@@ -37,4 +37,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Compiler\Compiler.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/Microsoft.PowerShell.PSResourceGet.1.0.5.nupkg" />
+    <EmbeddedResource Include="Resources/PackageManagement.1.4.8.1.nupkg" />
+    <EmbeddedResource Include="Resources/PowerShellGet.2.2.5.nupkg" />
+    <EmbeddedResource Include="Resources/PSReadLine.2.3.5.nupkg" />
+  </ItemGroup>
 </Project>

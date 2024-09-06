@@ -9,11 +9,11 @@ using Compiler.Requirements;
 namespace Compiler.Module.Compiled;
 
 public abstract class Compiled {
-    internal List<Compiled> Parents = [];
+    public virtual List<Compiled> Parents { get; } = [];
 
-    public readonly ModuleSpec ModuleSpec;
+    public virtual ModuleSpec ModuleSpec { get; }
 
-    public RequirementGroup Requirements;
+    public virtual RequirementGroup Requirements { get; }
 
     /// <summary>
     /// Gets combined the hash of the content and requirements of the module.
@@ -63,7 +63,7 @@ public abstract class Compiled {
     }
     """;
 
-    protected Compiled GetRootParent() {
+    public Compiled GetRootParent() {
         if (this.Parents.Count == 0) return this;
 
         // All parents should point to the same root parent eventually.
@@ -83,7 +83,7 @@ public abstract class Compiled {
     /// </returns>
     [Pure]
     [return: NotNull]
-    protected Compiled[] GetSiblings() {
+    public Compiled[] GetSiblings() {
         var rootParent = this.GetRootParent();
         if (rootParent is not CompiledScript script) return [];
 
@@ -100,7 +100,7 @@ public abstract class Compiled {
     /// The sibling if it exists, otherwise null.
     /// </returns>
     [Pure]
-    protected Compiled? FindSibling([NotNull] ModuleSpec moduleSpec) {
+    public Compiled? FindSibling([NotNull] ModuleSpec moduleSpec) {
         if (ReferenceEquals(moduleSpec, this.ModuleSpec)) return this;
 
         var siblings = this.GetSiblings();

@@ -4,12 +4,14 @@
 using static Compiler.Module.Compiled.Compiled;
 using Compiler.Requirements;
 using System.Collections;
+using Moq;
+using RealCompiled = Compiler.Module.Compiled.Compiled;
 
 namespace Compiler.Test.Module.Compiled;
 
 [TestFixture]
 public class CompiledTests {
-    [TestCaseSource(typeof(TestData), nameof(TestData.AddRequirementHashData)), Repeat(10)]
+    [TestCaseSource(typeof(TestData), nameof(TestData.AddRequirementHashData)), Repeat(10), Parallelizable]
     public void AddRequirementHashBytes_AlwaysSameResult(
         byte[] hashableBytes,
         RequirementGroup requirementGroup
@@ -29,6 +31,25 @@ public class CompiledTests {
                 Assert.That(result, Is.EqualTo(firstResult));
             }
         });
+    }
+
+    [Test]
+    public void GetRootParent_WhenNoParents_ReturnsSelf() {
+        var mockCompiled = TestData.GetMockCompiledModule();
+        mockCompiled.Setup(x => x.Parents).Returns([]);
+
+        Assert.That(mockCompiled.Object.GetRootParent(), Is.EqualTo(mockCompiled.Object));
+    }
+
+    [Test]
+    public void GetRootParent_WhenHasParents_ReturnsRootParent() {
+        var rootParent = TestData.GetMockCompiledModule();
+        var parent = TestData.GetMockCompiledModule();
+        var mockCompiled = TestData.GetMockCompiledModule();
+        mockCompiled.Setup(x => x.Parents).Returns([parent.Object]);
+        parent.Setup(x => x.Parents).Returns([rootParent.Object]);
+
+        Assert.That(mockCompiled.Object.GetRootParent(), Is.EqualTo(rootParent.Object));
     }
 }
 
@@ -70,5 +91,17 @@ file static class TestData {
                 }
             ).SetName("Single type of Requirement");
         }
+    }
+
+    public static Mock<RealCompiled> GetMockCompiledModule() {
+        var random = TestContext.CurrentContext.Random;
+        var moduleSpec = new ModuleSpec(random.GetString(6));
+        var requirements = new RequirementGroup();
+        var hashableBytes = new byte[random.Next(10, 100)];
+        random.NextBytes(hashableBytes);
+
+        return new Mock<RealCompiled>(moduleSpec, requirements, hashableBytes) {
+            CallBase = true
+        };
     }
 }

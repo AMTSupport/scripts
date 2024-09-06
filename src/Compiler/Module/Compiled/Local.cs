@@ -2,6 +2,7 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -10,19 +11,17 @@ using LanguageExt;
 namespace Compiler.Module.Compiled;
 
 
-public class CompiledLocalModule : Compiled {
+public class CompiledLocalModule(
+    PathedModuleSpec moduleSpec,
+    CompiledDocument document,
+    RequirementGroup requirements
+) : Compiled(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent())) {
     public override ContentType Type { get; } = ContentType.UTF8String;
 
     // Local modules are always version 0.0.1, as they are not versioned.
     public override Version Version { get; } = new Version(0, 0, 1);
 
-    public readonly CompiledDocument Document;
-
-    internal CompiledLocalModule(
-        PathedModuleSpec moduleSpec,
-        CompiledDocument document,
-        RequirementGroup requirements
-    ) : base(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent())) => this.Document = document;
+    public virtual CompiledDocument Document { get; } = document;
 
     public override string StringifyContent() => new StringBuilder()
         .AppendLine("<#ps1#> @'")
@@ -40,6 +39,7 @@ public class CompiledLocalModule : Compiled {
         .Append("'@;")
         .ToString();
 
+    [ExcludeFromCodeCoverage(Justification = "We don't need to test this, as it's just a wrapper.")]
     public override IEnumerable<string> GetExportedFunctions() =>
         AstHelper.FindAvailableFunctions(this.Document.Ast, true).Select(function => function.Name);
 }

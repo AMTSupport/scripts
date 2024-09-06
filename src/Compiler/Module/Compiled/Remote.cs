@@ -2,7 +2,6 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
-using System.Diagnostics.Contracts;
 using System.IO.Compression;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
@@ -24,7 +23,7 @@ public class CompiledRemoteModule : Compiled {
 
     public override Version Version { get; }
 
-    internal CompiledRemoteModule(
+    public CompiledRemoteModule(
         ModuleSpec moduleSpec,
         RequirementGroup requirements,
         byte[] bytes
