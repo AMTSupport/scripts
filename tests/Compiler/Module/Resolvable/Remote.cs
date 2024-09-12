@@ -7,9 +7,9 @@ using Compiler.Module;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using LanguageExt;
-using LanguageExt.ClassInstances.Pred;
 using LanguageExt.Common;
 using LanguageExt.UnsafeValueAccess;
+using Moq;
 
 namespace Compiler.Test.Module.Resolvable;
 
@@ -20,7 +20,9 @@ public class ResolvableRemoteModuleTests {
     [SetUp]
     public void Setup() {
         var moduleSpec = new ModuleSpec("PSReadLine", requiredVersion: new Version(2, 3, 5));
-        this.ResolvableRemoteModule = new ResolvableRemoteModule(moduleSpec);
+        this.ResolvableRemoteModule = new Mock<ResolvableRemoteModule>(moduleSpec) {
+            CallBase = true
+        }.Object;
 
         if (Directory.Exists(this.ResolvableRemoteModule.CachePath)) {
             Directory.Delete(this.ResolvableRemoteModule.CachePath, true); // Clean up any previous caches
@@ -116,45 +118,53 @@ public class ResolvableRemoteModuleTests {
     }
 
     [Test, NonParallelizable]
-    public async Task FindCachedResult_WaitsForEvent() {
-        this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<string, ManualResetEventSlim>.Right(new ManualResetEventSlim(false)));
+    public async Task FindCachedResult_WaitsForTask() {
+        var manualEvent = new ManualResetEventSlim(false);
+        var task = Task.Run(async () => {
+            await manualEvent.WaitHandle.WaitOneAsync(-1, CancellationToken.None);
+            return Prelude.Some("testfile");
+        });
+
+        this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<Option<string>, Task<Option<string>>>.Right(task));
         var resultTask = this.ResolvableRemoteModule.FindCachedResult();
 
         await Task.Delay(250);
 
-        Assert.Multiple(() => {
+        Assert.Multiple(async () => {
+            Assert.That(task.IsCompleted, Is.False);
             Assert.That(resultTask.IsCompleted, Is.False);
-            ((ManualResetEventSlim)this.ResolvableRemoteModule.CachedFile.Value).Set();
-            this.ResolvableRemoteModule.CachedFile.Swap(_ => Either<string, ManualResetEventSlim>.Left("testfile"));
-            Assert.That(async () => await resultTask, Is.EqualTo(Prelude.Some("testfile")));
+            Assert.That(this.ResolvableRemoteModule.CachedFile.Value, Is.EqualTo(task));
+
+            manualEvent.Set();
+            await this.ResolvableRemoteModule.CachedFile.SwapAsync(async _ => await task);
+
+            Assert.That(resultTask.IsCompleted, Is.True);
+            Assert.That(resultTask.Result, Is.EqualTo(Prelude.Some("testfile")));
         });
     }
 
     [Test]
     public void FindCachedResult_CreatesEventWhenFoundAndSetsCache() {
-        var resetEvent = new ManualResetEventSlim(false);
-        this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<string, ManualResetEventSlim>.Right(resetEvent));
         TestData.CreateDummyCacheFiles(this.ResolvableRemoteModule, "2.3.5");
 
         var resultTask = this.ResolvableRemoteModule.FindCachedResult();
         Assert.Multiple(() => {
-            Assert.That(async () => await resetEvent.WaitHandle.WaitOneAsync(500, new CancellationTokenSource(-1).Token), Throws.Nothing);
             Assert.That(async () => (await resultTask).Unwrap(), Is.EqualTo(Path.Join(this.ResolvableRemoteModule.CachePath, "PSReadLine.2.3.5.nupkg")));
 
-            Assert.That(this.ResolvableRemoteModule.CachedFile.Value.IsLeft, Is.True);
-            Assert.That((string)this.ResolvableRemoteModule.CachedFile.Value, Is.EqualTo(Path.Join(this.ResolvableRemoteModule.CachePath, "PSReadLine.2.3.5.nupkg")));
+            Assert.That(this.ResolvableRemoteModule.CachedFile!.Value.IsLeft, Is.True);
+            Assert.That(((Option<string>)this.ResolvableRemoteModule.CachedFile!.Value).Unwrap(), Is.EqualTo(Path.Join(this.ResolvableRemoteModule.CachePath, "PSReadLine.2.3.5.nupkg")));
         });
     }
 
     [Test, Repeat(2)]
-    public void CacheResult_DownloadsValidFile() {
+    public async Task CacheResult_DownloadsValidFile() {
         if (TestContext.CurrentContext.CurrentRepeatCount % 2 == 0) {
             // Allows us to cover the last branch of swapping the either method
-            this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<string, ManualResetEventSlim>.Right(new ManualResetEventSlim(false)));
+            // this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<string, Task<Option<string>>>.Right(Task.FromResult(Option<string>.None)));
         }
 
-        Assert.Multiple(() => {
-            var result = this.ResolvableRemoteModule.CacheResult().ThrowIfFail();
+        await Assert.MultipleAsync(async () => {
+            var result = (await this.ResolvableRemoteModule.CacheResult()).ThrowIfFail();
             Assert.That(File.Exists(result), Is.True);
             Assert.That(Path.GetDirectoryName(result), Is.EqualTo(this.ResolvableRemoteModule.CachePath));
 

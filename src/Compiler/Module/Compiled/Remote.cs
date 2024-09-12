@@ -57,7 +57,7 @@ public class CompiledRemoteModule : Compiled {
                     archive.ExtractToDirectory(tempOutput);
                 }
 
-                var sessionState = InitialSessionState.CreateDefault();
+                var sessionState = InitialSessionState.CreateDefault2();
                 sessionState.ImportPSModulesFromPath(tempModuleRootPath);
                 var pwsh = PowerShell.Create(sessionState);
                 return pwsh.Runspace.SessionStateProxy.InvokeCommand

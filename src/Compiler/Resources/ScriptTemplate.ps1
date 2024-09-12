@@ -1,8 +1,8 @@
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-    'PSAvoidGlobalVars',
-    'Global:CompiledScript',
-    Justification = 'Required to inform modules of runtime type.'
-)]
+# [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+#     'PSAvoidGlobalVars',
+#     'Global:CompiledScript',
+#     Justification = 'Required to inform modules of runtime type.'
+# )]
 #!DEFINE PARAM_BLOCK
 begin {
     [Boolean]$Global:CompiledScript = $True;
