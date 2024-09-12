@@ -131,7 +131,7 @@ public class CompiledScript(
             ? this.Graph.TopologicalSort()
                 .Skip(1) // Skip the root node.
                 .Reverse()
-                .Select(module => $"'{module.ModuleSpec.Name}'")
+                .Select(module => $"'{module.GetNameHash()}'")
                 .Aggregate((a, b) => $"{a}, {b}")
             : string.Empty;
 
