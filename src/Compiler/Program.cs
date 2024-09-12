@@ -29,11 +29,7 @@ public class Program {
 
     internal static bool IsDebugging;
 
-    internal static readonly AutoResetEvent AutoEvent = new(false);
-
     internal static readonly ConcurrentBag<LanguageExt.Common.Error> Errors = [];
-
-    internal static readonly CancellationTokenSource CancelSource = new();
 
     public static readonly Lazy<RunspacePool> RunspacePool = new(() => {
         var sessionState = InitialSessionState.CreateDefault2();
@@ -75,15 +71,19 @@ public class Program {
                 CleanInput(opts);
                 IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
 
-                var filesToCompile = GetFilesToCompile(opts.Input!);
+                if (GetFilesToCompile(opts.Input!).IsErr(out var error, out var filesToCompile)) {
+                    Errors.Add(error);
+                    return 1;
+                }
+
                 EnsureDirectoryStructure(opts.Input!, opts.Output, filesToCompile);
 
                 var superParent = new ResolvableParent();
 
                 ConcurrentBag<(string, Exception)> compilerErrors = [];
-                GetFilesToCompile(opts.Input!).ToList().ForEach(scriptPath => {
+                filesToCompile.ToList().ForEach(async scriptPath => {
                     var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
-                    if (Resolvable.TryCreateScript(pathedModuleSpec, superParent).IsErr(out var error, out var resolvableScript)) {
+                    if ((await Resolvable.TryCreateScript(pathedModuleSpec, superParent)).IsErr(out var error, out var resolvableScript)) {
                         compilerErrors.Add((scriptPath, error));
                         return;
                     }
@@ -95,7 +95,6 @@ public class Program {
                             scriptPath,
                             compiled.GetPowerShellObject(),
                             opts.Force);
-                        Logger.Debug($"Compiled {scriptPath}");
                     });
                 });
 
@@ -105,7 +104,7 @@ public class Program {
                     Errors.Add(err);
                 }
 
-                Logger.Debug("Finished compilation.");
+                Logger.Trace("Finished compilation.");
 
                 if (compilerErrors.IsEmpty) return 0;
 
@@ -128,61 +127,13 @@ public class Program {
             }
         );
 
-        if (!Errors.IsEmpty) {
-            do {
-                ThreadPool.GetAvailableThreads(out var workerThreads, out _);
-                ThreadPool.GetMaxThreads(out var maxThreads, out _);
-                Logger.Debug($"Waiting for all threads to finish, {ThreadPool.PendingWorkItemCount} items left using {ThreadPool.ThreadCount} threads.");
-                Logger.Debug($"Worker threads: {workerThreads} Max threads: {maxThreads}");
-                await Task.Delay(25);
-            } while (ThreadPool.PendingWorkItemCount != 0);
-
-            // Seriously .NET, why is there no fucking double ended queue.
-            var printedBefore = false; // This is to prevent a newline before the first error
-            var errorQueue = new Deque<LanguageExt.Common.Error>();
-            errorQueue.AddRange(Errors);
-            do {
-                var err = errorQueue.PopFirst();
-
-                // Flatten ManyErrors into the indiviuals
-                if (err is ManyErrors manyErrors) {
-                    errorQueue.PushRangeFirst(manyErrors.Errors);
-                    continue;
-                }
-
-                var type = err.IsExceptional ? LogLevel.Error : LogLevel.Warn;
-
-                if (printedBefore) {
-                    if (type == LogLevel.Error) {
-                        Console.Error.WriteLine();
-                    } else {
-                        Console.WriteLine();
-                    }
-                } else {
-                    printedBefore = true;
-                }
-
-                var message = err is Issue
-                    ? err.ToString()
-                    : err.Message
-                        + (IsDebugging
-                            ? (err.Exception.IsSome(out var exception)
-                                ? Environment.NewLine + exception.StackTrace
-                                : "")
-                            : ""
-                        );
-
-                Logger.Log(type, message);
-            } while (errorQueue.Count > 0);
-
-            return 1;
-        }
+        await OutputErrors(Errors);
 
         RunspacePool.Value.Close();
         RunspacePool.Value.Dispose();
         LogManager.Shutdown();
 
-        return result;
+        return result != 0 ? result : Errors.IsEmpty ? 0 : 1;
     }
 
     public static void CleanInput(Options opts) {
@@ -292,19 +243,19 @@ public class Program {
     }
 
 
-    public static IEnumerable<string> GetFilesToCompile(string input) {
+    public static Fin<IEnumerable<string>> GetFilesToCompile(string input) {
+        var files = new List<string>();
         if (File.Exists(input)) {
-            Logger.Debug($"Found file {input}");
-            yield return input;
+            files.Add(input);
         } else if (Directory.Exists(input)) {
             foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories)) {
-                Logger.Debug($"Found file {file}");
-                yield return file;
+                files.Add(file);
             }
         } else {
-            Logger.Error("Input must be a file or directory.");
-            Environment.Exit(1);
+            return LanguageExt.Common.Error.New($"Input {input} is not a file or directory.");
         }
+
+        return files;
     }
 
     public static void EnsureDirectoryStructure(
@@ -350,9 +301,65 @@ public class Program {
             }
         }
 
-        Logger.Info($"Writing to file {outputPath}");
+        Logger.Trace($"Writing to file {outputPath}");
         using var fileStream = File.Open(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await fileStream.WriteAsync(Encoding.UTF8.GetBytes(content));
+    }
+
+    public static async Task<int> OutputErrors(IEnumerable<LanguageExt.Common.Error> errors) {
+        if (Errors.IsEmpty) return 0;
+
+        // Wait for all threads to finish before outputting errors, this is to ensure all errors are captured.
+        do {
+            Logger.Debug($$"""
+            Waiting for all threads to finish {
+                Pending: {{ThreadPool.PendingWorkItemCount}}
+                Threads: {{ThreadPool.ThreadCount}}
+                Runspaces: {{Math.Abs(RunspacePool.Value.GetAvailableRunspaces() - RunspacePool.Value.GetMaxRunspaces())}} of {{RunspacePool.Value.GetMaxRunspaces()}}
+            }
+            """);
+            await Task.Delay(25);
+        } while (ThreadPool.PendingWorkItemCount != 0 && ThreadPool.ThreadCount > RunspacePool.Value.GetMaxRunspaces());
+
+        // Seriously .NET, why is there no fucking double ended queue.
+        var printedBefore = false; // This is to prevent a newline before the first error
+        var errorQueue = new Deque<LanguageExt.Common.Error>();
+        errorQueue.AddRange(errors);
+        do {
+            var err = errorQueue.PopFirst();
+
+            // Flatten ManyErrors into the indiviuals
+            if (err is ManyErrors manyErrors) {
+                errorQueue.PushRangeFirst(manyErrors.Errors);
+                continue;
+            }
+
+            var type = err.IsExceptional ? LogLevel.Error : LogLevel.Warn;
+
+            if (printedBefore) {
+                if (type == LogLevel.Error) {
+                    Console.Error.WriteLine();
+                } else {
+                    Console.WriteLine();
+                }
+            } else {
+                printedBefore = true;
+            }
+
+            var message = err is Issue issue
+                ? issue.ToString()
+                : err.Message
+                    + (IsDebugging
+                        ? (err.Exception.IsSome(out var exception)
+                            ? Environment.NewLine + exception.StackTrace
+                            : "")
+                        : ""
+                    );
+
+            Logger.Log(type, message);
+        } while (errorQueue.Count > 0);
+
+        return 1;
     }
 
     internal static PowerShell GetPowerShellSession() {

@@ -25,18 +25,14 @@ public sealed class CompiledDocument(
     public string GetContent() => string.Join('\n', this.Lines);
 
     public static Fin<CompiledDocument> FromBuilder(TextEditor builder, int indentBy = 0) {
-        Logger.Trace($"Creating CompiledDocument from {builder}");
-
         builder.AddEdit(() => new IndentUpdater(indentBy));
 
         var lines = builder.Document.Lines;
         var spanUpdates = new List<SpanUpdateInfo>();
         var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Priority).ToList();
         foreach (var textUpdater in sortedUpdaters) {
-            // Logger.Debug($"Applying updater {textUpdater} with priority {textUpdater.Priority}");
             spanUpdates.ForEach(textUpdater.PushByUpdate);
             var updateResult = textUpdater.Apply(lines);
-            Logger.Debug($"Update result: {updateResult}");
 
             updateResult.IfSucc(spanUpdates.AddRange);
             if (updateResult.IsErr(out var err, out _)) {

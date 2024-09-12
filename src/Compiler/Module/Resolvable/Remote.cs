@@ -7,7 +7,6 @@ using System.IO.Compression;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using LanguageExt;
-using LanguageExt.Traits;
 using NLog;
 namespace Compiler.Module.Resolvable;
 
@@ -17,7 +16,7 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
     private byte[]? Bytes;
 
     // Only public for testing purposes.
-    public Atom<Either<string, ManualResetEventSlim>>? CachedFile;
+    public Atom<Either<Option<string>, Task<Option<string>>>>? CachedFile;
 
     public string CachePath => Path.Join(
         Path.GetTempPath(),
@@ -29,10 +28,11 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) => this.ModuleSpec.CompareTo(requirement);
 
     public override async Task<Option<Error>> ResolveRequirements() {
-        this.Bytes ??= File.ReadAllBytes((await this.FindCachedResult()).ToFin().BindFail(_ => this.CacheResult()).Match(
-            Fail: error => throw error,
-            Succ: path => path
-        ));
+        if (this.Bytes == null) {
+            var cachedResult = await this.GetNupkgPath();
+            if (cachedResult.IsErr(out var error, out var nupkgPath)) return Some(error);
+            this.Bytes = File.ReadAllBytes(nupkgPath);
+        }
 
         return this.Bytes.AsOption()
             .Filter(static bytes => bytes == null || bytes.Length != 0)
@@ -72,14 +72,11 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
 
     public override async Task<Fin<Compiled.Compiled>> IntoCompiled() {
         if (this.Bytes == null) {
-            var bytesResult = (await this.FindCachedResult()).ToFin()
-                .BiBind(
-                    Succ: value => FinSucc(value),
-                    Fail: _ => this.CacheResult().Catch(err => err.Enrich(this.ModuleSpec)).As())
+            var bytesResult = (await this.GetNupkgPath())
+                .BindFail(err => err.Enrich(this.ModuleSpec))
                 .AndThen(File.ReadAllBytes);
 
-            if (bytesResult.IsErr(out var error, out _)) return error;
-            this.Bytes = bytesResult.Unwrap();
+            if (bytesResult.IsErr(out var error, out this.Bytes)) return error;
         }
 
         return new CompiledRemoteModule(
@@ -96,59 +93,78 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
         return obj is ResolvableRemoteModule other && this.GetModuleMatchFor(other.ModuleSpec) == ModuleMatch.Same;
     }
 
+    public async Task<Fin<string>> GetNupkgPath() {
+        var cachedResult = await this.FindCachedResult();
+        if (cachedResult.IsSome(out var path)) return path;
+
+        return (await this.CacheResult()).BindFail(err => err.Enrich(this.ModuleSpec));
+    }
+
     public async Task<Option<string>> FindCachedResult() {
         if (this.CachedFile is not null) {
             var either = this.CachedFile.Value;
-            if (either.IsLeft) return (string)either;
+            if (either.IsLeft) return (Option<string>)either;
 
-            var waitingForResetEvent = (ManualResetEventSlim)either;
-            await waitingForResetEvent.WaitHandle.WaitOneAsync(500, Program.CancelSource.Token);
-            await Task.Delay(10); // I don't know why this is needed, but it is.
-            if (waitingForResetEvent.IsSet) return (string)this.CachedFile.Value;
-        } else {
-            this.CachedFile = Atom<Either<string, ManualResetEventSlim>>(new ManualResetEventSlim(false));
+            var runningTask = (Task<Option<string>>)either;
+            return await runningTask;
         }
 
-        if (!Directory.Exists(this.CachePath)) return None;
+        var task = Task.Run<Option<string>>(() => {
+            if (!Directory.Exists(this.CachePath)) return None;
 
-        var files = Directory.GetFiles(this.CachePath, "*.nupkg");
-        if (files.Length == 0) return None;
+            var files = Directory.GetFiles(this.CachePath, "*.nupkg");
+            if (files.Length == 0) return None;
 
-        var versions = files.Where(file => {
-            var fileName = Path.GetFileName(file);
-            return fileName.StartsWith(this.ModuleSpec.Name, StringComparison.OrdinalIgnoreCase);
-        }).Bind(file => {
-            var fileName = Path.GetFileName(file);
-            var version = fileName.Substring(this.ModuleSpec.Name.Length + 1, fileName.Length - this.ModuleSpec.Name.Length - 1 - ".nupkg".Length);
+            var versions = files.Where(file => {
+                var fileName = Path.GetFileName(file);
+                return fileName.StartsWith(this.ModuleSpec.Name, StringComparison.OrdinalIgnoreCase);
+            }).Bind(file => {
+                var fileName = Path.GetFileName(file);
+                var version = fileName.Substring(this.ModuleSpec.Name.Length + 1, fileName.Length - this.ModuleSpec.Name.Length - 1 - ".nupkg".Length);
 
-            try {
-                return Some(new Version(version));
-            } catch {
-                return Option<Version>.None; // Ignore invalid versions.
-            }
+                try {
+                    return Some(new Version(version));
+                } catch {
+                    return Option<Version>.None; // Ignore invalid versions.
+                }
+            });
+
+            Func<Version, bool> findBestVersionFunc = (this.ModuleSpec.RequiredVersion, this.ModuleSpec.MinimumVersion, this.ModuleSpec.MaximumVersion) switch {
+                (Version requiredVersion, _, _) => version => version == requiredVersion,
+                (_, Version minimumVersion, Version maximumVersion) => version => version >= minimumVersion && version <= maximumVersion,
+                (_, Version minimumVersion, null) => version => version >= minimumVersion,
+                (_, null, Version maximumVersion) => version => version <= maximumVersion,
+                (null, null, null) => (_) => true
+            };
+
+            var posibleVersions = versions.Where(version => findBestVersionFunc(version)).ToArray();
+            var selectedVersion = posibleVersions.OrderByDescending(version => version).FirstOrDefault();
+            if (selectedVersion == null) return None;
+
+            var selectedFile = Path.Join(this.CachePath, $"{this.ModuleSpec.Name}.{selectedVersion}.nupkg");
+
+            return selectedFile;
         });
 
-        Func<Version, bool> findBestVersionFunc = (this.ModuleSpec.RequiredVersion, this.ModuleSpec.MinimumVersion, this.ModuleSpec.MaximumVersion) switch {
-            (Version requiredVersion, _, _) => version => version == requiredVersion,
-            (_, Version minimumVersion, Version maximumVersion) => version => version >= minimumVersion && version <= maximumVersion,
-            (_, Version minimumVersion, null) => version => version >= minimumVersion,
-            (_, null, Version maximumVersion) => version => version <= maximumVersion,
-            (null, null, null) => (_) => true
-        };
-
-        var posibleVersions = versions.Where(version => findBestVersionFunc(version)).ToArray();
-        var selectedVersion = posibleVersions.OrderByDescending(version => version).FirstOrDefault();
-        if (selectedVersion == null) return None;
-
-        var selectedFile = Path.Join(this.CachePath, $"{this.ModuleSpec.Name}.{selectedVersion}.nupkg");
-        var resetEvent = (ManualResetEventSlim)this.CachedFile.Value;
-        this.CachedFile.Swap(_ => Left(selectedFile));
-        resetEvent.Set();
-
-        return selectedFile;
+        this.CachedFile = Atom(Either<Option<string>, Task<Option<string>>>.Right(task));
+        var result = await task;
+        this.CachedFile.Swap(_ => Left(result));
+        return result;
     }
 
-    public Fin<string> CacheResult() {
+    public async Task<Fin<string>> CacheResult() {
+        if (this.CachedFile is not null) {
+            var either = this.CachedFile.Value;
+            if (either.IsLeft && ((Option<string>)either).IsSome(out var path)) {
+                return path;
+            } else if (either.IsRight) {
+                var runningTask = (Task<Option<string>>)either;
+                if ((await runningTask).IsSome(out path)) {
+                    return path;
+                }
+            }
+        }
+
         var versionString = ConvertVersionParameters(this.ModuleSpec.RequiredVersion?.ToString(), this.ModuleSpec.MinimumVersion?.ToString(), this.ModuleSpec.MaximumVersion?.ToString());
         var powerShellCode = /*ps1*/ $$"""
         Set-StrictMode -Version 3;
@@ -177,16 +193,9 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
                 .Map(objects => objects.First().ToString())
                 .Tap(path => {
                     if (this.CachedFile is null) {
-                        this.CachedFile = Atom<Either<string, ManualResetEventSlim>>(Left(path));
+                        this.CachedFile = Atom<Either<Option<string>, Task<Option<string>>>>(Left(Some(path)));
                     } else {
-                        this.CachedFile.Swap(v => {
-                            if (v.IsRight) {
-                                var resetEvent = (ManualResetEventSlim)v;
-                                resetEvent.Set();
-                            }
-
-                            return Left(path);
-                        });
+                        this.CachedFile.Swap(_ => Left(Some(path)));
                     }
                 });
         }

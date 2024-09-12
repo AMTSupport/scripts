@@ -31,13 +31,11 @@ public class CompiledScript(
     /// </summary>
     /// <param name="moduleSpec"></param>
     /// <param name="document"></param>
-    /// <param name="resolvableParent"></param>
     /// <param name="scriptParamBlock"></param>
     /// <param name="requirements"></param>
-    internal CompiledScript(
+    private CompiledScript(
         ResolvableScript thisResolvable,
         CompiledDocument document,
-        ResolvableParent resolvableParent,
         ParamBlockAst? scriptParamBlock,
         RequirementGroup requirements
     ) : this(thisResolvable.ModuleSpec, document, requirements) {
@@ -46,36 +44,58 @@ public class CompiledScript(
         this.Graph.AddVertex(this);
         // Add the parent-child relationships to each module.
         this.Graph.EdgeAdded += edge => edge.Target.Parents.Add(edge.Source);
+    }
+
+    public static async Task<Fin<CompiledScript>> Create(
+        ResolvableScript thisResolvable,
+        CompiledDocument document,
+        ResolvableParent resolvableParent,
+        ParamBlockAst? scriptParamBlock,
+        RequirementGroup requirements
+    ) {
+        var script = new CompiledScript(thisResolvable, document, scriptParamBlock, requirements);
+
         var thisGraph = resolvableParent.GetGraphFromRoot(thisResolvable);
         var loadOrder = thisGraph.TopologicalSort();
         var reversedLoadOrder = loadOrder.Reverse();
-        Task.WhenAll(reversedLoadOrder.Select(async resolvable => {
-            var compiledRequirements = await Task.WhenAll(thisGraph
-                .OutEdges(resolvable)
-                .Select(async edge => {
-                    var verticies = this.Graph.Vertices.ToList(); // Prevents concurrent modification exception.
-                    return verticies.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec)
-                        ?? (await resolvableParent.WaitForCompiled(edge.Target.ModuleSpec)).ThrowIfFail();
-                }));
 
-            var compiledModule = resolvable.ModuleSpec == thisResolvable.ModuleSpec
-                ? this
-                : (await resolvableParent.WaitForCompiled(resolvable.ModuleSpec)).ThrowIfFail();
+        foreach (var resolvable in reversedLoadOrder) {
+            var compiledRequirements = new List<Compiled>();
+            foreach (var edge in thisGraph.OutEdges(resolvable)) {
+                var requirement = script.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec);
+                if (requirement is null) {
+                    if ((await resolvableParent.WaitForCompiled(edge.Target.ModuleSpec)).IsErr(out var error, out var compiled)) {
+                        return error;
+                    }
 
-            if (compiledRequirements.Length != 0) {
-                this.Graph.AddVerticesAndEdgeRange(
-                    compiledRequirements.Select(requirement => new Edge<Compiled>(compiledModule, requirement))
-                );
-            } else {
-                this.Graph.AddVertex(compiledModule);
+                    requirement = compiled;
+                }
+                compiledRequirements.Add(requirement);
             }
-        })).Wait(10000);
 
-        this.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled => {
-            var imports = this.Graph.OutEdges(compiled).Select(edge => edge.Target);
+            Compiled? compiledModule = resolvable.ModuleSpec == thisResolvable.ModuleSpec ? script : null;
+            if (compiledModule is null) {
+                if ((await resolvableParent.WaitForCompiled(resolvable.ModuleSpec)).IsErr(out var error, out var compiled)) {
+                    return error;
+                }
+
+                compiledModule = compiled;
+            }
+
+            if (compiledRequirements.Count != 0) {
+                script.Graph.AddVerticesAndEdgeRange(compiledRequirements.Select(requirement => new Edge<Compiled>(compiledModule, requirement)));
+            } else {
+                script.Graph.AddVertex(compiledModule);
+            }
+        }
+
+        script.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled => {
+            var imports = script.Graph.OutEdges(compiled).Select(edge => edge.Target);
             Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports])
-                .ForEach(issue => Program.Errors.Add(issue.ToErrorException()));
+                .ForEach(issue => Program.Errors.Add(issue.Enrich(compiled.ModuleSpec)));
         });
+
+        return script;
     }
 
     public override string GetPowerShellObject() {
