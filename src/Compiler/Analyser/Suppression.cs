@@ -10,7 +10,11 @@ public record Suppression(
     [NotNull] Type Type,
     [AllowNull] object? Data,
     [NotNull] string Justification
-);
+) {
+    public override int GetHashCode() => HashCode.Combine(this.Type, this.Data, this.Justification);
+
+    public override string ToString() => $"[{this.Type.Name}] {this.Justification} ({this.Data})";
+}
 
 [AttributeUsage(AttributeTargets.All, AllowMultiple = true, Inherited = false)]
 public sealed class SuppressAnalyserAttribute(
@@ -35,7 +39,14 @@ public sealed class SuppressAnalyserAttribute(
     public static SuppressAnalyserAttribute? FromAttributeAst([NotNull] AttributeAst attrAst) {
         ArgumentNullException.ThrowIfNull(attrAst);
 
-        if (attrAst.TypeName.GetReflectionType() != typeof(SuppressAnalyserAttribute)) return null;
+        var typeName = attrAst.TypeName;
+        var attributeSuffixed = typeName.FullName.EndsWith("Attribute", StringComparison.OrdinalIgnoreCase) ? typeName.FullName : typeName.FullName + "Attribute";
+        var hasNamespace = typeName.Extent.Text.Contains('.');
+
+        if (!(typeName.GetReflectionAttributeType() == typeof(SuppressAnalyserAttribute)
+            || (hasNamespace && attributeSuffixed == typeof(SuppressAnalyserAttribute).FullName)
+            || (!hasNamespace && attributeSuffixed == nameof(SuppressAnalyserAttribute))
+        )) return null;
 
         string? checkType = null;
         object? data = null;
@@ -92,6 +103,15 @@ public sealed class SuppressAnalyserAttribute(
         if (string.IsNullOrWhiteSpace(checkType)) throw new ArgumentException("CheckType is required");
         if (string.IsNullOrWhiteSpace(justification)) throw new ArgumentException("Justification is required");
         if (data is null) throw new ArgumentException("Data is required");
+
+        switch (data) {
+            case string:
+                break;
+            case object[] dataArray when dataArray.All(v => v is string):
+                break;
+            default:
+                throw new ArgumentException($"Data must be a string or an array of strings, got {data.GetType().Name}");
+        }
 
         return new SuppressAnalyserAttribute(checkType, data, justification);
     }
