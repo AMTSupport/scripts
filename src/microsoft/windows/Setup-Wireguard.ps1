@@ -1,12 +1,15 @@
 #Requires -Version 5.1
 
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Input.psm1
+
 [CmdletBinding(SupportsShouldProcess)]
 param (
     [Parameter()]
     [String]$WireGuardPackage = 'wireguard'
 )
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 

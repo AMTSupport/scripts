@@ -1,5 +1,10 @@
 #Requires -Version 5.1
 
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Scope.psm1
+Using module ..\..\common\Connection.psm1
+
 param(
     [Parameter()]
     [Switch]$UpdatePolicies
@@ -55,7 +60,6 @@ function Update-SecurityAndCompilence(
 }
 
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Connect-Service -Services SecurityComplience,Graph -Scopes 'SecurityEvents.ReadWrite.All';
 

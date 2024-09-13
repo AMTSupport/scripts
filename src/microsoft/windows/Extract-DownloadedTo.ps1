@@ -1,3 +1,7 @@
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Scope.psm1
+
 [CmdletBinding(SupportsShouldProcess)]
 Param(
     [Parameter(Mandatory)]
@@ -38,7 +42,6 @@ function Get-DownloadedItem(
     }
 }
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     if (-not (Test-Path $ExtractTo)) {
         Invoke-Error "ExtractTo path $ExtractTo does not exist.";

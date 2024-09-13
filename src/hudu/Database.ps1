@@ -1,6 +1,7 @@
 Using module ../common/Environment.psm1
 Using module ../common/Logging.psm1
 Using module ../common/Input.psm1
+Using module ../common/Utils.psm1
 Using module ./Common.psm1
 
 [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Update')]
@@ -36,8 +37,8 @@ function New-HuduDatabase {
     $Local:BitwardenItems = $Local:BitWardenItems | await;
 
     $Local:DisplayItems = $Local:BitwardenItems `
-        | Select-Object -Property name, id `
-        | Sort-Object -Property name;
+    | Select-Object -Property name, id `
+    | Sort-Object -Property name;
 
     [HashTable]$Local:Matches = @{};
     foreach ($Local:Company in $Local:Companies) {
@@ -61,7 +62,7 @@ function New-HuduDatabase {
 
 Invoke-RunMain $PSCmdlet {
     if ($PSCmdlet.ParameterSetName -eq 'Update') {
-        Invoke-Info "Updating companies"
+        Invoke-Info 'Updating companies'
 
         if (-not $Endpoint) {
             $Endpoint = Get-UserInput -Title 'Hudu Endpoint' -Question 'Please enter your Hudu Endpoint';
@@ -74,7 +75,7 @@ Invoke-RunMain $PSCmdlet {
         # TODO :: Create update function if there is an existing file.
         New-HuduDatabase -Database "$Database/matched-companies.json" -Endpoint $Endpoint;
     } else {
-        Invoke-Info "Invoking existing companies";
+        Invoke-Info 'Invoking existing companies';
 
         # Invoke-EnsureModule -Modules "$PSScriptRoot/Existing.psm1";
         # Invoke-Existing-Company -Database $Database;

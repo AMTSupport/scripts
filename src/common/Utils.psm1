@@ -1186,4 +1186,6 @@ function Test-IsWindows11 {
     return $Private:OSCaption -match 'Windows 11';
 }
 
-Export-ModuleMember -Function Test-IsWindows11, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Export-Types, Add-ModuleCallback, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag -Alias await, async, lazy;
+Export-ModuleMember `
+    -Function Test-IsWindows11, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Export-Types, Add-ModuleCallback, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
+    -Alias await, async, lazy;

@@ -1,5 +1,9 @@
 #Requires -Version 5.1
 
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Scope.psm1
+
 Param(
     [Parameter(Mandatory, Position = 0, ParameterSetName = 'Default')]
     [Alias('Name')]
@@ -21,17 +25,17 @@ Param(
     ")]
     [String]$ChocoDriver,
 
-    [Parameter(HelpMessage = "
+    [Parameter(HelpMessage = '
         If specified, the manufacturer of the printer will be used to determine the driver to install.
         If not specified, the driver will be installed from the Chocolatey package.
-    ")]
-    [ValidateSet("Ricoh")]
+    ')]
+    [ValidateSet('Ricoh')]
     [String]$Manufacturer,
 
-    [Parameter(HelpMessage = "
+    [Parameter(HelpMessage = '
         If specified, printer will be added even if the computer cannot contact the printer.
         If not specified, if the computer cannot contact the printer, the script will silently exit.
-    ")]
+    ')]
     [Switch]$Force
 )
 
@@ -63,14 +67,14 @@ function Install-Driver_Ricoh() {
         Invoke-Info "Inf file found: $($Local:InfPath.FullName)";
         Invoke-Info "Inf name: $Local:InfName";
 
-        Invoke-Info "Installing Ricoh driver...";
+        Invoke-Info 'Installing Ricoh driver...';
         pnputil.exe /add-driver $Local:InfPath.FullName /install | Out-Null;
 
         [String]$Local:WindowsDriverPath = 'C:\Windows\System32\DriverStore\FileRepository';
         [System.IO.DirectoryInfo]$Local:DriverPath = Get-ChildItem -Path $Local:WindowsDriverPath -Filter "${Local:InfName}_*" -Recurse | Select-Object -First 1;
         [System.IO.FileInfo]$Local:DriverInfPath = Get-ChildItem -Path $Local:DriverPath.FullName -Filter $Local:InfName -Recurse | Select-Object -First 1;
 
-        Invoke-Info "Adding Ricoh driver to printer drivers...";
+        Invoke-Info 'Adding Ricoh driver to printer drivers...';
         Invoke-Info "Driver name: $DriverName";
         Invoke-Info "Driver path: $($Local:DriverPath.FullName)";
         Invoke-Info "Driver inf path: $($Local:DriverInfPath.FullName)";
@@ -119,7 +123,7 @@ function Install-Driver(
             return $DriverName;
         } elseif ($Manufacturer) {
             switch ($Manufacturer) {
-                "Ricoh" { Install-Driver_Ricoh; }
+                'Ricoh' { Install-Driver_Ricoh; }
             }
         } else {
             Invoke-Info 'No chocolatey package or manufacturer specified, trying to find driver already installed.';
@@ -138,10 +142,10 @@ function Install-Driver(
                 $Local:WaitTimeout -= $Local:ProcessingTime;
 
                 if ($Local:ProcessingTime.Milliseconds -lt 1000) {
-                    Invoke-Verbose "Processing time took less than 1 second, sleeping for the remainder of the second.";
+                    Invoke-Verbose 'Processing time took less than 1 second, sleeping for the remainder of the second.';
                     Start-Sleep -Milliseconds (1000 - $Local:ProcessingTime.Milliseconds);
                 } else {
-                    Invoke-Verbose "Wait timeout took longer than 1 second, skipping sleep.";
+                    Invoke-Verbose 'Wait timeout took longer than 1 second, skipping sleep.';
                 }
             } while ($Local:WaitTimeout.TotalSeconds -gt 0)
 
@@ -202,7 +206,6 @@ function Install-PrinterImpl(
     }
 }
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     [String]$Local:TrimmedPrinterName = $PrinterName.Trim();
     [String]$Local:TrimmedPrinterIP = $PrinterIP.Trim();
