@@ -11,12 +11,15 @@
         - Intune Device Configuration Profile (Optional)
 #>
 
-Using module Microsoft.Graph.Identity.SignIns;
-Using module Microsoft.Graph.Authentication;
-Using module Microsoft.Graph.Groups;
+Using module Microsoft.Graph.Identity.SignIns
+Using module Microsoft.Graph.Authentication
+Using module Microsoft.Graph.Groups
 
-Using namespace Microsoft.Graph.PowerShell.Models;
-Using namespace System.Management.Automation;
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+
+Using namespace Microsoft.Graph.PowerShell.Models
+Using namespace System.Management.Automation
 
 [CmdletBinding()]
 param()
@@ -241,7 +244,6 @@ function Set-ConditionalAccessPolicy {
 };
 
 # Register-ArgumentCompleter -CommandName:($PSCommandPath | Split-Path -Leaf) -ScriptBlock $Local:ScriptBlock
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet -Main:$Local:ScriptBlock;
 
 dynamicparam {

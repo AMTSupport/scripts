@@ -1,10 +1,10 @@
 #Requires -Version 7.1
 
 Using module ../../common/Environment.psm1
-Using module ../../common/Connect.psm1
+Using module ../../common/Connection.psm1
 Using module Microsoft.Graph.Identity.DirectoryManagement
 
-Using namespace Microsoft.Graph.PowerShell.Models;
+Using namespace Microsoft.Graph.PowerShell.Models
 
 # foreach ($domain in $domains) {
 #     # Get the domain name

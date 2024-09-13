@@ -1,3 +1,7 @@
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Exit.psm1
+
 [CmdletBinding()]
 param(
     [String]$BaseUrl = 'https://s3.amazonaws.com/new-swmsp-net-supportfiles/PermanentFiles/FeatureCleanup/Cleanup Scripts',
@@ -67,7 +71,6 @@ Function Invoke-UpdateScript {
     Invoke-Info "File '$ScriptName' has been updated.";
 }
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     foreach ($File in $FilesToFetch) {
         Invoke-UpdateScript -BaseUrl:$BaseUrl -ScriptName:$File;

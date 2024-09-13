@@ -1,9 +1,13 @@
-Using Module Microsoft.Graph.Authentication;
-Using Module Microsoft.Graph.Identity.DirectoryManagement;
-Using Module Microsoft.Graph.Users;
-Using Module ExchangeOnlineManagement;
+Using Module Microsoft.Graph.Authentication
+Using Module Microsoft.Graph.Identity.DirectoryManagement
+Using Module Microsoft.Graph.Users
+Using Module ExchangeOnlineManagement
 
-Using namespace Microsoft.Graph.PowerShell.Models;
+Using Module ..\common\Logging.psm1
+Using Module ..\common\Scope.psm1
+Using Module ..\common\Connection.psm1
+
+Using namespace Microsoft.Graph.PowerShell.Models
 
 Function Get-PrimaryDomain {
     Get-MgDomain | Where-Object { $_.IsDefault -eq $True };
@@ -20,10 +24,10 @@ function Get-AlertsUser {
 
     process {
         Trap {
-            Invoke-Warn @"
+            Invoke-Warn @'
 There was an error during the creation of the Alerts user.
 If a new mailbox was created, please ensure that the user account is correctly disabled at the least.
-"@;
+'@;
             Write-Error -ErrorRecord $_;
             return $null;
         }

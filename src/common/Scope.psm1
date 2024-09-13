@@ -11,7 +11,6 @@ function Get-Stack {
 }
 
 function Get-StackTop {
-    ;
     return (Get-Stack).Peek()
 }
 
@@ -102,8 +101,7 @@ $Local:EndingIndent}
             default {
                 if ($null -ne $Formatter) {
                     $Formatter.InvokeWithContext($null, [PSVariable]::new('_', $Value));
-                }
-                else {
+                } else {
                     $Value;
                 }
 

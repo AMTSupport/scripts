@@ -1,3 +1,7 @@
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Ensure.psm1
+
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Switch]$Nuke
@@ -31,7 +35,6 @@ function Get-DependentServices {
     return $result
 }
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 

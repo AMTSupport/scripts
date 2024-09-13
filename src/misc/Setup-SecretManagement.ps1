@@ -3,6 +3,7 @@
 Using module ../common/Environment.psm1
 Using module ../common/Ensure.psm1
 Using module ../common/Input.psm1
+
 Using module Microsoft.Powershell.SecretManagement
 
 [CmdletBinding()]
@@ -23,7 +24,6 @@ function Install-1Password {
 
 }
 
-Import-Module $PSScriptRoot/../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureUser;
     Install-ModuleFromGitHub -GitHubRepo 'cdhunt/SecretManagement.1Password' -Branch 'vNext' -Scope CurrentUser;

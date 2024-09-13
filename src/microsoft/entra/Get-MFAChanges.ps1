@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 
 Using module ../../common/Environment.psm1
-Using module ../../common/Connect.psm1
+Using module ../../common/Connection.psm1
 Using module ../../common/Logging.psm1
 Using module ../../common/Ensure.psm1
 Using module ../../common/Scope.psm1
@@ -771,7 +771,6 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
 
 }
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     if (-not $ClientsFolder) {
         [String[]]$Local:PossiblePaths = @(

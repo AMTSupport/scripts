@@ -1,5 +1,9 @@
 #Requires -Modules ExchangeOnlineManagement
 
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Scope.psm1
+
 Param(
     [Parameter(Mandatory)]
     [ValidateSet('MailBox', 'Policies', 'Outlook')]
@@ -281,7 +285,6 @@ function Update-AntiMalwarePolicy {
 
 #endregion - Policies
 
-Import-Module $PSScriptRoot/../../common/Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Connect-Service -Service ExchangeOnline;
 
