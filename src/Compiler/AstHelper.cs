@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Text;
 using Compiler.Analyser;
@@ -89,47 +90,93 @@ public static class AstHelper {
             .ToList();
 
         // Short circuit so we don't have to do any more work if we are not filtering for only exported functions.
-        if (!onlyExported) {
-            return allDefinedFunctions;
-        }
+        if (!onlyExported) return allDefinedFunctions;
 
+        return [.. GetWantedExports(ast, "Function", allDefinedFunctions, function => NameWithoutNamespace(function.Name))];
+    }
+
+    public static IEnumerable<string> FindAvailableAliases(Ast ast, bool onlyExported) {
+        var allAstFunctionCalls = ast
+            .FindAll(testAst => testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text is "Set-Alias" or "New-Alias", true)
+            .Cast<CommandAst>()
+            .ToList();
+
+        var allFunctionsWithAliases = ast
+            .FindAll(testAst => testAst is FunctionDefinitionAst, true)
+            .Cast<FunctionDefinitionAst>()
+            .Where(functionDefinition => functionDefinition.Body.ParamBlock.Attributes.Any(attribute => attribute.TypeName.GetReflectionType() == typeof(AliasAttribute)));
+
+        var availableAliases = new List<string>();
+        var attributeType = typeof(AliasAttribute);
+        availableAliases.AddRange(allFunctionsWithAliases.SelectMany(function => function.Body.ParamBlock.Attributes
+            .Where(attribute => attribute.TypeName.GetReflectionAttributeType() == attributeType)
+            .SelectMany(attribute => {
+                var aliasesObject = attribute.NamedArguments.FirstOrDefault(namedArg => namedArg.ArgumentName is "aliasNames")?.Argument
+                    ?? attribute.PositionalArguments.FirstOrDefault();
+
+                return aliasesObject switch {
+                    ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()).Cast<string>(),
+                    StringConstantExpressionAst stringConstantAst => [stringConstantAst.Value],
+                    _ => [],
+                };
+            })
+        ));
+
+        availableAliases.AddRange(allAstFunctionCalls.SelectMany(static commandAst => commandAst.CommandElements
+            .Where(static commandElement => commandElement is CommandParameterAst)
+            .Cast<CommandParameterAst>()
+            .Where(static param => param.ParameterName == "Name")
+            .Select(param => {
+                var value = param.Argument ?? commandAst.CommandElements[commandAst.CommandElements.IndexOf(param) + 1] as ExpressionAst;
+                return value switch {
+                    StringConstantExpressionAst stringConstantAst => stringConstantAst.Value,
+                    _ => null
+                };
+            })
+            .Where(static alias => !string.IsNullOrWhiteSpace(alias))
+            .Cast<string>()
+        // .Select(static ast => ast.Value)
+        ));
+
+        if (!onlyExported) return availableAliases;
+
+        return GetWantedExports(ast, "Alias", availableAliases, NameWithoutNamespace);
+    }
+
+    private static IEnumerable<T> GetWantedExports<T>(Ast ast, string kind, IEnumerable<T> availableItems, Func<T, string> getName) {
         var exportCommands = ast.FindAll(testAst =>
             testAst is CommandAst commandAst && commandAst.CommandElements[0].Extent.Text == "Export-ModuleMember", true
         ).Cast<CommandAst>();
 
         // If there are no Export-ModuleMember commands, we are exporting everything.
         if (!exportCommands.Any()) {
-            return allDefinedFunctions;
+            return availableItems;
         }
 
-        var wantingToExport = new List<(string, IEnumerable<string>)>();
+        var wantingToExport = new List<string>();
         foreach (var exportCommand in exportCommands) {
             // TODO - Support unnamed export param eg `Export-ModuleMember *`
             var namedParameters = exportCommand.CommandElements
                 .Where(commandElement => commandElement is CommandParameterAst)
                 .Cast<CommandParameterAst>()
-                .Where(param => param.ParameterName is "Function" or "Alias");
+                .Where(param => param.ParameterName.Equals(kind, StringComparison.OrdinalIgnoreCase));
 
             foreach (var namedParameter in namedParameters) {
                 var value = namedParameter.Argument
                     ?? exportCommand.CommandElements[exportCommand.CommandElements.IndexOf(namedParameter) + 1] as ExpressionAst;
 
                 var objects = value switch {
-                    StringConstantExpressionAst starAst when starAst.Value == "*" => allDefinedFunctions.Select(function => NameWithoutNamespace(function.Name)),
+                    StringConstantExpressionAst starAst when starAst.Value == "*" => availableItems.Select(getName),
                     StringConstantExpressionAst stringConstantAst => [stringConstantAst.Value],
                     ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()),
                     _ => [], // We don't know what to do with this value, so we will just ignore it.
                 };
 
-                wantingToExport.Add((namedParameter.ParameterName, objects.Cast<string>()));
+                wantingToExport.AddRange(objects.Cast<string>());
             }
         }
 
-        return allDefinedFunctions.Where(function => {
-            return wantingToExport.Any(wanting =>
-                wanting.Item2.Contains(NameWithoutNamespace(function.Name))
-            );
-        }).ToList();
+        return availableItems.Where(item => wantingToExport.Contains(getName(item)));
     }
 
     /// <summary>

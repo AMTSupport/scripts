@@ -38,7 +38,7 @@ public class Program {
 
         var rsPool = RunspaceFactory.CreateRunspacePool(sessionState);
         rsPool.SetMinRunspaces(1);
-        rsPool.SetMaxRunspaces(5);
+        rsPool.SetMaxRunspaces(10);
         rsPool.Open();
         return rsPool;
     });
