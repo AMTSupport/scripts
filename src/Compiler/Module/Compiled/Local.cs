@@ -45,6 +45,10 @@ public class CompiledLocalModule(
         .ToString();
 
     [ExcludeFromCodeCoverage(Justification = "We don't need to test this, as it's just a wrapper.")]
-    public override IEnumerable<string> GetExportedFunctions() =>
-        AstHelper.FindAvailableFunctions(this.Document.Ast, true).Select(function => function.Name);
+    public override IEnumerable<string> GetExportedFunctions() {
+        var exported = new List<string>();
+        exported.AddRange(AstHelper.FindAvailableFunctions(this.Document.Ast, true).Select(function => function.Name));
+        exported.AddRange(AstHelper.FindAvailableAliases(this.Document.Ast, true));
+        return exported;
+    }
 }

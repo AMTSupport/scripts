@@ -43,12 +43,14 @@ public class UseOfUndefinedFunction : Rule {
         IEnumerable<Compiled> importedModules) {
         var commandAst = (CommandAst)node;
         var callName = SanatiseName(commandAst.GetCommandName());
+
         if (BuiltinsFunctions.Contains(callName)) yield break;
         if (AstHelper.FindAvailableFunctions(AstHelper.FindRoot(node), false).Select(definition => SanatiseName(definition.Name)).Contains(callName)) yield break;
+        if (AstHelper.FindAvailableAliases(AstHelper.FindRoot(node), false).Select(SanatiseName).Contains(callName)) yield break;
         if (importedModules.Any(module => module.GetExportedFunctions().Select(SanatiseName).Contains(callName))) yield break;
 
         yield return Issue.Warning(
-            $"Undefined function '{callName}'",
+            $"Undefined function '{commandAst.GetCommandName()}'",
             commandAst.CommandElements[0].Extent,
             commandAst
         );
