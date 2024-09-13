@@ -4,11 +4,10 @@
 using Compiler.Analyser;
 using LanguageExt;
 using LanguageExt.Common;
-using LanguageExt.UnsafeValueAccess;
-using Microsoft.PowerShell.Commands;
 using System.Collections;
-using System.Management.Automation;
+using System.Globalization;
 using System.Management.Automation.Language;
+using System.Text;
 
 namespace Compiler.Test;
 
@@ -88,8 +87,25 @@ public class AstHelperTests {
         Assert.Multiple(() => {
             Assert.That(result, Is.Not.Null);
             Assert.That(result, Has.Count.EqualTo(expectedFunctions.Count()));
-
             Assert.That(result, Has.All.Matches<FunctionDefinitionAst>(function => expectedFunctions.Contains(function.Name)));
+        });
+    }
+
+
+    [TestCaseSource(typeof(TestData.AstFinder), nameof(TestData.AstFinder.Aliases))]
+    public void FindAvailableAliases(
+        string astContent,
+        IEnumerable<string> expectedAliases,
+        bool onlyExported
+    ) {
+        Console.WriteLine(astContent);
+        var ast = AstHelper.GetAstReportingErrors(astContent, [], []).ThrowIfFail();
+        var result = AstHelper.FindAvailableAliases(ast, onlyExported);
+
+        Assert.Multiple(() => {
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.Count(), Is.EqualTo(expectedAliases.Count()));
+            Assert.That(result, Is.EquivalentTo(expectedAliases));
         });
     }
 
@@ -327,7 +343,6 @@ file static class TestData {
         }
     }
 
-
     internal static class AstParser {
         private static readonly string[] SupressArgs = ["ModuleNotFoundDuringParse"];
 
@@ -445,6 +460,71 @@ file static class TestData {
 
                 yield return new TestCaseData(multipleExportCommands, allFunctionsArray, false);
             }
+        }
+
+        public static IEnumerable Aliases {
+            get {
+                var templateByFunction = /*ps1*/ """
+                <New-Alias -Name {name} -Value Test-Function{0}>
+                """;
+
+                var templateByAttribute = /*ps1*/ """
+                <function Test-Function{0} {
+                    [Alias('{name}')]
+                    param()
+                }>
+                """;
+
+                var nameTemplate = "Test-Alias{0}";
+                var counts = new[] { 1, 2, 5 };
+                for (var i = 0; i < counts.Length * 2; i++) {
+                    var withExport = i % 2 == 0;
+                    var count = counts[i / 2];
+                    var (byFunctionContent, expectedByFunction) = GetTemplatedData(templateByFunction, nameTemplate, count, Environment.NewLine, "Alias", withExport);
+                    var (byAttributeContent, expectedByAttribute) = GetTemplatedData(templateByAttribute, nameTemplate, count, Environment.NewLine, "Alias", withExport);
+
+                    yield return new TestCaseData(byFunctionContent, expectedByFunction, withExport);
+                    yield return new TestCaseData(byAttributeContent, expectedByAttribute, withExport);
+                }
+            }
+        }
+
+        private static (string, IEnumerable<string>) GetTemplatedData(
+            string template,
+            string nameTemplate,
+            int count,
+            string seperator,
+            string exportType,
+            bool withExport
+        ) {
+            var zoneStartIndex = template.IndexOf('<');
+            var zoneEndIndex = template.IndexOf('>');
+
+            var beforeZone = template[..zoneStartIndex];
+            var afterZone = "";
+            if (zoneEndIndex != -1 && zoneEndIndex < template.Length) afterZone = template[(zoneEndIndex + 1)..];
+
+            var copyableZone = template[(zoneStartIndex + 1)..template.LastIndexOf('>')];
+
+            var exportNames = new List<string>();
+            var data = new StringBuilder().Append(beforeZone);
+            for (var i = 0; i < count; i++) {
+                var name = nameTemplate.Replace("{0}", i.ToString(CultureInfo.InvariantCulture));
+                data.Append(copyableZone.Replace("{name}", name).Replace("{0}", i.ToString(CultureInfo.InvariantCulture)));
+                if (i != count - 1) data.Append(seperator);
+
+                exportNames.Add(name);
+            }
+
+            data.Append(afterZone);
+
+            if (withExport) {
+                data.AppendLine();
+                data.Append("Export-ModuleMember -").Append(exportType).Append(' ');
+                data.AppendJoin(',', exportNames);
+            }
+
+            return (data.ToString(), exportNames);
         }
 
         public static IEnumerable Namespaces {
