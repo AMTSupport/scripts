@@ -14,9 +14,7 @@ using NLog;
 namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableLocalModule : Resolvable {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
-    internal readonly ScriptBlockAst Ast;
+    internal readonly ScriptBlockAst RequirementsAst;
 
     public readonly TextEditor Editor;
 
@@ -67,16 +65,10 @@ public partial class ResolvableLocalModule : Resolvable {
     public ResolvableLocalModule(PathedModuleSpec moduleSpec) : base(moduleSpec) {
         if (!File.Exists(moduleSpec.FullPath)) {
             throw InvalidModulePathError.NotAFile(moduleSpec.FullPath);
-        } else {
-            Logger.Debug($"Loading Local Module: {moduleSpec.FullPath}");
         }
 
         this.Editor = new TextEditor(new TextDocument(File.ReadAllLines(moduleSpec.FullPath)));
-        this.Ast = AstHelper.GetAstReportingErrors(
-            string.Join('\n', this.Editor.Document.Lines),
-            Some(moduleSpec.FullPath),
-            ["ModuleNotFoundDuringParse"]
-        ).Catch(err => err.Enrich(this.ModuleSpec)).As().ThrowIfFail();
+        this.RequirementsAst = this.Editor.Document.GetRequirementsAst().BindFail(err => err.Enrich(this.ModuleSpec)).ThrowIfFail();
 
         // Remove empty lines
         this.Editor.AddRegexEdit(0, EntireEmptyLineRegex(), _ => { return null; });
@@ -121,7 +113,7 @@ public partial class ResolvableLocalModule : Resolvable {
     }
 
     public override Task<Option<Error>> ResolveRequirements() {
-        AstHelper.FindDeclaredModules(this.Ast).ToList().ForEach(module => {
+        AstHelper.FindDeclaredModules(this.RequirementsAst).ToList().ForEach(module => {
             if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast) {
                 this.Editor.AddExactEdit(
                     ast.Extent.StartLineNumber - 1,
@@ -149,7 +141,7 @@ public partial class ResolvableLocalModule : Resolvable {
             }
         });
 
-        AstHelper.FindDeclaredNamespaces(this.Ast).ToList().ForEach(statement => {
+        AstHelper.FindDeclaredNamespaces(this.RequirementsAst).ToList().ForEach(statement => {
             this.Editor.AddExactEdit(
                 statement.Extent.StartLineNumber - 1,
                 statement.Extent.StartColumnNumber - 1,
@@ -163,6 +155,28 @@ public partial class ResolvableLocalModule : Resolvable {
                 this.Requirements.AddRequirement(ns);
             }
         });
+
+        if (this.RequirementsAst.ScriptRequirements is not null) {
+            if (this.RequirementsAst.ScriptRequirements.IsElevationRequired) {
+                lock (this.Requirements) {
+                    this.Requirements.AddRequirement(new RunAsAdminRequirement());
+                }
+            }
+
+            if (this.RequirementsAst.ScriptRequirements.RequiredPSEditions is not null and not { Count: 0 }) {
+                var psEditionString = this.RequirementsAst.ScriptRequirements.RequiredPSEditions.First();
+                var psEdition = Enum.Parse<PSEdition>(psEditionString, true);
+                lock (this.Requirements) {
+                    this.Requirements.AddRequirement(new PSEditionRequirement(psEdition));
+                }
+            }
+
+            if (this.RequirementsAst.ScriptRequirements.RequiredPSVersion is not null) {
+                lock (this.Requirements) {
+                    this.Requirements.AddRequirement(new PSVersionRequirement(this.RequirementsAst.ScriptRequirements.RequiredPSVersion));
+                }
+            }
+        }
 
         return Option<Error>.None.AsTask();
     }
@@ -180,7 +194,7 @@ public partial class ResolvableLocalModule : Resolvable {
         if (ReferenceEquals(this, obj)) return true;
         return obj is ResolvableLocalModule other &&
             this.ModuleSpec.CompareTo(other.ModuleSpec) == ModuleMatch.Same &&
-            this.Editor.Document.Lines == other.Editor.Document.Lines;
+            this.Editor.Document.GetLines() == other.Editor.Document.GetLines();
     }
 
     public override int GetHashCode() => this.ModuleSpec.GetHashCode();
