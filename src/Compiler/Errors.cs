@@ -8,14 +8,11 @@ using LanguageExt;
 
 namespace Compiler;
 
-public abstract record EnrichableExceptional(
-    string ActualMessage,
-    int Code,
-    [NotNull] Option<ModuleSpec> Module = default
-) : Exceptional(
-    ActualMessage,
-    Code
-) {
+public abstract record EnrichableError : Error {
+    public Option<ModuleSpec> Module { get; init; }
+
+    public string ActualMessage { get; }
+
     public override string Message {
         get {
             var module = this.Module.Match(
@@ -23,7 +20,65 @@ public abstract record EnrichableExceptional(
                 () => ""
             );
 
-            return $"{this.ActualMessage}{module}";
+            return $"{this.Message}{module}";
+        }
+    }
+
+    public override bool IsExpected => this.Inner.AndThen(i => i.IsExpected).UnwrapOr(false);
+
+    public override bool IsExceptional => this.Inner.AndThen(i => i.IsExceptional).UnwrapOr(false);
+
+    public EnrichableError(
+        string message,
+        [NotNull] Option<ModuleSpec> module = default
+    ) : base() {
+        this.ActualMessage = message;
+        this.Module = module;
+    }
+
+    public EnrichableError(
+        [NotNull] Error innerError,
+        [NotNull] Option<ModuleSpec> module = default
+    ) : base(innerError) {
+        this.ActualMessage = innerError.Message;
+        this.Module = module;
+    }
+
+    public override bool Is<TE>() => (this.Inner.IsSome && this.Inner.Unwrap() is TE) || this is TE;
+
+    public override ErrorException ToErrorException() {
+        if (this.IsExceptional) {
+            return new WrappedErrorExceptionalException(this);
+        } else if (this.IsExpected) {
+            return new WrappedErrorExpectedException(this);
+        } else {
+            return ErrorException.New(this.Code, this.Message);
+        }
+    }
+}
+
+public abstract record EnrichableExceptional : Exceptional {
+    public Option<ModuleSpec> Module { get; init; }
+
+    public EnrichableExceptional(
+        string message,
+        int code,
+        [NotNull] Option<ModuleSpec> module = default
+    ) : base(message, code) => this.Module = module;
+
+    public EnrichableExceptional(
+        [NotNull] Exceptional innerException,
+        [NotNull] Option<ModuleSpec> module = default
+    ) : base(innerException) => this.Module = module;
+
+    public override string Message {
+        get {
+            var module = this.Module.Match(
+                some => $" in module {some.Name}",
+                () => ""
+            );
+
+            return $"{base.Message}{module}";
         }
     }
 
@@ -79,6 +134,12 @@ public sealed record IncompatableRequirementsError(
     """,
     622
 );
+
+public sealed record WrappedErrorWithDebuggableContent(
+    string Content,
+    Error InnerException,
+    Option<ModuleSpec> ModuleSpec = default
+) : EnrichableError(InnerException, ModuleSpec);
 
 public static class ErrorUtils {
     public static T Enrich<T>(

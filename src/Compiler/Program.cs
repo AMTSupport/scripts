@@ -56,9 +56,6 @@ public class Program {
         [Option('o', "output", Required = false, HelpText = "Output file to be written.")]
         public string? Output { get; set; }
 
-        [Option("fail-fast", Required = false, HelpText = "Fail fast on error.")]
-        public bool FailFast { get; set; }
-
         [Option('f', "force", Required = false, HelpText = "Force overwrite of output file.")]
         public bool Force { get; set; }
     }
@@ -80,16 +77,15 @@ public class Program {
 
                 var superParent = new ResolvableParent();
 
-                ConcurrentBag<(string, Exception)> compilerErrors = [];
                 filesToCompile.ToList().ForEach(async scriptPath => {
                     var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
                     if ((await Resolvable.TryCreateScript(pathedModuleSpec, superParent)).IsErr(out var error, out var resolvableScript)) {
-                        compilerErrors.Add((scriptPath, error));
+                        Errors.Add(error.Enrich(pathedModuleSpec));
                         return;
                     }
 
                     superParent.QueueResolve(resolvableScript, compiled => {
-                        OutputToFile(
+                        Output(
                             opts.Input!,
                             opts.Output,
                             scriptPath,
@@ -106,11 +102,7 @@ public class Program {
 
                 Logger.Trace("Finished compilation.");
 
-                if (compilerErrors.IsEmpty) return 0;
-
-                foreach (var (scriptPath, e) in compilerErrors) {
-                    Errors.Add(LanguageExt.Common.Error.New($"Error compiling {scriptPath}", e));
-                }
+                await OutputErrors(Errors, opts.Input!, opts.Output);
 
                 return 1;
             },
@@ -126,8 +118,6 @@ public class Program {
                 return 1;
             }
         );
-
-        await OutputErrors(Errors);
 
         RunspacePool.Value.Close();
         RunspacePool.Value.Dispose();
@@ -242,7 +232,21 @@ public class Program {
         return Path.Combine(outputDirectory, relativePath);
     }
 
-
+    /// <summary>
+    /// Gets the files to compile from the input.
+    ///
+    /// Ignores files that are not .ps1 files,
+    /// or files with the first line starting with #!ignore (case insensitive) or is empty.
+    /// </summary>
+    /// <param name="input">
+    /// The input file or directory to get the files from,
+    /// if it is a file, it will return a list with that file.
+    ///
+    /// Otherwise, it will return all .ps1 files in the recursed directory.
+    /// </param>
+    /// <returns>
+    /// The valid files to compile.
+    /// </returns>
     public static Fin<IEnumerable<string>> GetFilesToCompile(string input) {
         var files = new List<string>();
         if (File.Exists(input)) {
@@ -255,9 +259,26 @@ public class Program {
             return LanguageExt.Common.Error.New($"Input {input} is not a file or directory.");
         }
 
+        files.RemoveAll(static file => {
+            using var reader = new StreamReader(file);
+            return reader.ReadLine()?.StartsWith("#!ignore", StringComparison.OrdinalIgnoreCase) ?? true;
+        });
+
         return files;
     }
 
+    /// <summary>
+    /// Ensures that the output directory structure is the same as the source directory.
+    /// </summary>
+    /// <param name="sourceDirectory">
+    /// The root directory of the source files.
+    /// </param>
+    /// <param name="outputDirectory">
+    /// The root directory of the output files.
+    /// </param>
+    /// <param name="scripts">
+    /// A list of the scripts that the output directory should contain.
+    /// </param>
     public static void EnsureDirectoryStructure(
         string sourceDirectory,
         string? outputDirectory,
@@ -274,7 +295,7 @@ public class Program {
         }
     }
 
-    public static async void OutputToFile(
+    public static async void Output(
         string sourceDirectory,
         string? outputDirectory,
         string fileName,
@@ -306,7 +327,11 @@ public class Program {
         await fileStream.WriteAsync(Encoding.UTF8.GetBytes(content));
     }
 
-    public static async Task<int> OutputErrors(IEnumerable<LanguageExt.Common.Error> errors) {
+    public static async Task<int> OutputErrors(
+        IEnumerable<LanguageExt.Common.Error> errors,
+        string sourceDirectory,
+        Option<string> outputDirectory
+    ) {
         if (Errors.IsEmpty) return 0;
 
         // Wait for all threads to finish before outputting errors, this is to ensure all errors are captured.
@@ -325,6 +350,7 @@ public class Program {
         var printedBefore = false; // This is to prevent a newline before the first error
         var errorQueue = new Deque<LanguageExt.Common.Error>();
         errorQueue.AddRange(errors);
+        var outputDebuggables = new List<byte[]>();
         do {
             var err = errorQueue.PopFirst();
 
@@ -344,6 +370,22 @@ public class Program {
                 }
             } else {
                 printedBefore = true;
+            }
+
+            if (IsDebugging && outputDirectory.IsSome(out var outDir)
+                && err is WrappedErrorWithDebuggableContent wrappedDebuggable
+                && wrappedDebuggable.Module.IsSome(out var module)
+                && !outputDebuggables.Contains(module.Hash)
+            ) {
+                Output(
+                    sourceDirectory,
+                    outDir,
+                    module.Name,
+                    wrappedDebuggable.Content,
+                    true
+                );
+
+                outputDebuggables.Add(module.Hash);
             }
 
             var message = err is Issue issue

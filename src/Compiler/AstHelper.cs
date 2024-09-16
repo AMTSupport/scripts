@@ -209,7 +209,7 @@ public static class AstHelper {
         if (parserErrors.Length != 0) {
             var issues = parserErrors.Select(error => Issue.Error(error.Message, error.Extent, ast));
             var errors = Error.Many(issues.ToArray());
-            return Fin<ScriptBlockAst>.Fail(errors);
+            return new WrappedErrorWithDebuggableContent(astContent, errors);
         }
 
         return ast;
