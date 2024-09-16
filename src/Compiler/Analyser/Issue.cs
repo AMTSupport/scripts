@@ -13,33 +13,23 @@ namespace Compiler.Analyser;
 [DataContract]
 public record Issue(
     [NotNull] IssueSeverity Severity,
-    [NotNull] string Message,
+    [NotNull] string ActualMessage,
     [NotNull] IScriptExtent Extent,
     [NotNull] Ast Parent,
     [NotNull] Option<ModuleSpec> Module = default
-) : Error() {
+) : EnrichableExceptional(ActualMessage, 620, Module) {
     public override bool IsExceptional { get; } = Severity == IssueSeverity.Error;
 
     public override bool IsExpected { get; } = Severity == IssueSeverity.Warning;
 
-    public override string Message { get; } = Message;
+    public override string Message => this.ToString();
 
     public override string ToString() => AstHelper.GetPrettyAstError(
         this.Extent,
         this.Parent,
-        Some(this.Message),
+        Some(this.ActualMessage),
         this.Module.Map(mod => mod is PathedModuleSpec pathed ? pathed.FullPath : mod.Name)
     );
-
-    [Pure]
-    [return: NotNull]
-    public override ErrorException ToErrorException() => new WrappedErrorExceptionalException(this);
-
-    [Pure]
-    [return: NotNull]
-    public Issue Enrich([NotNull] ModuleSpec module) => this with {
-        Module = Some(module)
-    };
 
     [Pure]
     [return: NotNull]
@@ -58,6 +48,7 @@ public record Issue(
         [NotNull] Option<ModuleSpec> module = default) => new(IssueSeverity.Warning, message, extent, parent, module);
 
     public override bool Is<TE>() => false;
+    public T Enrich<T>(ModuleSpec module) where T : Exceptional => throw new NotImplementedException();
 }
 
 public enum IssueSeverity {

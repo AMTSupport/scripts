@@ -8,7 +8,7 @@ using LanguageExt;
 
 namespace Compiler;
 
-public record EnrichableExceptional(
+public abstract record EnrichableExceptional(
     string ActualMessage,
     int Code,
     [NotNull] Option<ModuleSpec> Module = default
@@ -16,10 +16,6 @@ public record EnrichableExceptional(
     ActualMessage,
     Code
 ) {
-    public EnrichableExceptional Enrich(ModuleSpec module) => this with {
-        Module = Some(module)
-    };
-
     public override string Message {
         get {
             var module = this.Module.Match(
@@ -89,7 +85,7 @@ public static class ErrorUtils {
         this T error,
         ModuleSpec module
     ) where T : Error => error switch {
-        EnrichableExceptional enrichable => (enrichable.Enrich(module) as T)!, // Safety: The EnrichableExceptional return will always be a T.
+        EnrichableExceptional enrichable => (enrichable with { Module = module } as T)!, // Safety: The EnrichableExceptional return will always be a T.
         ManyErrors errors => (new ManyErrors(errors.Errors.Select(error => error.Enrich(module))) as T)!, // Safety: T will always be ManyErrors.
         _ => error
     };

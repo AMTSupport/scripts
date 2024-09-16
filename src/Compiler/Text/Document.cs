@@ -18,8 +18,6 @@ public sealed class CompiledDocument(
     string[] lines,
     ScriptBlockAst ast
 ) : TextDocument(lines) {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
     public ScriptBlockAst Ast { get; private init; } = ast;
 
     public string GetContent() => string.Join('\n', this.Lines);
@@ -36,7 +34,6 @@ public sealed class CompiledDocument(
 
             updateResult.IfSucc(spanUpdates.AddRange);
             if (updateResult.IsErr(out var err, out _)) {
-                Logger.Error($"Error while applying updater {textUpdater}: {err}");
                 return err;
             }
         }

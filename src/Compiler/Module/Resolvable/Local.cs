@@ -168,6 +168,7 @@ public partial class ResolvableLocalModule : Resolvable {
     }
 
     public override Task<Fin<Compiled.Compiled>> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
+        .BindFail(err => err.Enrich(this.ModuleSpec))
         .AndThenTry(doc => new CompiledLocalModule(
             this.ModuleSpec,
             doc,
