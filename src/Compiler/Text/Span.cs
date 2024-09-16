@@ -3,10 +3,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
-using System.Management.Automation;
 using System.Text;
 using LanguageExt;
-using QuikGraph.Algorithms.Search;
 
 namespace Compiler.Text;
 
@@ -86,16 +84,6 @@ public record TextSpan {
         }
     }
 
-    public static TextSpan WrappingEntireDocument(TextDocument document) => WrappingEntireDocument([.. document.Lines]);
-
-    public static TextSpan WrappingEntireDocument(string[] lines) {
-        if (lines.Length == 0) {
-            return new TextSpan(0, 0, 0, 0);
-        }
-
-        return new TextSpan(0, 0, lines.Length - 1, lines[^1].Length);
-    }
-
     public bool Contains(int index, int column) {
         if (index < this.StartingIndex || index > this.EndingIndex) {
             return false;
@@ -112,7 +100,7 @@ public record TextSpan {
         return true;
     }
 
-    public string GetContent(TextDocument document) => this.GetContent([.. document.Lines]);
+    public string GetContent(TextDocument document) => this.GetContent([.. document.GetLines()]);
 
     [Pure]
     [return: NotNull]

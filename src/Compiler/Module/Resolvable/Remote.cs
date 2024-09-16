@@ -168,7 +168,6 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
         var versionString = ConvertVersionParameters(this.ModuleSpec.RequiredVersion?.ToString(), this.ModuleSpec.MinimumVersion?.ToString(), this.ModuleSpec.MaximumVersion?.ToString());
         var powerShellCode = /*ps1*/ $$"""
         Set-StrictMode -Version 3;
-
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
 
         $Module = Find-PSResource -Name '{{this.ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};

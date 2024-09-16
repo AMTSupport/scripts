@@ -116,6 +116,20 @@ public static class Utils {
 
     [return: NotNull]
     [Pure, MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Fin<TOut> AndThenTry<TIn, TOut>(
+        [NotNull] this Fin<TIn> fin,
+        [NotNull] Func<TIn, TOut> func,
+        [NotNull] Func<TIn, Exception, Error> error
+    ) => fin.Bind(value => {
+        try {
+            return func(value);
+        } catch (Exception err) {
+            return FinFail<TOut>(error(value, err));
+        }
+    });
+
+    [return: NotNull]
+    [Pure, MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Fin<TOut> AndThen<TIn, TOut>(
         [NotNull] this Fin<TIn> fin,
         [NotNull] Func<TIn, Fin<TOut>> func

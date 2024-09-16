@@ -6,12 +6,61 @@ using System.Management.Automation.Language;
 using System.Text.RegularExpressions;
 using Compiler.Text.Updater;
 using LanguageExt;
-using NLog;
 
 namespace Compiler.Text;
 
-public partial class TextDocument([NotNull] string[] lines) {
-    public readonly List<string> Lines = new(lines);
+public class TextDocument : IDisposable {
+    private readonly List<string> Lines;
+    private StreamReader? FileStream;
+    protected Fin<ScriptBlockAst>? RequirementsAst;
+
+    public TextDocument(string[] lines) => this.Lines = [.. lines];
+
+    public TextDocument(string path) {
+        this.Lines = [];
+        this.FileStream = new StreamReader(path);
+    }
+
+    public Fin<ScriptBlockAst> GetRequirementsAst() {
+        if (this.RequirementsAst is not null) return this.RequirementsAst;
+
+        this.GetLines(line => {
+            line = line.Trim();
+            return string.IsNullOrWhiteSpace(line) ||
+                line.StartsWith("#requires", StringComparison.OrdinalIgnoreCase) ||
+                line.StartsWith("using", StringComparison.OrdinalIgnoreCase);
+        });
+
+        return this.RequirementsAst = AstHelper.GetAstReportingErrors(
+            string.Join('\n', this.Lines),
+            None,
+            ["ModuleNotFoundDuringParse"]
+        );
+    }
+
+    [return: NotNull]
+    public IEnumerable<string> GetLines(Predicate<string>? readerStopCondition = null) {
+        if (this.FileStream is not null) {
+            while (!this.FileStream.EndOfStream && this.FileStream.ReadLine() is string line) {
+                this.Lines.Add((string)line.Clone()); // Clone the line incase it is modified in the predicate.
+                if (readerStopCondition is not null && readerStopCondition(line)) {
+                    break;
+                }
+            }
+
+            if (this.FileStream.EndOfStream) {
+                this.FileStream.Dispose();
+                this.FileStream = null;
+            }
+        }
+
+        return this.Lines;
+    }
+
+    public void Dispose() {
+        this.FileStream?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }
 
 public sealed class CompiledDocument(
@@ -20,12 +69,12 @@ public sealed class CompiledDocument(
 ) : TextDocument(lines) {
     public ScriptBlockAst Ast { get; private init; } = ast;
 
-    public string GetContent() => string.Join('\n', this.Lines);
+    public string GetContent() => string.Join('\n', this.GetLines());
 
     public static Fin<CompiledDocument> FromBuilder(TextEditor builder, int indentBy = 0) {
         builder.AddEdit(() => new IndentUpdater(indentBy));
 
-        var lines = builder.Document.Lines;
+        var lines = builder.Document.GetLines().ToList();
         var spanUpdates = new List<SpanUpdateInfo>();
         var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Priority).ToList();
         foreach (var textUpdater in sortedUpdaters) {

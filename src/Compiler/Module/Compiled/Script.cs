@@ -1,17 +1,14 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
-using System.Management.Automation.Language;
 using System.Reflection;
 using System.Text;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Compiler.Text;
 using LanguageExt;
-using NLog;
 using QuikGraph;
 using QuikGraph.Algorithms;
-using QuikGraph.Graphviz;
 
 namespace Compiler.Module.Compiled;
 
@@ -20,10 +17,6 @@ public class CompiledScript(
     CompiledDocument document,
     RequirementGroup requirements
 ) : CompiledLocalModule(moduleSpec, document, requirements) {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
-    public virtual ParamBlockAst? ScriptParamBlock { get; }
-
     public virtual BidirectionalGraph<Compiled, Edge<Compiled>> Graph { get; } = new();
 
     /// <summary>
@@ -36,11 +29,8 @@ public class CompiledScript(
     private CompiledScript(
         ResolvableScript thisResolvable,
         CompiledDocument document,
-        ParamBlockAst? scriptParamBlock,
         RequirementGroup requirements
     ) : this(thisResolvable.ModuleSpec, document, requirements) {
-        this.ScriptParamBlock = scriptParamBlock;
-
         this.Graph.AddVertex(this);
         // Add the parent-child relationships to each module.
         this.Graph.EdgeAdded += edge => edge.Target.Parents.Add(edge.Source);
@@ -50,10 +40,9 @@ public class CompiledScript(
         ResolvableScript thisResolvable,
         CompiledDocument document,
         ResolvableParent resolvableParent,
-        ParamBlockAst? scriptParamBlock,
         RequirementGroup requirements
     ) {
-        var script = new CompiledScript(thisResolvable, document, scriptParamBlock, requirements);
+        var script = new CompiledScript(thisResolvable, document, requirements);
 
         var thisGraph = resolvableParent.GetGraphFromRoot(thisResolvable);
         var loadOrder = thisGraph.TopologicalSort();
@@ -120,9 +109,10 @@ public class CompiledScript(
         embeddedModules.AppendLine(IndentString(");", 4));
 
         var paramBlock = new StringBuilder();
-        if (this.ScriptParamBlock != null) {
-            this.ScriptParamBlock.Attributes.ToList().ForEach(attribute => paramBlock.AppendLine(attribute.Extent.Text));
-            paramBlock.Append(this.ScriptParamBlock.Extent.Text);
+        var scriptParamBlock = this.Document.Ast.ParamBlock;
+        if (scriptParamBlock != null) {
+            scriptParamBlock.Attributes.ToList().ForEach(attribute => paramBlock.AppendLine(attribute.Extent.Text));
+            paramBlock.Append(scriptParamBlock.Extent.Text);
         } else {
             paramBlock.AppendLine("[CmdletBinding()]\nparam()");
         }

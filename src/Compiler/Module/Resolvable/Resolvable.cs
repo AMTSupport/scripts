@@ -224,7 +224,6 @@ public class ResolvableParent {
         } else {
             var compilingTask = Task.Run(async () => {
                 var newlyCompiledModule = await resolvable.IntoCompiled();
-                newlyCompiledModule.IfFail(err => Logger.Error(err.Message));
 
                 lock (this.Resolvables) {
                     this.Resolvables[moduleSpec] = resolvableInfo with {

@@ -2,7 +2,6 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Diagnostics.CodeAnalysis;
-using System.Management.Automation.Language;
 using Compiler.Requirements;
 using Compiler.Text;
 using LanguageExt;
@@ -49,19 +48,7 @@ public partial class ResolvableScript : ResolvableLocalModule {
             this,
             compiledDocument,
             this.ResolvableParent,
-            this.ExtractParameterBlock(),
             this.Requirements
         )).AndThen(static script => (Compiled.Compiled)script);
-    }
-
-    /// <summary>
-    /// Looks for the parameter block of the script,
-    /// </summary>
-    /// <returns>
-    /// The parameter block of the script, if it exists.
-    /// </returns>
-    public ParamBlockAst? ExtractParameterBlock() {
-        var scriptParamBlockAst = this.Ast.ParamBlock;
-        return scriptParamBlockAst ?? null;
     }
 }

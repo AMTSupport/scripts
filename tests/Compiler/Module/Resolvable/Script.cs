@@ -24,54 +24,7 @@ public class CompiledScriptTest {
         return compiled.GetContent();
     }
 
-    [TestCaseSource(typeof(TestData), nameof(TestData.ExtractParameterBlockCases))]
-    public string? ExtractParameterBlock(
-        bool expectNull,
-        string scriptText
-    ) {
-        var scriptLines = scriptText.Split('\n');
-        var script = new ResolvableScript(TestUtils.GetModuleSpecFromContent(scriptText), new ResolvableParent());
-
-        var result = script.ExtractParameterBlock();
-
-        Assert.Multiple(() => {
-            if (expectNull) {
-                Assert.That(result, Is.Null);
-            } else {
-                Assert.That(result, Is.Not.Null);
-            }
-        });
-
-        return result?.Extent.Text;
-    }
-
-
     public static class TestData {
-        public static IEnumerable ExtractParameterBlockCases {
-            get {
-                // yield return new TestCaseData(false, TEST_SCRIPT).Returns("""
-                // param(
-                //     [Parameter()]
-                //     [string]$Name
-                // )
-                // """).SetName("ExtractParameterBlock_ReturnsParameterBlockAst_WhenParameterBlockExists");
-
-                yield return new TestCaseData(true, """
-                #Requires -Version 5.1
-
-                Write-Host 'Hello, World!';
-                """).Returns(null).SetName("ExtractParameterBlock_ReturnsNull_WhenParameterBlockDoesNotExist");
-
-                yield return new TestCaseData(true, "").Returns(null).SetName("ExtractParameterBlock_ReturnsNull_WhenScriptIsEmpty");
-
-                yield return new TestCaseData(false, "param()").Returns("param()").SetName("ExtractParameterBlock_ReturnsParameterBlockAst_WhenExistsWithoutAttributesAndParameters");
-
-                yield return new TestCaseData(false, "param([string]$Name)").Returns("param([string]$Name)").SetName("ExtractParameterBlock_ReturnsParameterBlockAst_WhenExistsWithAttributesAndParameters");
-
-                yield return new TestCaseData(false, "param([string]$Name, [int]$Age)").Returns("param([string]$Name, [int]$Age)").SetName("ExtractParameterBlock_ReturnsParameterBlockAst_WhenExistsWithMultipleParameters");
-            }
-        }
-
         public static IEnumerable TestCases {
             get {
                 // yield return new TestCaseData(
