@@ -32,7 +32,7 @@ public sealed class RuleVisitor(
     public static IEnumerable<Suppression> GetSupressions(Ast ast) {
         var paramBlock = AstHelper.FindClosestParamBlock(ast);
         return paramBlock == null
-            ? (IEnumerable<Suppression>)([])
+            ? ([])
             : SuppressAnalyserAttribute.FromAttributes(paramBlock.Attributes).Select(attr => attr.GetSupression());
     }
 }
