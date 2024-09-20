@@ -254,26 +254,25 @@ public class ResolvableParent {
         // Get a list of the scripts which are roots and have no scripts depending on them.
         var topLevelScripts = new Queue<Resolvable>(this.Graph.Vertices.Where(resolvable => !this.Graph.TryGetInEdges(resolvable, out var inEdges) || !inEdges.Any()));
         var compileTasks = new List<Task>();
-        while (compileTasks.Count > 0 || topLevelScripts.Count > 0) {
-            if (compileTasks.Count > 0) {
-                await Task.WhenAny(compileTasks);
-                compileTasks.RemoveAll(task => task.IsCompleted);
-            }
+        foreach (var resolvable in topLevelScripts) {
+            compileTasks.Add(Task.Run(async () => {
+                Logger.Trace($"Compiling top level script {resolvable.ModuleSpec.Name}");
 
-            if (topLevelScripts.Count > 0) {
-                var resolvable = topLevelScripts.Dequeue();
-                compileTasks.Add(Task.Run(async () => {
-                    Logger.Trace($"Compiling top level script {resolvable.ModuleSpec.Name}");
+                var compiledModule = await this.WaitForCompiled(resolvable.ModuleSpec);
+                compiledModule.IfFail(err => Program.Errors.Add(err.Enrich(resolvable.ModuleSpec)));
+                Logger.Trace($"Finished compiling top level script {resolvable.ModuleSpec.Name}");
+            }).ContinueWith(task => {
+                if (task.IsFaulted) {
+                    Logger.Error(task.Exception, "Failed to compile top level script.");
+                    Program.Errors.Add(task.Exception);
+                }
+            }));
+        }
 
-                    var compiledModule = await this.WaitForCompiled(resolvable.ModuleSpec);
-                    // If the module failed, we need to cancel any tasks that are waiting for it.
-                    compiledModule.IfFail(err => {
-                        Program.Errors.Add(err.Enrich(resolvable.ModuleSpec));
-                        var (_, task) = this.RunningTasks.Find(task => task.Item1 == resolvable.ModuleSpec);
-                    });
-                    Logger.Trace($"Finished compiling top level script {resolvable.ModuleSpec.Name}");
-                }));
-            }
+        while (compileTasks.Count > 0) {
+            var task = await Task.WhenAny(compileTasks);
+            Logger.Debug($"Task completed, {compileTasks.Count} remaining.");
+            compileTasks.Remove(task);
         }
 
         Logger.Trace("Finished compiling all top level scripts.");
