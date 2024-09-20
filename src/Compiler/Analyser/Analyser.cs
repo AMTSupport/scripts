@@ -18,31 +18,25 @@ public static class Analyser {
         new UseOfUndefinedFunction()
     ];
 
-    private static readonly ConcurrentBag<string> Cache = [];
+    private static readonly ConcurrentDictionary<string, Task<List<Issue>>> Cache = [];
 
     [Pure]
     [return: NotNull]
-    public static List<Issue> Analyse(CompiledLocalModule module, IEnumerable<Compiled> availableImports) {
+    public static async Task<List<Issue>> Analyse(CompiledLocalModule module, IEnumerable<Compiled> availableImports) {
         var key = module.ComputedHash[0..8];
-        if (availableImports.Any()) {
-            var rawBytes = new List<byte>();
-            availableImports.ToList().ForEach(x => rawBytes.AddRange(Convert.FromHexString(x.ComputedHash)));
-            key += Convert.ToHexString(SHA256.HashData(rawBytes.ToArray()))[0..8];
-        }
+        // FIXME - Key orders are not consistent between instances.
+        // if (availableImports.Any()) {
+        //     var rawBytes = new List<byte>();
+        //     availableImports.OrderBy(i => i.ModuleSpec.Name).ToList().ForEach(x => rawBytes.AddRange(Convert.FromHexString(x.ComputedHash)));
+        //     key += Convert.ToHexString(SHA256.HashData(rawBytes.ToArray()))[0..8];
+        // }
 
-        if (Cache.Contains(key)) {
-            Logger.Trace($"Cache hit for {module.ModuleSpec.Name} with key {key}");
-            return [];
-        }
+        return await Cache.GetOrAdd(key, _ => Task.Run(() => {
+            Logger.Trace($"Analyzing module {module.ModuleSpec.Name}");
 
-        Logger.Trace($"Analyzing module {module.ModuleSpec.Name}");
-
-        var visitor = new RuleVisitor(module, Rules, availableImports);
-        module.Document.Ast.Visit(visitor);
-
-        Logger.Trace($"Caching analysis for {module.ModuleSpec.Name} with key {key}");
-        Cache.Add(key);
-
-        return visitor.Issues;
+            var visitor = new RuleVisitor(module, Rules, availableImports);
+            module.Document.Ast.Visit(visitor);
+            return visitor.Issues;
+        }));
     }
 }
