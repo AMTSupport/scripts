@@ -78,9 +78,9 @@ public class CompiledScript(
             }
         }
 
-        script.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(compiled => {
+        script.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(async compiled => {
             var imports = script.Graph.OutEdges(compiled).Select(edge => edge.Target);
-            Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports])
+            (await Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports]))
                 .ForEach(issue => Program.Errors.Add(issue.Enrich(compiled.ModuleSpec)));
         });
 
