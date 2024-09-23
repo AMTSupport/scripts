@@ -10,7 +10,7 @@ namespace Compiler.Test.Text.Updater.Built;
 public class HereStringUpdaterTests {
     [TestCaseSource(typeof(TestData), nameof(TestData.Data))]
     public string InternalApply_UpdatesHereStrings(string astContent) {
-        var ast = AstHelper.GetAstReportingErrors(astContent, default, []).Unwrap().Find(ast => ast is StringConstantExpressionAst, false)!;
+        var ast = AstHelper.GetAstReportingErrors(astContent, default, [], out _).Unwrap().Find(ast => ast is StringConstantExpressionAst, false)!;
         var result = HereStringUpdater.InternalApply(ast);
 
         Assert.That(result, Is.Not.Null.Or.Empty);

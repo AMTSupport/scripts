@@ -1,13 +1,13 @@
-using System.Reflection;
+// Copyright (c) James Draycott. All Rights Reserved.
+// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+
 using System.Runtime.CompilerServices;
 using Compiler.Requirements;
 
 namespace Compiler.Test;
 
-public class TestUtils
-{
-    public static PathedModuleSpec GetModuleSpecFromContent(string content)
-    {
+public class TestUtils {
+    public static PathedModuleSpec GetModuleSpecFromContent(string content) {
         var tempFile = Path.GetTempFileName();
         File.WriteAllText(tempFile, content);
         return new PathedModuleSpec(tempFile);

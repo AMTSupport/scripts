@@ -23,6 +23,10 @@ public class CompiledRemoteModule : Compiled {
     );
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+    private static readonly JsonSerializerOptions JsonSerializerOptions = new() {
+        ReadCommentHandling = JsonCommentHandling.Skip
+    };
+
     private Hashtable? PowerShellManifest;
     private ZipArchive? ZipArchive;
 
@@ -89,11 +93,12 @@ public class CompiledRemoteModule : Compiled {
 
         var info = Assembly.GetExecutingAssembly().GetName();
         var extraModuleInfoResource = $"{info.Name}.Resources.ExtraModuleInfo.{this.ModuleSpec.Name}.json";
-        using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ExtraModuleInfo.{this.ModuleSpec.Name}.json");
+        using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(extraModuleInfoResource)
+            ?? Assembly.GetExecutingAssembly().GetManifestResourceStream($"{extraModuleInfoResource}c");
         if (templateStream == null) return exported;
 
         using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
-        var extraModuleInfo = JsonSerializer.Deserialize<ExtraModuleInfo>(streamReader.ReadToEnd());
+        var extraModuleInfo = JsonSerializer.Deserialize<ExtraModuleInfo>(streamReader.ReadToEnd(), JsonSerializerOptions);
         if (extraModuleInfo == null) {
             Logger.Warn($"Failed to parse extra module info for {this.ModuleSpec.Name}");
             return exported;

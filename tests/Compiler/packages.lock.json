@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net8.0": {
+    "net8.0-windows7.0": {
       "coverlet.collector": {
         "type": "Direct",
         "requested": "[6.0.0, )",
@@ -426,7 +426,7 @@
         }
       }
     },
-    "net8.0/linux-x64": {
+    "net8.0-windows7.0/linux-x64": {
       "Microsoft.Management.Infrastructure.Runtime.Unix": {
         "type": "Transitive",
         "resolved": "3.0.0",
@@ -524,7 +524,7 @@
         "contentHash": "Obg3a90MkOw9mYKxrardLpY2u0axDMrSmy4JCdq2cYbelM2cUwmUir5Bomvd1yxmPL9h5LVHU1tuKBZpUjfASg=="
       }
     },
-    "net8.0/win-x64": {
+    "net8.0-windows7.0/win-x64": {
       "Microsoft.Management.Infrastructure.Runtime.Unix": {
         "type": "Transitive",
         "resolved": "3.0.0",
