@@ -20,7 +20,7 @@ public abstract record EnrichableError : Error {
                 () => ""
             );
 
-            return $"{this.Message}{module}";
+            return $"{this.ActualMessage}{module}";
         }
     }
 
@@ -38,9 +38,13 @@ public abstract record EnrichableError : Error {
 
     public EnrichableError(
         [NotNull] Error innerError,
+        [NotNull] Option<string> message = default,
         [NotNull] Option<ModuleSpec> module = default
     ) : base(innerError) {
-        this.ActualMessage = innerError.Message;
+        this.ActualMessage = message.Match(
+            some => some + Environment.NewLine + innerError.Message,
+            () => innerError.Message
+        );
         this.Module = module;
     }
 
@@ -136,16 +140,20 @@ public sealed record IncompatableRequirementsError(
 );
 
 public sealed record WrappedErrorWithDebuggableContent(
+    Option<string> MaybeMessage,
     string Content,
     Error InnerException,
-    Option<ModuleSpec> ModuleSpec = default
-) : EnrichableError(InnerException, ModuleSpec);
+    Option<ModuleSpec> Module = default
+) : EnrichableError(InnerException, MaybeMessage, Module) {
+    public override Option<Error> Inner => this.InnerException;
+}
 
 public static class ErrorUtils {
     public static T Enrich<T>(
         this T error,
         ModuleSpec module
     ) where T : Error => error switch {
+        WrappedErrorWithDebuggableContent wrapped => (wrapped with { Module = module, InnerException = wrapped.InnerException.Enrich(module) } as T)!, // Safety: The WrappedErrorWithDebuggableContent return will always be a T.
         EnrichableExceptional enrichable => (enrichable with { Module = module } as T)!, // Safety: The EnrichableExceptional return will always be a T.
         ManyErrors errors => (new ManyErrors(errors.Errors.Select(error => error.Enrich(module))) as T)!, // Safety: T will always be ManyErrors.
         _ => error

@@ -43,18 +43,18 @@ public class ExactUpdater : TextSpanUpdater {
         this.Span = TextSpan.New(startingIndex, startingColumn, endingIndex, endingColumn).ThrowIfFail();
 
         if (this.Span.StartingIndex == this.Span.EndingIndex && this.Span.StartingColumn > this.Span.EndingColumn) {
-            throw new ArgumentException($"Starting column must be less than ending column, got {this.Span.StartingColumn} and {this.Span.EndingColumn}.");
+            throw new ArgumentException($"Starting column must be less than ending column, got {this.Span.StartingColumn}..{this.Span.EndingColumn}.");
         }
     }
 
-    public override Fin<SpanUpdateInfo[]> Apply([NotNull] List<string> lines) => lines.AsOption()
+    public override Fin<IEnumerable<SpanUpdateInfo>> Apply([NotNull] List<string> lines) => lines.AsOption()
         .FailIf(
-            l => l.Count - 1 < this.Span.StartingIndex || this.Span.EndingIndex > l.Count - 1,
-            l => Error.New($"Span indexes must be within the bounds of the document ({l.Count}), got {this.Span.StartingIndex} and {this.Span.EndingIndex}."))
+            l => l.Count <= this.Span.StartingIndex || this.Span.EndingIndex >= l.Count,
+            l => Error.New($"Span indexes must be within the length of the document ({l.Count}), was {this.Span.StartingIndex}..{this.Span.EndingIndex}."))
         .FailIfOpt(
             l => this.Span.StartingIndex > this.Span.EndingIndex,
-            l => Error.New($"Starting index must be less than ending index, got {this.Span.StartingIndex} and {this.Span.EndingIndex}."))
-         .FailIfOpt(
+            l => Error.New($"Starting index must be less than ending index, was {this.Span.StartingIndex}..{this.Span.EndingIndex}."))
+        .FailIfOpt(
             l => this.Span.StartingColumn > l[this.Span.StartingIndex].Length,
             l => Error.New($"Starting column must be less than the length of the line ({l[this.Span.StartingIndex].Length - 1}), got index {this.Span.StartingColumn}.")
         )
@@ -63,40 +63,34 @@ public class ExactUpdater : TextSpanUpdater {
             l => Error.New($"Ending column must be less than the length of the line ({l[this.Span.EndingIndex].Length - 1}), got index {this.Span.EndingColumn}.")
         )
         .AndThen(opt => opt.UnwrapOr([]))
-        .AndThen<List<string>, SpanUpdateInfo[]>(lines => {
-            string[] newLines;
-            int offset;
+        .Bind(lines => {
+            Fin<ContentChange> change;
             if (this.Span.StartingIndex == this.Span.EndingIndex) {
                 var updatingLine = lines[this.Span.StartingIndex][this.Span.StartingColumn..this.Span.EndingColumn];
-                newLines = this.Updater([updatingLine]);
-                offset = this.Span.SetContent(lines, this.UpdateOptions, newLines);
+
+                change = this.Span.SetContent(lines, this.UpdateOptions, this.Updater([updatingLine]));
             } else {
                 var updatingLines = lines.Skip(this.Span.StartingIndex).Take(this.Span.EndingIndex - this.Span.StartingIndex + 1).ToArray();
                 // Trim the starting and ending lines to the correct columns.
                 updatingLines[0] = lines[this.Span.StartingIndex][this.Span.StartingColumn..];
                 updatingLines[^1] = lines[this.Span.EndingIndex][..this.Span.EndingColumn];
 
-                newLines = this.Updater(updatingLines);
-                offset = this.Span.SetContent(lines, this.UpdateOptions, newLines);
+                change = this.Span.SetContent(lines, this.UpdateOptions, this.Updater(updatingLines));
             }
 
-            return [new SpanUpdateInfo(this.Span, offset)];
+            return change.AndThen(c => {
+                return new SpanUpdateInfo(this, this.Span, c);
+            });
         });
 
-    public override void PushByUpdate(SpanUpdateInfo updateInfo) {
-        if (this.Span.StartingIndex >= updateInfo.TextSpan.StartingIndex) {
-            this.Span = this.Span with {
-                StartingIndex = this.Span.StartingIndex + updateInfo.Offset
-            };
-        }
+    public override void PushByUpdate(SpanUpdateInfo updateInfo) => this.Span = this.Span.WithUpdate(updateInfo);
 
-        if (this.Span.EndingIndex >= updateInfo.TextSpan.StartingIndex) {
-            this.Span = this.Span with {
-                EndingIndex = this.Span.EndingIndex + updateInfo.Offset
-            };
-        }
+    public override string ToString() => $"{nameof(ExactUpdater)}[{this.Priority}]->{this.Span}";
+
+    public override int CompareTo(TextSpanUpdater? other) {
+        if (other is null) return -1;
+        if (other is not ExactUpdater otherUpdater) return -1;
+
+        return this.Span.CompareTo(otherUpdater.Span);
     }
-
-    public override string ToString() =>
-        $"{nameof(ExactUpdater)}({this.Span.StartingIndex}[{this.Span.StartingColumn}..]..{this.Span.EndingIndex}[..{this.Span.EndingColumn}])";
 }

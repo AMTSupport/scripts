@@ -8,8 +8,6 @@ using Compiler.Requirements;
 using Compiler.Text;
 using Compiler.Text.Updater.Built;
 using LanguageExt;
-using LanguageExt.Traits;
-using NLog;
 
 namespace Compiler.Module.Resolvable;
 
@@ -70,25 +68,8 @@ public partial class ResolvableLocalModule : Resolvable {
         this.Editor = new TextEditor(new TextDocument(File.ReadAllLines(moduleSpec.FullPath)));
         this.RequirementsAst = this.Editor.Document.GetRequirementsAst().BindFail(err => err.Enrich(this.ModuleSpec)).ThrowIfFail();
 
-        // Remove empty lines
-        this.Editor.AddRegexEdit(0, EntireEmptyLineRegex(), _ => { return null; });
-
-        // Document Blocks
-        this.Editor.AddPatternEdit(
-            5,
-            DocumentationStartRegex(),
-            DocumentationEndRegex(),
-            (lines) => { return []; });
-
-        // Entire Line Comments
-        this.Editor.AddRegexEdit(10, EntireLineCommentRegex(), _ => { return null; });
-
-        // Comments at the end of a line, after some code.
-        this.Editor.AddRegexEdit(priority: 15, EndOfLineComment(), _ => { return null; });
-
-        // Remove #Requires statements
-        this.Editor.AddRegexEdit(20, RequiresStatementRegex(), _ => { return null; });
-
+        // this.Editor.AddEdit(static () => new NewLineRemovalUpdater());
+        this.Editor.AddEdit(static () => new CommentRemovalUpdater());
         this.Editor.AddEdit(static () => new HereStringUpdater());
     }
 
@@ -116,11 +97,12 @@ public partial class ResolvableLocalModule : Resolvable {
         AstHelper.FindDeclaredModules(this.RequirementsAst).ToList().ForEach(module => {
             if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast) {
                 this.Editor.AddExactEdit(
+                    5,
                     ast.Extent.StartLineNumber - 1,
                     ast.Extent.StartColumnNumber - 1,
                     ast.Extent.EndLineNumber - 1,
                     ast.Extent.EndColumnNumber - 1,
-                _ => []
+                    _ => []
                 );
             }
 
@@ -143,6 +125,7 @@ public partial class ResolvableLocalModule : Resolvable {
 
         AstHelper.FindDeclaredNamespaces(this.RequirementsAst).ToList().ForEach(statement => {
             this.Editor.AddExactEdit(
+                5,
                 statement.Extent.StartLineNumber - 1,
                 statement.Extent.StartColumnNumber - 1,
                 statement.Extent.EndLineNumber - 1,

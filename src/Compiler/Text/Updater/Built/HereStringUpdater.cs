@@ -7,7 +7,7 @@ using System.Management.Automation.Language;
 
 namespace Compiler.Text.Updater.Built;
 
-public partial class HereStringUpdater() : AstUpdater(
+public sealed class HereStringUpdater() : AstUpdater(
     80,
     static ast => ast is StringConstantExpressionAst stringConstantAst && stringConstantAst.StringConstantType is StringConstantType.SingleQuotedHereString or StringConstantType.DoubleQuotedHereString,
     static hereString => InternalApply(hereString),

@@ -1,9 +1,11 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Diagnostics.Contracts;
 using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
+using LanguageExt;
 using NLog;
 
 namespace Compiler.Text.Updater;
@@ -21,61 +23,44 @@ public class PatternUpdater(
     public Regex StartingPattern { get; } = startingPattern;
     public Regex EndingPattern { get; } = endingPattern;
 
-    public override LanguageExt.Fin<SpanUpdateInfo[]> Apply(List<string> lines) {
+    public override Fin<IEnumerable<SpanUpdateInfo>> Apply(List<string> lines) {
         var spanUpdateInfo = new List<SpanUpdateInfo>();
-        var skipRanges = new HashSet<Range>();
-        var offset = 0;
+        var skipSpans = new List<TextSpan>();
 
         while (true) {
-            var (startIndex, endIndex) = this.FindStartToEndBlock([.. lines], offset, skipRanges);
-            if (startIndex == -1 || endIndex == -1) {
-                break;
-            }
+            var spanResult = this.FindStartToEndBlock(ref lines, ref skipSpans);
+            if (!spanResult.IsSome(out var span)) break;
 
-            var spanResult = TextSpan.New(startIndex, 0, endIndex, lines[endIndex].Length);
-            if (spanResult.IsErr(out var err, out var span)) {
-                return FinFail<SpanUpdateInfo[]>(err);
-            }
-
-            var updatingLines = lines[startIndex..(endIndex + 1)].ToArray();
+            var updatingLines = span.GetContent([.. lines]).Split('\n');
             var newLines = this.Updater(updatingLines);
-            var thisOffset = span.SetContent(lines, options, newLines);
+            var thisChange = span.SetContent(lines, options, newLines);
+            if (thisChange.IsErr(out var err, out var change)) return err;
 
-            offset += thisOffset;
-            skipRanges.Add(new Range(startIndex, endIndex));
-            spanUpdateInfo.Add(new SpanUpdateInfo(span, thisOffset));
+            var thisUpdateInfo = new SpanUpdateInfo(this, span, change);
+            // Include self for updating because we want its new span location.
+            skipSpans.Add(span);
+            skipSpans = new List<TextSpan>(skipSpans.Select(s => s.WithUpdate(thisUpdateInfo)));
+            spanUpdateInfo.Add(thisUpdateInfo);
         }
 
-        return FinSucc(spanUpdateInfo.ToArray());
+        return spanUpdateInfo;
     }
 
-    private (int, int) FindStartToEndBlock(
-        string[] lines,
-        int offset,
-        HashSet<Range> skipRanges
+    [Pure]
+    private Option<TextSpan> FindStartToEndBlock(
+        ref List<string> lines,
+        ref List<TextSpan> skipSpans
     ) {
-        if (lines == null || lines.Length == 0) {
-            return (-1, -1);
-        }
-
-        var offsetSkipRanges = new HashSet<IEnumerable<int>>();
-        foreach (var range in skipRanges) {
-            var clampedStart = Math.Clamp(range.Start.Value + offset, 0, lines.Length - 1);
-            var clampedEnd = Math.Clamp(range.End.Value + offset, 0, lines.Length - 1);
-            if (clampedStart < clampedEnd) {
-                offsetSkipRanges.Add(Enumerable.Range(clampedStart, clampedEnd - clampedStart + 1));
-            }
-        }
+        if (lines == null || lines.Count == 0) return None;
 
         var startIndex = -1;
         var endIndex = -1;
         var openLevel = 0;
 
-        for (var i = 0; i < lines.Length; i++) {
+        for (var i = 0; i < lines.Count; i++) {
             var clonedLine = lines[i].Clone().Cast<string>()!;
-            if (offsetSkipRanges.Any(range => range.Contains(i))) {
-                continue;
-            }
+            // TODO - Actually account for columns instead of just entire rows.
+            if (skipSpans.Any(span => span.Contains(i, 0) || span.Contains(i, clonedLine.Length))) continue;
 
             var openingMatch = this.StartingPattern.Matches(clonedLine);
             if (openingMatch.Count > 0) {
@@ -112,8 +97,10 @@ public class PatternUpdater(
             }
         }
 
-        return (startIndex, endIndex);
+        return startIndex == -1 || endIndex == -1
+            ? None
+            : TextSpan.New(startIndex, 0, endIndex, lines[endIndex].Length).Unwrap();
     }
 
-    public override string ToString() => $"{nameof(PatternUpdater)}({this.StartingPattern} -> {this.EndingPattern})";
+    public override string ToString() => $"{nameof(PatternUpdater)}[{this.Priority}]->({this.StartingPattern}..{this.EndingPattern})";
 }

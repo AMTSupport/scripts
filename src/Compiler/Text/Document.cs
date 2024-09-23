@@ -3,9 +3,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation.Language;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Compiler.Text.Updater;
+using Compiler.Text.Updater.Built;
 using LanguageExt;
+using NLog;
 
 namespace Compiler.Text;
 
@@ -34,7 +37,8 @@ public class TextDocument : IDisposable {
         return this.RequirementsAst = AstHelper.GetAstReportingErrors(
             string.Join('\n', this.Lines),
             None,
-            ["ModuleNotFoundDuringParse"]
+            ["ModuleNotFoundDuringParse"],
+            out _
         );
     }
 
@@ -67,119 +71,205 @@ public sealed class CompiledDocument(
     string[] lines,
     ScriptBlockAst ast
 ) : TextDocument(lines) {
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
     public ScriptBlockAst Ast { get; private init; } = ast;
 
     public string GetContent() => string.Join('\n', this.GetLines());
 
     public static Fin<CompiledDocument> FromBuilder(TextEditor builder, int indentBy = 0) {
-        builder.AddEdit(() => new IndentUpdater(indentBy));
+        if (indentBy != 0) builder.AddEdit(() => new IndentUpdater(indentBy));
 
         var lines = builder.Document.GetLines().ToList();
         var spanUpdates = new List<SpanUpdateInfo>();
-        var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Priority).ToList();
+        var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Updater.Priority).ToList();
+        Logger.Debug($"Applying in order->{string.Join("\n\t", sortedUpdaters)}");
         foreach (var textUpdater in sortedUpdaters) {
-            spanUpdates.ForEach(textUpdater.PushByUpdate);
-            var updateResult = textUpdater.Apply(lines);
-
-            updateResult.IfSucc(spanUpdates.AddRange);
-            if (updateResult.IsErr(out var err, out _)) {
-                return err;
+            spanUpdates.ForEach(textUpdater.Updater.PushByUpdate);
+            Fin<IEnumerable<SpanUpdateInfo>> updateResult;
+            try {
+                updateResult = textUpdater.Updater.Apply(lines);
+            } catch (Exception e) {
+                return Error.New(
+                    $"Error applying update: {textUpdater}",
+                    e
+                );
             }
+
+            if (updateResult.IsErr(out var err, out var updates)) {
+                if (err is WrappedErrorWithDebuggableContent wrappedError) {
+                    return err;
+                }
+
+                return new WrappedErrorWithDebuggableContent($"Error applying update: {textUpdater}", string.Join('\n', lines), err);
+            }
+
+            spanUpdates.AddRange(updates);
         }
 
         return AstHelper.GetAstReportingErrors(
-            string.Join('\n', lines),
+        string.Join('\n', lines),
             None,
-            ["ModuleNotFoundDuringParse"]
+            ["ModuleNotFoundDuringParse"],
+            out _
         ).AndThen(ast => new CompiledDocument([.. lines], ast));
     }
 }
 
 public class TextEditor(TextDocument document) {
+    public record SourcedTextUpdater(
+        TextSpanUpdater Updater,
+        string SourceFile,
+        string SourceMember,
+        int SourceLine
+    ) {
+        private static readonly string RootDir = $"src{Path.DirectorySeparatorChar}Compiler";
+
+        public override string ToString() {
+            var sourceFile = this.SourceFile;
+            var rootDirIndex = sourceFile.IndexOf(RootDir, StringComparison.Ordinal);
+            if (rootDirIndex != -1) {
+                sourceFile = sourceFile[rootDirIndex..];
+            }
+
+            return $"{sourceFile}::{this.SourceMember}::{this.SourceLine}->{this.Updater}";
+        }
+    }
+
     public readonly TextDocument OriginalCopy = document;
     public readonly TextDocument Document = document;
-    public readonly List<TextSpanUpdater> TextUpdaters = [];
+    public readonly List<SourcedTextUpdater> TextUpdaters = [];
 
-    public void AddEdit(Func<TextSpanUpdater> updater) => this.TextUpdaters.Add(updater());
+    public void AddEdit(
+        [NotNull] Func<TextSpanUpdater> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.TextUpdaters.Add(new(updater(), callerFile, callerMember, callerLine));
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddPatternEdit(
         Regex openingPattern,
         Regex closingPattern,
-        Func<string[], string[]> updater
-    ) => this.AddPatternEdit(50, openingPattern, closingPattern, updater);
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddPatternEdit(50, openingPattern, closingPattern, updater, callerFile, callerMember, callerLine);
 
-    public void AddPatternEdit(
-        uint priority,
-        Regex openingPattern,
-        Regex closingPattern,
-        Func<string[], string[]> updater
-    ) => this.AddPatternEdit(priority, openingPattern, closingPattern, UpdateOptions.None, updater);
-
-    public void AddPatternEdit(
-        Regex openingPattern,
-        Regex closingPattern,
-        UpdateOptions options,
-        Func<string[], string[]> updater
-    ) => this.AddPatternEdit(50, openingPattern, closingPattern, options, updater);
-
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddPatternEdit(
         uint priority,
         Regex openingPattern,
         Regex closingPattern,
-        UpdateOptions options,
-        Func<string[], string[]> updater
-    ) => this.AddEdit(() => new PatternUpdater(priority, openingPattern, closingPattern, options, updater));
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddPatternEdit(priority, openingPattern, closingPattern, UpdateOptions.None, updater, callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void AddPatternEdit(
+        Regex openingPattern,
+        Regex closingPattern,
+        UpdateOptions options,
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddPatternEdit(50, openingPattern, closingPattern, options, updater, callerFile, callerMember, callerLine);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void AddPatternEdit(
+        uint priority,
+        Regex openingPattern,
+        Regex closingPattern,
+        UpdateOptions options,
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddEdit(() => new PatternUpdater(priority, openingPattern, closingPattern, options, updater), callerFile, callerMember, callerLine);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddRegexEdit(
         Regex pattern,
-        Func<Match, string?> updater
-    ) => this.AddRegexEdit(50, pattern, updater);
+        Func<Match, string?> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddRegexEdit(50, pattern, updater, callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddRegexEdit(
         Regex pattern,
         UpdateOptions options,
-        Func<Match, string?> updater
-    ) => this.AddRegexEdit(50, pattern, options, updater);
+        Func<Match, string?> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddRegexEdit(50, pattern, options, updater, callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddRegexEdit(
         uint priority,
         Regex pattern,
-        Func<Match, string?> updater
-    ) => this.AddRegexEdit(priority, pattern, UpdateOptions.None, updater);
+        Func<Match, string?> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddRegexEdit(priority, pattern, UpdateOptions.None, updater, callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddRegexEdit(
         uint priority,
         Regex pattern,
         UpdateOptions options,
-        Func<Match, string?> updater
-    ) => this.AddEdit(() => new RegexUpdater(priority, pattern, options, updater));
+        Func<Match, string?> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddEdit(() => new RegexUpdater(priority, pattern, options, updater), callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddExactEdit(
         int startingIndex,
         int startingColumn,
         int endingIndex,
         int endingColumn,
-        Func<string[], string[]> updater
-    ) => this.AddExactEdit(startingIndex, startingColumn, endingIndex, endingColumn, UpdateOptions.None, updater);
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddExactEdit(startingIndex, startingColumn, endingIndex, endingColumn, UpdateOptions.None, updater, callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddExactEdit(
         int startingIndex,
         int startingColumn,
         int endingIndex,
         int endingColumn,
         UpdateOptions options,
-        Func<string[], string[]> updater
-    ) => this.AddExactEdit(50, startingIndex, startingColumn, endingIndex, endingColumn, options, updater);
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddExactEdit(50, startingIndex, startingColumn, endingIndex, endingColumn, options, updater, callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddExactEdit(
         uint priority,
         int startingIndex,
         int startingColumn,
         int endingIndex,
         int endingColumn,
-        Func<string[], string[]> updater
-    ) => this.AddExactEdit(priority, startingIndex, startingColumn, endingIndex, endingColumn, UpdateOptions.None, updater);
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddExactEdit(priority, startingIndex, startingColumn, endingIndex, endingColumn, UpdateOptions.None, updater, callerFile, callerMember, callerLine);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddExactEdit(
         uint priority,
         int startingIndex,
@@ -187,6 +277,9 @@ public class TextEditor(TextDocument document) {
         int endingIndex,
         int endingColumn,
         UpdateOptions options,
-        Func<string[], string[]> updater
-    ) => this.AddEdit(() => new ExactUpdater(priority, startingIndex, startingColumn, endingIndex, endingColumn, options, updater));
+        Func<string[], string[]> updater,
+        [CallerFilePath] string callerFile = "",
+        [CallerMemberName] string callerMember = "",
+        [CallerLineNumber] int callerLine = default
+    ) => this.AddEdit(() => new ExactUpdater(priority, startingIndex, startingColumn, endingIndex, endingColumn, options, updater), callerFile, callerMember, callerLine);
 }
