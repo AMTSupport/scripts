@@ -5,6 +5,9 @@ using System.Collections;
 using System.IO.Compression;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
+using System.Reflection;
+using System.Text;
+using System.Text.Json;
 using CommandLine;
 using Compiler.Requirements;
 using LanguageExt;
@@ -13,6 +16,12 @@ using NLog;
 namespace Compiler.Module.Compiled;
 
 public class CompiledRemoteModule : Compiled {
+    private record ExtraModuleInfo(
+        string[]? FunctionsToExport,
+        string[]? CmdletsToExport,
+        string[]? AliasesToExport
+    );
+
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     private Hashtable? PowerShellManifest;
     private ZipArchive? ZipArchive;
@@ -43,10 +52,14 @@ public class CompiledRemoteModule : Compiled {
         return $"'{base64}'";
     }
 
+    // TODO - Cache the results of this function
     public IEnumerable<string> GetExported(object? data, CommandTypes commandTypes) {
+        var exported = new List<string>();
+
         switch (data) {
             case object[] strings:
-                return strings.Cast<string>();
+                exported.AddRange(strings.Cast<string>());
+                break;
             case string starString when starString == "*":
                 var version = this.GetPowerShellManifest()["ModuleVersion"]!.ToString()!;
                 var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{this.ModuleSpec.Name}");
@@ -60,17 +73,42 @@ public class CompiledRemoteModule : Compiled {
                 var sessionState = InitialSessionState.CreateDefault2();
                 sessionState.ImportPSModulesFromPath(tempModuleRootPath);
                 var pwsh = PowerShell.Create(sessionState);
-                return pwsh.Runspace.SessionStateProxy.InvokeCommand
+                exported.AddRange(pwsh.Runspace.SessionStateProxy.InvokeCommand
                     .GetCommands("*", commandTypes, true)
                     .Where(command => command.ModuleName == this.ModuleSpec.Name)
-                    .Select(command => command.Name);
+                    .Select(command => command.Name));
+                break;
             case string str:
-                return [str];
+                exported.Add(str);
+                break;
             case null:
-                return [];
+                break;
             default:
-                throw new InvalidDataException($"FunctionsToExport must be a string or an array of strings, but was {data.GetType()}");
+                throw new InvalidDataException($"{commandTypes}sToExport must be a string or an array of strings, but was {data.GetType()}");
         }
+
+        var info = Assembly.GetExecutingAssembly().GetName();
+        var extraModuleInfoResource = $"{info.Name}.Resources.ExtraModuleInfo.{this.ModuleSpec.Name}.json";
+        using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ExtraModuleInfo.{this.ModuleSpec.Name}.json");
+        if (templateStream == null) return exported;
+
+        using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
+        var extraModuleInfo = JsonSerializer.Deserialize<ExtraModuleInfo>(streamReader.ReadToEnd());
+        if (extraModuleInfo == null) {
+            Logger.Warn($"Failed to parse extra module info for {this.ModuleSpec.Name}");
+            return exported;
+        }
+
+        var extraExports = commandTypes switch {
+            CommandTypes.Function => extraModuleInfo.FunctionsToExport,
+            CommandTypes.Cmdlet => extraModuleInfo.CmdletsToExport,
+            CommandTypes.Alias => extraModuleInfo.AliasesToExport,
+            _ => throw new ArgumentOutOfRangeException(nameof(commandTypes), commandTypes, null)
+        };
+        if (extraExports == null) return exported;
+
+        exported.AddRange(extraExports);
+        return exported;
     }
 
     public override IEnumerable<string> GetExportedFunctions() {
