@@ -1,4 +1,4 @@
-#@compile-ignore
+#!ignore
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service.
@@ -54,7 +54,7 @@ function initialSetup() {
         $osVersion = (Get-Item "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").GetValue('ProductName')
     }
     writeToLog I "Detected Operating System:`r`n`t$OSVersion"
-    
+
     $osArch = (Get-WmiObject Win32_OperatingSystem).OSArchitecture
     writeToLog I "Detected Operating System Aarchitecture: $osArch"
 
@@ -80,13 +80,13 @@ function initialSetup() {
 
     $cipherslists = @('TLS_DHE_RSA_WITH_AES_128_GCM_SHA256','TLS_DHE_RSA_WITH_AES_256_GCM_SHA384','TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256','TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384')
     $ciphersenabledkey = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\00010002\' | Select-Object -ExpandProperty Functions
-    
+
     ForEach ($a in $ciphersenabledkey) {
         If ($cipherslists -eq $a){
             $enabled.Add($a) | Out-Null
         }
     }
-    
+
     If ($enabled.count -ne 0) {
         writeToLog I "Cipher Suite(s) found:"
         Foreach ($i in $enabled) {
@@ -95,13 +95,13 @@ function initialSetup() {
     } Else {
         writeToLog W "Device is not fully patched, no secure Cipher Suite(s) were found."
     }
-    
+
     writeToLog V ("Completed running {0} function." -f $MyInvocation.MyCommand)
 }
 
 function getAgentPath() {
 	writeToLog V ("Started running {0} function." -f $MyInvocation.MyCommand)
-	
+
     $array = @()
 	$array += "GetSupportService_LOGICnow"
 	$array += "GetSupportService_N-Central"
@@ -122,7 +122,7 @@ function getAgentPath() {
                 writeToLog V "This occurred on line number: $line"
                 writeToLog V "Status:`r`n`t$($msg.Status)`r`nResponse:`r`n`t$($msg.Response)`r`nInner Exception:`r`n`t$($msg.InnerException)`r`n`r`nHResult: $($msg.HResult)`r`n`r`nTargetSite and StackTrace:`r`n$($msg.TargetSite)`r`n$($msg.StackTrace)`r`n"
             }
-        
+
             ForEach ($Item in $Keys) {
                 $script:installPath = $Item.Install_Dir
                 $script:installedVersion = $Item.Version
@@ -138,15 +138,15 @@ function getAgentPath() {
             } Else {
                 writeToLog V "Install Path:`r`n`t$installPath"
                 writeToLog V "Installed Version:`r`n`t$installedVersion"
-            
+
                 If (($installPath -match '.+?\\$') -eq $false) {
                     $script:installPath = $script:installPath + "\"
                 }
-            
+
                 writeToLog V "Take Control Folder located:`r`n`t$installPath"
-            
+
                 $script:uninstallerPath = $installPath + "uninstall.exe"
-            
+
                 If (!(Test-Path $uninstallerPath)) {
                     writeToLog W "Unable to locate uninstall.exe on the device."
                     writeToLog W "Uninstaller Path:`r`n`t$uninstallerPath"
@@ -157,7 +157,7 @@ function getAgentPath() {
                     writeToLog V "Confirmed uninstall.exe is present on the device:`r`n`t$uninstallerPath"
                 }
             }
-    
+
             clearFileLocks
             removeTmpUninstaller
             performUninstall
@@ -345,7 +345,7 @@ function performUninstall() {
     $p.WaitForExit()
     Start-Sleep 10
     $script:exitCode = $p.ExitCode
-    
+
     If ($exitcode -eq 0) {
         writeToLog I "Successfully returned exit code 0 from uninstall action."
     } Else {
@@ -364,7 +364,7 @@ function performUninstall() {
 
     writeToLog V "Starting stopwatch."
     $sw = [Diagnostics.Stopwatch]::StartNew()
-    
+
     while (($sw.Elapsed.TotalSeconds -lt $timeoutInSecs) -and (Test-Path $uninstallLockFile)) {
         $result = Test-Path $uninstallLockFile
         writeToLog V "Current uninstall timespan: $($sw.Elapsed.TotalSeconds) seconds."
@@ -412,24 +412,24 @@ function removeMSPAProcesses() {
 
 function removeMSPAServices() {
 	writeToLog V ("Started running {0} function." -f $MyInvocation.MyCommand)
-	
+
 	$array = @()
 	$array += "BASupportExpressStandaloneService_LOGICnow"
 	$array += "BASupportExpressSrvcUpdater_LOGICnow"
     $array += "BASupportExpressStandaloneService_N_Central"
     $array += "BASupportExpressSrvcUpdater_N_Central"
-	
+
 	ForEach ($serviceName in $array) {
 		If (Get-Service $serviceName -ErrorAction SilentlyContinue) {
 			writeToLog I "Detected the $serviceName service on the device, will now remove service."
-			  
+
 			try {
    				Stop-Service -Name $serviceName -ErrorAction Stop
    				sc.exe delete $serviceName -ErrorAction Stop
   			} catch {
    				writeToLog I "The service cannot be removed automatically. Please remove manually."
    				$removalError = $error[0]
-				writeToLog I "Exception from removal attempt is: $removalError" 
+				writeToLog I "Exception from removal attempt is: $removalError"
 			}
 			writeToLog I "$serviceName service is now removed."
 		} Else {
@@ -456,11 +456,11 @@ function removeMSPAFoldersAndKeys() {
     $array += "HKLM:\SOFTWARE\WOW6432Node\Multiplicar Negocios\BACE_N-Central"
     $array += "HKLM:\SOFTWARE\WOW6432Node\Multiplicar Negocios\BeAnyWhere Support Express\GetSupportService_LOGICnow"
     $array += "HKLM:\SOFTWARE\WOW6432Node\Multiplicar Negocios\BeAnyWhere Support Express\GetSupportService_N-Central"
-    
+
 	ForEach ($item in $Array) {
 		If (Test-Path $item) {
 			writeToLog V "Detected $item, foribly removing item."
-		
+
             try {
 				Remove-Item $item -Recurse -Force -ErrorAction Stop
 			} catch {

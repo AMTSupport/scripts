@@ -1,7 +1,7 @@
-Using module ./Logging.psm1
-Using module ./Scope.psm1
-Using module ./Exit.psm1
-Using module ./Utils.psm1
+Using module .\Logging.psm1
+Using module .\Scope.psm1
+Using module .\Exit.psm1
+Using module .\Utils.psm1
 
 [Int]$Script:FAILED_FOLDER_CREATION = Register-ExitCode 'Failed to create the cache folder.';
 [Int]$Script:FAILED_FILE_CREATION = Register-ExitCode 'Failed to create the cache file.';
@@ -10,26 +10,26 @@ Using module ./Utils.psm1
 
 function Get-CachedContent {
     param(
-        [Parameter(Mandatory, HelpMessage="The unique name of the cache file.")]
+        [Parameter(Mandatory, HelpMessage = 'The unique name of the cache file.')]
         [String]$Name,
 
-        [Parameter(HelpMessage="The maximum age of the cache file.")]
+        [Parameter(HelpMessage = 'The maximum age of the cache file.')]
         [TimeSpan]$MaxAge,
 
         [Parameter(HelpMessage = 'A Custom script block to determine if the cached content is still valid.')]
         [ScriptBlock]$IsValidBlock,
 
-        [Parameter(Mandatory, HelpMessage="The script block which creates the content to be cached if needed, this should return a JSON object.")]
+        [Parameter(Mandatory, HelpMessage = 'The script block which creates the content to be cached if needed, this should return a JSON object.')]
         [ScriptBlock]$CreateBlock,
 
         [Parameter()]
         [ScriptBlock]$WriteBlock,
 
-        [Parameter(Mandatory, HelpMessage="The script block to parse the cached content.")]
+        [Parameter(Mandatory, HelpMessage = 'The script block to parse the cached content.')]
         [ValidateNotNullOrEmpty()]
         [ScriptBlock]$ParseBlock,
 
-        [Parameter(HelpMessage="Don't use the cached response, use the CreateBlock.")]
+        [Parameter(HelpMessage = "Don't use the cached response, use the CreateBlock.")]
         [Switch]$NoCache
     )
 
@@ -64,52 +64,52 @@ function Get-CachedLocation {
         [Parameter(HelpMessage = 'A Custom script block to determine if the cached content is still valid.')]
         [ValidateNotNullOrEmpty()]
         [ValidateScript({
-            [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
+                [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
 
-            if (-not ($Local:Ast.ParamBlock.Parameters.Count -eq 1)) {
-                Invoke-Error 'The script block should have one parameter.';
-                return $False;
-            }
+                if (-not ($Local:Ast.ParamBlock.Parameters.Count -eq 1)) {
+                    Invoke-Error 'The script block should have one parameter.';
+                    return $False;
+                }
 
-            if (-not (Test-ReturnType -InputObject:$_ -ValidTypes @([Boolean]))) {
-                Invoke-Error 'The script block should return a boolean value.';
-                return $False;
-            }
+                if (-not (Test-ReturnType -InputObject:$_ -ValidTypes @([Boolean]))) {
+                    Invoke-Error 'The script block should return a boolean value.';
+                    return $False;
+                }
 
-            return $True;
-        })]
+                return $True;
+            })]
         [ScriptBlock]$IsValidBlock,
 
         [Parameter(Mandatory, HelpMessage = 'The script block which creates the content to be cached if needed, this should return a JSON object.')]
         [ValidateNotNullOrEmpty()]
         [ValidateScript({
-            [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
+                [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
 
-            if (-not ($Local:Ast.ParamBlock.Parameters.Count -eq 0)) {
-                Invoke-Error 'The script block should not have any parameters.';
-                return $False;
-            }
+                if (-not ($Local:Ast.ParamBlock.Parameters.Count -eq 0)) {
+                    Invoke-Error 'The script block should not have any parameters.';
+                    return $False;
+                }
 
-            if (($Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $True).Count -lt 1)) {
-                Invoke-Error 'The script block should return a value.';
-                return $False;
-            }
+                if (($Local:Ast.FindAll({ $args[0] -is [System.Management.Automation.Language.ReturnStatementAst] }, $True).Count -lt 1)) {
+                    Invoke-Error 'The script block should return a value.';
+                    return $False;
+                }
 
-            return $True;
-        })]
+                return $True;
+            })]
         [ScriptBlock]$CreateBlock,
 
         [Parameter(HelpMessage = 'The script block used to write the content to the cache file.')]
         [ValidateScript({
-            [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
+                [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
 
-            if (-not ($Local:Ast.ParamBlock.Parameters.Count -eq 2)) {
-                Invoke-Error 'The script block should have two parameters.';
-                return $false;
-            }
+                if (-not ($Local:Ast.ParamBlock.Parameters.Count -eq 2)) {
+                    Invoke-Error 'The script block should have two parameters.';
+                    return $false;
+                }
 
-            return $true;
-        })]
+                return $true;
+            })]
         [ScriptBlock]$WriteBlock = {
             param(
                 [Parameter(Mandatory)]

@@ -1,4 +1,4 @@
-#@compile-ignore
+#!ignore
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service.
@@ -16,7 +16,7 @@ Param (
 
 function setupLogging() {
 	$script:logFilePath = "C:\ProgramData\MspPlatform\Tech Tribes\Feature Cleanup Utility\debug.log"
-	
+
 	$script:logFolder = Split-Path $logFilePath
 	$script:logFile = Split-Path $logFilePath -Leaf
 
@@ -54,7 +54,7 @@ function initialSetup() {
         $osVersion = (Get-Item "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").GetValue('ProductName')
     }
     writeToLog I "Detected Operating System:`r`n`t$OSVersion"
-    
+
     $osArch = (Get-WmiObject Win32_OperatingSystem).OSArchitecture
     writeToLog I "Detected Operating System Aarchitecture: $osArch"
 
@@ -80,13 +80,13 @@ function initialSetup() {
 
     $cipherslists = @('TLS_DHE_RSA_WITH_AES_128_GCM_SHA256','TLS_DHE_RSA_WITH_AES_256_GCM_SHA384','TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256','TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384')
     $ciphersenabledkey = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\00010002\' | Select-Object -ExpandProperty Functions
-    
+
     ForEach ($a in $ciphersenabledkey) {
         If ($cipherslists -eq $a){
             $enabled.Add($a) | Out-Null
         }
     }
-    
+
     If ($enabled.count -ne 0) {
         writeToLog I "Cipher Suite(s) found:"
         Foreach ($i in $enabled) {
@@ -95,13 +95,13 @@ function initialSetup() {
     } Else {
         writeToLog W "Device is not fully patched, no secure Cipher Suite(s) were found."
     }
-    
+
     writeToLog V ("Completed running {0} function." -f $MyInvocation.MyCommand)
 }
 
 function getAgentPath() {
 	writeToLog V ("Started running {0} function." -f $MyInvocation.MyCommand)
-	
+
     try {
         $Keys = Get-ChildItem HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction Stop
     } catch {
@@ -128,18 +128,18 @@ function getAgentPath() {
         writeToLog F "Error during the lookup of the WOW6432Node Path in the registry:"
         writeToLog F $_
     }
-    
+
     $Items = $Keys | Foreach-Object {
         Get-ItemProperty $_.PsPath
     }
-    
+
     ForEach ($Item in $Items) {
         If ($Item.DisplayName -like "*Patch Management Service Controller*") {
 			$script:localFolder = $Item.installLocation
             break
         }
     }
-    
+
     If (!$localFolder) {
 		writeToLog F "PME installation not found."
 		writeToLog F "Will do post-cleanup but marking script as failed."
@@ -212,7 +212,7 @@ function runPMEV1Uninstaller() {
 		"$($pmeFolder)CacheService\unins000.exe" = "https://s3.amazonaws.com/new-swmsp-net-supportfiles/PermanentFiles/PMECleanup_Repository/cacheunins000.dat";
 		"$($pmeFolder)RpcServer\unins000.exe" = "https://s3.amazonaws.com/new-swmsp-net-supportfiles/PermanentFiles/PMECleanup_Repository/rpcunins000.dat"
 	}
-   
+
 	foreach ($key in $hash.Keys) {
 		If (Test-Path $key) {
 			$datItem = $key
@@ -220,8 +220,8 @@ function runPMEV1Uninstaller() {
 
 			If (!(Test-Path $datItem)) {
 				writeToLog W "Dat file not found. Will attempt downloading."
-   				downloadFileToLocation $hash[$key] $datItem 
-				   
+   				downloadFileToLocation $hash[$key] $datItem
+
 				If (!(Test-Path $datItem)) {
 					writeToLog F "Unable to download dat file for uninstaller to run."
 					writeToLog F "PME must be removed manually. Failing script."
@@ -253,7 +253,7 @@ function runPMEV1Uninstaller() {
 			Start-Sleep -s 5
 
  		} Else {
-			writeToLog W "$key Uninstaller doesn't exist on the device." 
+			writeToLog W "$key Uninstaller doesn't exist on the device."
 		}
 	}
 	writeToLog V ("Completed running {0} function." -f $MyInvocation.MyCommand)
@@ -268,7 +268,7 @@ function runPMEV2Uninstaller() {
 		"$($pmeFolder)FileCacheServiceAgent\unins000.exe" = "https://s3.amazonaws.com/new-swmsp-net-supportfiles/PermanentFiles/PMECleanup_Repository/cacheunins000.dat";
 		"$($pmeFolder)RequestHandlerAgent\unins000.exe" = "https://s3.amazonaws.com/new-swmsp-net-supportfiles/PermanentFiles/PMECleanup_Repository/rpcunins000.dat"
 	}
-   
+
 	foreach ($key in $hash.Keys) {
 		write-host "Checking $key"
 		$keyName = (split-path $key).split('\')[-1]
@@ -281,8 +281,8 @@ function runPMEV2Uninstaller() {
 			if (!(Test-Path $datItem)) {
 				writeToLog W "Could not find the following dat file:`r`n`t$datItem"
 				writeToLog W "Dat file not found. Will attempt downloading."
-   				downloadFileToLocation $hash[$key] $datItem 
-				   
+   				downloadFileToLocation $hash[$key] $datItem
+
 				if (!(Test-Path $datItem)) {
 					writeToLog F "Unable to download dat file for uninstaller to run."
 					writeToLog F "PME must be removed manually. Failing script."
@@ -314,7 +314,7 @@ function runPMEV2Uninstaller() {
 			Start-Sleep -s 5
 
  		} Else {
-			writeToLog W "$key Uninstaller doesn't exist on the device." 
+			writeToLog W "$key Uninstaller doesn't exist on the device."
 		}
 	}
 	writeToLog V ("Completed running {0} function." -f $MyInvocation.MyCommand)
@@ -398,7 +398,7 @@ function removeProcesses() {
 function downloadFileToLocation ($URL, $Location) {
 
 	$wc = New-Object System.Net.WebClient
-	
+
 	try {
 		 $wc.DownloadFile($URL, $Location)
 	} catch {
@@ -408,24 +408,24 @@ function downloadFileToLocation ($URL, $Location) {
 
 function removePMEServices() {
 	writeToLog V ("Started running {0} function." -f $MyInvocation.MyCommand)
-	
+
 	$array = @()
 	$array += "PME.Agent.PmeService"
 	$array += "SolarWinds.MSP.RpcServerService"
 	$array += "SolarWinds.MSP.CacheService"
-	
+
 	foreach ($serviceName in $array) {
 
 		If (Get-Service $serviceName -ErrorAction SilentlyContinue) {
 			writeToLog I "Detected the $serviceName service on the device, will now remove service."
-			  
+
 			try {
    				$stopService = Stop-Service -Name $serviceName -ErrorAction Stop
    				$deleteService = sc.exe delete $serviceName -ErrorAction Stop
   			} catch {
    				writeToLog I "The service cannot be removed automatically. Please remove manually."
    				$removalError = $error[0]
-				writeToLog I "Exception from removal attempt is: $removalError" 
+				writeToLog I "Exception from removal attempt is: $removalError"
 			}
 			writeToLog I "$serviceName service is now removed."
 		} Else {
@@ -442,7 +442,7 @@ function removePMEFoldersAndKeys() {
 	$array += "C:\ProgramData\SolarWinds MSP\PME"
 	$array += "C:\ProgramData\MspPlatform\PME"
 	$array += "C:\ProgramData\MspPlatform\PME.Agent.PmeService"
-	
+
 	$array += "C:\ProgramData\SolarWinds MSP\SolarWinds.MSP.CacheService"
 	$array += "C:\ProgramData\MspPlatform\SolarWinds.MSP.CacheService"
 	$array += "C:\ProgramData\MspPlatform\FileCacheServiceAgent"
@@ -467,7 +467,7 @@ function removePMEFoldersAndKeys() {
 
 	If ((Test-Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall") -eq $true) {
 		$recurse = Get-ChildItem -path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-		
+
 		foreach ($entry in $recurse) {
  			foreach ($key in Get-ItemProperty -path "Registry::$entry") {
   				if($key.DisplayName -eq "SolarWinds MSP RPC Server" -or $key.DisplayName -eq "Request Handler Agent" -or $key.DisplayName -eq "File Cache Service Agent" -or $key.DisplayName -eq "Patch Management Service Controller" -or $key.DisplayName -eq "SolarWinds MSP Patch Management Engine" -or $key.DisplayName -eq "SolarWinds MSP Cache Service") {
@@ -479,7 +479,7 @@ function removePMEFoldersAndKeys() {
 	}
 
 	$recurse = Get-ChildItem -path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
-	
+
 	foreach ($entry in $recurse) {
  		foreach ($key in Get-ItemProperty -path "Registry::$entry") {
 			if($key.DisplayName -eq "SolarWinds MSP RPC Server" -or $key.DisplayName -eq "Request Handler Agent" -or $key.DisplayName -eq "File Cache Service Agent" -or $key.DisplayName -eq "Patch Management Service Controller" -or $key.DisplayName -eq "SolarWinds MSP Patch Management Engine" -or $key.DisplayName -eq "SolarWinds MSP Cache Service") {
@@ -492,13 +492,13 @@ function removePMEFoldersAndKeys() {
 	foreach ($FolderLocation in $Array) {
 		if (Test-Path $FolderLocation) {
 			writeToLog I "$FolderLocation exists. Removing item..."
-			  
+
 			try {
    				remove-item $folderLocation -recurse -force
   			} catch {
    				writeToLog I "The item $FolderLocation exists but cannot be removed automatically. Please remove manually."
    				$removalError = $error[0]
-   				writeToLog E "Exception from removal attempt is: $removalError" 
+   				writeToLog E "Exception from removal attempt is: $removalError"
 			}
  		} else {
   			writeToLog W "$FolderLocation doesn't exist - moving on..."
@@ -577,11 +577,11 @@ function main(){
 	} Else {
 		runPMEV2Uninstaller
 	}
-	
+
 	removeProcesses
     removePMEServices
     removePMEFoldersAndKeys
-	
+
 	writeToLog I "PME Cleanup now complete."
 	postRuntime
 }

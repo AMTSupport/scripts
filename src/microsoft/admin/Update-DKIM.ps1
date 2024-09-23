@@ -2,6 +2,8 @@
 
 Using module ../../common/Environment.psm1
 Using module ../../common/Connection.psm1
+Using module ../../common/Logging.psm1
+
 Using module Microsoft.Graph.Identity.DirectoryManagement
 
 Using namespace Microsoft.Graph.PowerShell.Models

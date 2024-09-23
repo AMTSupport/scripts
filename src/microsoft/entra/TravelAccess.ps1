@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 
-Using module ../common/Environment.psm1
+Using module ../../common/Environment.psm1
 
 Invoke-RunMain $PSCmdlet {
     # Sign into EntraID

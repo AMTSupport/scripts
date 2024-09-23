@@ -11,12 +11,14 @@
         - Intune Device Configuration Profile (Optional)
 #>
 
+Using module ../../common/Environment.psm1
+Using module ../../common/Logging.psm1
+Using module ../../common/Input.psm1
+Using module ../../common/Connection.psm1
+
 Using module Microsoft.Graph.Identity.SignIns
 Using module Microsoft.Graph.Authentication
 Using module Microsoft.Graph.Groups
-
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
 
 Using namespace Microsoft.Graph.PowerShell.Models
 Using namespace System.Management.Automation
@@ -246,45 +248,45 @@ function Set-ConditionalAccessPolicy {
 # Register-ArgumentCompleter -CommandName:($PSCommandPath | Split-Path -Leaf) -ScriptBlock $Local:ScriptBlock
 Invoke-RunMain $PSCmdlet -Main:$Local:ScriptBlock;
 
-dynamicparam {
-    Start-Sleep -Seconds 15;
+# dynamicparam {
+#     Start-Sleep -Seconds 15;
 
-    $Parameters = $Local:ScriptBlock.Ast.ParamBlock.Parameters;
-    if ($Parameters.Count -eq 0) {
-        Write-Host 'No parameters found.';
-        return;
-    } else {
-        Write-Host "Found $($Parameters.Count) parameters.";
-    }
+#     $Parameters = $Local:ScriptBlock.Ast.ParamBlock.Parameters;
+#     if ($Parameters.Count -eq 0) {
+#         Write-Host 'No parameters found.';
+#         return;
+#     } else {
+#         Write-Host "Found $($Parameters.Count) parameters.";
+#     }
 
-    $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary;
+#     $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary;
 
-    foreach ($Param in $Parameters) {
-        $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute];
+#     foreach ($Param in $Parameters) {
+#         $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute];
 
-        foreach ($Attribute in $Param.Attributes) {
-            $AttributeSet = New-Object "System.Management.Automation.$($Attribute.TypeName)Attribute";
-            foreach ($Argument in $Attribute.NamedArguments) {
-                if ($Argument.ExpressionOmmited) {
-                    # Assume its a switch parameter
-                    $AttributeSet.($Argument.ArgumentName) = $True;
-                } else {
-                    # Invoke the expression to get the value
-                    $AttributeSet.($Argument.ArgumentName) = Invoke-Expression $Attribute.Argument.Extent.Text;
-                }
-            }
+#         foreach ($Attribute in $Param.Attributes) {
+#             $AttributeSet = New-Object "System.Management.Automation.$($Attribute.TypeName)Attribute";
+#             foreach ($Argument in $Attribute.NamedArguments) {
+#                 if ($Argument.ExpressionOmmited) {
+#                     # Assume its a switch parameter
+#                     $AttributeSet.($Argument.ArgumentName) = $True;
+#                 } else {
+#                     # Invoke the expression to get the value
+#                     $AttributeSet.($Argument.ArgumentName) = Invoke-Expression $Attribute.Argument.Extent.Text;
+#                 }
+#             }
 
-            $AttributeCollection.Add($AttributeSet);
-        }
+#             $AttributeCollection.Add($AttributeSet);
+#         }
 
-        $ParameterName = $Param.Name.VariablePath.UserPath;
-        $ParameterType = $Param.StaticType;
-        $RuntimeParameter = [System.Management.Automation.RuntimeDefinedParameter]::new($ParameterName, $ParameterType, $AttributeCollection);
-        $RuntimeParameterDictionary.Add($ParameterName, $RuntimeParameter);
-    }
+#         $ParameterName = $Param.Name.VariablePath.UserPath;
+#         $ParameterType = $Param.StaticType;
+#         $RuntimeParameter = [System.Management.Automation.RuntimeDefinedParameter]::new($ParameterName, $ParameterType, $AttributeCollection);
+#         $RuntimeParameterDictionary.Add($ParameterName, $RuntimeParameter);
+#     }
 
-    return $RuntimeParameterDictionary
-}
+#     return $RuntimeParameterDictionary
+# }
 # dynamicparam {
 #     [RuntimeDefinedParameterDictionary]$Parameters = [RuntimeDefinedParameterDictionary]::new();
 

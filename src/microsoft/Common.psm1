@@ -289,3 +289,5 @@ function Invoke-ForEachCustomer {
         }
     }
 }
+
+Export-ModuleMember -Function Get-AlertsUser, Invoke-ForEachCustomer;

@@ -1,6 +1,8 @@
 Using module ../common/Environment.psm1
 Using module ../common/Logging.psm1
 Using module ../common/Scope.psm1
+Using module ../common/Cache.psm1
+
 Using module ImportExcel
 
 [CmdletBinding()]

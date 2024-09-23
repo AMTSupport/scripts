@@ -1,4 +1,4 @@
-#@compile-ignore
+#!ignore
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service.
@@ -17,7 +17,7 @@ Param (
 
 function setupLogging() {
     $script:logFilePath = "C:\ProgramData\MspPlatform\Tech Tribes\AVDefenderCleanup\debug.log"
-    
+
     $script:logFolder = Split-Path $logFilePath
     $script:logFile = Split-Path $logFilePath -Leaf
 
@@ -27,7 +27,7 @@ function setupLogging() {
     If ($logFolderExists -eq $false) {
         New-Item -ItemType "directory" -Path $logFolder | Out-Null
     }
-    
+
     If ($logFileExists -eq $true) {
         Remove-Item $logFilePath -ErrorAction SilentlyContinue
         Start-Sleep 2
@@ -35,7 +35,7 @@ function setupLogging() {
     } Else {
         New-Item -ItemType "file" -Path $logFolder -Name $logFile | Out-Null
     }
-    
+
     If (($logFolder -match '.+?\\$') -eq $false) {
         $script:logFolder = $logFolder + "\"
     }
@@ -71,7 +71,7 @@ function getAgentPath() {
         writeToLog V "This occurred on line number: $line"
         writeToLog W "Will continue with validating agent path."
     }
-	
+
 	$Items = $Keys | Foreach-Object {
         Get-ItemProperty $_.PsPath
     }
@@ -88,7 +88,7 @@ function getAgentPath() {
             break
         }
     }
-    
+
     try {
         $Keys = Get-ChildItem HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction Stop
     } catch {
@@ -128,7 +128,7 @@ function getAgentPath() {
 		If (($script:localFolder -match '.+?\\$') -eq $false) {
 			$script:localFolder = $script:localFolder + "\"
 		}
-	
+
 		writeToLog I "Windows Agent install location found:`r`n`t$localFolder"
 		writeToLog V "Registry location: `r`n`t$registryPath`r`n`t$registryName"
 	}
@@ -191,7 +191,7 @@ function stopServices() {
 	$array = @()
 	$array += "Windows Agent Service"
 	$array += "Windows Agent Maintenance Service"
-	
+
 	foreach ($serviceName in $array) {
 
 		If (Get-Service $serviceName -ErrorAction SilentlyContinue) {
@@ -238,7 +238,7 @@ function performUninstall() {
     $p.WaitForExit()
     Start-Sleep 10
     $script:exitCode = $p.ExitCode
-    
+
     If (($exitcode -eq 0)-or ($null -eq $exitcode)) {
         writeToLog I "Successfully returned exit code 0 from uninstall action."
     } Else {
@@ -295,7 +295,7 @@ function cleanupFoldersAndKeys() {
     ForEach ($item in $Array) {
         If (Test-Path $item) {
             writeToLog V "Detected $item, foribly removing item."
-        
+
             try {
                 Remove-Item $item -Recurse -Force -ErrorAction Stop
             } catch {
@@ -361,7 +361,7 @@ function startServices() {
 	$array = @()
 	$array += "Windows Agent Service"
 	$array += "Windows Agent Maintenance Service"
-	
+
 	foreach ($serviceName in $array) {
 
 		If (Get-Service $serviceName -ErrorAction SilentlyContinue) {

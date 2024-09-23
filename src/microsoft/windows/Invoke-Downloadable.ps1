@@ -1,6 +1,9 @@
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
-Using module ..\..\common\Scope.psm1
+Using module ../../common/Environment.psm1
+Using module ../../common/Logging.psm1
+Using module ../../common/Scope.psm1
+Using module ../../common/Utils.psm1
+Using module ../../common/Temp.psm1
+
 
 [CmdletBinding(SupportsShouldProcess)]
 Param(

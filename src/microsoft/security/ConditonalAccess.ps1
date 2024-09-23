@@ -1,7 +1,8 @@
+#!ignore
 #Requires -Version 5.1
-#Requires -Modules AzureADPreview
 
 Using module ..\..\common\Environment.psm1
+Using module AzureAD
 
 function New-Condition_AllCloudApps(
     [Parameter(Mandatory)]

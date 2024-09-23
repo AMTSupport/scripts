@@ -6,6 +6,8 @@ Using module ../../common/Logging.psm1
 Using module ../../common/Ensure.psm1
 Using module ../../common/Scope.psm1
 Using module ../../common/Exit.psm1
+Using module ../../common/Assert.psm1
+Using module ../../common/Input.psm1
 
 Using module ImportExcel
 

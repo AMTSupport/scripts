@@ -1,5 +1,8 @@
 Using module ../../common/Environment.psm1
+Using module ../../common/Input.psm1
+Using module ../../common/Connection.psm1
 Using module ../Common.psm1
+
 Using module ExchangeOnlineManagement
 Using module Microsoft.Graph.Users
 

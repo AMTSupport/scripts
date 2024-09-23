@@ -1,9 +1,12 @@
 #Requires -Version 5.1
 
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
-Using module ..\..\common\Scope.psm1
-Using module ..\..\common\Connection.psm1
+Using module ../../common/Environment.psm1
+Using module ../../common/Logging.psm1
+Using module ../../common/Scope.psm1
+Using module ../../common/Connection.psm1
+Using module ../Common.psm1
+
+Using module ExchangeOnlineManagement
 
 param(
     [Parameter()]
@@ -20,7 +23,7 @@ function Update-SecurityAndCompilence(
     $Local:Alerts = $Local:Alerts | Where-Object { ($_.NotifyUser -ne $AlertsUser.WindowsLiveID) -and !$_.Disabled }
 
     if ($null -eq $Local:Alerts -or $Local:Alerts.Count -eq 0) {
-        Info 'All Security and Complience alerts are already configured to notify the Alerts user.';
+        Invoke-Info 'All Security and Complience alerts are already configured to notify the Alerts user.';
         return;
     }
 
@@ -29,7 +32,7 @@ function Update-SecurityAndCompilence(
         if ($Local:Alert.IsSystemRule) {
             # Check for existing custom rule
             if ($Local:AlertNames -contains "AMT $($Local:Alert.Name)") {
-                Info "Custom alert already exists for $($Local:Alert.Name). Skipping...";
+                Invoke-Info "Custom alert already exists for $($Local:Alert.Name). Skipping...";
                 continue;
             }
 
@@ -44,18 +47,18 @@ function Update-SecurityAndCompilence(
                 New-ProtectionAlert -AggregationType $Local:NewAlert.AggregationType -AlertBy $Local:NewAlert.AlertBy -AlertFor $Local:NewAlert.AlertFor -Category $Local:NewAlert.Category -Comment $Local:NewAlert.Comment -CorrelationPolicyId $Local:NewAlert.CorrelationPolicyId -CustomProperties $Local:NewAlert.CustomProperties -Description $Local:NewAlert.Description -Disabled $Local:NewAlert.Disabled -Filter $Local:NewAlert.Filter -LogicalOperationName $Local:NewAlert.LogicalOperationName -Name $Local:NewAlert.Name -NotificationCulture $Local:NewAlert.NotificationCulture -NotificationEnabled $Local:NewAlert.NotificationEnabled -NotifyUser $Local:NewAlert.NotifyUser -NotifyUserOnFilterMatch $Local:NewAlert.NotifyUserOnFilterMatch -NotifyUserSuppressionExpiryDate $Local:NewAlert.NotifyUserSuppressionExpiryDate -NotifyUserThrottleThreshold $Local:NewAlert.NotifyUserThrottleThreshold -NotifyUserThrottleWindow $Local:NewAlert.NotifyUserThrottleWindow -Operation $Local:NewAlert.Operation -PrivacyManagementScopedSensitiveInformationTypes $Local:NewAlert.PrivacyManagementScopedSensitiveInformationTypes -PrivacyManagementScopedSensitiveInformationTypesForCounting $Local:NewAlert.PrivacyManagementScopedSensitiveInformationTypesForCounting -PrivacyManagementScopedSensitiveInformationTypesThreshold $Local:NewAlert.PrivacyManagementScopedSensitiveInformationTypesThreshold -Severity $Local:NewAlert.Severity -ThreatType $Local:NewAlert.ThreatType -Threshold $Local:NewAlert.Threshold -TimeWindow $Local:NewAlert.TimeWindow -UseCreatedDateTime $Local:NewAlert.UseCreatedDateTime -VolumeThreshold $Local:NewAlert.VolumeThreshold -ErrorAction Stop | Out-Null
                 $Local:AlertNames += $Local:NewAlert.Name;
             } catch {
-                Warn "Unable to create custom alert for $($Local:Alert.Name).";
+                Invoke-Warn "Unable to create custom alert for $($Local:Alert.Name).";
                 $Local:UnableToCreate += $Local:Alert.Name;
             }
         } else {
-            Info "Updating alert ''$($Local:Alert.Name)''..."
+            Invoke-Info "Updating alert ''$($Local:Alert.Name)''..."
             Set-ProtectionAlert -Identity $Local:Alert.Name -NotifyUser $Local:AlertsUser.WindowsLiveID | Out-Null
         }
     }
 
     if ($Local:UnableToCreate.Count -gt 0) {
-        Warn "Unable to create custom alerts for the following alerts: $($Local:UnableToCreate -join ', ')";
-        Warn "Please update these alerts manually at ``https://security.microsoft.com/alertpoliciesv2`` for alerts user ``$($Local:AlertsUser.UserPrincipalName)``.";
+        Invoke-Warn "Unable to create custom alerts for the following alerts: $($Local:UnableToCreate -join ', ')";
+        Invoke-Warn "Please update these alerts manually at ``https://security.microsoft.com/alertpoliciesv2`` for alerts user ``$($Local:AlertsUser.UserPrincipalName)``.";
     }
 }
 
