@@ -1,4 +1,4 @@
-#@compile-ignore
+#!ignore
 <#
 .SYNOPSIS
     This cleaner script is used to remove leftover files and folders from the EDR & EcoSystem agent.

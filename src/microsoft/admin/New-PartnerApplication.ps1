@@ -26,15 +26,12 @@ Using module ../../common/Analyser.psm1
 Using module ../../common/Environment.psm1
 Using module ../../common/Logging.psm1
 Using module ../../common/Exit.psm1
+
 Using module AzureAD
 Using module PartnerCenter
 
 Using namespace Microsoft.Open.AzureAD.Model
 
-[SupressAnalyser(
-    'UseOfUndefinedFunction',
-    'Connect-AzureAD','Get-AzureADTenantDetail','New-AzureADApplication','New-AzureADApplicationPasswordCredential'
-)]
 Param(
     [Parameter(Mandatory)]
     [string]$DisplayName,

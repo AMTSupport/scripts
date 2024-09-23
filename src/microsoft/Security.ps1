@@ -1,8 +1,10 @@
-Using module ..\common\Environment.psm1
-Using module ..\common\Connection.psm1
-Using module .\Common.psm1
+Using module ../common/Environment.psm1
+Using module ../common/Connection.psm1
+Using module ./Common.psm1
+
 Using module Microsoft.Online.SharePoint.PowerShell
 
+[CmdletBinding()]
 Param(
     [Parameter(Mandatory)]
     [ValidateSet('SecurityAlerts', 'ConditionalAccess', 'Sharepoint', 'Exchange')]
@@ -140,10 +142,10 @@ Invoke-RunMain $PSCmdlet {
             New-ConditionalAccessPrivilegedIdentityManagementPolicy;
         }
         'Sharepoint' {
-            Invoke-EnsureModule Microsoft.Online.Sharepoint.Powershell;
+            # Invoke-EnsureModule Microsoft.Online.Sharepoint.Powershell;
         }
         'Exchange' {
-            Invoke-EnsureModule ExchangeOnlineManagement;
+            # Invoke-EnsureModule ExchangeOnlineManagement;
 
             Disable-Outlook_StorageProviders
 

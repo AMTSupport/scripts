@@ -1,8 +1,10 @@
 #Requires -Version 5.1
-#Requires -Modules ExchangeOnlineManagement
 
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
+Using module ../../common/Environment.psm1
+Using module ../../common/Logging.psm1
+Using module ../../common/Connection.psm1
+
+Using module ExchangeOnlineManagement
 
 [String]$Script:RetentionPolicy = 'Log Retention Policy';
 [String]$Script:RetentionPolicyDescription = 'One year retention policy for all activities';
@@ -16,7 +18,7 @@ Invoke-RunMain $PSCmdlet {
 
     $UnifiedAuditLogRetentionPolicy = Get-UnifiedAuditLogRetentionPolicy | Where-Object { $_.Name -eq $Script:RetentionPolicy };
     if ($null -eq $UnifiedAuditLogRetentionPolicy) {
-        Invoke-Info "Creating new policy...";
+        Invoke-Info 'Creating new policy...';
 
         New-UnifiedAuditLogRetentionPolicy `
             -Name $Script:RetentionPolicy `
@@ -27,7 +29,7 @@ Invoke-RunMain $PSCmdlet {
         return;
     }
 
-    Invoke-Info "Updating existing policy...";
+    Invoke-Info 'Updating existing policy...';
     Set-UnifiedAuditLogRetentionPolicy `
         -Identity $UnifiedAuditLogRetentionPolicy.Identity `
         -Description $Script:RetentionPolicyDescription `

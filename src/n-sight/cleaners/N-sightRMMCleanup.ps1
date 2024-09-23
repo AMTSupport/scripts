@@ -1,4 +1,4 @@
-#@compile-ignore
+#!ignore
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service.
@@ -119,7 +119,7 @@ function getAgentPath() {
             break
         }
     }
-    
+
     If (!$script:localFolder) {
         writeToLog F "Installation path for the Advanced Monitoring Agent location was not found."
         writeToLog F "Failing script."
@@ -362,7 +362,7 @@ function downloadUnins() {
 
         $script:shell = new-object -com Shell.Application
         $shell.namespace($logFolder).copyhere($shell.namespace($downloadedFile).items(),16)
-    
+
     } Else {
         try {
             Expand-Archive $downloadedFile $logFolder -Force -ErrorAction Stop

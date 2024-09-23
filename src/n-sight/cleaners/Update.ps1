@@ -60,8 +60,7 @@ Function Invoke-UpdateScript {
     }
 
     try {
-        # Prepend file with #@compile-ignore
-        $Content = "#@compile-ignore`n$Content";
+        $Content = "#@ignore`n$Content";
         Set-Content -Path $Private:LocalFilePath -Value $Content;
     } catch {
         Invoke-Error -Message "Failed to write '$ScriptName' to '$Private:LocalFilePath': $($_.Exception.Message)";

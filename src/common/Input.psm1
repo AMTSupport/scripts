@@ -2,7 +2,7 @@ Using module ./Utils.psm1
 Using module ./Logging.psm1
 Using module ./Scope.psm1
 Using module ./Assert.psm1
-Using module ./Ensure.psm1
+
 Using module @{
     ModuleName    = 'PSReadLine';
     ModuleVersion = '2.3.2';

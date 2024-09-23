@@ -1,8 +1,11 @@
 #Requires -Modules ExchangeOnlineManagement
 
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
-Using module ..\..\common\Scope.psm1
+Using module ../../common/Environment.psm1
+Using module ../../common/Logging.psm1
+Using module ../../common/Scope.psm1
+Using module ../../common/Input.psm1
+Using module ../../common/Connection.psm1
+Using module ../Common.psm1
 
 Param(
     [Parameter(Mandatory)]
@@ -18,6 +21,16 @@ function Enable-MailboxAuditing {
 
 function Enable-MailTips {
     Set-OrganizationConfig -MailTipsAllTipsEnabled $true -MailTipsExternalRecipientsTipsEnabled $true -MailTipsGroupMetricsEnabled $true -MailTipsLargeAudienceThreshold '25'
+}
+
+function Enable-AlertSpamPolicyAdmin {
+    $AlertsUser = Get-AlertsUser;
+
+    Set-HostedOutboundSpamFilterPolicy -Identity Default `
+        -BccSuspiciousOutboundAdditionalRecipients @($AlertsUser) `
+        -BccSuspiciousOutboundMail $true `
+        -NotifyOutboundSpam $true `
+        -NotifyOutboundSpamRecipients @($AlertsUser);
 }
 #endregion - Mailbox settings
 
@@ -35,11 +48,11 @@ function Update-SafeAttachmentsPolicy {
 
     process {
         $Local:Params = @{
-            Name            = 'AMT - Default safe attachments'
-            Enable          = $true
+            Name          = 'AMT - Default safe attachments'
+            Enable        = $true
 
-            Action          = 'DynamicDelivery'
-            QuarantineTag   = 'AdminOnlyAccessPolicy'
+            Action        = 'DynamicDelivery'
+            QuarantineTag = 'AdminOnlyAccessPolicy'
         };
 
         try {
@@ -207,46 +220,46 @@ function Update-AntiMalwarePolicy {
 
     process {
         $Local:Params = @{
-            Name = 'AMT - Default malware filter policy'
-            Enable = $true
-            Action = 'Quarantine'
-            HighConfidenceSpamAction = 'Quarantine'
-            HighConfidenceMalwareAction = 'Quarantine'
-            BulkSpamAction = 'Quarantine'
-            BulkMalwareAction = 'Quarantine'
-            SpamAction = 'Quarantine'
-            PhishAction = 'Quarantine'
-            ZAPEnabled = $true
-            BypassInboundMessages = $false
-            BypassOutboundMessages = $false
-            BypassUnauthenticatedSenders = $false
-            BypassAuthenticatedUsers = $false
-            BypassMessagesSentToAndFromFollowedUsers = $false
-            BypassMessagesSentToFollowedUsers = $false
-            BypassMalwareDetection = $false
-            BypassSpamDetection = $false
-            BypassInboxRules = $false
-            BypassSecurityGroupManagerModeration = $false
-            BypassModerationFromRecipient = $false
-            BypassSenderAdminCheck = $false
-            BypassSenderInRecipientBlockedCondition = $false
-            BypassSenderInRecipientBlockedConditionExceptions = @()
-            BypassSenderInRecipientBlockedConditionAction = 'Quarantine'
-            BypassMalwareFiltering = $false
-            BypassSpamFiltering = $false
-            BypassRBLCheck = $false
-            BypassZeroHourExploits = $false
-            BypassSpoofDetection = $false
-            BypassPhishingDetection = $false
-            BypassDirectoryBasedEdgeBlocking = $false
-            BypassSenderReputationCheck = $false
+            Name                                                  = 'AMT - Default malware filter policy'
+            Enable                                                = $true
+            Action                                                = 'Quarantine'
+            HighConfidenceSpamAction                              = 'Quarantine'
+            HighConfidenceMalwareAction                           = 'Quarantine'
+            BulkSpamAction                                        = 'Quarantine'
+            BulkMalwareAction                                     = 'Quarantine'
+            SpamAction                                            = 'Quarantine'
+            PhishAction                                           = 'Quarantine'
+            ZAPEnabled                                            = $true
+            BypassInboundMessages                                 = $false
+            BypassOutboundMessages                                = $false
+            BypassUnauthenticatedSenders                          = $false
+            BypassAuthenticatedUsers                              = $false
+            BypassMessagesSentToAndFromFollowedUsers              = $false
+            BypassMessagesSentToFollowedUsers                     = $false
+            BypassMalwareDetection                                = $false
+            BypassSpamDetection                                   = $false
+            BypassInboxRules                                      = $false
+            BypassSecurityGroupManagerModeration                  = $false
+            BypassModerationFromRecipient                         = $false
+            BypassSenderAdminCheck                                = $false
+            BypassSenderInRecipientBlockedCondition               = $false
+            BypassSenderInRecipientBlockedConditionExceptions     = @()
+            BypassSenderInRecipientBlockedConditionAction         = 'Quarantine'
+            BypassMalwareFiltering                                = $false
+            BypassSpamFiltering                                   = $false
+            BypassRBLCheck                                        = $false
+            BypassZeroHourExploits                                = $false
+            BypassSpoofDetection                                  = $false
+            BypassPhishingDetection                               = $false
+            BypassDirectoryBasedEdgeBlocking                      = $false
+            BypassSenderReputationCheck                           = $false
             BypassSenderInRecipientBlockedConditionFallbackAction = 'Quarantine'
-            BypassMaliciousFileDetection = $false
-            BypassDomainSecureEnabledCheck = $false
-            BypassDomainSecureOverrideCheck = $false
-            BypassDomainSecureOverrideAction = 'Quarantine'
-            BypassDomainSecureOverrideBulkAction = 'Quarantine'
-            BypassDomainSecureOverrideHighConfidenceAction = 'Quarantine'
+            BypassMaliciousFileDetection                          = $false
+            BypassDomainSecureEnabledCheck                        = $false
+            BypassDomainSecureOverrideCheck                       = $false
+            BypassDomainSecureOverrideAction                      = 'Quarantine'
+            BypassDomainSecureOverrideBulkAction                  = 'Quarantine'
+            BypassDomainSecureOverrideHighConfidenceAction        = 'Quarantine'
         }
 
         try {
