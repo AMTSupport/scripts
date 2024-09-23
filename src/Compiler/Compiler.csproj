@@ -2,11 +2,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <MainEntryPoint>Program</MainEntryPoint>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
-    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+
+    <!-- TODO - Find some way to not need to use a windows only way of building -->
+    <!-- <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers> -->
+    <UseWindowsForms>True</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
 
     <LangVersion>preview</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -58,6 +62,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\ScriptTemplate.ps1" />
+    <EmbeddedResource Include="Resources\ExtraModuleInfo\*.jsonc" />
     <EmbeddedResource Include="Resources\ExtraModuleInfo\*.json" />
   </ItemGroup>
 

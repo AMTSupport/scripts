@@ -54,7 +54,7 @@ public class AstHelperTests {
         IEnumerable<string> ignoredErrors,
         bool expectError
     ) {
-        var result = AstHelper.GetAstReportingErrors(astContent, filePath, ignoredErrors);
+        var result = AstHelper.GetAstReportingErrors(astContent, filePath, ignoredErrors, out _);
 
         Assert.Multiple(() => {
             if (expectError) {
@@ -99,7 +99,7 @@ public class AstHelperTests {
         bool onlyExported
     ) {
         Console.WriteLine(astContent);
-        var ast = AstHelper.GetAstReportingErrors(astContent, [], []).ThrowIfFail();
+        var ast = AstHelper.GetAstReportingErrors(astContent, [], [], out _).ThrowIfFail();
         var result = AstHelper.FindAvailableAliases(ast, onlyExported);
 
         Assert.Multiple(() => {
@@ -134,7 +134,7 @@ public class AstHelperTests {
         Dictionary<string, Dictionary<string, object>> expectedModules,
         bool skipAstChecking
     ) {
-        var ast = AstHelper.GetAstReportingErrors(astContent, Option<string>.None, ["ModuleNotFoundDuringParse"]).ThrowIfFail();
+        var ast = AstHelper.GetAstReportingErrors(astContent, Option<string>.None, ["ModuleNotFoundDuringParse"], out _).ThrowIfFail();
         var result = AstHelper.FindDeclaredModules(ast);
 
         Assert.Multiple(() => {
