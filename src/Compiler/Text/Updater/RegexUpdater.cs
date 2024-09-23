@@ -35,20 +35,15 @@ public class RegexUpdater(
     /// An array of <see cref="SpanUpdateInfo"/> objects representing the updates made to the document.
     /// </returns>
     [return: NotNull]
-    public override Fin<SpanUpdateInfo[]> Apply([NotNull] List<string> lines) {
-        ArgumentNullException.ThrowIfNull(lines);
-
+    public override Fin<IEnumerable<SpanUpdateInfo>> Apply([NotNull] List<string> lines) {
         var multilinedContent = string.Join('\n', lines);
         var matches = this.Pattern.Matches(multilinedContent);
+        if (matches.Count == 0) return System.Array.Empty<SpanUpdateInfo>();
 
-        if (matches.Count == 0) {
-            return FinSucc<SpanUpdateInfo[]>([]);
-        }
-
-        var spanUpdateInfo = new List<SpanUpdateInfo>();
         var offset = 0;
+        var spanUpdateInfo = new List<SpanUpdateInfo>();
         foreach (Match match in matches) {
-            var thisOffset = 0;
+            Fin<ContentChange> thisChange;
             var multilineEndingIndex = match.Index + match.Length;
             var contentBeforeThisLine = multilinedContent[..match.Index].LastIndexOf(value: '\n');
             var isMultiLine = options.HasFlag(UpdateOptions.MatchEntireDocument) && match.Value.Contains('\n');
@@ -69,67 +64,22 @@ public class RegexUpdater(
 
             var newContent = this.Updater(match);
 
-            // FIXME These shouldn't happen and are likely a bug in the updater.
-            if (startingLineIndex > lines.Count) {
-                return FinFail<SpanUpdateInfo[]>(new ArgumentOutOfRangeException(
-                    nameof(lines),
-                    startingLineIndex,
-                    "Starting line index is greater than the number of lines in the document."
-                ));
-            }
-            if (endingLineIndex > lines.Count) {
-                return FinFail<SpanUpdateInfo[]>(new ArgumentOutOfRangeException(
-                    nameof(lines),
-                    endingLineIndex,
-                    "Ending line index is greater than the number of lines in the document."
-                ));
-            }
-            if (startingColumn > lines[startingLineIndex].Length) {
-                return FinFail<SpanUpdateInfo[]>(new ArgumentOutOfRangeException(
-                    nameof(lines),
-                    startingColumn,
-                    "Starting column is greater than the length of the line."
-                ));
-            }
-            if (endingColumn > lines[endingLineIndex].Length) {
-                return FinFail<SpanUpdateInfo[]>(new ArgumentOutOfRangeException(
-                    nameof(lines),
-                    endingColumn,
-                    "Ending column is greater than the length of the line."
-                ));
-            }
-            if (startingLineIndex > endingLineIndex) {
-                return FinFail<SpanUpdateInfo[]>(new ArgumentOutOfRangeException(
-                    nameof(lines),
-                    startingLineIndex,
-                    "Starting line index is greater than the ending line index."
-                ));
-            }
-            if (startingLineIndex == endingLineIndex && startingColumn > endingColumn) {
-                return FinFail<SpanUpdateInfo[]>(new ArgumentOutOfRangeException(
-                    nameof(lines),
-                    startingColumn,
-                    "Starting column is greater than the ending column."
-                ));
-            }
-
             // Remove the entire line if the replacement is empty and the match is the entire line.
             if (newContent == null && startingColumn == 0 && match.Length == lines[startingLineIndex].Length) {
-                thisOffset += span.RemoveContent(lines);
+                thisChange = span.RemoveContent(lines);
             } else {
                 var newLines = newContent == null ? [] : isMultiLine ? newContent.Split('\n') : [newContent];
-                thisOffset += span.SetContent(lines, options, newLines);
-                if (isMultiLine) {
-                    thisOffset += newLines.Length - 1;
-                }
+                thisChange = span.SetContent(lines, options, newLines);
             }
 
-            spanUpdateInfo.Add(new SpanUpdateInfo(span, thisOffset));
-            offset += thisOffset;
+            if (thisChange.IsErr(out var changeError, out var change)) return changeError;
+
+            spanUpdateInfo.Add(new SpanUpdateInfo(this, span, change));
+            offset += change.LineOffset;
         }
 
-        return FinSucc(spanUpdateInfo.ToArray());
+        return spanUpdateInfo;
     }
 
-    public override string ToString() => $"{nameof(RegexUpdater)}({this.Pattern})";
+    public override string ToString() => $"{nameof(RegexUpdater)}[{this.Priority}]->({this.Pattern})";
 }

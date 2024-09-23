@@ -193,13 +193,13 @@ public static class Utils {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Fin<Option<T>> FailIf<T>(this Option<T> option, Predicate<T> predicate, Func<T, Error> error) => option.Match(
-        Some: value => predicate(value) ? Fin<Option<T>>.Fail(error(value)) : Fin<Option<T>>.Succ(Some(value)),
+        Some: value => predicate(value) ? error(value) : Some(value),
         None: Fin<Option<T>>.Succ(None)
     );
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Fin<Option<T>> FailIf<T>(this Option<T> option, Predicate<T> predicate, Error error) => option.Match(
-        Some: value => predicate(value) ? Fin<Option<T>>.Fail(error) : Fin<Option<T>>.Succ(Some(value)),
+        Some: value => predicate(value) ? error : Some(value),
         None: Fin<Option<T>>.Succ(None)
     );
 
@@ -213,7 +213,7 @@ public static class Utils {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Fin<Option<T>> FailIfOpt<T>(this Fin<Option<T>> fin, Predicate<T> predicate, Func<T, Error> error) => fin.Bind(option => option.Match(
-        Some: value => predicate(value) ? Fin<Option<T>>.Fail(error(value)) : Fin<Option<T>>.Succ(Some(value)),
+        Some: value => predicate(value) ? error(value) : Some(value),
         None: Fin<Option<T>>.Succ(None)
     ));
 

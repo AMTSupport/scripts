@@ -104,7 +104,8 @@ public static class AstHelper {
         var allFunctionsWithAliases = ast
             .FindAll(testAst => testAst is FunctionDefinitionAst, true)
             .Cast<FunctionDefinitionAst>()
-            .Where(functionDefinition => functionDefinition.Body.ParamBlock.Attributes.Any(attribute => attribute.TypeName.GetReflectionType() == typeof(AliasAttribute)));
+            .Where(function => function.Body.ParamBlock != null)
+            .Where(functionDefinition => functionDefinition.Body.ParamBlock!.Attributes.Any(attribute => attribute.TypeName.GetReflectionType() == typeof(AliasAttribute)));
 
         var availableAliases = new List<string>();
         var attributeType = typeof(AliasAttribute);
@@ -198,18 +199,20 @@ public static class AstHelper {
     public static Fin<ScriptBlockAst> GetAstReportingErrors(
         [NotNull] string astContent,
         [NotNull] Option<string> filePath,
-        [NotNull] IEnumerable<string> ignoredErrors) {
+        [NotNull] IEnumerable<string> ignoredErrors,
+        out Token[] tokens
+    ) {
         ArgumentNullException.ThrowIfNull(astContent);
         ArgumentNullException.ThrowIfNull(filePath);
         ArgumentNullException.ThrowIfNull(ignoredErrors);
 
-        var ast = Parser.ParseInput(astContent, filePath.ValueUnsafe(), out _, out var parserErrors);
+        var ast = Parser.ParseInput(astContent, filePath.ValueUnsafe(), out tokens, out var parserErrors);
         parserErrors = [.. parserErrors.Where(error => !ignoredErrors.Contains(error.ErrorId))];
 
         if (parserErrors.Length != 0) {
             var issues = parserErrors.Select(error => Issue.Error(error.Message, error.Extent, ast));
             var errors = Error.Many(issues.ToArray());
-            return new WrappedErrorWithDebuggableContent(astContent, errors);
+            return new WrappedErrorWithDebuggableContent(None, astContent, errors);
         }
 
         return ast;
