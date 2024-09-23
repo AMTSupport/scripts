@@ -318,7 +318,13 @@ public class Program {
 
             if (removeFile) {
                 Logger.Trace("Removing file");
-                File.Delete(outputPath);
+
+                try {
+                    File.Delete(outputPath);
+                } catch (IOException err) {
+                    Errors.Add(LanguageExt.Common.Error.New("Unable to delete file", (Exception)err));
+                    return;
+                }
             }
         }
 
@@ -354,8 +360,29 @@ public class Program {
         do {
             var err = errorQueue.PopFirst();
 
+            if (IsDebugging && outputDirectory.IsSome(out var outDir)
+                && err is WrappedErrorWithDebuggableContent wrappedDebuggable
+                && wrappedDebuggable.Module.IsSome(out var module)
+                && module is PathedModuleSpec pathedModuleSpec
+                && !outputDebuggables.Contains(module.Hash)
+            ) {
+                Output(
+                    sourceDirectory,
+                    outDir,
+                    pathedModuleSpec.FullPath,
+                    wrappedDebuggable.Content,
+                    true
+                );
+
+                outputDebuggables.Add(module.Hash);
+            }
+
+            if (err is WrappedErrorWithDebuggableContent wrappedErr) {
+                err = wrappedErr.InnerException;
+            }
+
             // Flatten ManyErrors into the indiviuals
-            if (err is ManyErrors manyErrors) {
+            if (err is ManyErrors manyErrors && manyErrors.Count > 0) {
                 errorQueue.PushRangeFirst(manyErrors.Errors);
                 continue;
             }
@@ -372,33 +399,18 @@ public class Program {
                 printedBefore = true;
             }
 
-            if (IsDebugging && outputDirectory.IsSome(out var outDir)
-                && err is WrappedErrorWithDebuggableContent wrappedDebuggable
-                && wrappedDebuggable.Module.IsSome(out var module)
-                && !outputDebuggables.Contains(module.Hash)
-            ) {
-                Output(
-                    sourceDirectory,
-                    outDir,
-                    module.Name,
-                    wrappedDebuggable.Content,
-                    true
-                );
+            var message = err.Message + (IsDebugging
+                ? (err.Exception.IsSome(out var exception)
+                    ? Environment.NewLine + exception.StackTrace
+                    : "")
+                : ""
+            );
 
-                outputDebuggables.Add(module.Hash);
+            if (type == LogLevel.Error) {
+                Console.Error.WriteLine(message);
+            } else {
+                Console.WriteLine(message);
             }
-
-            var message = err is Issue issue
-                ? issue.ToString()
-                : err.Message
-                    + (IsDebugging
-                        ? (err.Exception.IsSome(out var exception)
-                            ? Environment.NewLine + exception.StackTrace
-                            : "")
-                        : ""
-                    );
-
-            Logger.Log(type, message);
         } while (errorQueue.Count > 0);
 
         return 1;
@@ -423,7 +435,7 @@ public class Program {
         pwsh.Streams.Warning.ToList().ForEach(log => Logger.Warn(log.Message));
 
         if (pwsh.HadErrors) {
-            var ast = AstHelper.GetAstReportingErrors(script, None, ["ModuleNotFoundDuringParse"]).Match(
+            var ast = AstHelper.GetAstReportingErrors(script, None, ["ModuleNotFoundDuringParse"], out _).Match(
                 ast => ast,
                 error => {
                     Logger.Error("Unable to parse ast of script for error reporting.");
