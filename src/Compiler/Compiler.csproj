@@ -58,6 +58,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\ScriptTemplate.ps1" />
+    <EmbeddedResource Include="Resources\ExtraModuleInfo\*.json" />
   </ItemGroup>
 
   <ItemGroup>
