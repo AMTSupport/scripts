@@ -1,6 +1,6 @@
 # [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
 #     'PSAvoidGlobalVars',
-#     'Global:CompiledScript',
+#     $null,
 #     Justification = 'Required to inform modules of runtime type.'
 # )]
 #!DEFINE PARAM_BLOCK
@@ -53,7 +53,7 @@ begin {
                 if ((Get-ChildItem -Path $Local:ModuleFolderPath).Count -ne 0) {
                     return;
                 }
-                [String]$Local:TempFile = [System.IO.Path]::GetTempFileName();
+                [String]$Local:TempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
                 [Byte[]]$Local:Bytes = [System.Convert]::FromBase64String($Content);
                 [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
 
