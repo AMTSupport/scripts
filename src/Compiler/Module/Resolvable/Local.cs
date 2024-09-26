@@ -1,8 +1,8 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Collections.Concurrent;
 using System.Management.Automation.Language;
-using System.Text.RegularExpressions;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -12,6 +12,9 @@ using LanguageExt;
 namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableLocalModule : Resolvable {
+    private static readonly string TempModuleExportPath = Path.Combine(Path.GetTempPath(), "Compiler", "ExportedModules");
+    private static readonly ConcurrentDictionary<string, Fin<string>> EmbeddedResources = [];
+
     internal readonly ScriptBlockAst RequirementsAst;
 
     public readonly TextEditor Editor;
@@ -94,6 +97,9 @@ public partial class ResolvableLocalModule : Resolvable {
     }
 
     public override Task<Option<Error>> ResolveRequirements() {
+        string[] dontAddTo = ["Analyser", "ModuleUtils"];
+        var foundAnalyserModule = dontAddTo.Contains(Path.GetFileNameWithoutExtension(this.ModuleSpec.Name));
+
         AstHelper.FindDeclaredModules(this.RequirementsAst).ToList().ForEach(module => {
             if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast) {
                 this.Editor.AddExactEdit(
@@ -117,6 +123,10 @@ public partial class ResolvableLocalModule : Resolvable {
                 (Version?)maximumVersion,
                 (Version?)requiredVersion
             );
+
+            if (spec.Name.EndsWith("Analyser.psm1", StringComparison.OrdinalIgnoreCase)) {
+                foundAnalyserModule = true;
+            }
 
             lock (this.Requirements) {
                 this.Requirements.AddRequirement(spec);
@@ -161,6 +171,15 @@ public partial class ResolvableLocalModule : Resolvable {
             }
         }
 
+        // TODO - Cleanup this fuckfest of a workaround.
+        // Add a reference to the Analyser.psm1 file to ensure all files have access to the SuppressAnalyserAttribute
+        if (!foundAnalyserModule) {
+            lock (this.Requirements) {
+                this.Requirements.AddRequirement(new ModuleSpec(GetExportedResource("ModuleUtils.psm1").Unwrap())); // Safety - We know this will always be present in the resources.
+                this.Requirements.AddRequirement(new ModuleSpec(GetExportedResource("Analyser.psm1").Unwrap())); // Safety - We know this will always be present in the resources.
+            }
+        }
+
         return Option<Error>.None.AsTask();
     }
 
@@ -182,24 +201,37 @@ public partial class ResolvableLocalModule : Resolvable {
 
     public override int GetHashCode() => this.ModuleSpec.GetHashCode();
 
-    #region Regex Patterns
-    [GeneratedRegex(@"^(?!\n)*$")]
-    public static partial Regex EntireEmptyLineRegex();
+    private static Fin<string> GetExportedResource(
+        string moduleName
+    ) => EmbeddedResources.GetOrAdd(moduleName, name => {
+        var tempModulePath = Path.Combine(TempModuleExportPath, name);
+        if (!Program.GetEmbeddedResource(name).IsSome(out var embeddedStream)) {
+            return (Error)new FileNotFoundException($"The embedded resource {name} was not found.");
+        }
 
-    [GeneratedRegex(@"^(?!\n)\s*<#")]
-    public static partial Regex DocumentationStartRegex();
+        if (!Directory.Exists(TempModuleExportPath)) {
+            Directory.CreateDirectory(TempModuleExportPath);
+        }
 
-    [GeneratedRegex(@"^(?!\n)\s*#>")]
-    public static partial Regex DocumentationEndRegex();
+        if (!Path.Exists(tempModulePath)) {
+            using var fileWriter = File.OpenWrite(tempModulePath);
+            embeddedStream.CopyTo(fileWriter);
+        } else {
+            // If the file exists, check if its contents are the same.
+            using var fileStream = File.Open(tempModulePath, FileMode.Open);
+            var streamsDiffer = embeddedStream.Length != fileStream.Length; // If the lengths are different, the streams are different.
+            // If the lengths are the same, check the contents.
+            while (!streamsDiffer && fileStream.Position < fileStream.Length) {
+                streamsDiffer = embeddedStream.ReadByte() != fileStream.ReadByte();
+            }
 
-    [GeneratedRegex(@"^(?!\n)\s*#.*$")]
-    public static partial Regex EntireLineCommentRegex();
+            if (streamsDiffer) {
+                using var fileWriter = new StreamWriter(fileStream);
+                fileWriter.Write(embeddedStream);
+            }
+        }
 
-    [GeneratedRegex(@"(?!\n)\s*(?<!<)#(?!>).*$")]
-    public static partial Regex EndOfLineComment();
-
-    [GeneratedRegex(@"^\s*#Requires\s+-Version\s+\d+\.\d+")]
-    private static partial Regex RequiresStatementRegex();
-    #endregion
+        embeddedStream.Close();
+        return tempModulePath;
+    });
 }
-

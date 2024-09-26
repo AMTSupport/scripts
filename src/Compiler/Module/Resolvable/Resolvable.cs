@@ -1,6 +1,7 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using C = System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -144,15 +145,20 @@ public class ResolvableParent {
         var graph = new BidirectionalGraph<Resolvable, Edge<Resolvable>>();
         graph.AddVertex(resolvable);
 
+        var processedAsRoot = new C.HashSet<Resolvable>();
         var iterating = new Queue<Resolvable>([resolvable]);
         do {
             var currentResolvable = iterating.Dequeue();
             lock (this.Graph) {
+                // Skip if we've already processed a vertex like this
+                if (processedAsRoot.Contains(currentResolvable)) continue;
+
                 this.Graph.TryGetOutEdges(currentResolvable, out var outEdges);
                 outEdges.ToList().ForEach(edge => {
                     graph.AddVerticesAndEdge(edge);
                     iterating.Enqueue(edge.Target);
                 });
+                processedAsRoot.Add(currentResolvable);
             }
         } while (iterating.Count > 0);
 

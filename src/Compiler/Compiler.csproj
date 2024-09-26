@@ -61,9 +61,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources\ScriptTemplate.ps1" />
-    <EmbeddedResource Include="Resources\ExtraModuleInfo\*.jsonc" />
-    <EmbeddedResource Include="Resources\ExtraModuleInfo\*.json" />
+    <EmbeddedResource Include="Resources/ScriptTemplate.ps1" />
+    <EmbeddedResource Include="Resources/ExtraModuleInfo/*.jsonc" />
+    <EmbeddedResource Include="Resources/ExtraModuleInfo/*.json" />
+    <EmbeddedResource Include="Resources/*.psm1" />
   </ItemGroup>
 
   <ItemGroup>

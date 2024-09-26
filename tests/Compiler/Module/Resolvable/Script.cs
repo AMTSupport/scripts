@@ -2,14 +2,14 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
-using Compiler.Module.Resolvable;
+using System.Text.RegularExpressions;
 using Compiler.Text;
 using Compiler.Text.Updater;
 
 namespace Compiler.Test.Module.Resolvable;
 
 [TestFixture]
-public class CompiledScriptTest {
+public partial class CompiledScriptTest {
     private static readonly string TEST_SCRIPT = Path.Combine(Environment.CurrentDirectory, "resources", "test.ps1");
 
     [TestCaseSource(typeof(TestData), nameof(TestData.TestCases))]
@@ -24,60 +24,28 @@ public class CompiledScriptTest {
         return compiled.GetContent();
     }
 
-    public static class TestData {
+    public static partial class TestData {
+        [GeneratedRegex(@"^(?!\n)*$")]
+        public static partial Regex EntireEmptyLineRegex();
+
+        [GeneratedRegex(@"^(?!\n)\s*<#")]
+        public static partial Regex DocumentationStartRegex();
+
+        [GeneratedRegex(@"^(?!\n)\s*#>")]
+        public static partial Regex DocumentationEndRegex();
+
+        [GeneratedRegex(@"^(?!\n)\s*#.*$")]
+        public static partial Regex EntireLineCommentRegex();
+
+        [GeneratedRegex(@"(?!\n)\s*(?<!<)#(?!>).*$")]
+        public static partial Regex EndOfLineComment();
+
         public static IEnumerable TestCases {
             get {
-                // yield return new TestCaseData(
-                //     new PatternUpdater(
-                //         50,
-                //         ResolvableLocalModule.MultilineStringOpenRegex(),
-                //         ResolvableLocalModule.MultilineStringCloseRegex(),
-                //         UpdateOptions.None,
-                //         (lines) =>
-                //         {
-                //             var startIndex = 0;
-
-                //             // If the multiline is not at the start of the content it does not need to be trimmed, so we skip it.
-                //             var trimmedLine = lines[0].Trim();
-                //             if (trimmedLine.StartsWith(@"@""") || trimmedLine.StartsWith("@'"))
-                //             {
-                //                 startIndex++;
-                //             }
-
-                //             // Get the multiline indent level from the last line of the string.
-                //             // This is used so we don't remove any whitespace that is part of the actual string formatting.
-                //             var indentLevel = new Regex(@"^\s*").Match(lines.Last()).Value.Length;
-
-                //             var updatedLines = lines.Select((line, index) =>
-                //             {
-                //                 if (index < startIndex)
-                //                 {
-                //                     return line;
-                //                 }
-
-                //                 return line[indentLevel..];
-                //             });
-
-                //             return updatedLines.ToArray();
-                //         }
-                //     ),
-                //     """
-                //                     Write-Host @"
-                //             This is a multiline string!
-                //             It can have multiple lines!
-                //             "@;
-                //     """
-                // ).Returns("""
-                //         Write-Host @"
-                // This is a multiline string!
-                // It can have multiple lines!
-                // "@;
-                // """).SetName("Fix Indentation for Multiline Strings");
-
                 yield return new TestCaseData(
                     new RegexUpdater(
                         50,
-                        ResolvableLocalModule.EntireLineCommentRegex(),
+                        EntireLineCommentRegex(),
                         UpdateOptions.None,
                         _ => null
                     ),
@@ -94,7 +62,7 @@ public class CompiledScriptTest {
                 yield return new TestCaseData(
                     new RegexUpdater(
                         50,
-                        ResolvableLocalModule.EntireEmptyLineRegex(),
+                        EntireEmptyLineRegex(),
                         UpdateOptions.None,
                         _ => null
                     ),
@@ -117,8 +85,8 @@ public class CompiledScriptTest {
                 yield return new TestCaseData(
                     new PatternUpdater(
                         50,
-                        ResolvableLocalModule.DocumentationStartRegex(),
-                        ResolvableLocalModule.DocumentationEndRegex(),
+                        DocumentationStartRegex(),
+                        DocumentationEndRegex(),
                         UpdateOptions.None,
                         _ => []
                     ),
@@ -140,7 +108,7 @@ public class CompiledScriptTest {
                 yield return new TestCaseData(
                     new RegexUpdater(
                         50,
-                        ResolvableLocalModule.EndOfLineComment(),
+                        EndOfLineComment(),
                         UpdateOptions.None,
                         _ => null
                     ),
