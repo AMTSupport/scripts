@@ -1,3 +1,5 @@
+Using module ./ModuleUtils.psm1
+
 [HashTable]$Script:Events = @{};
 
 enum Priority {

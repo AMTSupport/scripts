@@ -35,19 +35,22 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/Output/Debug/Compiler.dll",
             "args": ["-i", ".\\src\\automation\\", "-vvv", "-o", ".\\", "-f"],
+            "program": "${workspaceFolder}/src/Compiler/bin/Debug/Compiler.dll",
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
             "stopAtEntry": false,
             "requireExactSource": true,
-            "internalConsoleOptions": "openOnSessionStart"
+            "internalConsoleOptions": "openOnSessionStart",
+            "justMyCode": true,
+            "enableStepFiltering": true
         },
         {
             "name": ".NET Core Attach",
             "type": "coreclr",
             "request": "attach",
-            "processId": "${command:pickProcess}"
+            "processId": "${command:pickProcess}",
+            "justMyCode": true
         }
     ]
 }

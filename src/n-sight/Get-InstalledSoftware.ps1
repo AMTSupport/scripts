@@ -246,6 +246,7 @@ Invoke-RunMain $PSCmdlet {
             function Set-DeviceSoftware {
                 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
                     'PSUseShouldProcessForStateChangingFunctions',
+                    $null,
                     Justification = 'Only reading data from the API, no changes are being made to the system.'
                 )]
                 param(

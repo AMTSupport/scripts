@@ -21,6 +21,9 @@ using System.Globalization;
 using Extended.Collections.Generic;
 using NuGet.Packaging;
 using LanguageExt;
+using System.Reflection;
+using System.Diagnostics.Contracts;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Compiler;
 
@@ -377,8 +380,8 @@ public class Program {
                 outputDebuggables.Add(module.Hash);
             }
 
-            if (err is WrappedErrorWithDebuggableContent wrappedErr) {
-                err = wrappedErr.InnerException;
+            if (err.Inner.IsSome(out var wrappedErr)) {
+                errorQueue.PushFirst(wrappedErr);
             }
 
             // Flatten ManyErrors into the indiviuals
@@ -401,7 +404,7 @@ public class Program {
 
             var message = err.Message + (IsDebugging
                 ? (err.Exception.IsSome(out var exception)
-                    ? Environment.NewLine + exception.StackTrace
+                    ? Environment.NewLine + exception.Message + Environment.NewLine + exception.StackTrace
                     : "")
                 : ""
             );
@@ -471,5 +474,26 @@ public class Program {
         }
 
         return FinSucc(result);
+    }
+
+    /// <summary>
+    /// Gets the embedded resource from the assembly inside the Resource folder.
+    /// </summary>
+    /// <param name="resourceName">
+    /// The path of the resource without the assembly name or Resource folder, e.g. "ExtraModuleInfo.ModuleName.json"
+    /// Folders must separated by '.' instead of '/'.
+    /// </param>
+    /// <returns>
+    /// The stream of the embedded resource if one is found, otherwise None.
+    /// It is the caller's responsibility to dispose of the stream.
+    /// </returns>
+    [Pure]
+    [return: NotNull]
+    internal static Option<Stream> GetEmbeddedResource(string resourceName) {
+        var assemblyName = Assembly.GetExecutingAssembly().GetName();
+        var resourcePath = $"{assemblyName.Name}.Resources.{resourceName}";
+        var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourcePath);
+
+        return templateStream;
     }
 }

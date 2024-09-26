@@ -16,10 +16,16 @@
     "powershell.scriptAnalysis.settingsPath": "PSScriptAnalyzerSettings.psd1",
     "poshProTools.ignoredPaths": "compiled",
     "pester.testFilePath": ["tests/*.[tT]ests.[pP][sS]1"],
-    "markiscodecoverage.searchCriteria": "tests\\Compiler\\Coverage/coverage.info",
+    "markiscodecoverage.searchCriteria": "tests\\Compiler\\Coverage\\coverage.info",
     "markiscodecoverage.enableDecorations": true,
     "poshProTools.disableNewsNotification": true,
     "poshProTools.toolbar.formDesigner": false,
     "poshProTools.toolbar.packageAsExecutable": false,
-    "poshProTools.toolbar.quickScripts": false
+    "poshProTools.toolbar.quickScripts": false,
+    "editor.rulers": [
+        80,
+        120,
+        130
+    ],
+    "files.eol": "\n"
 }

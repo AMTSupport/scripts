@@ -3,7 +3,7 @@
 
 using System.Collections;
 using System.Text.RegularExpressions;
-using Compiler.Module.Resolvable;
+using Compiler.Test.Module.Resolvable;
 using Compiler.Text;
 
 namespace Compiler.Test.Text.Updater;
@@ -48,8 +48,8 @@ public class PatternTests {
             get {
                 yield return new TestCaseData(
                     DOCUMENTATION_LINES,
-                    ResolvableLocalModule.DocumentationStartRegex().ToString(),
-                    ResolvableLocalModule.DocumentationEndRegex().ToString(),
+                    CompiledScriptTest.TestData.DocumentationStartRegex().ToString(),
+                    CompiledScriptTest.TestData.DocumentationEndRegex().ToString(),
                     UpdateOptions.None,
                     (Func<string[], string[]>)(_ => [])
                 ).Returns(string.Empty).SetName("Ensure that documentation blocks are removed from content.");
