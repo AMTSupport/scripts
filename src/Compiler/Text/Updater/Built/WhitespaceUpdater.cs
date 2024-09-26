@@ -14,7 +14,7 @@ namespace Compiler.Text.Updater.Built;
 public sealed class WhitespaceUpdater() : TextSpanUpdater(90) {
     public override Fin<IEnumerable<SpanUpdateInfo>> Apply(List<string> lines) {
         // Remove all empty lines, including lines that only contain whitespace, unless they are within a string.
-        if (AstHelper.GetAstReportingErrors(string.Join('\n', lines), None, [], out _).IsErr(out var err, out var ast)) {
+        if (AstHelper.GetAstReportingErrors(string.Join('\n', lines), None, ["ModuleNotFoundDuringParse"], out _).IsErr(out var err, out var ast)) {
             return err;
         }
 
@@ -59,4 +59,3 @@ public sealed class WhitespaceUpdater() : TextSpanUpdater(90) {
         return spanUpdates;
     }
 }
-
