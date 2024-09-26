@@ -29,11 +29,7 @@ public abstract class NodeEnumerableUpdater<TItem>(
             var isMultiLine = span.StartingIndex != span.EndingIndex;
             var newContent = itemUpdater(node);
 
-            // Remove the entire line if the replacement is empty and the match is the entire line.
-            thisChange = newContent.Length == 0 && span.StartingColumn == 0 && span.EndingColumn == lines[span.StartingIndex].Length
-                ? span.RemoveContent(lines)
-                : span.SetContent(lines, options, newContent!);
-
+            thisChange = span.SetContent(lines, options, newContent!);
             if (thisChange.IsErr(out err, out var change)) return err;
 
             updateSpans.Add(new SpanUpdateInfo(this, span, change));

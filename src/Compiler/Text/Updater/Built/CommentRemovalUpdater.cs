@@ -6,7 +6,7 @@ using System.Management.Automation.Language;
 namespace Compiler.Text.Updater.Built;
 
 public sealed class CommentRemovalUpdater() : TokenUpdater(
-    10,
+    5,
     static token => token.Kind == TokenKind.Comment,
     static comment => [],
     UpdateOptions.InsertInline

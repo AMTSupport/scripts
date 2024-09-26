@@ -240,17 +240,17 @@ public sealed record TextSpan : IComparable<TextSpan> {
         if (this.StartingIndex == this.EndingIndex) {
             lines.RemoveAt(this.StartingIndex);
             lineOffset--;
-
-            // Short circuit if the new content is empty, there will be no need to update the document.
-            if (string.IsNullOrEmpty(firstLineBefore) && string.IsNullOrEmpty(lastLineAfter) && content.Length == 0) {
-                return new ContentChange(lineOffset, startingColumnOffset, endingColumnOffset);
-            }
         } else {
             // Remove all lines in the span to get a clean slate.
             for (var i = this.StartingIndex; i <= this.EndingIndex; i++) {
                 lines.RemoveAt(this.StartingIndex);
                 lineOffset--;
             }
+        }
+
+        // Short circuit if the new content is empty, there will be no need to update the document.
+        if (string.IsNullOrEmpty(firstLineBefore) && string.IsNullOrEmpty(lastLineAfter) && content.Length == 0) {
+            return new ContentChange(lineOffset, startingColumnOffset, endingColumnOffset);
         }
 
         if (options.HasFlag(UpdateOptions.InsertInline)) {
