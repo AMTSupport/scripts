@@ -71,7 +71,7 @@ public partial class ResolvableLocalModule : Resolvable {
         this.Editor = new TextEditor(new TextDocument(File.ReadAllLines(moduleSpec.FullPath)));
         this.RequirementsAst = this.Editor.Document.GetRequirementsAst().BindFail(err => err.Enrich(this.ModuleSpec)).ThrowIfFail();
 
-        // this.Editor.AddEdit(static () => new NewLineRemovalUpdater());
+        this.Editor.AddEdit(static () => new WhitespaceUpdater());
         this.Editor.AddEdit(static () => new CommentRemovalUpdater());
         this.Editor.AddEdit(static () => new HereStringUpdater());
     }
