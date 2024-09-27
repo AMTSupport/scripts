@@ -1,0 +1,157 @@
+# Contributing to AMTSupport Scripts
+
+- [Getting Started](#getting-started)
+- [Security Vulnerability?](#how-to-report-a-security-vulnerability)
+- [Git Commit Guidelines](#commit-message-format)
+
+## Getting Started
+
+1. **Fork the Repository**
+    - Click the "Fork" button at the top right of the repository page to create your own copy.
+
+2. **Clone Your Fork**
+    - Clone your forked repository to your local machine:
+
+      ```bash
+      git clone https://github.com/your-username/repository-name.git
+      ```
+
+    - Replace `your-username` and `repository-name` with your GitHub username and the name of the repository.
+
+3. **Navigate to the Project Directory**
+
+    ```bash
+    cd repository-name
+    ```
+
+4. **Set Up the Environment**
+    - Required tools:
+        - PowerShell Core & Desktop
+        - .NET Core SDK
+        - Visual Studio Code (or any other code editor)
+    - Ensure that SymLink is enabled in your git configuration:
+
+        ```bash
+        git config --global core.symlinks true
+        ```
+
+    - Dotnet tools:
+
+        ```bash
+        dotnet install tool -g reportgenerator
+        ```
+
+5. **Create a New Branch**
+    - Create a new branch for your feature or bug fix:
+
+      ```bash
+      git checkout -b your-branch-name
+      ```
+
+6. **Make Your Changes**
+    - Implement your changes and ensure they follow the project's coding standards.
+
+7. **Commit Your Changes**
+    - Commit your changes with a descriptive message:
+
+      ```bash
+      git commit -m "chore(Compiler): cleanup unused imports"
+      ```
+
+8. **Push to Your Fork**
+    - Push your changes to your forked repository:
+
+      ```bash
+      git push origin your-branch-name
+      ```
+
+9. **Create a Pull Request**
+    - Go to the original repository and click on "New Pull Request". Select your branch and submit the pull request.
+
+## Code of Conduct
+
+Please adhere to the [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions.
+
+## How to report a security vulnerability
+
+ If you find a security vulnerability, do NOT open an issue. Email <james@amt.com.au> instead.
+ Any security issues should be submitted directly to <james@amt.com.au>
+
+ In order to determine whether you are dealing with a security issue, ask yourself these two questions:
+
+- Can I access something that's not mine, or something I shouldn't have access to?
+- Can I disable something for other people?
+
+ If the answer to either of those two questions are "yes", then you're probably dealing with a security issue. Note that even if you answer "no" to both questions, you may still be dealing with a security issue, so if you're unsure, just email me at <james@amt.com.au>.
+
+## Conventions
+
+<!-- ### Code Style -->
+
+## Git Commit Guidelines
+
+We have very precise rules over how our git commit messages can be formatted. This leads to **more
+readable messages** that are easy to follow when looking through the **project history**.
+
+<!-- It is important to note that we use the git commit messages to **generate**
+[CHANGELOG](../../CHANGELOG.md) document. Improperly formatted commit messages may result in your
+change not appearing in the CHANGELOG of the next release. -->
+
+### Commit Message Format
+
+Each commit message consists of a **header**, a **body** and a **footer**. The header has a special
+format that includes a **type**, a **scope**, and a **subject**:
+
+```html
+<type>(<scope>): <subject>
+<BLANK LINE>
+<body>
+<BLANK LINE>
+<footer>
+```
+
+> Any line of the commit message cannot be longer 130 characters!<br>
+> This allows the message to be easier to read on GitHub as well as in various Git tools.
+
+#### Type
+
+Must be one of the following:
+
+- **feat**: A new feature
+- **fix**: A bug fix
+- **docs**: Documentation only changes
+- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing
+  semi-colons, etc)
+- **refactor**: A code change that neither fixes a bug nor adds a feature
+- **perf**: A code change that improves performance
+- **test**: Adding missing tests
+- **chore**: Changes to the auxiliary tools such as release scripts
+- **build**: Changes to the dependencies, devDependencies, or build tooling
+- **ci**: Changes to our Continuous Integration configuration
+
+#### Scope
+
+The scope could be anything that helps specify the scope (or feature) that is changing.
+
+Examples
+
+- fix(script):
+- docs(compiler):
+
+#### Subject
+
+The subject contains a succinct description of the change:
+
+- use the imperative, present tense: "change" not "changed" nor "changes"
+- don't capitalize first letter
+- no period (.) at the end
+
+#### Body
+
+Just as in the **subject**, use the imperative, present tense: "change" not "changed" nor "changes".
+The body should include the motivation for the change and contrast this with previous behavior.
+
+#### Footer
+
+The footer should contain any information about **Breaking Changes** and is also the place to
+reference GitHub issues that this commit **Closes**, **Fixes**, or **Relates to**.
