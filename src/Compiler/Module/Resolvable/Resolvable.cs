@@ -62,10 +62,10 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
                 // Silent fall through to remote.
             } catch (ExceptionalException err) {
                 Logger.Debug("Caught Exceptional with Error type {0}", err.ToError().GetType());
-                return FinFail<Resolvable>(err.Enrich(moduleSpec));
+                return err.ToError().Enrich(moduleSpec); // Get the underlying error instead of the wrapped one.
             } catch (Exception err) {
                 Logger.Debug($"Caught exception while trying to create local module, {err.GetType()}");
-                return FinFail<Resolvable>(err.Enrich(moduleSpec));
+                return (Error)err.Enrich(moduleSpec);
             }
         }
 

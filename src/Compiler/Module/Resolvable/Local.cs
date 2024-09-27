@@ -30,9 +30,6 @@ public partial class ResolvableLocalModule : Resolvable {
     /// <param name="moduleSpec">
     /// The module spec to create the module from.
     /// </param>
-    /// <exception cref="InvalidModulePathException">
-    /// Thrown when the path is not a valid module path or the parent path is not an absolute path.
-    /// </exception>
     /// <exception cref="AggregateException">
     /// Thrown when the ast cannot be generated from the file.
     /// </exception>

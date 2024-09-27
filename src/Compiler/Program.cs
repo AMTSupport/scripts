@@ -5,6 +5,7 @@ global using LanguageExt.Common;
 global using static LanguageExt.Prelude;
 global using LanguageExt.Pipes;
 
+using C = System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Management.Automation;
@@ -341,8 +342,6 @@ public class Program {
         string sourceDirectory,
         Option<string> outputDirectory
     ) {
-        if (Errors.IsEmpty) return 0;
-
         // Wait for all threads to finish before outputting errors, this is to ensure all errors are captured.
         do {
             Logger.Debug($$"""
@@ -355,10 +354,20 @@ public class Program {
             await Task.Delay(25);
         } while (ThreadPool.PendingWorkItemCount != 0 && ThreadPool.ThreadCount > RunspacePool.Value.GetMaxRunspaces());
 
+
+        if (Errors.IsEmpty) return 0;
+
+        // Deduplicate errors.
+        var errorSet = new C.HashSet<LanguageExt.Common.Error>();
+        foreach (var error in errors) {
+            if (errorSet.Contains(error)) continue;
+            errorSet.Add(error);
+        }
+
         // Seriously .NET, why is there no fucking double ended queue.
         var printedBefore = false; // This is to prevent a newline before the first error
         var errorQueue = new Deque<LanguageExt.Common.Error>();
-        errorQueue.AddRange(errors);
+        errorQueue.AddRange(errorSet);
         var outputDebuggables = new List<byte[]>();
         do {
             var err = errorQueue.PopFirst();
@@ -380,8 +389,9 @@ public class Program {
                 outputDebuggables.Add(module.Hash);
             }
 
-            if (err.Inner.IsSome(out var wrappedErr)) {
-                errorQueue.PushFirst(wrappedErr);
+            if (err is WrappedErrorWithDebuggableContent wrappedErr) {
+                errorQueue.PushFirst(wrappedErr.InnerException);
+                continue;
             }
 
             // Flatten ManyErrors into the indiviuals
@@ -402,12 +412,15 @@ public class Program {
                 printedBefore = true;
             }
 
-            var message = err.Message + (IsDebugging
-                ? (err.Exception.IsSome(out var exception)
-                    ? Environment.NewLine + exception.Message + Environment.NewLine + exception.StackTrace
-                    : "")
-                : ""
-            );
+            var message = err switch {
+                Issue => err.ToString(),
+                _ => err.Message + (IsDebugging
+                    ? (err.Exception.IsSome(out var exception)
+                        ? Environment.NewLine + exception.Message + Environment.NewLine + exception.StackTrace
+                        : "")
+                    : ""
+                )
+            };
 
             if (type == LogLevel.Error) {
                 Console.Error.WriteLine(message);

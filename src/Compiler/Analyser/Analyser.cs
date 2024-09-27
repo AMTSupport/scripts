@@ -34,7 +34,7 @@ public static class Analyser {
         return await Cache.GetOrAdd(key, _ => Task.Run(() => {
             Logger.Trace($"Analyzing module {module.ModuleSpec.Name}");
 
-            var visitor = new RuleVisitor(module, Rules, availableImports);
+            var visitor = new RuleVisitor(Rules, availableImports);
             module.Document.Ast.Visit(visitor);
             return visitor.Issues;
         }));

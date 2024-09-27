@@ -42,7 +42,7 @@ public partial class ResolvableScript : ResolvableLocalModule {
 
     public override async Task<Fin<Compiled.Compiled>> IntoCompiled() {
         var document = CompiledDocument.FromBuilder(this.Editor, 0);
-        if (document.IsErr(out var err, out var compiledDocument)) return FinFail<Compiled.Compiled>(err.Enrich(this.ModuleSpec));
+        if (document.IsErr(out var err, out var compiledDocument)) return err;
 
         return (await Compiled.CompiledScript.Create(
             this,
