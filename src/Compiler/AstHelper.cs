@@ -7,6 +7,7 @@ using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Text;
 using Compiler.Analyser;
+using Compiler.Text;
 using LanguageExt;
 using LanguageExt.UnsafeValueAccess;
 using NLog;
@@ -273,9 +274,11 @@ public static class AstHelper {
 
         var fileName = realFilePath.UnwrapOrElse(() => parentAst.Extent.File is null ? "Unknown file" : parentAst.Extent.File);
 
+        var location = TextSpan.New(startingLine, startingColumn, endingLine, endingColumn).Unwrap(); // Safety: Extents should always be valid.
+
         return $"""
         {"File".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {fileName.Pastel(ConsoleColor.Gray)}
-        {"Line".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe}
+        {"Where".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {location.ToString().Pastel(ConsoleColor.Gray)}
         {string.Join('\n', printableLines)}
         {firstColumnIndentString}{colouredPipe} {errorPointer.Pastel(ConsoleColor.DarkRed)}
         {firstColumnIndentString}{colouredPipe} {message.UnwrapOrElse(static () => "Unknown Error").Pastel(ConsoleColor.DarkRed)}
