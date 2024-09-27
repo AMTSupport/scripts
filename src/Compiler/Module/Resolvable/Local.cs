@@ -223,8 +223,8 @@ public partial class ResolvableLocalModule : Resolvable {
             }
 
             if (streamsDiffer) {
-                using var fileWriter = new StreamWriter(fileStream);
-                fileWriter.Write(embeddedStream);
+                fileStream.SetLength(0); // Clear the file.
+                embeddedStream.CopyTo(fileStream);
             }
         }
 

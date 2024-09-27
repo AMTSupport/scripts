@@ -4,7 +4,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
-using System.Security.Cryptography;
 using Compiler.Analyser.Rules;
 using Compiler.Module.Compiled;
 using NLog;
