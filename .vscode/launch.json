@@ -35,8 +35,15 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "args": ["-i", ".\\src\\automation\\", "-vvv", "-o", ".\\", "-f"],
-            "program": "${workspaceFolder}/src/Compiler/bin/Debug/Compiler.dll",
+            "program": "${workspaceFolder}/src/Compiler/bin/Debug/Compiler.exe",
+            "args": [
+                "-i",
+                "${input:sourceDirectory}/${input:scriptSubdirectory}",
+                "-vvv",
+                "-o",
+                "${input:outputDirectory}/${input:scriptSubdirectory}",
+                "-f"
+            ],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
             "stopAtEntry": false,
@@ -51,6 +58,26 @@
             "request": "attach",
             "processId": "${command:pickProcess}",
             "justMyCode": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "sourceDirectory",
+            "description": "The source directory containing the scripts to compile.",
+            "default": "${workspaceFolder}/src",
+            "type": "promptString"
+        },
+        {
+            "id": "outputDirectory",
+            "description": "The output directory for the compiled scripts.",
+            "default": "${workspaceFolder}/compiled2",
+            "type": "promptString"
+        },
+        {
+            "id": "scriptSubdirectory",
+            "description": "A subdirectory of specific scripts relative to the source directory.",
+            "default": "",
+            "type": "promptString"
         }
     ]
 }
