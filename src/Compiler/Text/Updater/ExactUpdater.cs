@@ -3,13 +3,10 @@
 
 using System.Diagnostics.CodeAnalysis;
 using LanguageExt;
-using NLog;
 
 namespace Compiler.Text.Updater;
 
 public class ExactUpdater : TextSpanUpdater {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
     private readonly Func<string[], string[]> Updater;
 
     private readonly UpdateOptions UpdateOptions;
@@ -48,21 +45,41 @@ public class ExactUpdater : TextSpanUpdater {
     }
 
     public override Fin<IEnumerable<SpanUpdateInfo>> Apply([NotNull] List<string> lines) => lines.AsOption()
-        .FailIf(
-            l => l.Count <= this.Span.StartingIndex || this.Span.EndingIndex >= l.Count,
-            l => Error.New($"Span indexes must be within the length of the document ({l.Count}), was {this.Span.StartingIndex}..{this.Span.EndingIndex}."))
-        .FailIfOpt(
-            l => this.Span.StartingIndex > this.Span.EndingIndex,
-            l => Error.New($"Starting index must be less than ending index, was {this.Span.StartingIndex}..{this.Span.EndingIndex}."))
-        .FailIfOpt(
-            l => this.Span.StartingColumn > l[this.Span.StartingIndex].Length,
-            l => Error.New($"Starting column must be less than the length of the line ({l[this.Span.StartingIndex].Length - 1}), got index {this.Span.StartingColumn}.")
-        )
-        .FailIfOpt(
-            l => this.Span.EndingColumn > l[this.Span.EndingIndex].Length,
-            l => Error.New($"Ending column must be less than the length of the line ({l[this.Span.EndingIndex].Length - 1}), got index {this.Span.EndingColumn}.")
-        )
-        .AndThen(opt => opt.UnwrapOr([]))
+        .ToFin()
+        // .FailIf(
+        //     l => l.Count <= this.Span.StartingIndex || this.Span.EndingIndex >= l.Count,
+        //     l => Error.New($"Span indexes must be within the length of the document ({l.Count}), was {this.Span.StartingIndex}..{this.Span.EndingIndex}."))
+        // .FailIfOpt(
+        //     l => this.Span.StartingIndex > this.Span.EndingIndex,
+        //     l => Error.New($"Starting index must be less than ending index, was {this.Span.StartingIndex}..{this.Span.EndingIndex}."))
+        // .FailIfOpt(
+        //     l => this.Span.StartingColumn > l[this.Span.StartingIndex].Length,
+        //     l => Error.New($"Starting column must be less than the length of the line ({l[this.Span.StartingIndex].Length - 1}), got index {this.Span.StartingColumn}.")
+        // )
+        // .FailIfOpt(
+        //     l => this.Span.EndingColumn > l[this.Span.EndingIndex].Length,
+        //     l => Error.New($"Ending column must be less than the length of the line ({l[this.Span.EndingIndex].Length - 1}), got index {this.Span.EndingColumn}.")
+        // )
+        .AndThenTry(l => {
+            if (l.Count <= this.Span.StartingIndex || this.Span.EndingIndex >= l.Count) {
+                throw Error.New($"Span indexes must be within the length of the document ({l.Count}), was {this.Span.StartingIndex}..{this.Span.EndingIndex}.");
+            }
+
+            if (this.Span.StartingIndex > this.Span.EndingIndex) {
+                throw Error.New($"Starting index must be less than ending index, was {this.Span.StartingIndex}..{this.Span.EndingIndex}.");
+            }
+
+            if (this.Span.StartingColumn > l[this.Span.StartingIndex].Length) {
+                throw Error.New($"Starting column must be less than the length of the line ({l[this.Span.StartingIndex].Length - 1}), got index {this.Span.StartingColumn}.");
+            }
+
+            if (this.Span.EndingColumn > l[this.Span.EndingIndex].Length) {
+                throw Error.New($"Ending column must be less than the length of the line ({l[this.Span.EndingIndex].Length - 1}), got index {this.Span.EndingColumn}.");
+            }
+
+            return l;
+        })
+        // .AndThen(opt => opt.UnwrapOr([]))
         .Bind(lines => {
             Fin<ContentChange> change;
             if (this.Span.StartingIndex == this.Span.EndingIndex) {

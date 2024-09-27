@@ -22,13 +22,38 @@ public record Issue(
 
     public override bool IsExpected { get; } = Severity == IssueSeverity.Warning;
 
-    public override string Message => this.ToString();
+    public override string Message => this.ActualMessage;
 
     public override string ToString() => AstHelper.GetPrettyAstError(
         this.Extent,
         this.Parent,
         Some(this.ActualMessage),
         this.Module.Map(mod => mod is PathedModuleSpec pathed ? pathed.FullPath : mod.Name)
+    );
+
+    public virtual bool Equals(Issue? other) {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return this.Severity == other.Severity
+            && this.ActualMessage == other.ActualMessage
+            && this.Extent.File == other.Extent.File
+            && this.Extent.StartLineNumber == other.Extent.StartLineNumber
+            && this.Extent.StartColumnNumber == other.Extent.StartColumnNumber
+            && this.Extent.EndLineNumber == other.Extent.EndLineNumber
+            && this.Extent.EndColumnNumber == other.Extent.EndColumnNumber
+            && this.Module == other.Module;
+    }
+
+    public override int GetHashCode() => HashCode.Combine(
+        this.Severity,
+        this.ActualMessage,
+        this.Module,
+        this.Extent.File,
+        this.Extent.StartLineNumber,
+        this.Extent.StartColumnNumber,
+        this.Extent.EndLineNumber,
+        this.Extent.EndColumnNumber
     );
 
     [Pure]
@@ -48,6 +73,7 @@ public record Issue(
         [NotNull] Option<ModuleSpec> module = default) => new(IssueSeverity.Warning, message, extent, parent, module);
 
     public override bool Is<TE>() => false;
+
     public T Enrich<T>(ModuleSpec module) where T : Exceptional => throw new NotImplementedException();
 }
 
@@ -55,4 +81,3 @@ public enum IssueSeverity {
     Error,
     Warning
 }
-

@@ -89,8 +89,17 @@ public abstract record EnrichableExceptional : Exceptional {
     public override Exception ToException() => base.ToErrorException();
 };
 
-public sealed record InvalidModulePathError : EnrichableExceptional {
+public record InvalidModulePathError : EnrichableExceptional {
     private InvalidModulePathError(string message) : base(message, 620) { }
+
+    public virtual bool Equals(InvalidModulePathError? other) {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return this.Message == other.Message;
+    }
+
+    public override int GetHashCode() => this.Message.GetHashCode();
 
     public static InvalidModulePathError NotAFile(string notFilePath) => new($"The module path must be a file, received {notFilePath}");
 
@@ -110,7 +119,14 @@ public sealed class EnrichedException([NotNull] Exception exception, [NotNull] M
 
     public override IDictionary Data => this.Exception.Data;
 
-    public override bool Equals(object? obj) => this.Exception.Equals(obj);
+    public override bool Equals(object? obj) {
+        if (obj is null) return false;
+        if (ReferenceEquals(this, obj)) return true;
+        if (obj is not EnrichedException other) return false;
+
+        return this.Module == other.Module
+            && this.Exception == other.Exception;
+    }
 
     public override Exception GetBaseException() => this.Exception.GetBaseException();
 
@@ -119,7 +135,7 @@ public sealed class EnrichedException([NotNull] Exception exception, [NotNull] M
     public override string ToString() => $"{this.Exception}\nIn module {this.Module.Name}";
 }
 
-public sealed record MultipleInstancesOfSingleRequirementError<T>(
+public record MultipleInstancesOfSingleRequirementError<T>(
     IEnumerable<T> Instances
 ) : EnrichableExceptional(
     $"""
@@ -127,9 +143,18 @@ public sealed record MultipleInstancesOfSingleRequirementError<T>(
     {string.Join(", ", Instances)}
     """,
     621
-) where T : Requirement;
+) where T : Requirement {
+    public virtual bool Equals(MultipleInstancesOfSingleRequirementError<T>? other) {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
 
-public sealed record IncompatableRequirementsError(
+        return this.Instances.SequenceEqual(other.Instances);
+    }
+
+    public override int GetHashCode() => HashCode.Combine(this.Instances);
+}
+
+public record IncompatableRequirementsError(
     IEnumerable<Requirement> ConflictingRequirements
 ) : EnrichableExceptional(
     $"""
@@ -137,15 +162,35 @@ public sealed record IncompatableRequirementsError(
     {string.Join(", ", ConflictingRequirements)}
     """,
     622
-);
+) {
+    public virtual bool Equals(IncompatableRequirementsError? other) {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
 
-public sealed record WrappedErrorWithDebuggableContent(
+        return this.ConflictingRequirements.SequenceEqual(other.ConflictingRequirements);
+    }
+
+    public override int GetHashCode() => HashCode.Combine(this.ConflictingRequirements);
+}
+
+public record WrappedErrorWithDebuggableContent(
     Option<string> MaybeMessage,
     string Content,
     Error InnerException,
     Option<ModuleSpec> Module = default
 ) : EnrichableError(InnerException, MaybeMessage, Module) {
     public override Option<Error> Inner => this.InnerException;
+
+    public virtual bool Equals(WrappedErrorWithDebuggableContent? other) {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return this.Module == other.Module
+            && this.InnerException == other.InnerException
+            && this.Content == other.Content;
+    }
+
+    public override int GetHashCode() => HashCode.Combine(this.Content, this.InnerException, this.Module);
 }
 
 public static class ErrorUtils {
@@ -153,8 +198,9 @@ public static class ErrorUtils {
         this T error,
         ModuleSpec module
     ) where T : Error => error switch {
-        WrappedErrorWithDebuggableContent wrapped => (wrapped with { Module = module, InnerException = wrapped.InnerException.Enrich(module) } as T)!, // Safety: The WrappedErrorWithDebuggableContent return will always be a T.
-        EnrichableExceptional enrichable => (enrichable with { Module = module } as T)!, // Safety: The EnrichableExceptional return will always be a T.
+        WrappedErrorWithDebuggableContent wrapped when wrapped.Module.IsNone => (wrapped with { Module = module, InnerException = wrapped.InnerException.Enrich(module) } as T)!, // Safety: The WrappedErrorWithDebuggableContent return will always be a T.
+        EnrichableExceptional enrichable when enrichable.Module.IsNone => (enrichable with { Module = module } as T)!, // Safety: The EnrichableExceptional return will always be a T.
+        EnrichableError enrichable when enrichable.Module.IsNone => (enrichable with { Module = module } as T)!, // Safety: The EnrichableError return will always be a T.
         ManyErrors errors => (new ManyErrors(errors.Errors.Select(error => error.Enrich(module))) as T)!, // Safety: T will always be ManyErrors.
         _ => error
     };
@@ -162,5 +208,8 @@ public static class ErrorUtils {
     public static EnrichedException Enrich(
         this Exception exception,
         ModuleSpec module
-    ) => new(exception, module); // Safety: T will always be an Exception.
+    ) => exception switch {
+        EnrichedException enriched => enriched,
+        _ => new(exception, module) // Safety: T will always be an Exception.
+    };
 }

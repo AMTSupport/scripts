@@ -7,11 +7,9 @@ using Compiler.Module.Compiled;
 namespace Compiler.Analyser.Rules;
 
 public sealed class RuleVisitor(
-    Compiled module,
     IEnumerable<Rule> rules,
     IEnumerable<Compiled> imports) : AstVisitor {
 
-    private readonly Compiled Module = module;
     private readonly IEnumerable<Rule> Rules = rules;
     private readonly IEnumerable<Compiled> Imports = imports;
 
@@ -22,7 +20,7 @@ public sealed class RuleVisitor(
         foreach (var rule in this.Rules) {
             if (!rule.ShouldProcess(ast, supressions)) continue;
             foreach (var issue in rule.Analyse(ast, this.Imports)) {
-                this.Issues.Add(issue.Enrich(this.Module.ModuleSpec));
+                this.Issues.Add(issue);
             }
         }
 
