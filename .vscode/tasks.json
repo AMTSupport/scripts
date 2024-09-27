@@ -29,7 +29,12 @@
             "label": "watch",
             "command": "dotnet",
             "type": "process",
-            "args": ["watch", "run", "--project", "${workspaceFolder}/scripts.sln"],
+            "args": [
+                "watch",
+                "run",
+                "--project",
+                "${workspaceFolder}/scripts.sln"
+            ],
             "problemMatcher": "$msCompile"
         },
         {
@@ -55,15 +60,94 @@
                 "-assemblyfilters:'+Compiler;-Compiler.Test'",
                 "-classfilters:'-System.Text.RegularExpressions.Generated*'"
             ],
-            "dependsOn": ["Generate coverage stats"],
+            "dependsOn": [
+                "Generate coverage stats"
+            ],
             "problemMatcher": []
         },
         {
             "label": "Open Coverage Report",
-            "dependsOn": ["Generate coverage report"],
+            "dependsOn": [
+                "Generate coverage report"
+            ],
             "type": "shell",
             "command": ".\\coverage_report\\index.html",
             "problemMatcher": []
+        },
+        {
+            "label": "Compile Scripts",
+            "dependsOn": [
+                "build"
+            ],
+            "command": "${workspaceFolder}/src/Compiler/bin/Debug/Compiler.exe",
+            "args": [
+                "-i",
+                "${input:sourceDirectory}/${input:scriptSubdirectory}",
+                "-o",
+                "${input:outputDirectory}/${input:scriptSubdirectory}",
+                "-f",
+                "-vvv"
+            ],
+            "problemMatcher": {
+                "fileLocation": "absolute",
+                "source": "Compiler Analyser",
+                "pattern": [
+                    {
+                        "regexp": "^File\\s\\|\\s([:\\\\\\\/\\w\\s\\._!#()-]+)$",
+                        "file": 1,
+                        "kind": "location",
+                    },
+                    {
+                        "regexp": "^Where\\|\\s\\((\\d+)\\[(\\d+)\\]\\)[\\.]{2}\\((\\d+)\\[(\\d+)\\]\\)$",
+                        "line": 1,
+                        "column": 2,
+                        "endLine": 3,
+                        "endColumn": 4
+                    },
+                    {
+                        "regexp": "[\\d\\s]*\\|\\s*.+$",
+                    },
+                    {
+                        "regexp": "\\s*\\|[\\s~]+$",
+                    },
+                    {
+                        "regexp": "\\s*\\|\\s(.+)$",
+                        "message": 1
+                    }
+                ],
+                "severity": "error",
+                "applyTo": "allDocuments"
+            },
+            "group": "none",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true,
+                "revealProblems": "onProblem"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "sourceDirectory",
+            "description": "The source directory containing the scripts to compile.",
+            "default": "${workspaceFolder}/src",
+            "type": "promptString"
+        },
+        {
+            "id": "outputDirectory",
+            "description": "The output directory for the compiled scripts.",
+            "default": "${workspaceFolder}/compiled2",
+            "type": "promptString"
+        },
+        {
+            "id": "scriptSubdirectory",
+            "description": "A subdirectory of specific scripts relative to the source directory.",
+            "default": "",
+            "type": "promptString"
         }
     ]
 }
