@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
+using System.Management.Automation.Language;
 using System.Runtime.CompilerServices;
 using LanguageExt;
 using LanguageExt.UnsafeValueAccess;
@@ -309,4 +310,11 @@ public static class Utils {
         [NotNullWhen(false)] out T? value
     ) => !fin.IsOk(out value, out error);
     #endregion
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Ast GetRootParent(this Ast ast) {
+        var parent = ast.Parent;
+        while (parent?.Parent != null) parent = parent.Parent;
+        return parent ?? ast;
+    }
 }

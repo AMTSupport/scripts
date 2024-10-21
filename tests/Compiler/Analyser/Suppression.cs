@@ -5,6 +5,7 @@ using System.Collections;
 using System.Management.Automation.Language;
 using Compiler.Analyser;
 using Compiler.Analyser.Rules;
+using LanguageExt;
 
 namespace Compiler.Test.Analyser;
 
@@ -15,8 +16,8 @@ public class SuppressionAttributeTests {
         var attributes = TestData.GetAttributes(astContent);
         Assert.Multiple(() => {
             foreach (var attribute in attributes) {
-                var result = SuppressAnalyserAttribute.FromAttributeAst(attribute);
-                Assert.That(result, Is.Null);
+                var result = SuppressAnalyserAttribute.FromAttributeAst(attribute).Unwrap();
+                Assert.That(result, Is.EqualTo(Option<SuppressAnalyserAttribute>.None));
             }
         });
     }
@@ -26,10 +27,10 @@ public class SuppressionAttributeTests {
         var attributes = TestData.GetAttributes(astContent);
         var i = 0;
         foreach (var attribute in attributes) {
-            var result = SuppressAnalyserAttribute.FromAttributeAst(attribute);
-            if (result is null) continue;
+            var result = SuppressAnalyserAttribute.FromAttributeAst(attribute).Unwrap();
+            if (!result.IsSome(out var attr)) continue;
             Assert.Multiple(() => {
-                var suppression = result?.GetSupression();
+                var suppression = attr.GetSupression();
 
                 Assert.That(suppression?.Type, Is.EqualTo(expected[i].Type));
                 Assert.That(suppression?.Justification, Is.EqualTo(expected[i].Justification));
