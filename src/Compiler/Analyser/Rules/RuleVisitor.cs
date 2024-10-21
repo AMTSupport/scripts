@@ -3,6 +3,7 @@
 
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
+using LanguageExt;
 
 namespace Compiler.Analyser.Rules;
 
@@ -16,9 +17,13 @@ public sealed class RuleVisitor(
     public readonly List<Issue> Issues = [];
 
     public override AstVisitAction DefaultVisit(Ast ast) {
-        var supressions = GetSupressions(ast);
+        if (GetSupressions(ast).IsErr(out var err, out var suppressions)) {
+            this.Issues.AddRange(((ManyErrors)err).Errors.Cast<Issue>());
+            return AstVisitAction.SkipChildren;
+        };
+
         foreach (var rule in this.Rules) {
-            if (!rule.ShouldProcess(ast, supressions)) continue;
+            if (!rule.ShouldProcess(ast, suppressions)) continue;
             foreach (var issue in rule.Analyse(ast, this.Imports)) {
                 this.Issues.Add(issue);
             }
@@ -27,10 +32,11 @@ public sealed class RuleVisitor(
         return AstVisitAction.Continue;
     }
 
-    public static IEnumerable<Suppression> GetSupressions(Ast ast) {
+    public static Fin<IEnumerable<Suppression>> GetSupressions(Ast ast) {
         var paramBlock = AstHelper.FindClosestParamBlock(ast);
         return paramBlock == null
-            ? ([])
-            : SuppressAnalyserAttribute.FromAttributes(paramBlock.Attributes).Select(attr => attr.GetSupression());
+            ? FinSucc(Enumerable.Empty<Suppression>())
+            : SuppressAnalyserAttribute.FromAttributes(paramBlock.Attributes)
+                .Map(suppressions => suppressions.Select(suppression => suppression.GetSupression()));
     }
 }

@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation.Language;
+using LanguageExt;
 
 namespace Compiler.Analyser;
 
@@ -29,14 +30,28 @@ public sealed class SuppressAnalyserAttribute(
         return new Suppression(type, data, justification);
     }
 
-    public static IEnumerable<SuppressAnalyserAttribute> FromAttributes(IEnumerable<AttributeAst> attributes) {
+    [return: NotNull]
+    public static Fin<IEnumerable<SuppressAnalyserAttribute>> FromAttributes(IEnumerable<AttributeAst> attributes) {
+        var suppressions = new List<SuppressAnalyserAttribute>();
+        var issues = ManyErrors.Empty;
+
         foreach (var attr in attributes) {
-            var suppression = FromAttributeAst(attr);
-            if (suppression is not null) yield return suppression;
+            var suppressionResult = FromAttributeAst(attr);
+            if (suppressionResult.IsErr(out var err, out var suppressionOpt)) {
+                issues = issues.Combine(err);
+                continue;
+            } else if (suppressionOpt.IsSome(out var suppression)) {
+                suppressions.Add(suppression);
+            }
         }
+
+        return issues.Count == 0
+            ? FinSucc<IEnumerable<SuppressAnalyserAttribute>>(suppressions)
+            : FinFail<IEnumerable<SuppressAnalyserAttribute>>(issues);
     }
 
-    public static SuppressAnalyserAttribute? FromAttributeAst([NotNull] AttributeAst attrAst) {
+    [return: NotNull]
+    public static Fin<Option<SuppressAnalyserAttribute>> FromAttributeAst([NotNull] AttributeAst attrAst) {
         ArgumentNullException.ThrowIfNull(attrAst);
 
         var typeName = attrAst.TypeName;
@@ -46,7 +61,7 @@ public sealed class SuppressAnalyserAttribute(
         if (!(typeName.GetReflectionAttributeType() == typeof(SuppressAnalyserAttribute)
             || (hasNamespace && attributeSuffixed == typeof(SuppressAnalyserAttribute).FullName)
             || (!hasNamespace && attributeSuffixed == nameof(SuppressAnalyserAttribute))
-        )) return null;
+        )) return FinSucc<Option<SuppressAnalyserAttribute>>(None);
 
         string? checkType = null;
         object? data = null;
@@ -55,21 +70,30 @@ public sealed class SuppressAnalyserAttribute(
         var positionalArguments = attrAst.PositionalArguments;
         var namedArguments = attrAst.NamedArguments;
 
-        var lastPositionalArgumentsOffset = -1;
+        Issue IncorrectDataType(string name, string expected, IScriptExtent extent) => Issue.Error(
+            $"{name} must be a {expected}",
+            extent,
+            attrAst.GetRootParent()
+        );
 
+        var lastPositionalArgumentsOffset = -1;
         if (positionalArguments != null && positionalArguments.Count != 0) {
             var count = positionalArguments.Count;
             lastPositionalArgumentsOffset = positionalArguments[^1].Extent.StartOffset;
             switch (count) {
                 case 3:
-                    if (positionalArguments[2] is not StringConstantExpressionAst justificationAst) throw new ArgumentException("Justification must be a string constant");
+                    if (positionalArguments[2] is not StringConstantExpressionAst justificationAst) {
+                        return IncorrectDataType("Justification", "string constant", positionalArguments[2].Extent);
+                    }
                     justification = justificationAst.Value;
                     goto case 2;
                 case 2:
                     data = positionalArguments[1].SafeGetValue();
                     goto case 1;
                 case 1:
-                    if (positionalArguments[0] is not StringConstantExpressionAst checkTypeAst) throw new ArgumentException("CheckType must be a string constant");
+                    if (positionalArguments[0] is not StringConstantExpressionAst checkTypeAst) {
+                        return IncorrectDataType("CheckType", "string constant", positionalArguments[0].Extent);
+                    }
                     checkType = checkTypeAst.Value;
                     goto default;
                 default:
@@ -79,30 +103,72 @@ public sealed class SuppressAnalyserAttribute(
 
         if (namedArguments != null && namedArguments.Count != 0) {
             foreach (var name in namedArguments) {
-                if (name.Extent.StartOffset < lastPositionalArgumentsOffset) throw new ArgumentException("Named arguments must come after positional arguments");
+                if (name.Extent.StartOffset < lastPositionalArgumentsOffset) {
+                    return Issue.Error(
+                        "Named arguments must come after positional arguments",
+                        name.Extent,
+                        attrAst.GetRootParent()
+                    );
+                }
 
                 var argumentName = name.ArgumentName;
                 if (argumentName.Equals("checkType", StringComparison.OrdinalIgnoreCase)) {
-                    if (!string.IsNullOrWhiteSpace(checkType)) throw new ArgumentException("Named and positional arguments conflict for checkType");
+                    if (!string.IsNullOrWhiteSpace(checkType)) {
+                        return Issue.Error(
+                            "Named and positional arguments conflict for checkType",
+                            name.Extent,
+                            attrAst.GetRootParent()
+                        );
+                    }
 
-                    if (name.Argument is not StringConstantExpressionAst checkTypeAst) throw new ArgumentException("CheckType must be a string constant");
+                    if (name.Argument is not StringConstantExpressionAst checkTypeAst) {
+                        return Issue.Error(
+                            "CheckType must be a string constant",
+                            name.Extent,
+                            attrAst.GetRootParent()
+                        );
+                    }
                     checkType = checkTypeAst.Value;
                 } else if (argumentName.Equals("data", StringComparison.OrdinalIgnoreCase)) {
-                    if (data is not null) throw new ArgumentException("Named and positional arguments conflict for data");
+                    if (data is not null) {
+                        return Issue.Error(
+                            "Named and positional arguments conflict for data",
+                            name.Extent,
+                            attrAst.GetRootParent()
+                        );
+                    }
 
                     data = name.Argument.SafeGetValue();
                 } else if (argumentName.Equals("justification", StringComparison.OrdinalIgnoreCase)) {
-                    if (!string.IsNullOrWhiteSpace(justification)) throw new ArgumentException("Named and positional arguments conflict for justification");
+                    if (!string.IsNullOrWhiteSpace(justification)) {
+                        return Issue.Error(
+                            "Named and positional arguments conflict for justification",
+                            name.Extent,
+                            attrAst.GetRootParent()
+                        );
+                    }
 
-                    if (name.Argument is not StringConstantExpressionAst justificationAst) throw new ArgumentException("Justification must be a string constant");
+                    if (name.Argument is not StringConstantExpressionAst justificationAst) {
+                        return Issue.Error(
+                            "Justification must be a string constant",
+                            name.Extent,
+                            attrAst.GetRootParent()
+                        );
+                    }
                     justification = justificationAst.Value;
                 }
             }
         }
 
-        if (string.IsNullOrWhiteSpace(checkType)) throw new ArgumentException("CheckType is required");
-        if (string.IsNullOrWhiteSpace(justification)) throw new ArgumentException("Justification is required");
-        if (data is null) throw new ArgumentException("Data is required");
+        Issue IsRequired(string name) => Issue.Error(
+            $"{name} is required",
+            attrAst.Extent,
+            attrAst.GetRootParent()
+        );
+
+        if (string.IsNullOrWhiteSpace(checkType)) return IsRequired("CheckType");
+        if (string.IsNullOrWhiteSpace(justification)) return IsRequired("Justification");
+        if (data is null) return IsRequired("Data");
 
         switch (data) {
             case string:
@@ -113,6 +179,6 @@ public sealed class SuppressAnalyserAttribute(
                 throw new ArgumentException($"Data must be a string or an array of strings, got {data.GetType().Name}");
         }
 
-        return new SuppressAnalyserAttribute(checkType, data, justification);
+        return Some(new SuppressAnalyserAttribute(checkType, data, justification));
     }
 }
