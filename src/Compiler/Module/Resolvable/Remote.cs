@@ -171,7 +171,7 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
 
         $Module = Find-PSResource -Name '{{this.ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
-        $Module | Save-PSResource -Path '{{this.CachePath}}' -AsNupkg -SkipDependencyCheck;
+        $Module | Select-Object -First 1 | Save-PSResource -Path '{{this.CachePath}}' -AsNupkg -SkipDependencyCheck;
 
         return "{{this.CachePath}}/{{this.ModuleSpec.Name}}.$($Module.Version).nupkg";
         """;
