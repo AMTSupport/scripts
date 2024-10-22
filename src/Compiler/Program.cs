@@ -36,7 +36,7 @@ public class Program {
     internal static readonly ConcurrentBag<LanguageExt.Common.Error> Errors = [];
 
     public static readonly Lazy<RunspacePool> RunspacePool = new(() => {
-        var sessionState = InitialSessionState.CreateDefault2();
+        var sessionState = InitialSessionState.CreateDefault();
         sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
         sessionState.ImportPSModule(["Microsoft.PowerShell.PSResourceGet"]);
 

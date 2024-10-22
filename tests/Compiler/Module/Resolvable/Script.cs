@@ -10,8 +10,6 @@ namespace Compiler.Test.Module.Resolvable;
 
 [TestFixture]
 public partial class CompiledScriptTest {
-    private static readonly string TEST_SCRIPT = Path.Combine(Environment.CurrentDirectory, "resources", "test.ps1");
-
     [TestCaseSource(typeof(TestData), nameof(TestData.TestCases))]
     public string Test(
         TextSpanUpdater updater,
