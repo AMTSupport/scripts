@@ -20,12 +20,6 @@
         "resolved": "5.0.0-beta-07",
         "contentHash": "bZSoYS0eR9LZO4uHgWsEKMmejPPmf7dKaQHKj7thpUGacJ7SiCi887h97JXzBaVWea7EjY+1gAu8z05cbJ7M2Q=="
       },
-      "Microsoft.NET.ILLink.Tasks": {
-        "type": "Direct",
-        "requested": "[8.0.10, )",
-        "resolved": "8.0.10",
-        "contentHash": "xT8jYjlroY7SLbGtoV9vUTVW/TPgodL4Egc31a444Xe0TMytLZ3UlKQ0kxMZsy/CrWsFB6wtKnSG1SsXcWreew=="
-      },
       "Microsoft.PowerShell.SDK": {
         "type": "Direct",
         "requested": "[7.4.2, )",
