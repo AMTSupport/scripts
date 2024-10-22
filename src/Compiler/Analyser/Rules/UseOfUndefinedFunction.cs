@@ -18,6 +18,8 @@ public class UseOfUndefinedFunction : Rule {
     /// </summary>
     private static readonly IEnumerable<string> BuiltinsFunctions = GetDefaultSessionFunctions();
 
+    public override bool SupportsModule<T>(T compiledModule) => compiledModule is CompiledLocalModule;
+
     public override bool ShouldProcess(
         Ast node,
         IEnumerable<Suppression> supressions) {

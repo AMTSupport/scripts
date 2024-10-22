@@ -37,7 +37,7 @@ public abstract class Compiled {
 
         var byteList = new List<byte>((byte[])hashableBytes.Clone());
         AddRequirementHashBytes(byteList, requirements);
-        this.ComputedHash = Convert.ToHexString(SHA256.HashData(byteList.ToArray()));
+        this.ComputedHash = Convert.ToHexString(SHA256.HashData([.. byteList]));
     }
 
 
