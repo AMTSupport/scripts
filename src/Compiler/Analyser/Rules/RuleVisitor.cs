@@ -34,7 +34,12 @@ public sealed class RuleVisitor(
         };
 
         foreach (var rule in this.Rules) {
-            if (!this.ThreadLocalCache[Environment.CurrentManagedThreadId][rule]) continue;
+            // If the key doesn't exist assume we support it, this allows for usage outside of the visitor like in tests.
+            if (this.ThreadLocalCache.TryGetValue(Environment.CurrentManagedThreadId, out var threadCache)
+                && threadCache.TryGetValue(rule, out var supports)
+                && !supports
+            ) continue;
+
             if (!rule.ShouldProcess(ast, suppressions)) continue;
             foreach (var issue in rule.Analyse(ast, this.Imports)) {
                 this.Issues.Add(issue);
