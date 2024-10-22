@@ -1,6 +1,7 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
 using LanguageExt;
@@ -13,8 +14,18 @@ public sealed class RuleVisitor(
 
     private readonly IEnumerable<Rule> Rules = rules;
     private readonly IEnumerable<Compiled> Imports = imports;
-
+    private readonly Dictionary<int, Dictionary<Rule, bool>> ThreadLocalCache = [];
     public readonly List<Issue> Issues = [];
+
+    public void VisitModule([NotNull] CompiledLocalModule compiledModule) {
+        this.ThreadLocalCache.Add(Environment.CurrentManagedThreadId, []);
+        foreach (var rule in this.Rules) {
+            this.ThreadLocalCache[Environment.CurrentManagedThreadId].Add(rule, rule.SupportsModule(compiledModule));
+        }
+
+        compiledModule.Document.Ast.Visit(this);
+        this.ThreadLocalCache.Remove(Environment.CurrentManagedThreadId);
+    }
 
     public override AstVisitAction DefaultVisit(Ast ast) {
         if (GetSupressions(ast).IsErr(out var err, out var suppressions)) {
@@ -23,6 +34,7 @@ public sealed class RuleVisitor(
         };
 
         foreach (var rule in this.Rules) {
+            if (!this.ThreadLocalCache[Environment.CurrentManagedThreadId][rule]) continue;
             if (!rule.ShouldProcess(ast, suppressions)) continue;
             foreach (var issue in rule.Analyse(ast, this.Imports)) {
                 this.Issues.Add(issue);

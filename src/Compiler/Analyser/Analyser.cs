@@ -14,6 +14,7 @@ public static class Analyser {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
     private static readonly IEnumerable<Rule> Rules = [
+        new MissingCmdlet(),
         new UseOfUndefinedFunction()
     ];
 
@@ -34,7 +35,7 @@ public static class Analyser {
             Logger.Trace($"Analyzing module {module.ModuleSpec.Name}");
 
             var visitor = new RuleVisitor(Rules, availableImports);
-            module.Document.Ast.Visit(visitor);
+            visitor.VisitModule(module);
             return visitor.Issues;
         }));
     }
