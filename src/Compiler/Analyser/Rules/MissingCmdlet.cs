@@ -29,8 +29,49 @@ public class MissingCmdlet : Rule {
 
         yield return Issue.Error(
             "Missing Top Level Script Paramter Block with [CmdletBinding] Attribute",
-            scriptBlockAst.Extent,
+            GetErrorLocation(scriptBlockAst),
             scriptBlockAst
+        );
+    }
+
+    /// <summary>
+    /// Gets the error location for the issue.
+    ///
+    /// If the script block has a top level param block, then its extent is returned.
+    /// Otherwise an extent covering the location after the using statements,
+    /// but before the first command, function or variable assignment is returned.
+    /// </summary>
+    /// <param name="scriptBlockAst"></param>
+    /// <returns></returns>
+    private static IScriptExtent GetErrorLocation(ScriptBlockAst scriptBlockAst) {
+        if (scriptBlockAst.ParamBlock != null) {
+            return scriptBlockAst.ParamBlock.Extent;
+        }
+
+        var lastUsing = scriptBlockAst.FindAll(ast => ast is UsingStatementAst, false).LastOrDefault();
+        var first = scriptBlockAst.Find(ast => ast is CommandAst or FunctionDefinitionAst or AssignmentStatementAst, false);
+
+        var startingLine = lastUsing?.Extent.EndLineNumber ?? 1;
+        var startingColumn = lastUsing?.Extent.StartColumnNumber ?? 1;
+        var endingLine = first?.Extent.StartLineNumber ?? scriptBlockAst.Extent.EndLineNumber;
+        var endingColumn = first?.Extent.EndColumnNumber ?? scriptBlockAst.Extent.EndColumnNumber;
+
+        var scriptLines = scriptBlockAst.Extent.Text.Split('\n');
+        return new ScriptExtent(
+            new ScriptPosition(
+                scriptBlockAst.Extent.File,
+                startingLine,
+                startingColumn,
+                scriptLines[startingLine - 1],
+                scriptBlockAst.Extent.Text
+            ),
+            new ScriptPosition(
+                scriptBlockAst.Extent.File,
+                endingLine,
+                endingColumn,
+                scriptLines[endingLine - 1],
+                scriptBlockAst.Extent.Text
+            )
         );
     }
 }
