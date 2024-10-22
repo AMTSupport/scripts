@@ -3,12 +3,19 @@ name: Build Compiler
 on:
   push:
     branches: [ master ]
+    paths: ["src/**", ".github/workflows/build.yaml"]
   pull_request:
+    paths: ["src/**", ".github/workflows/build.yaml"]
+  workflow_call:
+    outputs:
+      artifact:
+        value: ${{ github.inputs.artifact }}
+        description: 'The artifact that was built'
 
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -22,12 +29,12 @@ jobs:
           cache-dependency-path: "src/Compiler/packages.lock.json"
 
       - name: Install dependencies
-        run: dotnet restore --locked-mode
+        run: dotnet restore --locked-mode -r win-x64
 
       - name: Build
-        run: dotnet publish .\src\Compiler\Compiler.csproj --sc -c Release
+        run: dotnet publish ./src/Compiler/Compiler.csproj --sc -c Release -r win-x64
 
       - uses: actions/upload-artifact@v4
         with:
           name: Compiler
-          path: .\src\Compiler\bin\Release\win-x64\publish\Compiler.exe
+          path: ./src/Compiler/bin/Release/win-x64/publish/Compiler.exe
