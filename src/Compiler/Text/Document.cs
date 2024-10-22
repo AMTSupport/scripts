@@ -27,7 +27,7 @@ public class TextDocument : IDisposable {
     public Fin<ScriptBlockAst> GetRequirementsAst() {
         if (this.RequirementsAst is not null) return this.RequirementsAst;
 
-        this.GetLines(line => {
+        this.GetLines((line, _) => {
             line = line.Trim();
             return string.IsNullOrWhiteSpace(line) ||
                 line.StartsWith("#requires", StringComparison.OrdinalIgnoreCase) ||
@@ -43,11 +43,13 @@ public class TextDocument : IDisposable {
     }
 
     [return: NotNull]
-    public IEnumerable<string> GetLines(Predicate<string>? readerStopCondition = null) {
+    public List<string> GetLines(Func<string, int, bool>? readerStopCondition = null) {
         if (this.FileStream is not null) {
+            var lineIndex = this.Lines.Count;
             while (!this.FileStream.EndOfStream && this.FileStream.ReadLine() is string line) {
+                lineIndex++;
                 this.Lines.Add((string)line.Clone()); // Clone the line incase it is modified in the predicate.
-                if (readerStopCondition is not null && readerStopCondition(line)) {
+                if (readerStopCondition is not null && readerStopCondition(line, lineIndex)) {
                     break;
                 }
             }
@@ -58,7 +60,9 @@ public class TextDocument : IDisposable {
             }
         }
 
-        return this.Lines;
+        var copiedLines = new string[this.Lines.Count];
+        this.Lines.CopyTo(copiedLines);
+        return [.. copiedLines];
     }
 
     public void Dispose() {

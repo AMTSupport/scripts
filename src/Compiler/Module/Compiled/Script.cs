@@ -1,8 +1,11 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Management.Automation.Language;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
+using Compiler.Analyser;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -12,11 +15,18 @@ using QuikGraph.Algorithms;
 
 namespace Compiler.Module.Compiled;
 
-public class CompiledScript(
+public partial class CompiledScript(
     PathedModuleSpec moduleSpec,
     CompiledDocument document,
     RequirementGroup requirements
 ) : CompiledLocalModule(moduleSpec, document, requirements) {
+    private static readonly Lazy<string> Template = new(() => {
+        var info = Assembly.GetExecutingAssembly().GetName();
+        using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
+        using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
+        return streamReader.ReadToEnd();
+    });
+
     public virtual BidirectionalGraph<Compiled, Edge<Compiled>> Graph { get; } = new();
 
     /// <summary>
@@ -78,9 +88,9 @@ public class CompiledScript(
             }
         }
 
-        script.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).ToList().ForEach(async compiled => {
-            var imports = script.Graph.OutEdges(compiled).Select(edge => edge.Target);
-            (await Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports]))
+        foreach (var edge in script.Graph.Vertices) {
+            if (edge is not CompiledLocalModule compiled) { continue; }
+            (await Analyser.Analyser.Analyse(compiled, script.Graph.OutEdges(compiled).Select(edge => edge.Target)))
                 .ForEach(issue => Program.Errors.Add(issue.Enrich(compiled.ModuleSpec)));
         }
 
@@ -94,11 +104,7 @@ public class CompiledScript(
     }
 
     public override string GetPowerShellObject() {
-        var info = Assembly.GetExecutingAssembly().GetName();
-        using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
-        using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
-        var template = streamReader.ReadToEnd();
-
+        var template = Template.Value;
         var embeddedModules = new StringBuilder();
         embeddedModules.AppendLine("$Script:EMBEDDED_MODULES = @(");
         this.Graph.Vertices.ToList().ForEach(module => {
@@ -131,14 +137,18 @@ public class CompiledScript(
                 .Aggregate((a, b) => $"{a}, {b}")
             : string.Empty;
 
-        // TODO - Implement a way to replace #!DEFINE macros in the template.
-        // This could also be how we can implement secure variables during compilation.
-        template = template
-            .Replace("#!DEFINE EMBEDDED_MODULES", embeddedModules.ToString())
-            .Replace("#!DEFINE PARAM_BLOCK", paramBlock.ToString())
-            .Replace("#!DEFINE IMPORT_ORDER", $"$Script:REMOVE_ORDER = @({importOrder});");
+        var replacements = new Dictionary<string, string> {
+            { "EMBEDDED_MODULES", embeddedModules.ToString() },
+            { "PARAM_BLOCK", paramBlock.ToString() },
+            { "IMPORT_ORDER", $"$Script:REMOVE_ORDER = @({importOrder});" }
+        };
 
-        return template;
+        if (FillTemplate(template, replacements).IsErr(out var error, out var filledTemplate)) {
+            Program.Errors.Add(error);
+            return string.Empty;
+        };
+
+        return filledTemplate;
     }
 
     /// <summary>
@@ -172,4 +182,48 @@ public class CompiledScript(
 
         return string.Join('\n', indentedLines);
     }
+
+    private static Fin<string> FillTemplate(string template, Dictionary<string, string> replacements) {
+        if (AstHelper.GetAstReportingErrors(template, None, [], out var tokens).IsErr(out var err, out var ast)) {
+            return err;
+        }
+
+        if (tokens.Length == 0) { return template; }
+
+        var defines = tokens
+            .Where(token => token.Kind == TokenKind.Comment)
+            .Select(token => (DefineRegex().Match(token.Text), token.Extent))
+            .Where(match => match.Item1.Success)
+            .Select(match => (match.Item1.Groups, match.Extent))
+            .ToList();
+
+        var editor = new TextEditor(new TextDocument(template.Split('\n')));
+        defines.ForEach(define => {
+            var (groups, extent) = define;
+            var name = groups["name"].Value;
+            var args = groups["args"]?.Value;
+            var removeBefore = args?.Contains('<') ?? false;
+            var removeAfter = args?.Contains('>') ?? false;
+
+            if (replacements.TryGetValue(name, out var replacement)) {
+                editor.AddExactEdit(
+                    extent.StartLineNumber - 1,
+                    removeBefore ? 0 : (extent.StartColumnNumber - 1),
+                    extent.EndLineNumber - 1,
+                    removeAfter
+                        ? editor.Document.GetLines((_, index) => index >= extent.EndLineNumber)[extent.EndLineNumber - 1].Length
+                        : (extent.EndColumnNumber - 1),
+                    UpdateOptions.InsertInline,
+                    _ => replacement.Split('\n')
+                );
+            } else {
+                Program.Errors.Add(Issue.Error($"Could not find a replacement for the define '{name}'", extent, ast));
+            }
+        });
+
+        return CompiledDocument.FromBuilder(editor).Map(doc => doc.GetContent());
+    }
+
+    [GeneratedRegex(@"!DEFINE\s+(?<name>\w+)(?:\s+(?<args>[<>]+))?", RegexOptions.Multiline)]
+    private static partial Regex DefineRegex();
 }
