@@ -1,13 +1,13 @@
-# [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-#     'PSAvoidGlobalVars',
-#     $null,
-#     Justification = 'Required to inform modules of runtime type.'
-# )]
-#!DEFINE PARAM_BLOCK
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSAvoidGlobalVars',
+    'Global:CompiledScript',
+    Justification = 'Required to inform modules of runtime type.'
+)]
+<#!DEFINE PARAM_BLOCK >#> param()
 begin {
     [Boolean]$Global:CompiledScript = $True;
-    #!DEFINE EMBEDDED_MODULES
-    #!DEFINE IMPORT_ORDER
+    <#!DEFINE EMBEDDED_MODULES#>
+    <#!DEFINE IMPORT_ORDER#>
 
     [String]$Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath 'AMT/PowerShell/Modules';
     if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
