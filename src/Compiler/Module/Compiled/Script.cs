@@ -82,7 +82,13 @@ public class CompiledScript(
             var imports = script.Graph.OutEdges(compiled).Select(edge => edge.Target);
             (await Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports]))
                 .ForEach(issue => Program.Errors.Add(issue.Enrich(compiled.ModuleSpec)));
-        });
+        }
+
+        await Task.WhenAll(script.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).Select(async compiled => {
+            var imports = script.Graph.OutEdges(compiled).Select(edge => edge.Target);
+            var issues = await Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports]);
+            issues.ForEach(issue => Program.Errors.Add(issue.Enrich(compiled.ModuleSpec)));
+        }));
 
         return script;
     }
