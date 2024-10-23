@@ -24,8 +24,8 @@ Invoke-RunMain $PSCmdlet {
         Install-ManagedPackage -PackageName 'WireGuard';
     }
 
-    Invoke-Info 'Setting up LimitedUI Registry Key...';
-    Set-RegistryKey -Path HKLM:\SOFTWARE\WireGuard -Key 'LimitedUserUI' -Value 1 -Kind DWord;
+    Invoke-Info 'Setting up LimitedOperatorUI Registry Key...';
+    Set-RegistryKey -Path HKLM:\SOFTWARE\WireGuard -Key 'LimitedOperatorUI' -Value 1 -Kind DWord;
 
     # Query for if any users need to be added to Network Configuration Operators
     Invoke-Info 'Querying for if any users need to be added to Network Configuration Operators...';
