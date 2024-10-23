@@ -117,7 +117,6 @@ function Get-CachedLocation {
                 [String]$Path,
 
                 [Parameter(Mandatory)]
-                [ValidateNotNullOrEmpty()]
                 [Object]$Content
             )
 
@@ -170,8 +169,7 @@ function Get-CachedLocation {
                     Remove-Cache -CachePath $Local:CachePath;
                 }
             } else {
-                Invoke-Verbose 'No cache validation method provided, skipping validation and re-creating.';
-                Remove-Cache -CachePath $Local:CachePath;
+                Invoke-Verbose 'No cache validation method provided, assuming valid.';
             }
         }
 
