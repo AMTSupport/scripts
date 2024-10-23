@@ -80,9 +80,6 @@ function Export-Types {
         $TypeAcceleratorsClass::Add($Type.FullName, $Type);
     }
 
-    Invoke-Debug "Exported types: $($Types -join ', ')";
-    Invoke-Debug "Registering module callback to remove type accelerators: $($Types -join ', ') from $($Module)";
-
     # Remove type accelerators when the module is removed.
     Add-ModuleCallback -Module $Module -ScriptBlock {
         foreach ($Type in $Types) {
