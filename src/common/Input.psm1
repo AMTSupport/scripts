@@ -449,12 +449,25 @@ function Get-PopupSelection {
         [Object[]]$Items,
 
         [Parameter()]
-        [switch]$AllowNone
+        [Switch]$AllowNone,
+
+        [Parameter()]
+        [Switch]$AllowMultiple
     )
+
+    $ViewArgs = @{
+        Title = $Title;
+    };
+
+    if ($AllowMultiple) {
+        $ViewArgs.OutputMode = 'Multiple';
+    } else {
+        $ViewArgs.PassThru = $True;
+    }
 
     $Local:Selection;
     while (-not $Local:Selection) {
-        $Local:Selection = $Items | Out-GridView -Title $Title -PassThru;
+        $Local:Selection = $Items | Out-GridView @ViewArgs;
         if ((-not $AllowNone) -and (-not $Local:Selection)) {
             Invoke-Info 'No Item was selected, re-running selection...';
         }
