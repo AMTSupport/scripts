@@ -41,7 +41,7 @@ enum PackageManager {
 function Local:Install-Requirements {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingInvokeExpression',
-        $null,
+        '',
         Justification = 'Required to install Chocolatey, there is no other way to do this.'
     )]
     [Compiler.Analyser.SuppressAnalyserAttribute(

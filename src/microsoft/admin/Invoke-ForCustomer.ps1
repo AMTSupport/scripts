@@ -7,6 +7,7 @@ Using module ../../common/Connection.psm1
 Using module ../../common/Exit.psm1
 
 Using module Microsoft.Graph.Authentication
+Using module Microsoft.Graph.Identity.DirectoryManagement
 Using module PartnerCenter
 
 [CmdletBinding(DefaultParameterSetName = 'ScriptBlock')]
@@ -348,4 +349,3 @@ Invoke-RunMain $PSCmdlet -NotStrict -Main {
         }
     }
 };
-
