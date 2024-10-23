@@ -1,7 +1,7 @@
 Using module ./PSStyle.psm1
 Using module @{
     ModuleName      = 'PSReadLine';
-    RequiredVersion = '2.3.5';
+    ModuleVersion = '2.3.2';
 }
 
 [HashTable]$Script:Logging = @{
