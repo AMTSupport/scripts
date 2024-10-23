@@ -1,10 +1,19 @@
 Using module ./Logging.psm1
 Using module ./Scope.psm1
 Using module ./Exit.psm1
+Using module ./Input.psm1
 Using module Microsoft.Graph.Authentication
 Using module ExchangeOnlineManagement
 Using module AzureAD
 Using module MSOnline
+
+[CmdletBinding()]
+[Compiler.Analyser.SuppressAnalyserAttribute(
+    CheckType = 'UseOfUndefinedFunction',
+    Data = 'Get-ConnectionInformation', 'Get-IPPSSession', 'Get-AzureADCurrentSessionInfo', 'Get-MgContext', 'Get-MsolCompanyInformation', 'Connect-AzureAD', 'Disconnect-AzureAD',
+    Justification = 'wmic is not available on the builder machine'
+)]
+param()
 
 function Local:Invoke-NonNullParams {
     [CmdletBinding()]
