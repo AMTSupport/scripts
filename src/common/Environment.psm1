@@ -1,6 +1,5 @@
 Using module ./Utils.psm1
 Using module ./Logging.psm1
-Using module ./Scope.psm1
 Using module ./Exit.psm1
 
 Using namespace System.Management.Automation.Language;
@@ -9,6 +8,10 @@ Using namespace System.Collections.Generic
 [System.Boolean]$Script:ScriptRestarted = $False;
 [System.Boolean]$Script:ScriptRestarting = $False;
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
+$Script:ModuleSnapshot = Get-Module | Select-Object -ExpandProperty Path | Where-Object {
+    # Also Exclude our own modules
+    $_.Name -notmatch '(Environment|Logging|Scope|Utils|Exit)'
+};
 
 #region - Utility Functions
 function Get-OrFalse {
@@ -89,6 +92,18 @@ function Invoke-Teardown {
     $PSDefaultParameterValues.Remove('*:InformationAction');
     $PSDefaultParameterValues.Remove('*:Verbose');
     $PSDefaultParameterValues.Remove('*:Debug');
+
+    if (-not (Get-Variable -Name 'CompiledScript' -ValueOnly -ErrorAction SilentlyContinue)) {
+        Get-Module | ForEach-Object {
+            if ($Script:ModuleSnapshot -notcontains $_.Path) {
+                Write-Debug "Removing module $_.";
+                $_ | Remove-Module -Force -Confirm:$False -Verbose:$False -Debug:$False;
+                if (Get-Module -Name $_.Name) {
+                    Write-Warning "Failed to remove module $_.";
+                }
+            }
+        }
+    }
 }
 
 <#
