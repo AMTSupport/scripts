@@ -1,4 +1,4 @@
-Using module ./ModuleUtils.psm1;
+Using module ./ModuleUtils.psm1
 
 <#
 .SYNOPSIS
@@ -8,7 +8,7 @@ Using module ./ModuleUtils.psm1;
 #>
 
 $CSFilePath = "$PSScriptRoot\..\Compiler\Analyser\Suppression.cs";
-if (-not (Get-Variable -Name 'GlobalScript' -Scope Global -ValueOnly) -and (Test-Path -Path $CSFilePath -PathType Leaf)) {
+if (-not (Get-Variable -Name 'CompiledScript' -Scope Global -ValueOnly -ErrorAction SilentlyContinue) -and (Test-Path -Path $CSFilePath -PathType Leaf)) {
     Add-Type -LiteralPath $CSFilePath;
 } else {
     $SuppressionCSharp = @'
@@ -18,13 +18,17 @@ namespace Compiler.Analyser {
     [AttributeUsage(AttributeTargets.All, AllowMultiple = true, Inherited = false)]
     public sealed class SuppressAnalyserAttribute(
         string CheckType,
-        object? Data = null,
-        string Justification = ''
-    ) : Attribute
+        object Data = null,
+        string Justification = ""
+    ) : Attribute {
+        public string CheckType { get; }
+        public object Data { get; }
+        public string Justification { get; }
+    }
 }
 '@;
 
-    Add-Type -TypeDefinition $SuppressionCSharp -Language CSharp;
+    Add-Type -TypeDefinition $SuppressionCSharp -Language CSharp -IgnoreWarnings -WarningAction SilentlyContinue;
 }
 
 Export-Types -Types @(
