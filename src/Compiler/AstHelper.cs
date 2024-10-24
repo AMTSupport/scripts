@@ -225,10 +225,18 @@ public static class AstHelper {
         [NotNull] IScriptExtent extent,
         [NotNull] Ast parentAst,
         [NotNull] Option<string> message,
-        [NotNull] Option<string> realFilePath = default) {
+        [NotNull] Option<string> realFilePath = default,
+        [NotNull] IssueSeverity severity = IssueSeverity.Error) {
         ArgumentNullException.ThrowIfNull(extent);
         ArgumentNullException.ThrowIfNull(parentAst);
         ArgumentNullException.ThrowIfNull(message);
+
+
+        var problemColour = severity switch {
+            IssueSeverity.Error => "#8b0000",
+            IssueSeverity.Warning => "#f9f1a5",
+            _ => "#808080"
+        };
 
         var startingLine = extent.StartLineNumber;
         var endingLine = extent.EndLineNumber;
@@ -248,10 +256,10 @@ public static class AstHelper {
         for (var i = 0; i < extentRegion.Length; i++) {
             var line = extentRegion[i];
             line = i switch {
-                0 when i == extentRegion.Length - 1 => string.Concat(line[0..startingColumn], line[startingColumn..endingColumn].Pastel(ConsoleColor.DarkRed), line[endingColumn..]),
-                0 => string.Concat(line[0..startingColumn], line[startingColumn..].Pastel(ConsoleColor.DarkRed)),
-                var _ when i == extentRegion.Length - 1 => string.Concat(line[0..endingColumn].Pastel(ConsoleColor.DarkRed), line[endingColumn..]),
-                _ => line.Pastel(ConsoleColor.DarkRed)
+                0 when i == extentRegion.Length - 1 => string.Concat(line[0..startingColumn], line[startingColumn..endingColumn].Pastel(problemColour), line[endingColumn..]),
+                0 => string.Concat(line[0..startingColumn], line[startingColumn..].Pastel(problemColour)),
+                var _ when i == extentRegion.Length - 1 => string.Concat(line[0..endingColumn].Pastel(problemColour), line[endingColumn..]),
+                _ => line.Pastel(problemColour)
             };
 
             var sb = new StringBuilder()
@@ -275,13 +283,12 @@ public static class AstHelper {
         var fileName = realFilePath.UnwrapOrElse(() => parentAst.Extent.File is null ? "Unknown file" : parentAst.Extent.File);
 
         var location = TextSpan.New(startingLine, startingColumn, endingLine, endingColumn).Unwrap(); // Safety: Extents should always be valid.
-
         return $"""
         {"File".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {fileName.Pastel(ConsoleColor.Gray)}
         {"Where".PadRight(firstColumnIndent).Pastel(ConsoleColor.Cyan)}{colouredPipe} {location.ToString().Pastel(ConsoleColor.Gray)}
         {string.Join('\n', printableLines)}
-        {firstColumnIndentString}{colouredPipe} {errorPointer.Pastel(ConsoleColor.DarkRed)}
-        {firstColumnIndentString}{colouredPipe} {message.UnwrapOrElse(static () => "Unknown Error").Pastel(ConsoleColor.DarkRed)}
+        {firstColumnIndentString}{colouredPipe} {errorPointer.Pastel(problemColour)}
+        {firstColumnIndentString}{colouredPipe} {message.UnwrapOrElse(static () => "Unknown Error").Pastel(problemColour)}
         """;
     }
 
