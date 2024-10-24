@@ -146,8 +146,7 @@ function Test-ConfigValueOrSave {
         Invoke-Info "Saving install info to $($InstallInfo.Path)...";
         try {
             $InstallInfo | ConvertTo-Json | Set-Content -Path:$($InstallInfo.Path) -Force;
-        }
-        catch {
+        } catch {
             Invoke-Error "There was an issue saving the install info to $Local:File";
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
         }
@@ -191,12 +190,10 @@ function Update-ToWin11(
             if ($Queue) {
                 Invoke-Info 'Windows 11 upgrade completed successfully, rebooting now...';
                 Add-QueuedTask -QueuePhase $Phase -ForceReboot:$True;
-            }
-            else {
+            } else {
                 Invoke-Info 'Windows 11 upgrade completed successfully, please reboot to continue...';
             }
-        }
-        catch {
+        } catch {
             Invoke-Error 'Failed to start Windows 11 upgrade';
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
         }
@@ -226,8 +223,7 @@ function Invoke-EnsureLocalScript {
 
             try {
                 Copy-Item -Path $MyInvocation.PSCommandPath -Destination $Local:Into -Force;
-            }
-            catch {
+            } catch {
                 Invoke-Error 'Failed to copy script to temp folder';
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
             }
@@ -257,8 +253,7 @@ function Get-InstallInfo(
         If (Test-Path $Local:File) {
             try {
                 [PSCustomObject]$Local:InstallInfo = Get-Content -Path $Local:File -Raw | ConvertFrom-Json;
-            }
-            catch {
+            } catch {
                 Invoke-Error "There was an issue reading the install info from $Local:File";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
             }
@@ -320,8 +315,7 @@ function Remove-QueuedTask {
                 $Local:Task | Unregister-ScheduledTask -ErrorAction Stop -Confirm:$false;
                 Invoke-Verbose -Message "Removed scheduled task [$TaskName]...";
             }
-        }
-        catch {
+        } catch {
             Invoke-Verbose -Message "Scheduled task [$TaskName] does not exist, skipping removal...";
             return;
         }
@@ -414,19 +408,13 @@ function Invoke-Phase_SetupWindows {
     end { Exit-Scope; }
 
     process {
+        [String[]]$Local:ScreenSteps;
+
         $Local:WindowsVersion = [System.Environment]::OSVersion.Version;
         switch ($Local:WindowsVersion.Major) {
             10 {
                 Invoke-Info 'Windows 10 detected, continuing...';
-                [String]$Local:Manufacturer = (Get-WmiObject -Class Win32_ComputerSystem).Manufacturer;
-
-                if ($Local:Manufacturer -eq 'HP') {
-                    Invoke-Info 'HP device detected, continuing...';
-                }
-                else {
-                    Invoke-Error "This script is only supported on HP devices, not $($Local:Manufacturer)";
-                    Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
-                }
+                [String]$Local:Manufacturer = (Get-CimInstance -Class Win32_ComputerSystem).Manufacturer;
 
                 Add-Type -AssemblyName System.Windows.Forms;
                 Add-Type -AssemblyName Microsoft.VisualBasic;
@@ -460,7 +448,7 @@ function Invoke-Phase_SetupWindows {
                     '{TAB}{TAB}{TAB}{TAB}{ENTER}', # Terms and Conditions
                     'localadmin{ENTER}{ENTER}', # Create Local Account
                     '{ENTER}+{TAB}{ENTER}', # Privacy Settings
-                    '+{TAB}{ENTER}'
+                    '+{TAB}{ENTER}' # No Cortana
                 );
 
                 switch ($Local:Manufacturer) {
@@ -472,17 +460,16 @@ function Invoke-Phase_SetupWindows {
                         # Do nothing.
                     }
                 }
-
-                $Local:ScreenSteps | ForEach-Object {
-                    Start-Sleep -Seconds 1;
-                    [System.Windows.Forms.SendKeys]::SendWait($_);
-                }
-
             }
             default {
                 Invoke-Error "This script is only supported on Windows 10, not Windows $($Local:WindowsVersion.Major)";
                 Invoke-FailedExit -ExitCode $Script:FAILED_SETUP_ENVIRONMENT;
             }
+        }
+
+        $Local:ScreenSteps | ForEach-Object {
+            Start-Sleep -Seconds 1;
+            [System.Windows.Forms.SendKeys]::SendWait($_);
         }
 
         return $null;
@@ -506,8 +493,7 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
 
         if ($Local:ExistingName -eq $Local:DeviceName) {
             Invoke-Info "Device name is already set to $Local:DeviceName.";
-        }
-        else {
+        } else {
             Invoke-Info "Device name is not set to $Local:DeviceName, setting it now...";
             Rename-Computer -NewName $Local:DeviceName;
             (Get-RebootFlag).Set($null);
@@ -524,8 +510,7 @@ function Invoke-PhaseConfigure([Parameter(Mandatory)][ValidateNotNullOrEmpty()][
             Set-ItemProperty -Path $Local:RegKey -Name 'DefaultPassword' -Value '' | Out-Null;
 
             Invoke-Info 'Auto-login registry keys set.';
-        }
-        catch {
+        } catch {
             Invoke-Error 'Failed to set auto-login registry keys';
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_REGISTRY;
         }
@@ -583,8 +568,7 @@ function Invoke-PhaseCleanup {
                 Write-Progress -Activity $Local:ProgressActivity -Status 'No items found.' -PercentComplete 100 -Completed;
                 Invoke-Debug 'No Items found';
                 return;
-            }
-            else {
+            } else {
                 Write-Progress -Activity $Local:ProgressActivity -Status "Processing $($Local:InputItems.Count) items...";
                 Invoke-Debug "Processing $($Local:InputItems.Count) items...";
             }
@@ -601,8 +585,7 @@ function Invoke-PhaseCleanup {
                 try {
                     $ErrorActionPreference = 'Stop';
                     $ProcessItem.InvokeReturnAsIs($Local:Item);
-                }
-                catch {
+                } catch {
                     Invoke-Warn "Failed to process item [$Local:ItemName]";
                     Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                     try {
@@ -610,10 +593,8 @@ function Invoke-PhaseCleanup {
 
                         if ($null -eq $FailedProcessItem) {
                             $Local:FailedItems.Add($Local:Item);
-                        }
-                        else { $FailedProcessItem.InvokeReturnAsIs($Local:Item); }
-                    }
-                    catch {
+                        } else { $FailedProcessItem.InvokeReturnAsIs($Local:Item); }
+                    } catch {
                         Invoke-Warn "Failed to process item [$Local:ItemName] in failed process item block";
                     }
                 }
@@ -645,8 +626,7 @@ function Invoke-PhaseCleanup {
                         $ErrorActionPreference = 'Stop';
 
                         $Local:Instance = Get-Service -Name $ServiceName;
-                    }
-                    catch {
+                    } catch {
                         Invoke-Warn "Skipped service $ServiceName as it isn't installed.";
                     }
 
@@ -659,8 +639,7 @@ function Invoke-PhaseCleanup {
                                 $Local:Instance | Stop-Service -Force -Confirm:$false;
                                 Invoke-Info "Stopped service $Local:Instance";
                             }
-                        }
-                        catch {
+                        } catch {
                             Invoke-Info -Message "Failed to stop $Local:Instance";
                         }
 
@@ -672,8 +651,7 @@ function Invoke-PhaseCleanup {
                                 $Local:Instance | Set-Service -StartupType Disabled -Confirm:$false;
                                 Invoke-Info "Disabled service $ServiceName";
                             }
-                        }
-                        catch {
+                        } catch {
                             Invoke-Warn "Failed to disable $ServiceName";
                             Invoke-Debug -Message "Due to reason - $($_.Exception.Message)";
                         }
@@ -740,8 +718,7 @@ function Invoke-PhaseCleanup {
                     $Local:Product = Get-CimInstance -Query "SELECT * FROM Win32_Product WHERE Name = '$($Program.Name)'";
                     if (-not $Local:Product) {
                         throw "Can't find MSI Package for program [$($Program.Name)]";
-                    }
-                    else {
+                    } else {
                         if ($PSCmdlet.ShouldProcess("Removing MSI program [$($Local:Product.Name)]")) {
                             msiexec /x $Local:Product.IdentifyingNumber /quiet /noreboot | Out-Null;
                             Invoke-Info "Sucessfully removed program [$($Local:Product.Name)]";
@@ -815,8 +792,7 @@ function Invoke-PhaseCleanup {
                             pnputil /delete-driver $Local:FileName /uninstall /force | Out-Null;
                             Invoke-Info "Removed driver: [$Local:FileName]";
                         }
-                    }
-                    catch {
+                    } catch {
                         Invoke-Warn "Failed to remove driver: $($Local:FileName): $($_.Exception.Message)";
                     }
                 };
@@ -851,8 +827,7 @@ function Invoke-PhaseCleanup {
                         if ($PSCmdlet.ShouldProcess("Creating registry path [$Local:RegistryPath]")) {
                             New-Item -Path $Local:RegistryPath -Force | Out-Null;
                         }
-                    }
-                    else {
+                    } else {
                         Invoke-Info "Registry path [$Local:RegistryPath] already exists, skipping creation...";
                     }
 
@@ -866,8 +841,7 @@ function Invoke-PhaseCleanup {
                                 New-ItemProperty -Path $Local:RegistryPath -Name $Local:ValueName -Value $Local:ValueData -PropertyType $Local:RegistryTable.KIND | Out-Null;
                                 Invoke-Info "Created registry value [$Local:ValueName] with data [$Local:ValueData] in path [$Local:RegistryPath]";
                             }
-                        }
-                        else {
+                        } else {
                             Invoke-Info "Registry value [$Local:ValueName] already exists in path [$Local:RegistryPath], skipping creation...";
                         }
                     }
@@ -913,8 +887,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
             try {
                 $ErrorActionPreference = 'Stop';
                 Invoke-WebRequest -Uri $Local:Uri -OutFile 'agent.zip' -UseBasicParsing;
-            }
-            catch {
+            } catch {
                 Invoke-Error "Failed to download agent from [$Local:Uri]";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_DOWNLOAD;
             }
@@ -924,8 +897,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
                 $ErrorActionPreference = 'Stop';
 
                 Expand-Archive -Path 'agent.zip' -DestinationPath $PWD -Force | Out-Null;
-            }
-            catch {
+            } catch {
                 Invoke-Error 'Failed to expand archive';
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_EXPAND;
             }
@@ -936,8 +908,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
 
                 [String]$Local:OutputExe = Get-ChildItem -Path $PWD -Filter '*.exe' -File;
                 $Local:OutputExe | Assert-NotNull -Message 'Failed to find agent executable';
-            }
-            catch {
+            } catch {
                 Invoke-Info 'Failed to find agent executable';
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_FIND;
             }
@@ -950,8 +921,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
                 $Local:Installer.ExitCode | Assert-Equals -Expected 0 -Message "Agent installer failed with exit code [$($Local:Installer.ExitCode)]";
 
                 (Get-RebootFlag).Set($null);
-            }
-            catch {
+            } catch {
                 Invoke-Error "Failed to install agent from [$Local:OutputExe]";
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:AGENT_FAILED_INSTALL;
             }
@@ -996,8 +966,7 @@ function Invoke-PhaseFinish {
             Remove-ItemProperty -Path $Local:RegKey -Name 'AutoAdminLogon' -Force -ErrorAction Stop;
             Remove-ItemProperty -Path $Local:RegKey -Name 'DefaultUserName' -Force -ErrorAction Stop;
             Remove-ItemProperty -Path $Local:RegKey -Name 'DefaultPassword' -Force -ErrorAction Stop;
-        }
-        catch {
+        } catch {
             Invoke-Error 'Failed to remove auto-login registry keys';
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:FAILED_REGISTRY;
         }
@@ -1022,8 +991,7 @@ Invoke-RunMain $PSCmdlet {
     If ((Get-RunningFlag).IsRunning()) {
         Invoke-Error 'The script is already running in another session, exiting...';
         Exit $Script:ALREADY_RUNNING;
-    }
-    else {
+    } else {
         (Get-RunningFlag).Set($null);
         Remove-QueuedTask;
     }
@@ -1047,8 +1015,7 @@ Invoke-RunMain $PSCmdlet {
         $null = Install-Module -Name 'PSReadLine' -MinimumVersion '2.3.4' -Force;
         try {
             $null = Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force -ErrorAction SilentlyContinue;
-        }
-        catch {
+        } catch {
             # It actually did succeed, but it throws an error.
         }
 
