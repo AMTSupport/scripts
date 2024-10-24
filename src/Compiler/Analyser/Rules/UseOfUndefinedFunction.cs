@@ -16,7 +16,11 @@ public class UseOfUndefinedFunction : Rule {
     /// A list of all the built-in functions that are provided in a standard session.
     /// This includes modules that are imported by default.
     /// </summary>
-    private static readonly IEnumerable<string> BuiltinsFunctions = GetDefaultSessionFunctions();
+    private static readonly HashSet<string> BuiltinsFunctions = GetDefaultSessionFunctions().ToHashSet();
+
+    // Don't use a concurrent dictionary as just having it per thread is actually faster.
+    private static readonly ThreadLocal<Dictionary<Ast, HashSet<string>>> AvailableFunctionsAndAliasesForAst = new(() => []);
+    private static readonly ThreadLocal<Dictionary<string, HashSet<string>>> AvailableFunctionsAndAliasesForRemote = new(() => []);
 
     public override bool SupportsModule<T>(T compiledModule) => compiledModule is CompiledLocalModule;
 
@@ -34,7 +38,7 @@ public class UseOfUndefinedFunction : Rule {
                 case string function:
                     return function == callName;
                 default:
-                    Logger.Warn($"Supression data is not a string or IEnumerable<string> for rule {this.GetType().Name}");
+                    Logger.Warn($"Supression data is not a string or IEnumerable<string> for rule {this.GetType().Name}, received {supression?.Data?.GetType()?.Name}");
                     return false;
             }
         });
@@ -47,9 +51,17 @@ public class UseOfUndefinedFunction : Rule {
         var callName = SanatiseName(commandAst.GetCommandName());
 
         if (BuiltinsFunctions.Contains(callName)) yield break;
-        if (AstHelper.FindAvailableFunctions(AstHelper.FindRoot(node), false).Select(definition => SanatiseName(definition.Name)).Contains(callName)) yield break;
-        if (AstHelper.FindAvailableAliases(AstHelper.FindRoot(node), false).Select(SanatiseName).Contains(callName)) yield break;
-        if (importedModules.Any(module => module.GetExportedFunctions().Select(SanatiseName).Contains(callName))) yield break;
+
+        var rootNode = AstHelper.FindRoot(node);
+        if (GetAvailableFunctionsAndAliasesForAst(rootNode).Contains(callName)) yield break;
+
+        foreach (var module in importedModules) {
+            if (module is CompiledLocalModule localModule) {
+                if (GetAvailableFunctionsAndAliasesForAst(localModule.Document.Ast).Contains(callName)) yield break;
+            } else {
+                if (GetAvailableFunctionsAndAliasesForRemote(module).Contains(callName)) yield break;
+            }
+        }
 
         yield return Issue.Warning(
             $"Undefined function '{commandAst.GetCommandName()}'",
@@ -94,5 +106,26 @@ public class UseOfUndefinedFunction : Rule {
         """).Invoke();
         defaultFunctions.AddRange(ps.Select(commandName => ((string)commandName.BaseObject).Replace(".exe", "")));
         return defaultFunctions.Distinct().Select(SanatiseName);
+    }
+
+    private static HashSet<string> GetAvailableFunctionsAndAliasesForAst(Ast rootNode) {
+        if (!AvailableFunctionsAndAliasesForAst.Value!.TryGetValue(rootNode, out var set)) {
+            set = [];
+            set.UnionWith(AstHelper.FindAvailableFunctions(rootNode, false).Select(definition => SanatiseName(definition.Name)));
+            set.UnionWith(AstHelper.FindAvailableAliases(rootNode, false).Select(SanatiseName));
+            AvailableFunctionsAndAliasesForAst.Value[rootNode] = set;
+        }
+
+        return set;
+    }
+
+    private static HashSet<string> GetAvailableFunctionsAndAliasesForRemote(Compiled module) {
+        if (!AvailableFunctionsAndAliasesForRemote.Value!.TryGetValue(module.ComputedHash, out var set)) {
+            set = [];
+            set.UnionWith(module.GetExportedFunctions().Select(SanatiseName));
+            AvailableFunctionsAndAliasesForRemote.Value.TryAdd(module.ComputedHash, set);
+        }
+
+        return set;
     }
 }
