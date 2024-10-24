@@ -19,6 +19,7 @@ Using module ../../common/Connection.psm1
 Using module Microsoft.Graph.Identity.SignIns
 Using module Microsoft.Graph.Authentication
 Using module Microsoft.Graph.Groups
+Using module Microsoft.Graph.Users
 
 Using namespace Microsoft.Graph.PowerShell.Models
 Using namespace System.Management.Automation

@@ -32,6 +32,7 @@ Using module PartnerCenter
 
 Using namespace Microsoft.Open.AzureAD.Model
 
+[CmdletBinding()]
 Param(
     [Parameter(Mandatory)]
     [string]$DisplayName,

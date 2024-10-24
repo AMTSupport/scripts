@@ -8,6 +8,7 @@ Using module ../Common.psm1
 
 Using module ExchangeOnlineManagement
 
+[CmdletBinding()]
 param(
     [Parameter()]
     [Switch]$UpdatePolicies

@@ -3,6 +3,8 @@ Using module ../common/Connection.psm1
 Using module ./Common.psm1
 
 Using module Microsoft.Online.SharePoint.PowerShell
+Using module AzureAD
+Using module ExchangeOnlineManagement
 
 [CmdletBinding()]
 Param(
@@ -143,17 +145,6 @@ Invoke-RunMain $PSCmdlet {
         }
         'Sharepoint' {
             # Invoke-EnsureModule Microsoft.Online.Sharepoint.Powershell;
-        }
-        'Exchange' {
-            # Invoke-EnsureModule ExchangeOnlineManagement;
-
-            Disable-Outlook_StorageProviders
-
-            Set-Exchange_SafeAttachmentsPolicy
-            Set-Exchange_SafeLinksPolicy
-
-            Enable-Exchange_MailboxAuditing
-            Enable-Exchange_MailTips
         }
     }
 };

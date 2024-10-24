@@ -1,11 +1,16 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
-Using module ..\..\common\Scope.psm1
-Using module ..\..\common\Exit.psm1
-Using module ..\..\common\Flag.psm1
+Using module ../../common/Environment.psm1
+Using module ../../common/Logging.psm1
+Using module ../../common/Scope.psm1
+Using module ../../common/Exit.psm1
+Using module ../../common/Flag.psm1
+Using module ../../common/Input.psm1
+Using module ../../common/Assert.psm1
+Using module ../../common/Ensure.psm1
+Using module ../../common/Windows.psm1
+Using module ../../common/Temp.psm1
 
 Using module PSWindowsUpdate
 
@@ -402,6 +407,19 @@ function Add-QueuedTask(
 #endregion - Queue Functions
 
 #region - Phase Functions
+
+function Invoke-Phase_PreInit {
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        Invoke-EnsureLocalScript;
+        Sync-Time;
+
+        # Sync time if not already done then restart if time was out of sync.
+        # Turn off Sleep when off power but let screen turn off.
+    }
+}
 
 function Invoke-Phase_SetupWindows {
     begin { Enter-Scope; }
@@ -943,7 +961,6 @@ function Invoke-PhaseUpdate {
     process {
         [String]$Local:NextPhase = if ($RecursionLevel -ge 2) { 'Finish' } else { 'Update' };
 
-        Invoke-EnsureModule -Modules @('PSWindowsUpdate');
         Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$false -IgnoreReboot -IgnoreUserInput -Confirm:$false | Out-Null;
         (Get-RebootFlag).Set($null);
 
@@ -1001,6 +1018,8 @@ Invoke-RunMain $PSCmdlet {
         Invoke-Phase_SetupWindows;
         return;
     }
+
+    Invoke-Phase_PreInit;
 
     Invoke-EnsureLocalScript;
     Invoke-EnsureNetwork -Name $NetworkName -Password $NetworkPassword;

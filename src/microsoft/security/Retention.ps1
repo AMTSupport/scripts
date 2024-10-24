@@ -6,6 +6,9 @@ Using module ../../common/Connection.psm1
 
 Using module ExchangeOnlineManagement
 
+[CmdletBinding()]
+param()
+
 [String]$Script:RetentionPolicy = 'Log Retention Policy';
 [String]$Script:RetentionPolicyDescription = 'One year retention policy for all activities';
 [String]$Script:RetentionPolicyDuration = 'TwelveMonths';
