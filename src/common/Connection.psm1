@@ -7,13 +7,8 @@ Using module ExchangeOnlineManagement
 Using module AzureAD
 Using module MSOnline
 
-[CmdletBinding()]
-[Compiler.Analyser.SuppressAnalyserAttribute(
-    CheckType = 'UseOfUndefinedFunction',
-    Data = 'Get-ConnectionInformation', 'Get-IPPSSession', 'Get-AzureADCurrentSessionInfo', 'Get-MgContext', 'Get-MsolCompanyInformation', 'Connect-AzureAD', 'Disconnect-AzureAD',
-    Justification = 'wmic is not available on the builder machine'
-)]
-param()
+$Script:ExchangeSessionId;
+$Script:IPPSSessionId;
 
 function Local:Invoke-NonNullParams {
     [CmdletBinding()]
@@ -40,15 +35,33 @@ function Local:Invoke-NonNullParams {
 $Script:Services = @{
     ExchangeOnline     = @{
         Matchable  = $True;
-        Context    = { Get-ConnectionInformation | Select-Object -ExpandProperty UserPrincipalName; };
-        Connect    = { param($AccessToken) Invoke-NonNullParams 'Connect-ExchangeOnline' ($PSBoundParameters + @{ ShowBanner = $False }); };
+        Context    = {
+            if ($Script:ExchangeSessionId) {
+                Get-ConnectionInformation -ConnectionId:$Script:ExchangeSessionId | Select-Object -ExpandProperty UserPrincipalName;
+            } else {
+                $null;
+            }
+        };
+        Connect    = { param($AccessToken)
+            Invoke-NonNullParams 'Connect-ExchangeOnline' ($PSBoundParameters + @{ ShowBanner = $False });
+            $Script:ExchangeSessionId = Get-ConnectionInformation | Select-Object -Last 1 -ExpandProperty ConnectionId;
+        };
         Disconnect = { Disconnect-ExchangeOnline -Confirm:$False };
     };
     SecurityComplience = @{
         Matchable  = $True;
-        Context    = { Get-IPPSSession | Select-Object -ExpandProperty UserPrincipalName; };
-        Connect    = { Connect-IPPSSession -ShowBanner:$False };
-        Disconnect = { Disconnect-IPPSSession };
+        Context    = {
+            if ($Script:IPPSSessionId) {
+                Get-ConnectionInformation -ConnectionId:$Script:IPPSSessionId | Select-Object -ExpandProperty UserPrincipalName;
+            } else {
+                $null;
+            }
+        };
+        Connect    = {
+            Connect-IPPSSession -ShowBanner:$False;
+            $Script:IPPSSessionId = Get-ConnectionInformation | Select-Object -Last 1 -ExpandProperty ConnectionId;
+        };
+        Disconnect = { Disconnect-ExchangeOnline -Confirm:$False; };
     };
     AzureAD            = @{
         Matchable  = $True;
@@ -60,7 +73,7 @@ $Script:Services = @{
         Matchable  = $False;
         Context    = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
         Connect    = { param($AccessToken) Invoke-NonNullParams 'Connect-MsolService' @{ MsGraphAccessToken = $PSBoundParameters['AccessToken'] }; };
-        Disconnect = { Disconnect-MsolService };
+        Disconnect = { [Microsoft.Online.Administration.Automation.ConnectMsolService]::ClearUserSessionState() };
     };
     Graph              = @{
         Matchable  = $True;
@@ -153,9 +166,6 @@ function Local:Connect-ServiceInternal {
     end { Exit-Scope; }
 
     process {
-        Invoke-Info "Connecting to $Local:Service...";
-        Invoke-Verbose "Scopes: $($Scopes -join ', ')";
-
         try {
             if ($PSCmdlet.ShouldProcess("Connect to $Local:Service")) {
                 $null = & $Script:Services[$Local:Service].Connect -Scopes:$Scopes -AccessToken:$AccessToken;
@@ -319,6 +329,7 @@ function Connect-Service(
                 try {
                     if ($AccessToken) { Invoke-Info "Connecting to $Local:Service with access token..."; }
                     else { Invoke-Info "Connecting to $Local:Service..."; }
+                    Invoke-Verbose "Scopes: $($Scopes -join ', ')";
 
                     Connect-ServiceInternal -Service:$Local:Service -Scopes:$Scopes -AccessToken:$AccessToken;
                 } catch {
