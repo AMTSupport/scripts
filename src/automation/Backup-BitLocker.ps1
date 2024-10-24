@@ -7,6 +7,9 @@ Using module ../common/Ensure.psm1
 
 Using namespace Microsoft.BitLocker.Structures
 
+[CmdletBinding()]
+param()
+
 #region - Error Codes
 $Script:ERROR_BITLOCKER_DISABLED = Register-ExitCode 'BitLocker is not enabled on the system drive.';
 $Script:ERROR_NO_RECOVERY_PASSWORD = Register-ExitCode 'BitLocker is not configured to use a recovery password.';

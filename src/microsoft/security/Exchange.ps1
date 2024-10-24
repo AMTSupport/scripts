@@ -7,6 +7,7 @@ Using module ../../common/Input.psm1
 Using module ../../common/Connection.psm1
 Using module ../Common.psm1
 
+[CmdletBinding()]
 Param(
     [Parameter(Mandatory)]
     [ValidateSet('MailBox', 'Policies', 'Outlook')]

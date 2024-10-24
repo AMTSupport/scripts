@@ -1,15 +1,19 @@
+Using Module ../common/Logging.psm1
+Using Module ../common/Scope.psm1
+Using Module ../common/Connection.psm1
+Using Module ../common/Input.psm1
+
 Using Module Microsoft.Graph.Authentication
 Using Module Microsoft.Graph.Identity.DirectoryManagement
 Using Module Microsoft.Graph.Users
 Using Module ExchangeOnlineManagement
-
-Using Module ..\common\Logging.psm1
-Using Module ..\common\Scope.psm1
-Using Module ..\common\Connection.psm1
+Using module PartnerCenter
+Using module Az.Accounts
+Using module Az.KeyVault
 
 Using namespace Microsoft.Graph.PowerShell.Models
 
-Function Get-PrimaryDomain {
+function Get-PrimaryDomain {
     Get-MgDomain | Where-Object { $_.IsDefault -eq $True };
 }
 
@@ -252,8 +256,6 @@ function Invoke-ForEachCustomer {
     end { Exit-Scope; }
 
     process {
-        Invoke-EnsureModule 'PartnerCenter','Az.Accounts','Az.KeyVault';
-
         Invoke-Info 'Please sign in with the Azure AD account that has access to the Delegated Access Tokens...';
         Connect-AzAccount -UseDeviceAuthentication;
 

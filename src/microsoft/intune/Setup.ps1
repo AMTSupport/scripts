@@ -12,6 +12,7 @@ Using module ../../common/Exit.psm1
 Using module Microsoft.Graph.Authentication
 Using module Microsoft.Graph.Beta.DeviceManagement
 Using module Microsoft.Graph.Beta.Groups
+Using module Microsoft.Graph.Beta.Identity.DirectoryManagement
 
 using namespace Microsoft.Graph.Beta.PowerShell.Models
 

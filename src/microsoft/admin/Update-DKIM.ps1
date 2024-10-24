@@ -8,6 +8,9 @@ Using module Microsoft.Graph.Identity.DirectoryManagement
 
 Using namespace Microsoft.Graph.PowerShell.Models
 
+[CmdletBinding()]
+param()
+
 # foreach ($domain in $domains) {
 #     # Get the domain name
 #     $domainName = $domain.Name

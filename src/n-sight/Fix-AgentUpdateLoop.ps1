@@ -1,3 +1,4 @@
+#!ignore
 <#
 .SYNOPSIS
     A script to fix the scenario where the N-sight RMM Agent gets stuck in a loop.
@@ -18,47 +19,50 @@
                      arising out of the use of or inability to use the sample scripts or documentation.
 #>
 
-$script:logFileName = "FixWinAgentUpdateLoop.log"
-$script:logFilePath = "C:\Technical Support"
+[CmdletBinding()]
+param()
+
+$script:logFileName = 'FixWinAgentUpdateLoop.log'
+$script:logFilePath = 'C:\Technical Support'
 $script:combinedPathAndAndName = "$($script:logFilePath)\$($script:logFileName)"
 
 function writeToLog($state, $message) {
 
-    $script:timestamp = "[{0:dd/MM/yy} {0:HH:mm:ss}]" -f (Get-Date)
+    $script:timestamp = '[{0:dd/MM/yy} {0:HH:mm:ss}]' -f (Get-Date)
 
     switch -regex -Wildcard ($state) {
-        "I" {
-            $state = "INFO"
+        'I' {
+            $state = 'INFO'
         }
-        "E" {
-            $state = "ERROR"
+        'E' {
+            $state = 'ERROR'
         }
-        "W" {
-            $state = "WARNING"
+        'W' {
+            $state = 'WARNING'
         }
-        "F"  {
-            $state = "FAILURE"
+        'F' {
+            $state = 'FAILURE'
         }
-        "V"  {
-            $state = "VERBOSE"
+        'V' {
+            $state = 'VERBOSE'
         }
-        ""  {
-            $state = "INFO"
+        '' {
+            $state = 'INFO'
         }
         Default {
-            $state = "INFO"
+            $state = 'INFO'
         }
-        }
+    }
 
     Write-Host "$($timeStamp) - [$state]: $message"
-    Write-Output "$($timeStamp) - [$state]: $message" | Out-file $script:combinedPathAndAndName -Append
+    Write-Output "$($timeStamp) - [$state]: $message" | Out-File $script:combinedPathAndAndName -Append
 }
 
 function createLogFileAndWorkingDirectory () {
     #Create the logFilePath
-    if(!(test-path $script:logFilePath)) {
+    if (!(Test-Path $script:logFilePath)) {
         try {
-            New-Item -ItemType Directory -Path $script:logFilePath -ErrorAction Stop| Out-Null
+            New-Item -ItemType Directory -Path $script:logFilePath -ErrorAction Stop | Out-Null
             writeToLog V "Logfile Directory $($script:logFilePath) has been created."
         } catch {
             $errorMessage = "We have failed to create the folder $($logFilePath) which is the working directory of the script. Error thrown was: $($error[0])."
@@ -81,7 +85,7 @@ function createLogFileAndWorkingDirectory () {
 
 function stopService () {
     try {
-        $service = get-service -name "Advanced Monitoring Agent" -ErrorAction stop
+        $service = Get-Service -Name 'Advanced Monitoring Agent' -ErrorAction stop
     } catch {
         writeToLog E "The Advanced Monitoring Agent service doesn't exist. Therefore this script will exit."
         exit 0
@@ -89,111 +93,108 @@ function stopService () {
 
     $script:existingStartType = ($service | Select-Object -Property StartType).StartType
 
-    writeToLog V "Setting Service Startup Type to Disabled, to stop the Agent re-starting itself during maintenance."
+    writeToLog V 'Setting Service Startup Type to Disabled, to stop the Agent re-starting itself during maintenance.'
 
     $service | Set-Service -StartupType Disabled
 
-    writeToLog I "Stopping Service."
+    writeToLog I 'Stopping Service.'
 
     $service | Stop-Service -ErrorAction SilentlyContinue
 
-    $service = get-service -name "Advanced Monitoring Agent"
+    $service = Get-Service -Name 'Advanced Monitoring Agent'
 
-    if($service.status -ne "Stopped") {
+    if ($service.status -ne 'Stopped') {
         $script:needToCheckServiceAfterKillingProcesses = $true
         writeToLog V "The service is in state $($service.status) after attempting to be stopped. Will check service after stopping processes."
     } else {
-        writeToLog V "The service is stopped."
+        writeToLog V 'The service is stopped.'
     }
- }
+}
 
 function killProcesses () {
-    writeToLog I "Ending processes."
+    writeToLog I 'Ending processes.'
     try {
-        writeToLog V "Checking if process winagent.exe is still running."
-        $process = get-process -ProcessName winagent -ErrorAction Stop
-        writeToLog V "winagent.exe is still running. Attempting to stop."
+        writeToLog V 'Checking if process winagent.exe is still running.'
+        $process = Get-Process -ProcessName winagent -ErrorAction Stop
+        writeToLog V 'winagent.exe is still running. Attempting to stop.'
         $process | Stop-Process -Force
         Start-Sleep -Seconds 3;
-        $process = get-process -ProcessName winagent -ErrorAction Stop
-        writeToLog E "winagent.exe is still running. This device will need manual intervention."
+        $process = Get-Process -ProcessName winagent -ErrorAction Stop
+        writeToLog E 'winagent.exe is still running. This device will need manual intervention.'
         exit 0
     } catch {
         writeToLog V "winagent.exe isn't running. Moving on."
     }
 
     try {
-        writeToLog V "Checking if process _new_winagent.exe is still running."
-        $process = get-process -ProcessName _new_winagent -ErrorAction Stop
-        writeToLog V "_new_winagent.exe is still running. Attempting to stop."
+        writeToLog V 'Checking if process _new_winagent.exe is still running.'
+        $process = Get-Process -ProcessName _new_winagent -ErrorAction Stop
+        writeToLog V '_new_winagent.exe is still running. Attempting to stop.'
         $process | Stop-Process -Force
         Start-Sleep -Seconds 3;
-        $process = get-process -ProcessName _new_winagent -ErrorAction Stop
-        writeToLog E "_new_winagent.exe is still running. This device will need manual intervention."
+        $process = Get-Process -ProcessName _new_winagent -ErrorAction Stop
+        writeToLog E '_new_winagent.exe is still running. This device will need manual intervention.'
         exit 0
     } catch {
         writeToLog V "Process _new_winagent.exe isn't running. Moving on."
     }
 
     try {
-        writeToLog V "Checking if process _new_setup.exe is still running."
-        $process = get-process -ProcessName _new_setup -ErrorAction Stop
-        writeToLog V "_new_setup.exe is still running. Attempting to stop."
+        writeToLog V 'Checking if process _new_setup.exe is still running.'
+        $process = Get-Process -ProcessName _new_setup -ErrorAction Stop
+        writeToLog V '_new_setup.exe is still running. Attempting to stop.'
         $process | Stop-Process -Force
         Start-Sleep -Seconds 3;
-        $process = get-process -ProcessName _new_setup -ErrorAction Stop
-        writeToLog E "_new_setup.exe is still running. This device will need manual intervention."
+        $process = Get-Process -ProcessName _new_setup -ErrorAction Stop
+        writeToLog E '_new_setup.exe is still running. This device will need manual intervention.'
         exit 0
     } catch {
         writeToLog V "Process _new_setup.exe isn't running. Moving on."
     }
 
-    if($script:needToCheckServiceAfterKillingProcesses) {
-        $service = get-service -name "Advanced Monitoring Agent"
-        if($service.status -ne "Stopped") {
+    if ($script:needToCheckServiceAfterKillingProcesses) {
+        $service = Get-Service -Name 'Advanced Monitoring Agent'
+        if ($service.status -ne 'Stopped') {
             writeToLog E "The service is in state $($service.status) after the processes were stopped. This shouldn't happen."
             exit 0
         } else {
-            writeToLog V "The service is stopped."
+            writeToLog V 'The service is stopped.'
         }
     }
 }
 
 function deleteStagingFolder () {
-    writeToLog I "Deleting Staging folder contents."
-    $AgentLocationGP = "\Advanced Monitoring Agent GP"
-    $AgentLocation = "\Advanced Monitoring Agent"
+    writeToLog I 'Deleting Staging folder contents.'
+    $AgentLocationGP = '\Advanced Monitoring Agent GP'
+    $AgentLocation = '\Advanced Monitoring Agent'
 
-    If((Get-WmiObject Win32_OperatingSystem).OSArchitecture -like "*64*"){
+    If ((Get-WmiObject Win32_OperatingSystem).OSArchitecture -like '*64*') {
         #Check Agent Install Location
-        $PathTester = "C:\Program Files (x86)" +  $AgentLocationGP + "\debug.log"
-        If(!(Test-Path $PathTester)){
-            $PathTester = "C:\Program Files (x86)" +  $AgentLocation + "\staging"
-            Remove-item $PathTester\* -recurse -Force
+        $PathTester = 'C:\Program Files (x86)' + $AgentLocationGP + '\debug.log'
+        If (!(Test-Path $PathTester)) {
+            $PathTester = 'C:\Program Files (x86)' + $AgentLocation + '\staging'
+            Remove-Item $PathTester\* -Recurse -Force
+        } Else {
+            $PathTester = 'C:\Program Files (x86)' + $AgentLocationGP + '\staging'
+            Remove-Item $PathTester\* -Recurse -Force
         }
-        Else {
-            $PathTester = "C:\Program Files (x86)" + $AgentLocationGP + "\staging"
-            Remove-item $PathTester\* -recurse -Force
+    } Else {
+        #Check Agent Install Location
+        $PathTester = 'C:\Program Files' + $AgentLocationGP + '\debug.log'
+        If (!(Test-Path $PathTester)) {
+            $PathTester = 'C:\Program Files' + $AgentLocation + '\staging'
+            Remove-Item $PathTester\* -Recurse -Force
+        } Else {
+            $PathTester = 'C:\Program Files' + $AgentLocationGP + '\staging'
+            Remove-Item $PathTester\* -Recurse -Force
         }
     }
-    Else {
-        #Check Agent Install Location
-        $PathTester = "C:\Program Files" +  $AgentLocationGP + "\debug.log"
-        If(!(Test-Path $PathTester)){
-            $PathTester = "C:\Program Files" +  $AgentLocation + "\staging"
-            Remove-item $PathTester\* -recurse -Force
-        }
-        Else {
-            $PathTester = "C:\Program Files" + $AgentLocationGP + "\staging"
-            Remove-item $PathTester\* -recurse -Force
-        }
-    }
-    writeToLog V "Staging folder contents have been deleted."
+    writeToLog V 'Staging folder contents have been deleted.'
 }
 
 function restartAgentService () {
     try {
-        $service = get-service -name "Advanced Monitoring Agent" -ErrorAction stop
+        $service = Get-Service -Name 'Advanced Monitoring Agent' -ErrorAction stop
     } catch {
         writeToLog E "The Advanced Monitoring Agent service doesn't exist. Even though it existed the last time we checked. This is a very rare edge case where the Agent has probably been uninstalled in this window."
         exit 0
@@ -201,7 +202,7 @@ function restartAgentService () {
     writeToLog V "Setting Service Startup Type to $script:existingStartType."
     $service | Set-Service -StartupType $script:existingStartType
 
-    writeToLog I "Starting Agent Service."
+    writeToLog I 'Starting Agent Service.'
     $service | Start-Service
 }
 

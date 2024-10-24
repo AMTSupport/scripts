@@ -1,3 +1,4 @@
+#!ignore
 #Requires -Version 7.4
 
 Using module ../common/Environment.psm1

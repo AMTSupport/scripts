@@ -6,6 +6,7 @@ Using module ../common/Scope.psm1
 Using module ../common/Exit.psm1
 Using module ../common/Cache.psm1
 
+[CmdletBinding()]
 Param(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]

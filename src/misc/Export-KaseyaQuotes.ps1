@@ -6,7 +6,7 @@ Using module ../common/Utils.psm1
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName, HelpMessage = 'Where to save the output file.')]
+    [Parameter(Mandatory, HelpMessage = 'Where to save the output file.')]
     [Alias('PSPath')]
     [ValidateNotNullOrEmpty()]
     [String]$OutputPath,

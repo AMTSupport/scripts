@@ -10,6 +10,7 @@ Using module ../../common/Assert.psm1
 Using module ../../common/Input.psm1
 
 Using module ImportExcel
+Using module MSOnline
 
 [CmdletBinding(SupportsShouldProcess)]
 Param(
