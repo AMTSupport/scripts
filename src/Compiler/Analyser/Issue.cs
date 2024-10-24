@@ -28,7 +28,8 @@ public record Issue(
         this.Extent,
         this.Parent,
         Some(this.ActualMessage),
-        this.Module.Map(mod => mod is PathedModuleSpec pathed ? pathed.FullPath : mod.Name)
+        this.Module.Map(mod => mod is PathedModuleSpec pathed ? pathed.FullPath : mod.Name),
+        this.Severity
     );
 
     public virtual bool Equals(Issue? other) {
