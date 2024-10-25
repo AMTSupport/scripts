@@ -268,7 +268,7 @@ function Invoke-ForEachCustomer {
 
         Invoke-Info 'Getting Partner Center token...'
         [System.Management.Automation.PSCredential]$Private:Credential = New-Object System.Management.Automation.PSCredential -ArgumentList $Private:AppilicationID, $Private:ApplicationSecret;
-        $Private:GraphToken = Get-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://graph.microsoft.com/.default' -ServicePrincipal;
+        $Private:GraphToken = New-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://graph.microsoft.com/.default' -ServicePrincipal;
 
         Invoke-Info 'Getting Partner Center customers...';
         Connect-MgGraph -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
@@ -277,7 +277,7 @@ function Invoke-ForEachCustomer {
 
         foreach ($Private:Customer in $Private:Customers) {
             Invoke-Info 'Getting customer token...';
-            $Private:GraphToken = Get-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://management.azure.com' -ServicePrincipal -TenantId $Private:Customer.TenantId;
+            $Private:GraphToken = New-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://management.azure.com' -ServicePrincipal -TenantId $Private:Customer.TenantId;
             Invoke-Info 'Connecting to services...';
             Connect-MgGraph -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
             Connect-ExchangeOnline -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
