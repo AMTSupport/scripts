@@ -1,3 +1,4 @@
+#!ignore
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSAvoidGlobalVars',
     'Global:CompiledScript',

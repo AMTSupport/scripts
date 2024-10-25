@@ -24,7 +24,7 @@ public partial class CompiledScript(
         var info = Assembly.GetExecutingAssembly().GetName();
         using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
         using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
-        return streamReader.ReadToEnd();
+        return streamReader.ReadToEnd()[9..]; // Remove the #!ignore line.
     });
 
     public virtual BidirectionalGraph<Compiled, Edge<Compiled>> Graph { get; } = new();
