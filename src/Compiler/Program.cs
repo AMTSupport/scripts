@@ -378,6 +378,11 @@ public class Program {
                 && module is PathedModuleSpec pathedModuleSpec
                 && !outputDebuggables.Contains(module.Hash)
             ) {
+                // We could be outputting a psm1 which would not have its structure copied
+                // Lets make sure its output path is created.
+                var outputParent = Directory.GetParent(GetOutputLocation(sourceDirectory, outDir, pathedModuleSpec.FullPath))!;
+                if (!outputParent.Exists) outputParent.Create();
+
                 Output(
                     sourceDirectory,
                     outDir,
