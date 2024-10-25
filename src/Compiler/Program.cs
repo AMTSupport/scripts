@@ -368,7 +368,7 @@ public class Program {
         var printedBefore = false; // This is to prevent a newline before the first error
         var errorQueue = new Deque<LanguageExt.Common.Error>();
         errorQueue.AddRange(errorSet);
-        var outputDebuggables = new List<byte[]>();
+        var outputDebuggables = new Dictionary<byte[], string>();
         do {
             var err = errorQueue.PopFirst();
 
@@ -376,7 +376,7 @@ public class Program {
                 && err is WrappedErrorWithDebuggableContent wrappedDebuggable
                 && wrappedDebuggable.Module.IsSome(out var module)
                 && module is PathedModuleSpec pathedModuleSpec
-                && !outputDebuggables.Contains(module.Hash)
+                && !outputDebuggables.ContainsKey(module.Hash)
             ) {
                 // We could be outputting a psm1 which would not have its structure copied
                 // Lets make sure its output path is created.
@@ -391,7 +391,7 @@ public class Program {
                     true
                 );
 
-                outputDebuggables.Add(module.Hash);
+                outputDebuggables.Add(module.Hash, Path.GetRelativePath(sourceDirectory, pathedModuleSpec.FullPath));
             }
 
             if (err is WrappedErrorWithDebuggableContent wrappedErr) {
@@ -433,6 +433,13 @@ public class Program {
                 Console.WriteLine(message);
             }
         } while (errorQueue.Count > 0);
+
+        if (outputDebuggables.Count > 0) {
+            Logger.Error($"""
+            Encountered ${outputDebuggables.Count} files with errors while compiling, the debuggable content has been output to the following files:
+            {string.Join("\n", outputDebuggables.Select(kv => $"\t{kv.Value}"))}
+            """);
+        }
 
         return 1;
     }
