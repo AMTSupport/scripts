@@ -78,4 +78,3 @@ Invoke-RunMain $PSCmdlet {
         Invoke-Exec -Executable:$Local:Executable -ExecutableArgs:$ExecArgs;
     }
 };
-
