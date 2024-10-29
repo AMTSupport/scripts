@@ -2,7 +2,7 @@ Using module ./Utils.psm1
 Using module ./Logging.psm1
 Using module ./Exit.psm1
 
-Using namespace System.Management.Automation.Language;
+Using namespace System.Management.Automation.Language
 Using namespace System.Collections.Generic
 
 [System.Boolean]$Script:ScriptRestarted = $False;
@@ -10,7 +10,7 @@ Using namespace System.Collections.Generic
 [System.Collections.Generic.List[String]]$Script:ImportedModules = [System.Collections.Generic.List[String]]::new();
 $Script:ModuleSnapshot = Get-Module | Select-Object -ExpandProperty Path | Where-Object {
     # Also Exclude our own modules
-    $_.Name -notmatch '(Environment|Logging|Scope|Utils|Exit)'
+    $_ -notmatch '(Environment|Logging|Scope|Utils|Exit).psm1$'
 };
 
 #region - Utility Functions
@@ -92,18 +92,6 @@ function Invoke-Teardown {
     $PSDefaultParameterValues.Remove('*:InformationAction');
     $PSDefaultParameterValues.Remove('*:Verbose');
     $PSDefaultParameterValues.Remove('*:Debug');
-
-    if (-not (Get-Variable -Name 'CompiledScript' -ValueOnly -ErrorAction SilentlyContinue)) {
-        Get-Module | ForEach-Object {
-            if ($Script:ModuleSnapshot -notcontains $_.Path) {
-                Write-Debug "Removing module $_.";
-                $_ | Remove-Module -Force -Confirm:$False -Verbose:$False -Debug:$False;
-                if (Get-Module -Name $_.Name) {
-                    Write-Warning "Failed to remove module $_.";
-                }
-            }
-        }
-    }
 }
 
 <#
@@ -242,6 +230,15 @@ function Invoke-RunMain {
                     $Script:ScriptRestarting = $False;
                     $Script:ScriptRestarted = $True; # Bread trail for the script to know it's been restarted.
                     Invoke-Inner @PSBoundParameters;
+                } else {
+                    if (-not (Get-Variable -Name 'CompiledScript' -ValueOnly -ErrorAction SilentlyContinue)) {
+                        Get-Module | ForEach-Object {
+                            if ($Script:ModuleSnapshot -notcontains $_.Path) {
+                                Write-Debug "Removing module $_.";
+                                $_ | Remove-Module -Force -Confirm:$False -Verbose:$False -Debug:$False;
+                            }
+                        }
+                    }
                 }
             }
         }
