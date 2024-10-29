@@ -79,10 +79,10 @@ public class Program {
 
                 EnsureDirectoryStructure(opts.Input!, opts.Output, filesToCompile);
 
-                var superParent = new ResolvableParent();
+                var superParent = new ResolvableParent(opts.Input!);
 
                 filesToCompile.ToList().ForEach(async scriptPath => {
-                    var pathedModuleSpec = new PathedModuleSpec(Path.GetFullPath(scriptPath));
+                    var pathedModuleSpec = new PathedModuleSpec(opts.Input!, Path.GetFullPath(scriptPath));
                     if ((await Resolvable.TryCreateScript(pathedModuleSpec, superParent)).IsErr(out var error, out var resolvableScript)) {
                         Errors.Add(error.Enrich(pathedModuleSpec));
                         return;

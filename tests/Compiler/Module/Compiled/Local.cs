@@ -2,7 +2,6 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Management.Automation.Language;
-using System.Reflection;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -35,9 +34,9 @@ file static class TestData {
         var createLocalModule = parent is null || random.NextBool();
         if (createLocalModule) {
             var document = CompiledDocument.FromBuilder(new TextEditor(new TextDocument(["Write-Host 'Hello, World!'"]))).Unwrap();
-            var modulePath = TestContext.CurrentContext.WorkDirectory + $"/{random.GetString(6)}.psm1";
+            var modulePath = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"{random.GetString(6)}.psm1");
             File.Create(modulePath).Close();
-            var moduleSpec = new PathedModuleSpec(modulePath);
+            var moduleSpec = new PathedModuleSpec(TestContext.CurrentContext.WorkDirectory, modulePath);
             var requirementGroup = new RequirementGroup();
             requirementGroup.AddRequirement(new RunAsAdminRequirement());
 

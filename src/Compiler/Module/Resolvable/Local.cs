@@ -44,7 +44,7 @@ public partial class ResolvableLocalModule : Resolvable {
     ) : this(
         moduleSpec is PathedModuleSpec pathedModuleSpec
             ? pathedModuleSpec
-            : new PathedModuleSpec(Path.GetFullPath(Path.Combine(parentPath, moduleSpec.Name)))
+            : new PathedModuleSpec(parentPath, moduleSpec.Name)
         ) {
         if (!Path.IsPathRooted(parentPath)) throw InvalidModulePathError.NotAnAbsolutePath(parentPath);
         if (!Directory.Exists(parentPath)) throw InvalidModulePathError.ParentNotADirectory(parentPath);
@@ -113,13 +113,19 @@ public partial class ResolvableLocalModule : Resolvable {
             module.Value.TryGetValue("MinimumVersion", out var minimumVersion);
             module.Value.TryGetValue("MaximumVersion", out var maximumVersion);
             module.Value.TryGetValue("RequiredVersion", out var requiredVersion);
-            var spec = new ModuleSpec(
-                module.Key,
-                (Guid?)guid,
-                (Version?)minimumVersion,
-                (Version?)maximumVersion,
-                (Version?)requiredVersion
-            );
+
+            ModuleSpec spec;
+            var parentPath = Directory.GetParent(this.ModuleSpec.FullPath)!.FullName;
+            var possibleKeyFullPath = Path.GetFullPath(Path.Join(parentPath, module.Key));
+            spec = File.Exists(possibleKeyFullPath)
+                ? new PathedModuleSpec(this.ModuleSpec.SourceRoot, possibleKeyFullPath)
+                : new ModuleSpec(
+                    module.Key,
+                    (Guid?)guid,
+                    (Version?)minimumVersion,
+                    (Version?)maximumVersion,
+                    (Version?)requiredVersion
+                );
 
             if (spec.Name.EndsWith("Analyser.psm1", StringComparison.OrdinalIgnoreCase)) {
                 foundAnalyserModule = true;
@@ -172,8 +178,10 @@ public partial class ResolvableLocalModule : Resolvable {
         // Add a reference to the Analyser.psm1 file to ensure all files have access to the SuppressAnalyserAttribute
         if (!foundAnalyserModule) {
             lock (this.Requirements) {
-                this.Requirements.AddRequirement(new ModuleSpec(GetExportedResource("ModuleUtils.psm1").Unwrap())); // Safety - We know this will always be present in the resources.
-                this.Requirements.AddRequirement(new ModuleSpec(GetExportedResource("Analyser.psm1").Unwrap())); // Safety - We know this will always be present in the resources.
+                var moduleUtilsPath = GetExportedResource("ModuleUtils.psm1").Unwrap();
+                var analyserPath = GetExportedResource("Analyser.psm1").Unwrap();
+                this.Requirements.AddRequirement(new PathedModuleSpec(Directory.GetParent(moduleUtilsPath)!.FullName, moduleUtilsPath)); // Safety - We know this will always be present in the resources.
+                this.Requirements.AddRequirement(new PathedModuleSpec(Directory.GetParent(analyserPath)!.FullName, analyserPath)); // Safety - We know this will always be present in the resources.
             }
         }
 

@@ -384,7 +384,6 @@ file sealed class TestData {
             #endregion
         }
     }
-
     public static IEnumerable MergeSpecCases {
         get {
             yield return new TestCaseData(new ModuleSpec(
@@ -527,29 +526,27 @@ file sealed class TestData {
             ));
         }
     }
-
     public static IEnumerable ComparePathedSpecCases {
         get {
-            var testScript1 = Path.GetFullPath($"{TestUtils.RepositoryDirectory()}/resources/test.ps1");
-            var testScript2 = Path.GetFullPath($"{TestUtils.RepositoryDirectory()}/resources/test2.ps1");
+            var (sourceRoot, (testScript1, testScript2)) = TestUtils.GenerateTestSources();
 
             yield return new TestCaseData(
-                new PathedModuleSpec(testScript1),
-                new PathedModuleSpec(testScript1)
+                new PathedModuleSpec(sourceRoot, testScript1),
+                new PathedModuleSpec(sourceRoot, testScript1)
             ).Returns(ModuleMatch.Same);
 
             yield return new TestCaseData(
-                new PathedModuleSpec(testScript1),
-                new PathedModuleSpec(testScript2)
+                new PathedModuleSpec(sourceRoot, testScript1),
+                new PathedModuleSpec(sourceRoot, testScript2)
             ).Returns(ModuleMatch.None);
 
             yield return new TestCaseData(
-                new PathedModuleSpec(testScript1),
+                new PathedModuleSpec(sourceRoot, testScript1),
                 new ModuleSpec("./test.ps1")
-            ).Returns(ModuleMatch.PreferOurs);
+            ).Returns(ModuleMatch.None);
 
             yield return new TestCaseData(
-                new PathedModuleSpec(testScript1),
+                new PathedModuleSpec(sourceRoot, testScript1),
                 new ModuleSpec("./test2.ps1")
             ).Returns(ModuleMatch.None);
         }

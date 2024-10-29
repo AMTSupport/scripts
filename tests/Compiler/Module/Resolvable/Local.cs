@@ -30,7 +30,7 @@ public class LocalModuleTests {
         Directory.CreateDirectory(parentPath);
         File.Create(actualFileLocation).Close();
 
-        var moduleSpec = new ModuleSpec(filePath);
+        var moduleSpec = new ModuleSpec(actualFileLocation);
         var module = new ResolvableLocalModule(parentPath, moduleSpec);
 
         Assert.Multiple(() => {
@@ -45,6 +45,7 @@ public class LocalModuleTests {
     [Repeat(10), Parallelizable]
     [TestCaseSource(typeof(TestData), nameof(TestData.GetModuleMatch_MatchesByOnlyName))]
     public ModuleMatch GetModuleMatch_MatchesByOnlyName(
+        string sourceRoot,
         string moduleOne,
         string moduleTwo
     ) {
@@ -52,9 +53,8 @@ public class LocalModuleTests {
             (moduleTwo, moduleOne) = (moduleOne, moduleTwo);
         }
 
-        var random = TestContext.CurrentContext.Random;
-        var moduleSpecOne = new PathedModuleSpec(moduleOne, random.NextGuid());
-        var moduleSpecTwo = new PathedModuleSpec(moduleTwo, random.NextGuid());
+        var moduleSpecOne = new PathedModuleSpec(sourceRoot, moduleOne);
+        var moduleSpecTwo = new PathedModuleSpec(sourceRoot, moduleTwo);
         var module = new ResolvableLocalModule(moduleSpecOne);
 
         return module.GetModuleMatchFor(moduleSpecTwo);
@@ -77,7 +77,7 @@ public class LocalModuleTests {
 
     [Test, Repeat(10), Parallelizable]
     public void GetHashCode_NeverDiffersFromModuleSpec() {
-        var (module, _) = TestData.GetRandomModules(true);
+        var (module, _) = TestUtils.GetRandomModules(true);
 
         Assert.That(module.GetHashCode(), Is.EqualTo(module.ModuleSpec.GetHashCode()));
     }
@@ -118,14 +118,14 @@ file static class TestData {
 
     public static IEnumerable GetModuleMatch_MatchesByOnlyName {
         get {
-            var (childOne, childTwo) = GetRandomFilePaths(true);
+            var (sourceRoot, (childOne, childTwo)) = TestUtils.GenerateTestSources(true);
 
-            yield return new TestCaseData(childOne, childTwo)
+            yield return new TestCaseData(sourceRoot, childOne, childTwo)
                 .Returns(ModuleMatch.None)
                 .SetName("NoMatch")
                 .SetDescription("Returns ModuleMatch.None when there is not a name match");
 
-            yield return new TestCaseData(childOne, childOne)
+            yield return new TestCaseData(sourceRoot, childOne, childOne)
                 .Returns(ModuleMatch.Same)
                 .SetName("NameMatch")
                 .SetDescription("Returns ModuleMatch.Same when there is a name match");
@@ -134,7 +134,7 @@ file static class TestData {
 
     public static IEnumerable Equals_Data {
         get {
-            var (moduleOne, moduleTwo) = GetRandomModules(true);
+            var (moduleOne, moduleTwo) = TestUtils.GetRandomModules(true);
 
             yield return new TestCaseData(moduleOne, moduleTwo)
                 .Returns(false)
@@ -151,32 +151,5 @@ file static class TestData {
                 .SetName("NullModuleSpec")
                 .SetDescription("Returns false when the module spec is null.");
         }
-    }
-
-    public static (ResolvableLocalModule, ResolvableLocalModule) GetRandomModules(bool createFiles) {
-        var (childOne, childTwo) = GetRandomFilePaths(createFiles);
-
-        var moduleSpecOne = new PathedModuleSpec(childOne, Guid.NewGuid());
-        var moduleOne = new ResolvableLocalModule(moduleSpecOne);
-
-        var moduleSpecTwo = new PathedModuleSpec(childTwo, Guid.NewGuid());
-        var moduleTwo = new ResolvableLocalModule(moduleSpecTwo);
-
-        return (moduleOne, moduleTwo);
-    }
-
-    private static (string, string) GetRandomFilePaths(bool createFiles) {
-        var random = TestContext.CurrentContext.Random;
-        var parent = Path.Combine(TestPath, random.GetString(6));
-        var childOne = Path.Combine(parent, random.GetString(6) + ".psm1");
-        var childTwo = Path.Combine(parent, random.GetString(6) + ".psm1");
-
-        if (createFiles) {
-            Directory.CreateDirectory(parent);
-            File.Create(childOne).Close();
-            File.Create(childTwo).Close();
-        }
-
-        return (childOne, childTwo);
     }
 }

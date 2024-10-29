@@ -60,6 +60,9 @@ file static class TestData {
             var hashableBytes = new byte[random.Next(10, 100)];
             random.NextBytes(hashableBytes);
 
+            var sourceRoot = Path.Combine(TestUtils.RepositoryDirectory(), "src");
+            var environmentPath = Path.Combine(sourceRoot, "common/Environment.psm1");
+
             yield return new TestCaseData(
                 hashableBytes,
                 new RequirementGroup() {
@@ -67,7 +70,7 @@ file static class TestData {
                         { typeof(ModuleSpec), new HashSet<Requirement> {
                             new ModuleSpec("PSWindowsUpdate"),
                             new ModuleSpec("PSReadLine", requiredVersion: new (2, 3, 5)),
-                            new PathedModuleSpec($"{Environment.CurrentDirectory}/../../../../../src/common/Environment.psm1")
+                            new PathedModuleSpec(sourceRoot, environmentPath)
                         } },
                         { typeof(PSEditionRequirement), new HashSet<Requirement> {
                             new PSEditionRequirement(PSEdition.Core)
@@ -85,7 +88,7 @@ file static class TestData {
                 new RequirementGroup() {
                     StoredRequirements = {
                         { typeof(ModuleSpec), new HashSet<Requirement> {
-                            new PathedModuleSpec($"{Environment.CurrentDirectory}/../../../../../src/common/Environment.psm1")
+                            new PathedModuleSpec(sourceRoot, environmentPath)
                         } },
                     }
                 }
