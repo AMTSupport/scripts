@@ -57,6 +57,7 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
             var parentPath = Path.GetDirectoryName(localParent.ModuleSpec.FullPath)!;
             try {
                 Logger.Debug($"Looking for {moduleSpec.Name} module in {parentPath}.");
+                var pathedModuleSpec = new PathedModuleSpec(parentPath, moduleSpec.Name);
                 resolvable = new ResolvableLocalModule(parentPath, moduleSpec);
             } catch (ExceptionalException err) when (err.ToError() is InvalidModulePathError) {
                 // Silent fall through to remote.
@@ -122,7 +123,11 @@ public class ResolvableParent {
     /// </summary>
     public readonly BidirectionalGraph<Resolvable, Edge<Resolvable>> Graph = new();
 
-    public ResolvableParent() {
+    public readonly string SourceRoot;
+
+    public ResolvableParent([NotNull] string sourceRoot) {
+        this.SourceRoot = sourceRoot;
+
         #region Deduplication and merging of Resolvables using events
         this.Graph.VertexAdded += vertex => Logger.Debug($"Vertex added: {vertex.ModuleSpec.Name}");
         this.Graph.VertexRemoved += vertex => Logger.Debug($"Vertex removed: {vertex.ModuleSpec.Name}");
@@ -201,10 +206,6 @@ public class ResolvableParent {
     }
 
     public async Task<Fin<Compiled.Compiled>> WaitForCompiled(ModuleSpec moduleSpec) {
-        if (this.RunningTasks.Count > 0) {
-            await Task.WhenAll(this.RunningTasks.Select(task => task.Item2));
-        }
-
         var resolvable = this.Graph.Vertices.FirstOrDefault(res => res.ModuleSpec == moduleSpec);
         if (resolvable is null) {
             return FinFail<Compiled.Compiled>(Error.New($"No resolvable found for {moduleSpec}."));

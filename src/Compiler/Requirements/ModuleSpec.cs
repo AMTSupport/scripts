@@ -16,6 +16,8 @@ namespace Compiler.Requirements;
 public sealed class PathedModuleSpec : ModuleSpec {
     private Option<byte[]> LazyHash = None;
 
+    public readonly string SourceRoot;
+
     public readonly string FullPath;
 
     public override byte[] Hash {
@@ -31,34 +33,35 @@ public sealed class PathedModuleSpec : ModuleSpec {
     /// <summary>
     /// Creates a new PathedModuleSpec from a full path.
     /// </summary>
-    /// <param name="fullPath"></param>
-    /// <param name="id"></param>
-    /// <param name="minimumVersion"></param>
-    /// <param name="maximumVersion"></param>
-    /// <param name="requiredVersion"></param>
+    /// <param name="sourceRoot">The absolute root for where all the source files are located.</param>
+    /// <param name="fullPath">The full path to the file.</param>
     /// <exception cref="FileNotFoundException">
     /// Thrown when the file cannot be found, or read.
     /// </exception>
     public PathedModuleSpec(
-        string fullPath,
-        Guid? id = null,
-        Version? minimumVersion = null,
-        Version? maximumVersion = null,
-        Version? requiredVersion = null
-    ) : base(Path.GetFileNameWithoutExtension(fullPath), id, minimumVersion, maximumVersion, requiredVersion) {
+        string sourceRoot,
+        string fullPath
+    ) : base(Path.GetFileNameWithoutExtension(Path.GetRelativePath(sourceRoot, fullPath))) {
+        this.SourceRoot = sourceRoot;
         this.FullPath = fullPath;
         this.Weight = 73;
     }
 
-    // TODO - this may not be the best way to do this.
     public override ModuleMatch CompareTo(ModuleSpec other) {
-        if (other is not PathedModuleSpec && other.Id == null && other.MinimumVersion == null && other.MaximumVersion == null && other.RequiredVersion == null) {
-            var otherMaybeFileName = Path.GetFileNameWithoutExtension(other.Name);
-            if (this.Name == otherMaybeFileName) return ModuleMatch.PreferOurs;
-        }
+        if (ReferenceEquals(this, other)) return ModuleMatch.Same;
+        if (this.FullPath == (other as PathedModuleSpec)?.FullPath) return ModuleMatch.Same;
 
-        return base.CompareTo(other);
+        return ModuleMatch.None;
     }
+
+    public override bool Equals(object? obj) {
+        if (obj is null || obj is not PathedModuleSpec other) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return this.FullPath == other.FullPath;
+    }
+
+    public override int GetHashCode() => HashCode.Combine(this.SourceRoot, this.FullPath);
 }
 
 public class ModuleSpec : Requirement {
@@ -250,4 +253,3 @@ public class ModuleSpec : Requirement {
 
     public override string ToString() => JsonSerializer.Serialize(this, SerializerOptions);
 }
-
