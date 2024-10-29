@@ -57,4 +57,3 @@ Invoke-RunMain $PSCmdlet {
         Move-Item -Path $Local:DownloadedItem -Destination $ExtractTo;
     }
 };
-

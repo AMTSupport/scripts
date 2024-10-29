@@ -23,7 +23,7 @@ function Get-AlertsUser {
         [String]$SupportEmail = 'amtsupport@amt.com.au'
     )
 
-    begin { Enter-Scope; Connect-Service -Services Graph,ExchangeOnline -Scopes 'User.ReadWrite.All','OrgContact.Read.All','Domain.Read.All'; }
+    begin { Enter-Scope; Connect-Service -Services Graph, ExchangeOnline -Scopes 'User.ReadWrite.All', 'OrgContact.Read.All', 'Domain.Read.All'; }
     end { Exit-Scope -ReturnValue $Local:User; }
 
     process {
