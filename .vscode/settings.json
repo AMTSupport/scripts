@@ -9,13 +9,15 @@
     "powershell.codeFormatting.pipelineIndentationStyle": "IncreaseIndentationForFirstPipeline",
     "powershell.codeFormatting.useConstantStrings": true,
     "powershell.codeFormatting.useCorrectCasing": true,
-    "powershell.codeFormatting.whitespaceAfterSeparator": false,
+    "powershell.codeFormatting.whitespaceAfterSeparator": true,
     "powershell.codeFormatting.whitespaceBetweenParameters": true,
     "powershell.codeFormatting.whitespaceInsideBrace": true,
     "powershell.pester.codeLens": false,
     "powershell.scriptAnalysis.settingsPath": "PSScriptAnalyzerSettings.psd1",
-    "poshProTools.ignoredPaths": "compiled",
-    "pester.testFilePath": ["tests/*.[tT]ests.[pP][sS]1"],
+    "poshProTools.ignoredPaths": "compiled/*",
+    "pester.testFilePath": [
+        "tests/*.[tT]ests.[pP][sS]1"
+    ],
     "markiscodecoverage.searchCriteria": "tests\\Compiler\\Coverage\\coverage.info",
     "markiscodecoverage.enableDecorations": true,
     "poshProTools.disableNewsNotification": true,
@@ -27,5 +29,10 @@
         120,
         130
     ],
-    "files.eol": "\n"
+    "files.eol": "\n",
+    "path-intellisense.autoSlashAfterDirectory": true,
+    "path-intellisense.autoTriggerNextSuggestion": true,
+    "powershell.analyzeOpenDocumentsOnly": true,
+    "powershell.developer.editorServicesLogLevel": "Diagnostic",
+    "powershell.integratedConsole.suppressStartupBanner": true
 }

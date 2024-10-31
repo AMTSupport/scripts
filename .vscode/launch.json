@@ -18,7 +18,10 @@
             "request": "launch",
             "script": "${file}",
             "cwd": "${cwd}",
-            "args": ["-Verbose", "-Debug"],
+            "args": [
+                "-Verbose",
+                "-Debug"
+            ],
             "createTemporaryIntegratedConsole": true,
             "attachDotnetDebugger": true
         },
@@ -57,7 +60,7 @@
             "type": "coreclr",
             "request": "attach",
             "processId": "${command:pickProcess}",
-            "justMyCode": true
+            "justMyCode": false
         }
     ],
     "inputs": [
