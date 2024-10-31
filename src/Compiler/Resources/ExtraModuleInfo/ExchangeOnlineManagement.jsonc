@@ -1,4 +1,5 @@
 {
+    "$schema": "../../../../resources/schemas/ExtraModuleInfo.jsonc",
     "FunctionsToExport": [
         // Commands present once Connect-ExchangeOnline is run
         "Add-AvailabilityAddressSpace",
