@@ -9,8 +9,8 @@ namespace Compiler.Test;
 
 public class TestUtils {
     public static PathedModuleSpec GetModuleSpecFromContent(string content) {
-        var sourceRoot = TestContext.CurrentContext.WorkDirectory;
-        var tempFile = Path.GetFullPath($"{sourceRoot}/{TestContext.CurrentContext.Random.GetString(6)}.ps1");
+        var sourceRoot = GenerateUniqueDirectory();
+        var tempFile = GenerateUniqueFile(sourceRoot, ".ps1");
 
         File.WriteAllText(tempFile, content);
         return new PathedModuleSpec(sourceRoot, tempFile);
@@ -32,16 +32,13 @@ public class TestUtils {
     public static (string, Tuple<string, string>) GenerateTestSources(bool createFiles = true) {
         const int numberOfScripts = 2;
 
-        var random = TestContext.CurrentContext.Random;
-        var sourceRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory, random.GetString(6));
+        var sourceRoot = GenerateUniqueDirectory();
         var testScripts = new string[numberOfScripts];
 
         if (createFiles) Directory.CreateDirectory(sourceRoot);
 
         for (var i = 0; i < numberOfScripts; i++) {
-            var path = Path.GetFullPath($"{sourceRoot}/{random.GetString(6)}.ps1");
-            if (createFiles) File.Create(path).Close();
-            testScripts[i] = path;
+            testScripts[i] = GenerateUniqueFile(sourceRoot, ".ps1", createFiles);
         }
 
         return (sourceRoot, new(testScripts[0], testScripts[1]));
@@ -58,5 +55,45 @@ public class TestUtils {
         var moduleTwo = new ResolvableLocalModule(moduleSpecTwo);
 
         return (moduleOne, moduleTwo);
+    }
+
+    /// <summary>
+    /// Generate a unique directory inside the supplied parent.
+    /// </summary>
+    /// <param name="parent">The parent directory to create the unique directory inside, or the current test context directory if null</param>
+    /// <returns>The path of the generated directory.</returns>
+    /// <remarks>
+    /// The directory is created and added to the cleanup list to be deleted after the test run.
+    /// </remarks>
+    public static string GenerateUniqueDirectory(string? parent = null, bool createDirectory = true) {
+        var random = TestContext.CurrentContext.Random;
+        var root = parent ?? TestContext.CurrentContext.WorkDirectory;
+        string uniqueDirectory;
+        do {
+            uniqueDirectory = Path.Combine(root, random.GetString(6));
+        } while (Directory.Exists(uniqueDirectory));
+
+        if (createDirectory) Directory.CreateDirectory(uniqueDirectory);
+        GlobalSetup.RequiresCleanup.Add(uniqueDirectory);
+
+        return uniqueDirectory;
+    }
+
+    /// <summary>
+    /// Generate a unique file inside the supplied parent.
+    /// </summary>
+    /// <param name="parent">The parent directory to create the unique file inside, or the current test context directory if null</param>
+    /// <returns>The path of the generated file.</returns>
+    public static string GenerateUniqueFile(string? parent = null, string extension = ".ps1", bool createFile = true) {
+        var random = TestContext.CurrentContext.Random;
+        var root = parent ?? GenerateUniqueDirectory();
+        string uniqueFile;
+        do {
+            uniqueFile = Path.Combine(root, $"{random.GetString(6)}{extension}");
+        } while (File.Exists(uniqueFile));
+
+        if (createFile) File.Create(uniqueFile).Close();
+
+        return uniqueFile;
     }
 }
