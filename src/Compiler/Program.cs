@@ -81,8 +81,9 @@ public class Program {
 
                 var superParent = new ResolvableParent(opts.Input!);
 
+                var sourceRoot = File.Exists(opts.Input) ? Path.GetDirectoryName(opts.Input)! : opts.Input;
                 filesToCompile.ToList().ForEach(async scriptPath => {
-                    var pathedModuleSpec = new PathedModuleSpec(opts.Input!, Path.GetFullPath(scriptPath));
+                    var pathedModuleSpec = new PathedModuleSpec(sourceRoot, Path.GetFullPath(scriptPath));
                     if ((await Resolvable.TryCreateScript(pathedModuleSpec, superParent)).IsErr(out var error, out var resolvableScript)) {
                         Errors.Add(error.Enrich(pathedModuleSpec));
                         return;
@@ -90,7 +91,7 @@ public class Program {
 
                     superParent.QueueResolve(resolvableScript, compiled => {
                         Output(
-                            opts.Input!,
+                            sourceRoot,
                             opts.Output,
                             scriptPath,
                             compiled.GetPowerShellObject(),
@@ -106,7 +107,7 @@ public class Program {
 
                 Logger.Trace("Finished compilation.");
 
-                await OutputErrors(Errors, opts.Input!, opts.Output);
+                await OutputErrors(Errors, sourceRoot, opts.Output);
 
                 return 1;
             },
