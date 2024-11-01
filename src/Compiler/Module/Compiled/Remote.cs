@@ -16,17 +16,20 @@ using NLog;
 namespace Compiler.Module.Compiled;
 
 public class CompiledRemoteModule : Compiled {
-    private record ExtraModuleInfo(
+    private sealed record ExtraModuleInfo(
         string[]? FunctionsToExport,
         string[]? CmdletsToExport,
         string[]? AliasesToExport
-    );
+    ) {
+        public static readonly ExtraModuleInfo Empty = new(null, null, null);
+    };
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
     private static readonly JsonSerializerOptions JsonSerializerOptions = new() {
         ReadCommentHandling = JsonCommentHandling.Skip
     };
 
+    private readonly Lazy<ExtraModuleInfo> ThisExtraModuleInfo;
     private Hashtable? PowerShellManifest;
     private ZipArchive? ZipArchive;
 
@@ -49,10 +52,22 @@ public class CompiledRemoteModule : Compiled {
             null => new Version(0, 0, 1),
             var other => throw new InvalidDataException($"ModuleVersion must be a string, but was {other.GetType()}")
         };
+
+        this.ThisExtraModuleInfo = new(() => {
+            var info = Assembly.GetExecutingAssembly().GetName();
+            var extraModuleInfoResource = $"{info.Name}.Resources.ExtraModuleInfo.{this.ModuleSpec.Name}.json";
+            using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(extraModuleInfoResource)
+                ?? Assembly.GetExecutingAssembly().GetManifestResourceStream($"{extraModuleInfoResource}c");
+            if (templateStream == null) return ExtraModuleInfo.Empty;
+
+            using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
+            return JsonSerializer.Deserialize<ExtraModuleInfo>(streamReader.ReadToEnd(), JsonSerializerOptions)
+                ?? ExtraModuleInfo.Empty;
+        });
     }
 
     public override string StringifyContent() {
-        var base64 = Convert.ToBase64String(this.Bytes);
+        var base64 = Convert.ToBase64String(this.ContentBytes);
         return $"'{base64}'";
     }
 
@@ -91,28 +106,14 @@ public class CompiledRemoteModule : Compiled {
                 throw new InvalidDataException($"{commandTypes}sToExport must be a string or an array of strings, but was {data.GetType()}");
         }
 
-        var info = Assembly.GetExecutingAssembly().GetName();
-        var extraModuleInfoResource = $"{info.Name}.Resources.ExtraModuleInfo.{this.ModuleSpec.Name}.json";
-        using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(extraModuleInfoResource)
-            ?? Assembly.GetExecutingAssembly().GetManifestResourceStream($"{extraModuleInfoResource}c");
-        if (templateStream == null) return exported;
-
-        using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
-        var extraModuleInfo = JsonSerializer.Deserialize<ExtraModuleInfo>(streamReader.ReadToEnd(), JsonSerializerOptions);
-        if (extraModuleInfo == null) {
-            Logger.Warn($"Failed to parse extra module info for {this.ModuleSpec.Name}");
-            return exported;
-        }
-
         var extraExports = commandTypes switch {
-            CommandTypes.Function => extraModuleInfo.FunctionsToExport,
-            CommandTypes.Cmdlet => extraModuleInfo.CmdletsToExport,
-            CommandTypes.Alias => extraModuleInfo.AliasesToExport,
+            CommandTypes.Function => this.ThisExtraModuleInfo.Value.FunctionsToExport,
+            CommandTypes.Cmdlet => this.ThisExtraModuleInfo.Value.CmdletsToExport,
+            CommandTypes.Alias => this.ThisExtraModuleInfo.Value.AliasesToExport,
             _ => throw new ArgumentOutOfRangeException(nameof(commandTypes), commandTypes, null)
         };
-        if (extraExports == null) return exported;
+        if (extraExports != null) exported.AddRange(extraExports);
 
-        exported.AddRange(extraExports);
         return exported;
     }
 
