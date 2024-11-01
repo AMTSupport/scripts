@@ -85,30 +85,32 @@ public sealed class CompiledDocument(
         if (indentBy != 0) builder.AddEdit(() => new IndentUpdater(indentBy));
 
         var lines = builder.Document.GetLines().ToList();
-        var spanUpdates = new List<SpanUpdateInfo>();
-        var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Updater.Priority).ToList();
-        Logger.Debug($"Applying in order->{string.Join("\n\t", sortedUpdaters)}");
-        foreach (var textUpdater in sortedUpdaters) {
-            spanUpdates.ForEach(textUpdater.Updater.PushByUpdate);
-            Fin<IEnumerable<SpanUpdateInfo>> updateResult;
-            try {
-                updateResult = textUpdater.Updater.Apply(lines);
-            } catch (Exception e) {
-                return Error.New(
-                    $"Error applying update: {textUpdater}",
-                    e
-                );
-            }
-
-            if (updateResult.IsErr(out var err, out var updates)) {
-                if (err is WrappedErrorWithDebuggableContent wrappedError) {
-                    return err;
+        if (builder.TextUpdaters.Count != 0) {
+            var spanUpdates = new List<SpanUpdateInfo>();
+            var sortedUpdaters = builder.TextUpdaters.OrderBy(updater => updater.Updater.Priority).ToList();
+            Logger.Debug($"Applying in order->{string.Join("\n\t", sortedUpdaters)}");
+            foreach (var textUpdater in sortedUpdaters) {
+                spanUpdates.ForEach(textUpdater.Updater.PushByUpdate);
+                Fin<IEnumerable<SpanUpdateInfo>> updateResult;
+                try {
+                    updateResult = textUpdater.Updater.Apply(lines);
+                } catch (Exception e) {
+                    return Error.New(
+                        $"Error applying update: {textUpdater}",
+                        e
+                    );
                 }
 
-                return new WrappedErrorWithDebuggableContent($"Error applying update: {textUpdater}", string.Join('\n', lines), err);
-            }
+                if (updateResult.IsErr(out var err, out var updates)) {
+                    if (err is WrappedErrorWithDebuggableContent wrappedError) {
+                        return err;
+                    }
 
-            spanUpdates.AddRange(updates);
+                    return new WrappedErrorWithDebuggableContent($"Error applying update: {textUpdater}", string.Join('\n', lines), err);
+                }
+
+                spanUpdates.AddRange(updates);
+            }
         }
 
         return AstHelper.GetAstReportingErrors(

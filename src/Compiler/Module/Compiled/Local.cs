@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Contracts;
 using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -10,18 +11,25 @@ using LanguageExt;
 
 namespace Compiler.Module.Compiled;
 
-
-public class CompiledLocalModule(
-    PathedModuleSpec moduleSpec,
-    CompiledDocument document,
-    RequirementGroup requirements
-) : Compiled(moduleSpec, requirements, Encoding.UTF8.GetBytes(document.GetContent())) {
+public class CompiledLocalModule : Compiled {
     public override ContentType Type { get; } = ContentType.UTF8String;
 
     // Local modules are always version 0.0.1, as they are not versioned.
     public override Version Version { get; } = new Version(0, 0, 1);
 
-    public virtual CompiledDocument Document { get; } = document;
+    public virtual CompiledDocument Document { get; }
+
+    public override byte[] ContentBytes { get; init; }
+
+    [Pure]
+    public CompiledLocalModule(
+        PathedModuleSpec moduleSpec,
+        CompiledDocument document,
+        RequirementGroup requirements
+    ) : base(moduleSpec, requirements) {
+        this.Document = document;
+        this.ContentBytes = Encoding.UTF8.GetBytes(this.StringifyContent());
+    }
 
     public override string StringifyContent() => new StringBuilder()
         .AppendLine("<#ps1#> @'")

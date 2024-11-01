@@ -33,18 +33,18 @@ public class CompiledRemoteModule : Compiled {
     private Hashtable? PowerShellManifest;
     private ZipArchive? ZipArchive;
 
-    public readonly byte[] Bytes;
-
     public override ContentType Type => ContentType.Zip;
 
     public override Version Version { get; }
+
+    public override byte[] ContentBytes { get; init; }
 
     public CompiledRemoteModule(
         ModuleSpec moduleSpec,
         RequirementGroup requirements,
         byte[] bytes
-    ) : base(moduleSpec, requirements, bytes) {
-        this.Bytes = bytes;
+    ) : base(moduleSpec, requirements) {
+        this.ContentBytes = bytes;
 
         var manifest = this.GetPowerShellManifest();
         this.Version = manifest["ModuleVersion"] switch {
@@ -132,7 +132,7 @@ public class CompiledRemoteModule : Compiled {
         return exportedFunctions;
     }
 
-    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(new MemoryStream((byte[])this.Bytes.Clone()), ZipArchiveMode.Read, false);
+    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(new MemoryStream((byte[])this.ContentBytes.Clone()), ZipArchiveMode.Read, false);
 
     private Hashtable GetPowerShellManifest() {
         if (this.PowerShellManifest != null) return this.PowerShellManifest;
