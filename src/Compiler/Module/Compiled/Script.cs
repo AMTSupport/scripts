@@ -15,11 +15,7 @@ using QuikGraph.Algorithms;
 
 namespace Compiler.Module.Compiled;
 
-public partial class CompiledScript(
-    PathedModuleSpec moduleSpec,
-    CompiledDocument document,
-    RequirementGroup requirements
-) : CompiledLocalModule(moduleSpec, document, requirements) {
+public partial class CompiledScript : CompiledLocalModule {
     private static readonly Lazy<string> Template = new(() => {
         var info = Assembly.GetExecutingAssembly().GetName();
         using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
@@ -29,22 +25,21 @@ public partial class CompiledScript(
 
     public virtual BidirectionalGraph<Compiled, Edge<Compiled>> Graph { get; } = new();
 
-    /// <summary>
-    /// Creates a new compiled script.
-    /// </summary>
-    /// <param name="moduleSpec"></param>
-    /// <param name="document"></param>
-    /// <param name="scriptParamBlock"></param>
-    /// <param name="requirements"></param>
-    private CompiledScript(
-        ResolvableScript thisResolvable,
+    public CompiledScript(
+        PathedModuleSpec moduleSpec,
         CompiledDocument document,
         RequirementGroup requirements
-    ) : this(thisResolvable.ModuleSpec, document, requirements) {
+    ) : base(moduleSpec, document, requirements) {
         this.Graph.AddVertex(this);
         // Add the parent-child relationships to each module.
         this.Graph.EdgeAdded += edge => edge.Target.Parents.Add(edge.Source);
     }
+
+    private CompiledScript(
+        ResolvableScript thisResolvable,
+        CompiledDocument document,
+        RequirementGroup requirements
+    ) : this(thisResolvable.ModuleSpec, document, requirements) { }
 
     public static async Task<Fin<CompiledScript>> Create(
         ResolvableScript thisResolvable,
@@ -150,6 +145,8 @@ public partial class CompiledScript(
 
         return filledTemplate;
     }
+
+    public override CompiledScript GetRootParent() => this;
 
     /// <summary>
     /// Utility method for indenting a string.

@@ -3,22 +3,42 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using System.Text;
 using Compiler.Requirements;
+using LanguageExt;
+using NLog;
 
 namespace Compiler.Module.Compiled;
 
-public abstract class Compiled {
+[method: Pure]
+public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requirements) {
+    public Compiled(ModuleSpec moduleSpec, RequirementGroup requirements, byte[] contentBytes) : this(moduleSpec, requirements) => this.ContentBytes = contentBytes;
+
+    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
     public virtual List<Compiled> Parents { get; } = [];
 
-    public virtual ModuleSpec ModuleSpec { get; }
+    public virtual ModuleSpec ModuleSpec { get; } = moduleSpec;
 
-    public virtual RequirementGroup Requirements { get; }
+    public virtual RequirementGroup Requirements { get; } = requirements;
+
+    public abstract byte[] ContentBytes { get; init; }
 
     /// <summary>
     /// Gets combined the hash of the content and requirements of the module.
     /// </summary>
-    public string ComputedHash;
+    public string ComputedHash {
+        // For some reason these values are not always gotten at their latest after an update, its like its doing some bullshit premature optimization.
+        // So we need to tell the compiler to not optimize this method.
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+        get {
+            var byteList = new List<byte>((byte[])this.ContentBytes.Clone());
+            this.AddRequirementHashBytes(byteList, this.Requirements);
+            return Convert.ToHexString(SHA256.HashData([.. byteList]));
+        }
+    }
 
     /// <summary>
     /// The version of the module, not necessarily the same as the version of the module spec.
@@ -29,17 +49,6 @@ public abstract class Compiled {
     /// Determines how the content string of this module should be interpreted.
     /// </summary>
     public abstract ContentType Type { get; }
-
-    [Pure]
-    protected Compiled(ModuleSpec moduleSpec, RequirementGroup requirements, byte[] hashableBytes) {
-        this.ModuleSpec = moduleSpec;
-        this.Requirements = requirements;
-
-        var byteList = new List<byte>((byte[])hashableBytes.Clone());
-        AddRequirementHashBytes(byteList, requirements);
-        this.ComputedHash = Convert.ToHexString(SHA256.HashData([.. byteList]));
-    }
-
 
     public string GetNameHash() => $"{this.ModuleSpec.Name}-{this.ComputedHash[..6]}";
 
@@ -63,8 +72,17 @@ public abstract class Compiled {
     }
     """;
 
-    public Compiled GetRootParent() {
-        if (this.Parents.Count == 0) return this;
+    /// <summary>
+    /// Gets the absolute parent of the module, which should always be the executing script.
+    /// </summary>
+    /// <returns>
+    /// The absolute parent of the module.
+    /// </returns>
+    /// <remarks
+    /// While this method is nullable, it should never return null in practice.
+    /// </remarks>
+    public virtual CompiledScript? GetRootParent() {
+        if (this.Parents.Count == 0) return null; // If it was a script it would have overriden this method.
 
         // All parents should point to the same root parent eventually.
         var parent = this.Parents[0];
@@ -72,7 +90,7 @@ public abstract class Compiled {
             parent = parent.Parents[0];
         }
 
-        return parent;
+        return parent as CompiledScript;
     }
 
     /// <summary>
@@ -109,12 +127,25 @@ public abstract class Compiled {
         return siblings.FirstOrDefault(compiled => compiled.ModuleSpec == moduleSpec);
     }
 
-    public static void AddRequirementHashBytes(
+    [Pure]
+    public void AddRequirementHashBytes(
         [NotNull] List<byte> hashableBytes,
         [NotNull] RequirementGroup requirementGroup
     ) {
-        var requirements = requirementGroup.GetRequirements();
-        requirements.ToList().ForEach(requirement => hashableBytes.AddRange(requirement.Hash));
+        hashableBytes.AddRange(requirementGroup.GetRequirements()
+            .Select(req => req.Hash)
+            .Flatten());
+
+        var rootGraph = this.GetRootParent()!.Graph;
+        if (!rootGraph.ContainsVertex(this)) {
+            // How tf did this happen?
+            Logger.Error($"Module {this.ModuleSpec.Name} is not in the graph of its root parent.");
+        }
+
+        hashableBytes.AddRange(this.GetRootParent()!.Graph.OutEdges(this).ToList()
+            .Select(edge => edge.Target.ComputedHash)
+            .Select(Encoding.UTF8.GetBytes)
+            .Flatten());
     }
 }
 

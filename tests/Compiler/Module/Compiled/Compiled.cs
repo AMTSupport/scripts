@@ -1,11 +1,12 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
-using static Compiler.Module.Compiled.Compiled;
 using Compiler.Requirements;
 using System.Collections;
 using Moq;
 using RealCompiled = Compiler.Module.Compiled.Compiled;
+using Compiler.Module.Compiled;
+using QuikGraph;
 
 namespace Compiler.Test.Module.Compiled;
 
@@ -16,12 +17,13 @@ public class CompiledTests {
         byte[] hashableBytes,
         RequirementGroup requirementGroup
     ) {
+        var module = TestData.GetMockCompiledModule(hashableBytes);
         var random = TestContext.CurrentContext.Random;
         List<byte> bytesList;
         var hashResults = new List<byte[]>();
         do {
             bytesList = new List<byte>(hashableBytes);
-            AddRequirementHashBytes(bytesList, requirementGroup);
+            module.Object.AddRequirementHashBytes(bytesList, requirementGroup);
             hashResults.Add([.. hashableBytes]);
         } while (hashResults.Count < random.Next(2, 5));
 
@@ -34,22 +36,22 @@ public class CompiledTests {
     }
 
     [Test]
-    public void GetRootParent_WhenNoParents_ReturnsSelf() {
+    public void GetRootParent_WhenNoParents_ReturnsNull() {
         var mockCompiled = TestData.GetMockCompiledModule();
         mockCompiled.Setup(x => x.Parents).Returns([]);
 
-        Assert.That(mockCompiled.Object.GetRootParent(), Is.EqualTo(mockCompiled.Object));
+        Assert.That(mockCompiled.Object.GetRootParent(), Is.Null);
     }
 
     [Test]
     public void GetRootParent_WhenHasParents_ReturnsRootParent() {
-        var rootParent = TestData.GetMockCompiledModule();
+        var rootParent = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>();
         var parent = TestData.GetMockCompiledModule();
         var mockCompiled = TestData.GetMockCompiledModule();
         mockCompiled.Setup(x => x.Parents).Returns([parent.Object]);
-        parent.Setup(x => x.Parents).Returns([rootParent.Object]);
+        parent.Setup(x => x.Parents).Returns([rootParent]);
 
-        Assert.That(mockCompiled.Object.GetRootParent(), Is.EqualTo(rootParent.Object));
+        Assert.That(mockCompiled.Object.GetRootParent(), Is.EqualTo(rootParent));
     }
 }
 
@@ -96,15 +98,40 @@ file static class TestData {
         }
     }
 
-    public static Mock<RealCompiled> GetMockCompiledModule() {
+    public static Mock<RealCompiled> GetMockCompiledModule(byte[]? bytes = null, CompiledScript? parent = null) {
+        parent ??= CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>();
+
         var random = TestContext.CurrentContext.Random;
         var moduleSpec = new ModuleSpec(random.GetString(6));
         var requirements = new RequirementGroup();
-        var hashableBytes = new byte[random.Next(10, 100)];
-        random.NextBytes(hashableBytes);
+        if (bytes is null) {
+            bytes = new byte[random.Next(10, 100)];
+            random.NextBytes(bytes);
+        }
 
-        return new Mock<RealCompiled>(moduleSpec, requirements, hashableBytes) {
+        var mock = new Mock<RealCompiled>(moduleSpec, requirements, bytes) {
             CallBase = true
         };
+        CompiledUtils.AddDependency(parent, mock.Object);
+
+        return mock;
+    }
+}
+
+public static class CompiledUtils {
+    public static void AddDependency(RealCompiled parent, RealCompiled dependency) {
+        var rootParent = parent.GetRootParent()!;
+
+        dependency.Parents.Add(parent);
+        parent.Requirements.AddRequirement(dependency.ModuleSpec);
+        rootParent.Graph.AddVerticesAndEdge(new Edge<RealCompiled>(rootParent, dependency));
+    }
+
+    public static void RemoveDependency(RealCompiled parent, RealCompiled dependency) {
+        var rootParent = parent.GetRootParent()!;
+
+        dependency.Parents.Remove(parent);
+        parent.Requirements.RemoveRequirement(dependency.ModuleSpec);
+        rootParent.Graph.RemoveEdge(new Edge<RealCompiled>(rootParent, dependency));
     }
 }

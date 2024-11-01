@@ -32,9 +32,9 @@ public class CompiledRemoteModuleTests {
 
         Assert.Multiple(() => {
             Assert.That(bytes, Is.Not.Empty);
-            Assert.That(bytes, Is.EqualTo(module.Bytes));
+            Assert.That(bytes, Is.EqualTo(module.ContentBytes));
 
-            using var zipArchive = new ZipArchive(new MemoryStream(module.Bytes), ZipArchiveMode.Read, false);
+            using var zipArchive = new ZipArchive(new MemoryStream(module.ContentBytes), ZipArchiveMode.Read, false);
             Assert.That(zipArchive, Is.Not.Null);
             Assert.That(zipArchive.Entries, Is.Not.Empty);
             Assert.That(zipArchive.Entries, Is.All.Property(nameof(ZipArchiveEntry.Length)).GreaterThan(0));
@@ -58,7 +58,7 @@ public class CompiledRemoteModuleTests {
             var info = Assembly.GetExecutingAssembly().GetName();
             using var nupkgStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.{moduleName}.{moduleVersion}.nupkg")!;
             var bytes = new byte[nupkgStream.Length];
-            nupkgStream.Read(bytes, 0, bytes.Length);
+            nupkgStream.ReadExactly(bytes);
 
             var mock = new Mock<CompiledRemoteModule>(moduleSpec, requirementGroup, bytes) {
                 CallBase = true
