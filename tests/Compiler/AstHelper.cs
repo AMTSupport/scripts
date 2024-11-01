@@ -11,6 +11,7 @@ using System.Text;
 
 namespace Compiler.Test;
 
+[TestFixture]
 public class AstHelperTests {
     [TestCaseSource(typeof(TestData.ChildAndRoot), nameof(TestData.ChildAndRoot.Data))]
     public void FindRoot_ReturnsRootAst(
