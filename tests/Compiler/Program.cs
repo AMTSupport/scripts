@@ -10,7 +10,7 @@ namespace Compiler.Test;
 public class ProgramTests {
     [Test, Parallelizable]
     public void GetFilesToCompile(
-        [Values(1, 10, 100)] int numberOfFiles,
+        [Values(0, 1, 10, 100)] int numberOfFiles,
         [Values(0, 1, 10)] int nestedLevel,
         [Values(false, true)] bool includeSomeIgnoredFiles
     ) {
@@ -18,11 +18,41 @@ public class ProgramTests {
         var result = Program.GetFilesToCompile(rootPath).Unwrap();
 
         Assert.That(result, Is.EquivalentTo(files));
+
+        if (numberOfFiles == 0) {
+            Assert.That(result, Is.Empty);
+        }
+    }
+
+    [Test]
+    public void GetFilesToCompile_ErrorOnNonExistingPath() {
+        var path = TestUtils.GenerateUniqueDirectory(null, false);
+        var result = Program.GetFilesToCompile(path);
+
+        Assert.That(result.IsFail, Is.True);
+        Assert.Multiple(() => {
+            var exception = result.UnwrapError();
+            Assert.That(exception.Message, Does.Contain(path));
+            Assert.That(exception.Is<FileNotFoundException>(), Is.True);
+        });
+    }
+
+    [Test]
+    public void GetFilesToCompile_ErrorOnIncorrectFileType() {
+        var path = TestUtils.GenerateUniqueFile(null, ".psm1", true);
+        var result = Program.GetFilesToCompile(path);
+
+        Assert.That(result.IsFail, Is.True);
+        Assert.Multiple(() => {
+            var exception = result.UnwrapError();
+            Assert.That(exception.Message, Does.Contain(path));
+            Assert.That(exception, Is.InstanceOf<InvalidInputError>());
+        });
     }
 
     [Test, Parallelizable, Repeat(10)]
     public void EnsureDirectoryStructure(
-        [Values(1, 10, 100)] int numberOfFiles,
+        [Values(0, 1, 10, 100)] int numberOfFiles,
         [Values(0, 1, 10)] int nestedLevel
     ) {
         var (rootPath, files) = TestData.GenerateTestFiles(numberOfFiles, nestedLevel, false);
@@ -32,6 +62,10 @@ public class ProgramTests {
         foreach (var file in files) {
             var expectedPath = file.Replace(rootPath, outputPath);
             Assert.That(Directory.Exists(Directory.GetParent(expectedPath)!.FullName), Is.True);
+        }
+
+        if (numberOfFiles == 0) {
+            Assert.That(Directory.GetFiles(outputPath), Is.Empty);
         }
     }
 }

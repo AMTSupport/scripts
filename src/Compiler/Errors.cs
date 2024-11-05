@@ -193,6 +193,17 @@ public record WrappedErrorWithDebuggableContent(
     public override int GetHashCode() => HashCode.Combine(this.Content, this.InnerException, this.Module);
 }
 
+public sealed record InvalidInputError : Exceptional {
+    private InvalidInputError(string message) : base(message, 623) { }
+
+    public static InvalidInputError InvalidFileType(
+        string inputPath,
+        string expectedExtension
+    ) => new($"The file {inputPath} is not a {expectedExtension} file");
+
+    public static InvalidInputError NonExistent(string inputPath) => new($"The path {inputPath} does not exist");
+}
+
 public static class ErrorUtils {
     public static T Enrich<T>(
         this T error,

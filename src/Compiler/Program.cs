@@ -255,13 +255,14 @@ public class Program {
     public static Fin<IEnumerable<string>> GetFilesToCompile(string input) {
         var files = new List<string>();
         if (File.Exists(input)) {
+            if (!input.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)) return InvalidInputError.InvalidFileType(input, ".ps1");
             files.Add(input);
         } else if (Directory.Exists(input)) {
             foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories)) {
                 files.Add(file);
             }
         } else {
-            return LanguageExt.Common.Error.New($"Input {input} is not a file or directory.");
+            return LanguageExt.Common.Error.New(new FileNotFoundException($"Input {input} is not a file or directory"));
         }
 
         files.RemoveAll(static file => {
