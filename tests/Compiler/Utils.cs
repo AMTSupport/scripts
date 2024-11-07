@@ -84,7 +84,7 @@ public class TestUtils {
     /// </summary>
     /// <param name="parent">The parent directory to create the unique file inside, or the current test context directory if null</param>
     /// <returns>The path of the generated file.</returns>
-    public static string GenerateUniqueFile(string? parent = null, string extension = ".ps1", bool createFile = true) {
+    public static string GenerateUniqueFile(string? parent = null, string extension = ".ps1", bool createFile = true, string? content = default) {
         var random = TestContext.CurrentContext.Random;
         var root = parent ?? GenerateUniqueDirectory();
         string uniqueFile;
@@ -92,7 +92,13 @@ public class TestUtils {
             uniqueFile = Path.Combine(root, $"{random.GetString(6)}{extension}");
         } while (File.Exists(uniqueFile));
 
-        if (createFile) File.Create(uniqueFile).Close();
+        if (createFile) {
+            if (content is not null) {
+                File.WriteAllText(uniqueFile, content);
+            } else {
+                File.Create(uniqueFile).Close();
+            }
+        }
 
         return uniqueFile;
     }

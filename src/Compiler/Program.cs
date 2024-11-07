@@ -306,16 +306,17 @@ public class Program {
         string? outputDirectory,
         string fileName,
         string content,
-        bool overwrite) {
+        bool forceOverwrite
+    ) {
         if (string.IsNullOrWhiteSpace(outputDirectory)) {
             // Output to console to allow for piping
-            Console.OpenStandardOutput().Write(Encoding.UTF8.GetBytes(content));
+            Console.Out.Write(content);
             return;
         }
 
         var outputPath = GetOutputLocation(sourceDirectory, outputDirectory, fileName);
         if (File.Exists(outputPath)) {
-            var removeFile = overwrite;
+            var removeFile = forceOverwrite;
             if (!removeFile) {
                 Logger.Info($"File {outputPath} already exists. Overwrite? (Y/n)");
                 var response = Console.ReadLine();
@@ -331,6 +332,9 @@ public class Program {
                     Errors.Add(LanguageExt.Common.Error.New("Unable to delete file", (Exception)err));
                     return;
                 }
+            } else {
+                Logger.Trace("Skipping file");
+                return;
             }
         }
 
