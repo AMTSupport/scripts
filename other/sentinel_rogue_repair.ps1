@@ -135,7 +135,7 @@ function Get-SentinelInstaller {
         # TODO: Get the latest installer from the API instead of hardcoding
         try {
             Write-Host "Downloading SentinelOne installer..."
-            $Url = "https://nextcloud.racci.dev/s/MPsaSBsJDfQb6fX/download/SentinelOneInstaller_windows_64bit_v23_1_4_650.exe"
+            $Url = "https://nextcloud.racci.dev/s/nd7TsNG4FzTen9d/download/SentinelOneInstaller_windows_64bit_v23_1_4_650.exe"
             Invoke-WebRequest -Uri $Url -OutFile $Installer -UseBasicParsing -ErrorAction Stop
         } catch {
             Write-Host "Failed to download SentinelOne installer!" -ForegroundColor Red
