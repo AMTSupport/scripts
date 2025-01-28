@@ -80,8 +80,8 @@ function Invoke-Setup {
     $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
     $PSDefaultParameterValues['*:WarningAction'] = 'Continue';
     $PSDefaultParameterValues['*:InformationAction'] = 'Continue';
-    $PSDefaultParameterValues['*:Verbose'] = $Logging.Verbose;
-    $PSDefaultParameterValues['*:Debug'] = $Logging.Debug;
+    $PSDefaultParameterValues['*:Verbose'] = $VerbosePreference;
+    $PSDefaultParameterValues['*:Debug'] = $DebugPreference;
 
     $Global:ErrorActionPreference = 'Stop';
 }
@@ -151,12 +151,6 @@ function Invoke-RunMain {
         begin {
             # If the script is being restarted, we have already done this.
             if (-not $Script:ScriptRestarted) {
-                foreach ($Local:Param in @('Verbose', 'Debug')) {
-                    if ($Cmdlet.MyInvocation.BoundParameters.ContainsKey($Local:Param)) {
-                        $Logging[$Local:Param] = $Cmdlet.MyInvocation.BoundParameters[$Local:Param];
-                    }
-                }
-
                 if (-not $HideDisclaimer) {
                     Invoke-Info -UnicodePrefix '⚠️' -Message 'Disclaimer: This script is provided as is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the script or the use or other dealings in the script.';
                 }
@@ -251,9 +245,7 @@ function Invoke-RunMain {
         -Cmdlet $Cmdlet `
         -Main $Main `
         -DontImport:$DontImport `
-        -HideDisclaimer:($HideDisclaimer -or $False) `
-        -Verbose:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Verbose') `
-        -Debug:(Get-OrFalse $Cmdlet.MyInvocation.BoundParameters 'Debug');
+        -HideDisclaimer:($HideDisclaimer -or $False);
 }
 
 Export-ModuleMember -Function Invoke-RunMain, Test-IsNableRunner -Variable ScriptRestarted, ScriptRestarting;
