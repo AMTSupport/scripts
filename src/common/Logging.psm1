@@ -4,14 +4,6 @@ Using module @{
     ModuleVersion = '2.3.2';
 }
 
-[HashTable]$Script:Logging = @{
-    Error       = $True;
-    Warning     = $True;
-    Information = $True;
-    Verbose     = $VerbosePreference -ne 'SilentlyContinue';
-    Debug       = $DebugPreference -ne 'SilentlyContinue';
-};
-
 function Test-IsNableRunner {
     $WindowName = $Host.UI.RawUI.WindowTitle;
     if (-not $WindowName) { return $False; };
@@ -183,7 +175,7 @@ function Invoke-Verbose {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
             PSMessage   = $Message;
             PSColour    = 'Yellow';
-            ShouldWrite = $Script:Logging.Verbose;
+            ShouldWrite = $VerbosePreference -ne 'SilentlyContinue';
             PassThru    = $PassThru;
         };
 
@@ -220,7 +212,7 @@ function Invoke-Debug {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
             PSMessage   = $Message;
             PSColour    = 'Magenta';
-            ShouldWrite = $Script:Logging.Debug;
+            ShouldWrite = $DebugPreference -ne 'SilentlyContinue';
             PassThru    = $PassThru;
         };
 
@@ -257,7 +249,7 @@ function Invoke-Info {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
             PSMessage   = $Message;
             PSColour    = 'Cyan';
-            ShouldWrite = $Script:Logging.Information;
+            ShouldWrite = $InformationPreference -ne 'Ignore';
             PassThru    = $PassThru;
         };
 
@@ -278,7 +270,10 @@ function Invoke-Warn {
         [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
         [ValidateNotNullOrEmpty()]
         [Alias('Prefix')]
-        [String]$UnicodePrefix
+        [String]$UnicodePrefix,
+
+        [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+        [Switch]$PassThru
     )
 
     process {
@@ -291,7 +286,8 @@ function Invoke-Warn {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
             PSMessage   = $Message;
             PSColour    = 'Yellow';
-            ShouldWrite = $Script:Logging.Warning;
+            ShouldWrite = $WarningPreference -ne 'SilentlyContinue';
+            PassThru    = $PassThru;
         };
 
         Invoke-Write @Local:Params;
@@ -311,7 +307,10 @@ function Invoke-Error {
         [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, HelpMessage = 'The Unicode Prefix to use if the terminal supports Unicode.')]
         [ValidateNotNullOrEmpty()]
         [Alias('Prefix')]
-        [String]$UnicodePrefix
+        [String]$UnicodePrefix,
+
+        [Parameter(HelpMessage = 'Return the formatted message instead of writing it to the console.')]
+        [Switch]$PassThru
     )
 
     process {
@@ -324,7 +323,8 @@ function Invoke-Error {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
             PSMessage   = $Message;
             PSColour    = 'Red';
-            ShouldWrite = $Script:Logging.Error;
+            ShouldWrite = $ErrorActionPreference -ne 'SilentlyContinue';
+            PassThru    = $PassThru;
         };
 
         Invoke-Write @Local:Params;
