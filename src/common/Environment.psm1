@@ -34,41 +34,6 @@ function Get-OrFalse {
     }
 }
 
-function Test-ExplicitlyCalled {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNull()]
-        [System.Management.Automation.InvocationInfo]$Invocation
-    )
-
-    process {
-        # $Global:PSCallStack = Get-PSCallStack;
-
-        # Being ran from terminal
-        # CommandOrigin: Runspace
-        # InvocationName: relative path to script name
-        if ($Invocation.CommandOrigin -eq 'Runspace' -and ($Invocation.InvocationName | Split-Path -Leaf) -eq $Invocation.MyCommand.Name) {
-            return $True;
-        }
-
-        # Being imported
-        # CommandOrigin: Internal
-        #
-
-
-        # if ($Invocation.MyCommand.CommandType -eq 'Script') {
-        #     Write-Host 'The script is being run directly from the terminal.'
-        # } elseif ($null -ne $Invocation.MyCommand.Module) {
-        #     Write-Host 'The script has been imported using Import-Module.'
-        # } elseif ($Invocation.MyCommand.CommandType -eq 'Script' -or $Invocation.MyCommand.CommandType -eq 'ExternalScript') {
-        #     Write-Host 'The script is being run from within another script.'
-        # } else {
-        #     Write-Host 'The script context is unclear.'
-        # }
-        return $True;
-    }
-}
-
 function Test-IsNableRunner {
     $WindowName = $Host.UI.RawUI.WindowTitle;
     if (-not $WindowName) { return $False; };
@@ -95,6 +60,52 @@ function Invoke-Teardown {
 }
 
 <#
+.DESCRIPTION
+    Wrapper function to invoke a script block with the context of a cmdlet.
+
+    This also handles the output and errors of the script block,
+    ensuring they are treated as if they were executed in the context of the cmdlet.
+
+.PARAMETER Cmdlet
+    The PSCmdlet object that is invoking the script block.
+
+.PARAMETER ScriptBlock
+    The script block to be invoked in the context of the cmdlet.
+#>
+function Invoke-BlockWrapper {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory)]
+        [System.Management.Automation.Cmdlet]$Cmdlet,
+
+        [Parameter(Mandatory)]
+        [ScriptBlock]$ScriptBlock
+    )
+
+    process {
+        $Result = $Cmdlet.InvokeCommand.InvokeScript(
+            $Cmdlet.SessionState,
+            $Main,
+            [System.Management.Automation.Runspaces.PipelineResultTypes]::All,
+            $Cmdlet.MyInvocation.BoundParameters
+        );
+
+        if ($Cmdlet.InvokeCommand.HasErrors) {
+            Invoke-Verbose 'Throwing error from wrapped script block!';
+            $Error.RemoveAt(-0);
+            # FIXME - Throw all errors.
+            $PSCmdlet.ThrowTerminatingError($Cmdlet.InvokeCommand.Streams.Error[0]);
+        }
+
+
+        if ($Result.Count -gt 0) {
+            Invoke-Verbose 'Writing output from main function.';
+            $Result | ForEach-Object { Write-Output $_; }
+        }
+    }
+}
+
+<#
 .SYNOPSIS
     Runs the main function of a script while ensuring that all common modules have been imported.
 
@@ -103,43 +114,55 @@ function Invoke-Teardown {
     It will ensure that all common modules have been imported, and then invoke the main function of the script.
     This function will automatically clone the repo if required, otherwise try and find the repo on the local machine.
 
-.PARAMETER Invocation
-    The InvocationInfo object of the script.
+.PARAMETER Cmdlet
+    The PSCmdlet object that is invoking the script.
+    This is used to determine if the script is being run directly or imported, as well as enrich the environment with the calling context.
 
 .PARAMETER Main
     The main function of the script, which will be invoked only if the script is being run directly.
     If the script is being imported, this function will not be invoked.
+
+.PARAMETER ImportAction
+    An optional script block that will be invoked if the script is being imported.
+    This is useful for scripts that need to perform some action when imported, but not when run directly.
 #>
 function Invoke-RunMain {
     Param(
+        # If this ends up being null then the script is being imported.
         [Parameter(Mandatory)]
-        [ValidateNotNull()]
+        [AllowNull()]
         [System.Management.Automation.PSCmdlet]$Cmdlet,
 
         [Parameter(Mandatory)]
         [ValidateNotNull()]
         [ScriptBlock]$Main,
 
+        [Parameter()]
+        [ScriptBlock]$ImportAction,
+
         [Parameter(DontShow)]
         [Switch]$NotStrict = $False,
 
         [Parameter(DontShow)]
-        [Switch]$DontImport = (-not (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation)),
+        [Switch]$DontImport = $False,
 
         [Parameter(DontShow)]
-        [Switch]$HideDisclaimer = ($DontImport -or (Test-IsNableRunner))
+        [Switch]$HideDisclaimer = ($DontImport -or (Test-IsNableRunner) -or $null -eq $Cmdlet)
     )
 
     # Workaround for embedding modules in a script, can't use Invoke if a scriptblock contains begin/process/clean blocks
     function Invoke-Inner {
         Param(
             [Parameter(Mandatory)]
-            [ValidateNotNull()]
+            [AllowNull()]
             [System.Management.Automation.PSCmdlet]$Cmdlet,
 
             [Parameter(Mandatory)]
             [ValidateNotNull()]
             [ScriptBlock]$Main,
+
+            [Parameter()]
+            [ScriptBlock]$ImportAction,
 
             [Parameter(DontShow)]
             [Switch]$DontImport,
@@ -166,44 +189,32 @@ function Invoke-RunMain {
 
         process {
             try {
-                # FIXME :: it's not working as expected, currently not executing if ran from within a script.
-                if (Test-ExplicitlyCalled -Invocation:$Cmdlet.MyInvocation) {
+                if ($null -ne $Cmdlet) {
                     Invoke-Verbose -UnicodePrefix '🚀' -Message 'Running main function.';
-
-                    $Result = $Cmdlet.InvokeCommand.InvokeScript(
-                        $Cmdlet.SessionState,
-                        $Main,
-                        [System.Management.Automation.Runspaces.PipelineResultTypes]::All,
-                        $Cmdlet.MyInvocation.BoundParameters
-                    );
-
-                    if ($Cmdlet.InvokeCommand.HasErrors) {
-                        Invoke-Info 'Throwing error from main function.';
-                        throw $Cmdlet.InvokeCommand.Streams.Error[0];
-                    }
-
-                    if ($Result.Count -gt 0) {
-                        Invoke-Info 'Writing output from main function.';
-                        $Result | ForEach-Object { Write-Output $_; }
-                    }
-
+                    Invoke-BlockWrapper -Cmdlet $Cmdlet -ScriptBlock $Main;
                     Invoke-Info 'Main function finished successfully.';
+                } else {
+                    Invoke-Verbose -UnicodePrefix '📦' -Message 'Script is being imported, skipping main function.';
+
+                    if ($ImportAction) {
+                        Invoke-Verbose -UnicodePrefix '📦' -Message 'Running import action.';
+                        Invoke-BlockWrapper -Cmdlet $Cmdlet -ScriptBlock $ImportAction;
+                        Invoke-Info 'Import action finished successfully.';
+                    }
                 }
             } catch [System.Management.Automation.ParseException] {
                 Invoke-Error 'Unable to execute script due to a parse error.';
                 Invoke-FailedExit -ExitCode 9998 -ErrorRecord $_ -DontExit;
             } catch [System.Management.Automation.RuntimeException] {
-                $CatchingError = $_.Exception.ErrorRecord;
+                $CatchingError = $_.Exception.InnerException.ErrorRecord;
                 switch ($CatchingError.FullyQualifiedErrorId) {
                     'QuickExit' {
                         Invoke-Verbose -UnicodePrefix '✅' -Message 'Main function finished successfully.';
                     }
-                    # TODO - Remove the error from the record.
                     'FailedExit' {
                         [Int]$Local:ExitCode = $CatchingError.TargetObject;
                         Invoke-Verbose -Message "Script exited with an error code of $Local:ExitCode.";
                         $LASTEXITCODE = $Local:ExitCode;
-                        $Error.RemoveAt(0);
                     }
                     'RestartScript' {
                         $Script:ScriptRestarting = $True;
