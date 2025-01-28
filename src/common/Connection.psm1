@@ -24,9 +24,11 @@ function Local:Invoke-NonNullParams {
     end { Exit-Scope; }
 
     process {
+        $RemoveKeys = @();
         $Params.GetEnumerator() | Where-Object { $null -eq $_.Value } | ForEach-Object {
-            $Params.Remove($_.Key);
+            $RemoveKeys = $RemoveKeys + $_.Key;
         }
+        $RemoveKeys | ForEach-Object { $Params.Remove($_); }
         Invoke-Debug "Invoking Expression '$FunctionName $($Params.GetEnumerator() | ForEach-Object { "-$($_.Key):$($_.Value)" })'";
         & $FunctionName @Params;
     };
@@ -77,7 +79,13 @@ $Script:Services = @{
     };
     Graph              = @{
         Matchable  = $True;
-        Context    = { Get-MgContext | Select-Object -ExpandProperty Account; };
+        Context    = {
+            try {
+                Get-MgContext | Select-Object -ExpandProperty Account;
+            } catch {
+                $null;
+            }
+        };
         Connect    = { param($Scopes, $AccessToken)
             if ($AccessToken) {
                 Connect-MgGraph -AccessToken:$AccessToken -NoWelcome;
@@ -93,7 +101,11 @@ $Script:Services = @{
                 }
             }
 
-            if (-not (Get-MgContext)) {
+            try {
+                $Local:Context = Get-MgContext;
+            } catch { }
+
+            if (-not $Local:Context) {
                 Connect-MgGraph -Scopes:$Scopes -NoWelcome;
             }
         };
@@ -101,9 +113,9 @@ $Script:Services = @{
         IsValid    = {
             param([String[]]$Scopes)
 
-            $Local:Context = Get-MgContext;
-
-            if ($null -eq $Local:Context) {
+            try {
+                $Local:Context = Get-MgContext;
+            } catch {
                 return $False;
             }
 
@@ -279,8 +291,8 @@ function Connect-Service(
         [String]$Local:Account;
 
         foreach ($Local:Service in $Services) {
-            [String]$Local:Context = try {
-                Get-ServiceContext -Service $Local:Service;
+            try {
+                [String]$Local:Context = Get-ServiceContext -Service $Local:Service;
             } catch {
                 Invoke-Debug "Failed to get connection information for $Local:Service";
                 Format-Error -InvocationInfo $_.InvocationInfo;
@@ -336,10 +348,16 @@ function Connect-Service(
                     Invoke-FailedExit -ExitCode $Script:ERROR_COULDNT_CONNECT -FormatArgs @($Local:Service) -ErrorRecord $_;
                 }
 
-                if ($Local:Account -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
-                    Invoke-Warn 'Not all services are connected with the same account, please reconnect with the same account.';
-                    Disconnect-ServiceInternal -Service $Local:Service;
-                    continue;
+                if ($Local:LastService) {
+                    Invoke-Info 'Checking if all services are connected with the same account...';
+                    Invoke-Info "Service A: $Local:Service";
+                    Invoke-Info "Service B: $Local:LastService";
+
+                    if ($Local:Account -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
+                        Invoke-Warn 'Not all services are connected with the same account, please reconnect with the same account.';
+                        Disconnect-ServiceInternal -Service $Local:Service;
+                        continue;
+                    }
                 }
 
                 if (-not $Local:Account -and (Test-IsMatchable $Local:Service)) {
