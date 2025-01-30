@@ -1,8 +1,8 @@
-Using module ../common/Environment.psm1
-Using module ../common/Logging.psm1
-Using module ../common/Input.psm1
-Using module ../common/Utils.psm1
-Using module ./Common.psm1
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\Input.psm1
+Using module ..\common\Utils.psm1
+Using module .\Common.psm1
 
 [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName = 'Update')]
 Param(

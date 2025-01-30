@@ -11,10 +11,10 @@
         - Intune Device Configuration Profile (Optional)
 #>
 
-Using module ../../common/Environment.psm1
-Using module ../../common/Logging.psm1
-Using module ../../common/Input.psm1
-Using module ../../common/Connection.psm1
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Input.psm1
+Using module ..\..\common\Connection.psm1
 
 Using module Microsoft.Graph.Identity.SignIns
 Using module Microsoft.Graph.Authentication

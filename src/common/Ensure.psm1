@@ -1,8 +1,8 @@
-Using module ./Utils.psm1
-Using module ./Logging.psm1
-Using module ./Scope.psm1
-Using module ./Exit.psm1
-Using module ./Temp.psm1
+Using module .\Utils.psm1
+Using module .\Logging.psm1
+Using module .\Scope.psm1
+Using module .\Exit.psm1
+Using module .\Temp.psm1
 
 Using module @{
     ModuleName    = 'Microsoft.PowerShell.PSResourceGet';

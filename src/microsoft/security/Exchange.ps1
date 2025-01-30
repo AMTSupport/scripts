@@ -1,11 +1,11 @@
 #Requires -Modules ExchangeOnlineManagement
 
-Using module ../../common/Environment.psm1
-Using module ../../common/Logging.psm1
-Using module ../../common/Scope.psm1
-Using module ../../common/Input.psm1
-Using module ../../common/Connection.psm1
-Using module ../Common.psm1
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Scope.psm1
+Using module ..\..\common\Input.psm1
+Using module ..\..\common\Connection.psm1
+Using module ..\Common.psm1
 
 [CmdletBinding()]
 Param(

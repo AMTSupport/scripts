@@ -1,4 +1,4 @@
-Using module ./ModuleUtils.psm1
+Using module .\ModuleUtils.psm1
 
 <#
 .SYNOPSIS

@@ -1,6 +1,6 @@
-Using module ./Utils.psm1
-Using module ./Logging.psm1
-Using module ./Exit.psm1
+Using module .\Utils.psm1
+Using module .\Logging.psm1
+Using module .\Exit.psm1
 
 Using namespace System.Management.Automation.Language
 Using namespace System.Collections.Generic

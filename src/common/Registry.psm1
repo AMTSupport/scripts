@@ -1,5 +1,5 @@
-Using module ./Logging.psm1
-Using module ./Scope.psm1
+Using module .\Logging.psm1
+Using module .\Scope.psm1
 
 function Invoke-EnsureRegistryPath {
     [CmdletBinding(SupportsShouldProcess)]
@@ -106,6 +106,7 @@ function Set-RegistryKey {
         if ($PSCmdlet.ShouldProcess($Path, 'Set')) {
             Invoke-Verbose "Setting registry key '$Path' to '$Value'...";
             Set-ItemProperty -Path $Path -Name $Key -Value $Value -Type $Kind;
+            [Microsoft.Win32.Registry]::SetValue($Path, $Key, $Value, $Kind);
         }
     }
 }

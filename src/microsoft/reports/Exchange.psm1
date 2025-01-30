@@ -1,5 +1,5 @@
-Using module ../../common/Environment.psm1
-Using module ../../common/Connection.psm1
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Connection.psm1
 Using module ExchangeOnlineManagement
 
 function Get-SharedMailboxes {

@@ -1,5 +1,5 @@
-Using module ./Logging.psm1
-Using module ./ModuleUtils.psm1
+Using module .\Logging.psm1
+Using module .\ModuleUtils.psm1
 
 class Flag {
     [String][ValidateNotNull()]$Context;

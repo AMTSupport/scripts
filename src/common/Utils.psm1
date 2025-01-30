@@ -1,6 +1,6 @@
-Using module ./Logging.psm1
-Using module ./Scope.psm1
-Using module ./Exit.psm1
+Using module .\Logging.psm1
+Using module .\Scope.psm1
+Using module .\Exit.psm1
 
 <#
 .SYNOPSIS
@@ -1037,5 +1037,5 @@ function Test-IsWindows11 {
 }
 
 Export-ModuleMember `
-    -Function Test-IsWindows11, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Export-Types, Add-ModuleCallback, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
+    -Function Test-IsWindows11, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
     -Alias await, async, lazy;

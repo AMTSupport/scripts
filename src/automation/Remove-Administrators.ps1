@@ -1,12 +1,12 @@
 #Requires -Version 5.1
 
-Using module ../common/Environment.psm1
-Using module ../common/Logging.psm1
-Using module ../common/Exit.psm1
-Using module ../common/Ensure.psm1
-Using module ../common/Assert.psm1
-Using module ../common/Scope.psm1
-Using module ../common/UsersAndAccounts.psm1
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\Exit.psm1
+Using module ..\common\Ensure.psm1
+Using module ..\common\Assert.psm1
+Using module ..\common\Scope.psm1
+Using module ..\common\UsersAndAccounts.psm1
 
 [CmdletBinding()]
 Param(

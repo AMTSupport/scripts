@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 
-Using module ./Logging.psm1
-Using module ./Exit.psm1
+Using module .\Logging.psm1
+Using module .\Exit.psm1
 
 function Assert-NotNull(
     [Parameter(ValueFromPipeline)]

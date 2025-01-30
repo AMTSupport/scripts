@@ -3,8 +3,8 @@
     Used to print environment variables and other information within a N-Able ScriptRunner environment.
 #>
 
-Using module ../common/Environment.psm1
-Using module ../common/Logging.psm1
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
 
 [CmdletBinding()]
 param()
