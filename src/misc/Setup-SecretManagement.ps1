@@ -1,10 +1,10 @@
 #!ignore
 #Requires -Version 7.4
 
-Using module ../common/Environment.psm1
-Using module ../common/Ensure.psm1
-Using module ../common/Input.psm1
-Using module ../common/Utils.psm1
+Using module ..\common\Environment.psm1
+Using module ..\common\Ensure.psm1
+Using module ..\common\Input.psm1
+Using module ..\common\Utils.psm1
 
 Using module Microsoft.PowerShell.SecretManagement
 

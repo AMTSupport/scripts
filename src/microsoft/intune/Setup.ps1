@@ -3,11 +3,11 @@
     Before use, must opt into beta shcemas, after logging into MSGraph run Update-MSGraphEnvironment -SchemaVersion 'beta';
 #>
 
-Using module ../../common/Environment.psm1
-Using module ../../common/Logging.psm1
-Using module ../../common/Connection.psm1
-Using module ../../common/Scope.psm1
-Using module ../../common/Exit.psm1
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Connection.psm1
+Using module ..\..\common\Scope.psm1
+Using module ..\..\common\Exit.psm1
 
 Using module Microsoft.Graph.Authentication
 Using module Microsoft.Graph.Beta.DeviceManagement

@@ -1,13 +1,13 @@
 #Requires -Version 5.1
 
-Using module ../../common/Environment.psm1
-Using module ../../common/Logging.psm1
-Using module ../../common/Input.psm1
-Using module ../../common/Ensure.psm1
-Using module ../../common/Utils.psm1
-Using module ../../common/PackageManager.psm1
-Using module ../../common/UsersAndAccounts.psm1
-Using module ../../common/Registry.psm1
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Input.psm1
+Using module ..\..\common\Ensure.psm1
+Using module ..\..\common\Utils.psm1
+Using module ..\..\common\PackageManager.psm1
+Using module ..\..\common\UsersAndAccounts.psm1
+Using module ..\..\common\Registry.psm1
 
 [CmdletBinding(SupportsShouldProcess)]
 param (

@@ -16,9 +16,9 @@
     System, Windows, Power, Boot
 #>
 
-Using module ../common/Environment.psm1
-Using module ../common/Ensure.psm1
-Using module ../common/Registry.psm1
+Using module ..\common\Environment.psm1
+Using module ..\common\Ensure.psm1
+Using module ..\common\Registry.psm1
 
 [CmdletBinding()]
 param()

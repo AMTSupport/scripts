@@ -1,7 +1,7 @@
-Using Module ../common/Logging.psm1
-Using Module ../common/Scope.psm1
-Using Module ../common/Connection.psm1
-Using Module ../common/Input.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\Scope.psm1
+Using module ..\common\Connection.psm1
+Using module ..\common\Input.psm1
 
 Using Module Microsoft.Graph.Authentication
 Using Module Microsoft.Graph.Identity.DirectoryManagement

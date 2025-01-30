@@ -1,6 +1,6 @@
-Using module ../common/Environment.psm1
-Using module ../common/Connection.psm1
-Using module ./Common.psm1
+Using module ..\common\Environment.psm1
+Using module ..\common\Connection.psm1
+Using module .\Common.psm1
 
 Using module Microsoft.Online.SharePoint.PowerShell
 Using module AzureAD

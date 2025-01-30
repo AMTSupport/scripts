@@ -1,8 +1,8 @@
 #Requires -Version 5.1
 
-Using module ../../common/Environment.psm1
-Using module ../../common/Logging.psm1
-Using module ../../common/Connection.psm1
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Connection.psm1
 
 Using module ExchangeOnlineManagement
 

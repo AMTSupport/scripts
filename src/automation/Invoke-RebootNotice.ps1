@@ -33,11 +33,11 @@
     Runs the script with time windows from 7-9, 12-14, and 16-19.
 #>
 
-Using module ../common/Environment.psm1
-Using module ../common/Logging.psm1
-Using module ../common/Scope.psm1
-Using module ../common/Flag.psm1
-Using module ../common/Exit.psm1
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\Scope.psm1
+Using module ..\common\Flag.psm1
+Using module ..\common\Exit.psm1
 
 using namespace System.Collections.Generic
 

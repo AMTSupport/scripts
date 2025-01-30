@@ -1,6 +1,6 @@
-Using module ../../common/Environment.psm1
-Using module ../../common/Input.psm1
-Using module ../Common.psm1
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Input.psm1
+Using module ..\Common.psm1
 
 Using module Microsoft.Graph.Beta.Security
 
