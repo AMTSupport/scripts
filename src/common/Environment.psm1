@@ -85,7 +85,7 @@ function Invoke-BlockWrapper {
     process {
         $Result = $Cmdlet.InvokeCommand.InvokeScript(
             $Cmdlet.SessionState,
-            $Main,
+            $ScriptBlock,
             [System.Management.Automation.Runspaces.PipelineResultTypes]::All,
             $Cmdlet.MyInvocation.BoundParameters
         );
