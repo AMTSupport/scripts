@@ -73,7 +73,7 @@ begin {
 }
 process {
     try {
-        $Result = Start-Job { & $Using:ScriptPath @PSBoundParameters } | Receive-Job -Wait -AutoRemoveJob;
+        $Result = Start-Job { & $Using:ScriptPath @Using:PSBoundParameters } | Receive-Job -Wait -AutoRemoveJob;
     } finally {
         $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
         $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force; }
