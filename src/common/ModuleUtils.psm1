@@ -139,7 +139,16 @@ function Add-ModuleCallback {
         throw [System.InvalidOperationException]::new('This function must be called from within a module.');
     }
 
-    $Module.OnRemove = $ScriptBlock;
+    if ($Module.OnRemove) {
+        $PreviousScriptBlock = $Module.OnRemove;
+        $Module.OnRemove = {
+            & $PreviousScriptBlock;
+            & $ScriptBlock;
+        }.GetNewClosure();
+        return;
+    } else {
+        $Module.OnRemove = $ScriptBlock;
+    }
 }
 
 Export-ModuleMember -Function Export-Types, Add-ModuleCallback;
