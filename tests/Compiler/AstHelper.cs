@@ -476,6 +476,13 @@ file static class TestData {
                 }>
                 """;
 
+                var templateByAttributeArray = /*ps1*/ """
+                <function Test-Function{0} {
+                    [Alias('{name}', 'Other-{name}')]
+                    param()
+                }>
+                """;
+
                 var nameTemplate = "Test-Alias{0}";
                 var counts = new[] { 1, 2, 5 };
                 for (var i = 0; i < counts.Length * 2; i++) {
@@ -483,9 +490,12 @@ file static class TestData {
                     var count = counts[i / 2];
                     var (byFunctionContent, expectedByFunction) = GetTemplatedData(templateByFunction, nameTemplate, count, Environment.NewLine, "Alias", withExport);
                     var (byAttributeContent, expectedByAttribute) = GetTemplatedData(templateByAttribute, nameTemplate, count, Environment.NewLine, "Alias", withExport);
+                    var (byAttributeArrayContent, expectedByAttributeArray) = GetTemplatedData(templateByAttributeArray, nameTemplate, count, Environment.NewLine, "Alias", withExport);
 
                     yield return new TestCaseData(byFunctionContent, expectedByFunction, withExport);
                     yield return new TestCaseData(byAttributeContent, expectedByAttribute, withExport);
+                    yield return new TestCaseData(byAttributeArrayContent, expectedByAttributeArray, withExport);
+
                 }
             }
         }
@@ -511,12 +521,28 @@ file static class TestData {
             var data = new StringBuilder().Append(beforeZone);
             for (var i = 0; i < count; i++) {
                 var name = nameTemplate.Replace("{0}", i.ToString(CultureInfo.InvariantCulture));
+                exportNames.Add(name);
+                // Find each instance of {name} and add it to the export names
+                while (copyableZone.Contains("{name}")) {
+                    var index = copyableZone.IndexOf("{name}", StringComparison.Ordinal);
+                    var originalIndex = index;
+                    var originalEnd = index + 6;
+                    // Go back and forward for all connecting characters, including only a-z and - characters
+                    var start = originalIndex;
+                    while (start > 0 && (char.IsLetter(copyableZone[start - 1]) || copyableZone[start - 1] == '-')) start--;
+                    var end = originalEnd;
+                    while (end < copyableZone.Length - 1 && (char.IsLetter(copyableZone[end + 1]) || copyableZone[start + 1] == '-')) end++;
+
+                    name = copyableZone[start..end].Replace("{name}", name);
+                    // exportNames.Add(name);
+                    copyableZone = copyableZone.Remove(start, end - start).Insert(start, name);
+                }
+
                 data.Append(copyableZone.Replace("{name}", name).Replace("{0}", i.ToString(CultureInfo.InvariantCulture)));
                 if (i != count - 1) data.Append(seperator);
-
-                exportNames.Add(name);
             }
 
+            exportNames = [.. exportNames.Distinct()];
             data.Append(afterZone);
 
             if (withExport) {

@@ -2,12 +2,25 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using Compiler.Analyser.Rules;
+using Compiler.Module.Compiled;
+using Compiler.Test.Module.Compiled;
 using static LanguageExt.Prelude;
 
 namespace Compiler.Test.Analyser.Rules;
 
 [TestFixture]
 public class MissingCmdletTests {
+    [Test]
+    public void OnlySupportsCompiledScript() {
+        var rule = new MissingCmdlet();
+        Assert.Multiple(() => {
+            var compiledScript = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>();
+            var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>();
+            Assert.That(rule.SupportsModule(compiledScript), Is.True);
+            Assert.That(rule.SupportsModule(module), Is.False);
+        });
+    }
+
     [TestCaseSource(typeof(Data), nameof(Data.TestCases))]
     public bool Test(string script) {
         var visitor = new RuleVisitor([new MissingCmdlet()], []);
