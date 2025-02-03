@@ -105,7 +105,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
         var rootParent = this.GetRootParent();
         if (rootParent is not CompiledScript script) return [];
 
-        return script.Graph.Vertices.Where(compiled => compiled != this).ToArray();
+        return [.. script.Graph.Vertices.Where(compiled => compiled != this)];
     }
 
     /// <summary>

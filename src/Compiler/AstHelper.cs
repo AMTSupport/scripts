@@ -113,20 +113,36 @@ public static class AstHelper {
         availableAliases.AddRange(allFunctionsWithAliases.SelectMany(function => function.Body.ParamBlock.Attributes
             .Where(attribute => attribute.TypeName.GetReflectionAttributeType() == attributeType)
             .SelectMany(attribute => {
-                var aliasesObject = attribute.NamedArguments.FirstOrDefault(namedArg => namedArg.ArgumentName is "aliasNames")?.Argument
-                    ?? attribute.PositionalArguments.FirstOrDefault();
+                var aliasesObjects = new List<ExpressionAst>();
+                if (attribute.NamedArguments.Any(namedArg => namedArg.ArgumentName is "aliasNames")) {
+                    aliasesObjects.Add(attribute.NamedArguments.First(namedArg => namedArg.ArgumentName is "aliasNames").Argument);
+                } else if (attribute.PositionalArguments.Count != 0) {
+                    aliasesObjects.AddRange(attribute.PositionalArguments);
+                }
 
-                return aliasesObject switch {
-                    ArrayLiteralAst arrayLiteralAst => arrayLiteralAst.Elements.Select(element => element.SafeGetValue()).Cast<string>(),
-                    StringConstantExpressionAst stringConstantAst => [stringConstantAst.Value],
-                    _ => [],
-                };
+                if (aliasesObjects is null) return [];
+
+                var aliases = new List<string>();
+                foreach (var aliasesObject in aliasesObjects) {
+                    switch (aliasesObject) {
+                        case ArrayLiteralAst arrayLiteralAst:
+                            aliases.AddRange(arrayLiteralAst.Elements.Select(element => element.SafeGetValue()).Cast<string>());
+                            break;
+                        case StringConstantExpressionAst stringConstantAst:
+                            aliases.Add(stringConstantAst.Value);
+                            break;
+                        default:
+                            Logger.Error($"Unknown alias type: {aliasesObject}");
+                            break;
+                    }
+                }
+
+                return aliases;
             })
         ));
 
         availableAliases.AddRange(allAstFunctionCalls.SelectMany(static commandAst => commandAst.CommandElements
-            .Where(static commandElement => commandElement is CommandParameterAst)
-            .Cast<CommandParameterAst>()
+            .OfType<CommandParameterAst>()
             .Where(static param => param.ParameterName == "Name")
             .Select(param => {
                 var value = param.Argument ?? commandAst.CommandElements[commandAst.CommandElements.IndexOf(param) + 1] as ExpressionAst;
@@ -159,8 +175,7 @@ public static class AstHelper {
         foreach (var exportCommand in exportCommands) {
             // TODO - Support unnamed export param eg `Export-ModuleMember *`
             var namedParameters = exportCommand.CommandElements
-                .Where(commandElement => commandElement is CommandParameterAst)
-                .Cast<CommandParameterAst>()
+                .OfType<CommandParameterAst>()
                 .Where(param => param.ParameterName.Equals(kind, StringComparison.OrdinalIgnoreCase));
 
             foreach (var namedParameter in namedParameters) {
@@ -204,7 +219,6 @@ public static class AstHelper {
         out Token[] tokens
     ) {
         ArgumentNullException.ThrowIfNull(astContent);
-        ArgumentNullException.ThrowIfNull(filePath);
         ArgumentNullException.ThrowIfNull(ignoredErrors);
 
         var ast = Parser.ParseInput(astContent, filePath.ValueUnsafe(), out tokens, out var parserErrors);
@@ -229,7 +243,6 @@ public static class AstHelper {
         [NotNull] IssueSeverity severity = IssueSeverity.Error) {
         ArgumentNullException.ThrowIfNull(extent);
         ArgumentNullException.ThrowIfNull(parentAst);
-        ArgumentNullException.ThrowIfNull(message);
 
 
         var problemColour = severity switch {
@@ -249,7 +262,7 @@ public static class AstHelper {
 
         while (parentAst.Parent != null) {
             parentAst = parentAst.Parent;
-        };
+        }
         var extentRegion = parentAst.Extent.Text.Split('\n')[(startingLine - 1)..endingLine];
 
         var printableLines = new string[extentRegion.Length];
