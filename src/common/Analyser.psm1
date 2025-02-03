@@ -8,7 +8,7 @@ Using module .\ModuleUtils.psm1
 #>
 
 $CSFilePath = "$PSScriptRoot\..\Compiler\Analyser\Suppression.cs";
-if (-not (Get-Variable -Name 'CompiledScript' -Scope Global -ValueOnly -ErrorAction SilentlyContinue) -and (Test-Path -Path $CSFilePath -PathType Leaf)) {
+if ($PSVersionTable.PSVersion.Major -ge 6 -and -not (Get-Variable -Name 'CompiledScript' -Scope Global -ValueOnly -ErrorAction SilentlyContinue) -and (Test-Path -Path $CSFilePath -PathType Leaf)) {
     Add-Type -LiteralPath $CSFilePath;
 } else {
     $SuppressionCSharp = @'
