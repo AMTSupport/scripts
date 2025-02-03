@@ -10,6 +10,10 @@ insert_final_newline = true
 max_line_length = 130
 rulers = 80,100,120
 
+# Actually go fuck yourself microsoft.
+[*.{ps1,psm1}]
+charset = utf-8-bom
+
 [*.{patch,diff}]
 trim_trailing_whitespace = false
 insert_final_newline = false
