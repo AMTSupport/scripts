@@ -16,14 +16,20 @@ using System;
 
 namespace Compiler.Analyser {
     [AttributeUsage(AttributeTargets.All, AllowMultiple = true, Inherited = false)]
-    public sealed class SuppressAnalyserAttribute(
-        string CheckType,
-        object Data = null,
-        string Justification = ""
-    ) : Attribute {
-        public string CheckType { get; }
-        public object Data { get; }
-        public string Justification { get; }
+    public sealed class SuppressAnalyserAttribute : Attribute {
+        public readonly string CheckType;
+        public readonly object Data;
+        public readonly string Justification;
+
+        public SuppressAnalyserAttribute(
+            string CheckType,
+            object Data = null,
+            string Justification = ""
+        ) {
+            this.CheckType = CheckType;
+            this.Data = Data;
+            this.Justification = Justification;
+        }
     }
 }
 '@;
