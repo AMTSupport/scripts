@@ -60,7 +60,24 @@
             "type": "coreclr",
             "request": "attach",
             "processId": "${command:pickProcess}",
-            "justMyCode": false
+            "justMyCode": false,
+            "requireExactSource": false
+        },
+        {
+            "name": ".NET CLR Attach",
+            "type": "clr",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+            "justMyCode": false,
+            "requireExactSource": false
+        },
+        {
+            "name": "Launch Windows Powershell with Debugger",
+            "type": "clr",
+            "request": "launch",
+            "justMyCode": false,
+            "requireExactSource": false,
+            "program": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
         }
     ],
     "inputs": [
