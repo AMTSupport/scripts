@@ -94,9 +94,6 @@ public partial class ResolvableLocalModule : Resolvable {
     }
 
     public override Task<Option<Error>> ResolveRequirements() {
-        string[] dontAddTo = ["Analyser", "ModuleUtils"];
-        var foundAnalyserModule = dontAddTo.Contains(Path.GetFileNameWithoutExtension(this.ModuleSpec.Name));
-
         AstHelper.FindDeclaredModules(this.RequirementsAst).ToList().ForEach(module => {
             if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast) {
                 this.Editor.AddExactEdit(
@@ -127,10 +124,6 @@ public partial class ResolvableLocalModule : Resolvable {
                     (Version?)requiredVersion
                 );
 
-            if (spec.Name.EndsWith("Analyser.psm1", StringComparison.OrdinalIgnoreCase)) {
-                foundAnalyserModule = true;
-            }
-
             lock (this.Requirements) {
                 this.Requirements.AddRequirement(spec);
             }
@@ -152,6 +145,7 @@ public partial class ResolvableLocalModule : Resolvable {
             }
         });
 
+        // FIXME - This gets duplicated.
         if (this.RequirementsAst.ScriptRequirements is not null) {
             if (this.RequirementsAst.ScriptRequirements.IsElevationRequired) {
                 lock (this.Requirements) {
@@ -174,14 +168,15 @@ public partial class ResolvableLocalModule : Resolvable {
             }
         }
 
-        // TODO - Cleanup this fuckfest of a workaround.
+        string[] dontAddTo = ["Analyser", "ModuleUtils"];
+        var dontAddAnalyser = dontAddTo.Contains(this.ModuleSpec.Name) ||
+            this.Requirements.GetRequirements<ModuleSpec>().Any(spec => dontAddTo.Contains(spec.Name, StringComparer.OrdinalIgnoreCase));
+
         // Add a reference to the Analyser.psm1 file to ensure all files have access to the SuppressAnalyserAttribute
-        if (!foundAnalyserModule) {
+        if (!dontAddAnalyser) {
             lock (this.Requirements) {
-                var moduleUtilsPath = GetExportedResource("ModuleUtils.psm1").Unwrap();
                 var analyserPath = GetExportedResource("Analyser.psm1").Unwrap();
-                this.Requirements.AddRequirement(new PathedModuleSpec(Directory.GetParent(moduleUtilsPath)!.FullName, moduleUtilsPath)); // Safety - We know this will always be present in the resources.
-                this.Requirements.AddRequirement(new PathedModuleSpec(Directory.GetParent(analyserPath)!.FullName, analyserPath)); // Safety - We know this will always be present in the resources.
+                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(analyserPath)!.FullName, analyserPath)); // Safety - We know this will always be present in the resources.
             }
         }
 
