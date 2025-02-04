@@ -21,7 +21,7 @@ function Test-SupportsUnicode {
 }
 
 function Test-SupportsColour {
-    $Host.UI.SupportsVirtualTerminal -and -not (Test-IsNableRunner);
+    -not (Test-IsNableRunner);
 }
 
 function Invoke-Write {
