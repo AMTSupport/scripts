@@ -60,6 +60,14 @@ function Export-Types {
         $ExistingTypeAccelerators = $TypeAcceleratorsClass::Get;
         foreach ($Type in $Types) {
             if ($Type.FullName -in $ExistingTypeAccelerators.Keys) {
+                # Allow overriding if the exporter is the same module that originally made it.
+                $Local:LoadedType = $ExistingTypeAccelerators[$Type.FullName];
+                $Local:Assembly = $Local:LoadedType.Module.Assembly;
+                $Local:LoadingFile = ($Local:Assembly.CustomAttributes.NamedArguments | Where-Object { $_.MemberName -eq 'ScriptFile' }).TypedValue.Value;
+                if ($Local:LoadingFile -eq $Module.Path) {
+                    continue;
+                }
+
                 $Message = @(
                     "Unable to register type accelerator '$($Type.FullName)'"
                     'Accelerator already exists.'
