@@ -121,6 +121,64 @@ function Format-Error(
         [String]$Local:Statement = $TrimmedLine;
     }
 
+    # FIXME : If the statement is larger than the width it starts cutting it off from the right side.
+    # Remove 10 from the total width to allow for padding & line context.
+    # Then an additional 6 to account for possible ellipsis.
+    $Padding = 16;
+    $Local:ConsoleWidth = $Host.UI.RawUI.BufferSize.Width - $Padding;
+    if ($Local:TrimmedLine.Length -gt $Local:ConsoleWidth) {
+
+        $Local:TrimLength = $Local:TrimmedLine.Length - $Local:ConsoleWidth;
+        $Local:LeftSide = $Local:StatementIndex - 1;
+        $Local:RightSide = $Local:TrimmedLine.Length - $Local:StatementIndex - $Local:Statement.Length;
+
+        $GreaterSide;
+        $LesserSide;
+        if ($LeftSide -ge $RightSide) {
+            $GreaterSide = $LeftSide;
+            $LesserSide = $RightSide;
+        } else {
+            $GreaterSide = $RightSide;
+            $LesserSide = $LeftSide;
+        };
+        $Difference = [System.Math]::Min($GreaterSide - $LesserSide, $TrimLength);
+
+        $StartIndex = 0;
+        $EndIndex = $TrimmedLine.Length - $Difference;
+        if ($GreaterSide -eq $LeftSide) {
+            $TrimLength -= $Difference;
+            $StartIndex = $Difference;
+            $Local:StatementIndex -= $Difference;
+
+            if ($TrimLength -gt 0) {
+                $FromEachSide = [System.Math]::Ceiling($TrimLength / 2);
+                $EndIndex -= $TrimLength;
+                $StartIndex += $FromEachSide;
+                $Local:StatementIndex -= $FromEachSide;
+            }
+        } else {
+            $TrimLength -= $Difference;
+
+            if ($TrimLength -gt 0) {
+                $FromEachSide = [System.Math]::Ceiling($TrimLength / 2);
+                $EndIndex -= $TrimLength;
+                $StartIndex += $FromEachSide;
+                $Local:StatementIndex -= $FromEachSide;
+            }
+        }
+
+        $Local:TrimmedLine = $Local:TrimmedLine.Substring($StartIndex, $EndIndex);
+
+        # If either side is trimmed then add the ellipsis.
+        if ($StartIndex -gt 0) {
+            $Local:TrimmedLine = "...$Local:TrimmedLine";
+            $Local:StatementIndex += 3;
+        }
+        if ($EndIndex -lt $Local:TrimmedLine.Length) {
+            $Local:TrimmedLine = "$Local:TrimmedLine...";
+        }
+    }
+
     [String]$Local:Underline = (' ' * ($Local:StatementIndex + 10)) + ('^' * $Local:Statement.Length);
 
     # Position the message to the same indent as the statement.
@@ -420,11 +478,11 @@ function Invoke-Progress {
         [String]$Activity,
 
         [Parameter(HelpMessage = '
-        The status message to display in the progress bar.
-        This is formatted with three placeholders:
-            The current completion percentage.
-            The index of the item being processed.
-            The total number of items being processed.
+            The status message to display in the progress bar.
+            This is formatted with three placeholders:
+                The current completion percentage.
+                The index of the item being processed.
+                The total number of items being processed.
         ')]
         [String]$Status,
 
