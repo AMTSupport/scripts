@@ -31,7 +31,8 @@ function Get-SupportedProcessor {
 
         if ($Brand -eq 'Intel') {
             $SupportedProcessors = $RawProcessors | ForEach-Object {
-                $_ -replace '®', '®,' `
+                $_ -replace '®', '(R),' `
+                    -replace '™', '(TM),' `
                     -replace 'Processor', 'Processor,'; # Single outlier that needs to be split
             };
         } elseif ($Brand -eq 'AMD') {
