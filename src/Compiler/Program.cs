@@ -340,7 +340,9 @@ public class Program {
 
         Logger.Trace($"Writing to file {outputPath}");
         using var fileStream = File.Open(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await fileStream.WriteAsync(Encoding.UTF8.GetBytes(content));
+        var encoder = new UTF8Encoding(true);
+        fileStream.Write(encoder.GetPreamble(), 0, encoder.GetPreamble().Length);
+        await fileStream.WriteAsync(encoder.GetBytes(content));
     }
 
     public static async Task<int> OutputErrors(
