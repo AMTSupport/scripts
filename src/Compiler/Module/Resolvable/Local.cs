@@ -12,7 +12,7 @@ using LanguageExt;
 namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableLocalModule : Resolvable {
-    private static readonly string TempModuleExportPath = Path.Combine(Path.GetTempPath(), "Compiler", "ExportedModules");
+    private static readonly string TempModuleExportPath = Path.Combine(Path.GetTempPath(), "Compiler", $"ExportedModules_{Environment.ProcessId}");
     private static readonly ConcurrentDictionary<string, Fin<string>> EmbeddedResources = [];
 
     internal readonly ScriptBlockAst RequirementsAst;
@@ -176,7 +176,9 @@ public partial class ResolvableLocalModule : Resolvable {
         if (!dontAddAnalyser) {
             lock (this.Requirements) {
                 var analyserPath = GetExportedResource("Analyser.psm1").Unwrap();
+                var moduleUtilsPath = GetExportedResource("ModuleUtils.psm1").Unwrap();
                 this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(analyserPath)!.FullName, analyserPath)); // Safety - We know this will always be present in the resources.
+                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(moduleUtilsPath)!.FullName, moduleUtilsPath)); // Safety - We know this will always be present in the resources.
             }
         }
 
