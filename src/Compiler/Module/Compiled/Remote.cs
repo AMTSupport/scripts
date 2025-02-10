@@ -37,15 +37,11 @@ public class CompiledRemoteModule : Compiled {
 
     public override Version Version { get; }
 
-    public override byte[] ContentBytes { get; init; }
-
     public CompiledRemoteModule(
         ModuleSpec moduleSpec,
         RequirementGroup requirements,
         byte[] bytes
-    ) : base(moduleSpec, requirements) {
-        this.ContentBytes = bytes;
-
+    ) : base(moduleSpec, requirements, new Lazy<byte[]>(bytes)) {
         var manifest = this.GetPowerShellManifest();
         this.Version = manifest["ModuleVersion"] switch {
             string version => Version.Parse(version),
@@ -67,7 +63,7 @@ public class CompiledRemoteModule : Compiled {
     }
 
     public override string StringifyContent() {
-        var base64 = Convert.ToBase64String(this.ContentBytes);
+        var base64 = Convert.ToBase64String(this.ContentBytes!.Value);
         return $"'{base64}'";
     }
 
@@ -132,7 +128,7 @@ public class CompiledRemoteModule : Compiled {
         return exportedFunctions;
     }
 
-    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(new MemoryStream((byte[])this.ContentBytes.Clone()), ZipArchiveMode.Read, false);
+    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(new MemoryStream((byte[])this.ContentBytes.Value.Clone()), ZipArchiveMode.Read, false);
 
     private Hashtable GetPowerShellManifest() {
         if (this.PowerShellManifest != null) return this.PowerShellManifest;

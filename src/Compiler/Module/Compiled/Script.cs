@@ -141,7 +141,7 @@ public partial class CompiledScript : CompiledLocalModule {
         if (FillTemplate(template, replacements).IsErr(out var error, out var filledTemplate)) {
             Program.Errors.Add(error);
             return string.Empty;
-        };
+        }
 
         return filledTemplate;
     }

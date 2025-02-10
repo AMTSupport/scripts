@@ -31,7 +31,7 @@ public sealed class RuleVisitor(
         if (GetSupressions(ast).IsErr(out var err, out var suppressions)) {
             this.Issues.AddRange(((ManyErrors)err).Errors.Cast<Issue>());
             return AstVisitAction.SkipChildren;
-        };
+        }
 
         foreach (var rule in this.Rules) {
             // If the key doesn't exist assume we support it, this allows for usage outside of the visitor like in tests.

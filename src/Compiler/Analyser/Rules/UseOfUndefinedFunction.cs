@@ -16,7 +16,7 @@ public class UseOfUndefinedFunction : Rule {
     /// A list of all the built-in functions that are provided in a standard session.
     /// This includes modules that are imported by default.
     /// </summary>
-    private static readonly HashSet<string> BuiltinsFunctions = GetDefaultSessionFunctions().ToHashSet();
+    private static readonly HashSet<string> BuiltinsFunctions = [.. GetDefaultSessionFunctions()];
 
     // Don't use a concurrent dictionary as just having it per thread is actually faster.
     private static readonly ThreadLocal<Dictionary<Ast, HashSet<string>>> AvailableFunctionsAndAliasesForAst = new(() => []);

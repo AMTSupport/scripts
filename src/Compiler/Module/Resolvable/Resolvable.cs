@@ -272,7 +272,7 @@ public class ResolvableParent {
                 Logger.Trace($"{(compiledModule.IsFail ? "Unsuccessfully" : "Successfully")} compiled script {resolvable.ModuleSpec.Name}");
             }).ContinueWith(task => {
                 if (task.IsFaulted) {
-                    Logger.Error(task.Exception, "Failed to compile top level script.");
+                    Logger.Error(task.Exception, "Failed to compile top level script {0}", resolvable.ModuleSpec.Name);
                     Program.Errors.Add(task.Exception);
                 }
             }));
@@ -418,7 +418,7 @@ public class ResolvableParent {
                     goto default;
                 default:
                     break;
-            };
+            }
 
             if (resultingResolvable is null) {
                 return FinFail<Option<Resolvable>>(Error.New($"Failed to resolve {moduleToResolve.Name}."));
