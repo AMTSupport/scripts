@@ -2,6 +2,10 @@
 
 Using module ..\..\common\Scope.psm1
 Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Registry.psm1
+
+$TradeMarkUnicode = [char]0x2122;
+$RegisteredTradeMarkUnicode = [char]0x00AE;
 
 function Get-SupportedProcessor {
     [CmdletBinding()]
@@ -31,8 +35,8 @@ function Get-SupportedProcessor {
 
         if ($Brand -eq 'Intel') {
             $SupportedProcessors = $RawProcessors | ForEach-Object {
-                $_ -replace '®', '(R),' `
-                    -replace '™', '(TM),' `
+                $_ -replace $RegisteredTradeMarkUnicode, '(R),' `
+                    -replace $TradeMarkUnicode, '(TM),' `
                     -replace 'Processor', 'Processor,'; # Single outlier that needs to be split
             };
         } elseif ($Brand -eq 'AMD') {
@@ -41,24 +45,24 @@ function Get-SupportedProcessor {
 
                 # Ordering is important here, as we want to split on the most specific first
                 $BrandModelSplitPoints = @(
-                    'Ryzen™ Threadripper™ PRO'
-                    'Ryzen™ Embedded'
+                    "Ryzen$TradeMarkUnicode Threadripper$TradeMarkUnicode PRO"
+                    "Ryzen$TradeMarkUnicode Embedded"
                     'Ryzen Embedded R2000 Series'
-                    'Ryzen™ \d [A-z]+'
-                    'Ryzen™ \d'
-                    'Ryzen™'
-                    'EPYC™'
-                    'Athlon™'
+                    "Ryzen$TradeMarkUnicode \d [A-z]+"
+                    "Ryzen$TradeMarkUnicode \d"
+                    "Ryzen$TradeMarkUnicode"
+                    "EPYC$TradeMarkUnicode"
+                    "Athlon$TradeMarkUnicode"
                     'AMD'
                 );
 
                 $BrandModel = $Split -split "($($BrandModelSplitPoints -join '|'))";
-                "AMD,$($BrandModel[1]),$($BrandModel[2])" -replace '™','';
+                "AMD,$($BrandModel[1]),$($BrandModel[2])" -replace $TradeMarkUnicode, '';
             };
         } elseif ($Brand -eq 'Qualcomm') {
             $SupportedProcessors = $RawProcessors | ForEach-Object {
-                $_ -replace '®', ',' `
-                    -replace '™', ',';
+                $_ -replace $RegisteredTradeMarkUnicode, ',' `
+                    -replace $TradeMarkUnicode, ',';
             };
         } else {
             Invoke-Error "Unsupported processor brand: $Brand";
@@ -115,9 +119,7 @@ function Test-CanUpgrade {
         if ($Result.Values -contains $False -or $Result["64 Bit OS"] -eq $False) {
             Invoke-Error 'Your system does not meet the minimum requirements to upgrade to Windows 11, see the details below:';
             $Result.GetEnumerator() | ForEach-Object {
-                if (-not $_.Value) {
-                    Invoke-Error "$($_.Key): $($_.Value)";
-                }
+                Invoke-Error "$($_.Key): $($_.Value)";
             }
             return $False;
         }
@@ -137,6 +139,21 @@ function Test-CanUpgrade {
         }
 
         return $True;
+    }
+}
+
+function Write-SetupError([Bool]$MaybeSuccess) {
+    $RegPath = 'HKLM:\SYSTEM\Setup\setupdiag\results';
+    $Success = Get-RegistryKey $RegPath 'OperationCompletedSuccessfully';
+    if ($Success -and $MaybeSuccess) {
+        Invoke-Info 'Windows 11 upgrade completed successfully';
+    } else {
+        $FailureData = Get-RegistryKey $RegPath 'FailureData';
+        $FailureDetails = Get-RegistryKey $RegPath 'FailureDetails';
+
+        Invoke-Error "Windows 11 upgrade failed, see the details below:";
+        Invoke-Error "Failure Data: $FailureData";
+        Invoke-Error "Failure Details: $FailureDetails";
     }
 }
 
@@ -163,11 +180,11 @@ function Update-ToWin11 {
             # Dont auto reboot
             Start-Process -FilePath $Private:OutputFile -ArgumentList "/QuietInstall /SkipEULA /auto upgrade /UninstallUponUpgrade /copylogs $Private:Dir" -Wait;
 
-            # send ui message after complete,
-
-            Invoke-Info 'Windows 11 upgrade completed successfully, please reboot to continue...';
+            # send ui message after complete
+            Write-SetupError $True;
         } catch {
             Invoke-Error "There was an error upgrading to Windows 11, please check the logs for more information inside $Private:Dir";
+            Write-SetupError $False;
             $PSCmdlet.ThrowTerminatingError($_);
         }
     }
