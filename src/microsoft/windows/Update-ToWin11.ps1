@@ -7,6 +7,10 @@ Using module .\Update-ToWin11.psm1
 param(
     [Parameter()]
     [ValidateNotNull()]
+    [Switch]$SkipCheck,
+
+    [Parameter()]
+    [ValidateNotNull()]
     [Switch]$CheckOnly,
 
     [Parameter()]
@@ -15,7 +19,7 @@ param(
 )
 
 Invoke-RunMain $PSCmdlet {
-    if (-not (Test-CanUpgrade -AlwaysShowResults:$AlwaysShowResults) -or $CheckOnly) {
+    if (-not $SkipCheck -and -not (Test-CanUpgrade -AlwaysShowResults:$AlwaysShowResults) -or $CheckOnly) {
         return;
     }
 
