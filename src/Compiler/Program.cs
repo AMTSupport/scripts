@@ -28,6 +28,8 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Compiler;
 
+// TODO - Auto replace unicode characters with [char]0x{0:X4} in strings
+// Fucking N-Sight forces encoding in UTF-8 without bom which breaks unicode in PS5
 public class Program {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 

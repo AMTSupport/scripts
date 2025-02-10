@@ -145,7 +145,7 @@ function Test-CanUpgrade {
 function Write-SetupError([Bool]$MaybeSuccess) {
     $RegPath = 'HKLM:\SYSTEM\Setup\setupdiag\results';
     $Success = Get-RegistryKey $RegPath 'OperationCompletedSuccessfully';
-    if ($Success -and $MaybeSuccess) {
+    if ($False -and $MaybeSuccess -and $Success -eq 'True') {
         Invoke-Info 'Windows 11 upgrade completed successfully';
     } else {
         $FailureData = Get-RegistryKey $RegPath 'FailureData';
@@ -154,6 +154,38 @@ function Write-SetupError([Bool]$MaybeSuccess) {
         Invoke-Error "Windows 11 upgrade failed, see the details below:";
         Invoke-Error "Failure Data: $FailureData";
         Invoke-Error "Failure Details: $FailureDetails";
+
+        # $ErrorCode = $FailureDetails | Select-String -Pattern 'ErrorCode = (0x\d+),' | ForEach-Object { $_.Matches.Groups[1].Value };
+        # $ScanResultFile = "$env:SystemDrive\`$WINDOWS.~BT\Sources\Panther\ScanResult.xml";
+        $ScanResultFile = "C:\Users\JamesDraycott\AppData\Local\Temp\ScanResult.xml";
+        if (Test-Path $ScanResultFile) {
+            Invoke-Verbose 'Checking for blocking drivers...';
+
+            $PnpDevices = Get-PnpDevice -PresentOnly;
+            $PnpDeviceInfs = @{};
+            $PnpDevices | ForEach-Object {
+                $InfPath = $_ | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverInfPath';
+                $PnpDeviceInfs[$_.InstanceId] = $InfPath.Data;
+            }
+
+            $DriverPackages = (Select-Xml -Path $ScanResultFile -XPath '/*').Node.DriverPackages.DriverPackage;
+            $DriverPackages | ForEach-Object {
+                $Driver = $_;
+                if ($Driver.BlockMigration -eq 'True') {
+                    $DriverName = $Driver.Inf;
+                    $DriverDetails = Get-WindowsDriver -Online -Driver $DriverName;
+                    $InUseByDevices = $PnpDevices | Where-Object {
+                        $PnpDeviceInfs[$_.InstanceId] -eq $DriverName;
+                    }
+
+                    Invoke-Error @"
+Driver: $DriverName is blocking the upgrade to Windows 11, see the details below:
+    In Use By Devices: $($InUseByDevices | Select-Object -ExpandProperty FriendlyName -Join ', ')
+    Driver Details: $DriverDetails
+"@
+                }
+            }
+        }
     }
 }
 
@@ -176,6 +208,15 @@ function Update-ToWin11 {
 
         Invoke-Info 'Starting Windows 11 upgrade, this will take a while with no progress bar...';
         try {
+            $UnsupportedFeatures = @('Printing-PrintToPDFServices-Features', 'Printing-XPSServices-Features');
+            $UnsupportedFeatures | ForEach-Object {
+                $Status = Get-WindowsOptionalFeature -FeatureName $_ -Online;
+                if ($Status.State -eq 'Enabled' -or $Status.State -eq 'EnablePending') {
+                    Invoke-Info "Disabling feature: $_";
+                    Disable-WindowsOptionalFeature -FeatureName $_ -Online;
+                }
+            }
+
             # TODO - Maybe use the processes resource monitor to determine if its downloading, copying or what?
             # Dont auto reboot
             Start-Process -FilePath $Private:OutputFile -ArgumentList "/QuietInstall /SkipEULA /auto upgrade /UninstallUponUpgrade /copylogs $Private:Dir" -Wait;
@@ -190,4 +231,4 @@ function Update-ToWin11 {
     }
 }
 
-Export-ModuleMember -Function 'Update-ToWin11', 'Test-CanUpgrade', 'Get-SupportedProcessor';
+Export-ModuleMember -Function 'Update-ToWin11', 'Test-CanUpgrade', 'Get-SupportedProcessor', 'Write-SetupError';
