@@ -14,7 +14,11 @@ namespace Compiler.Module.Compiled;
 
 [method: Pure]
 public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requirements) {
-    public Compiled(ModuleSpec moduleSpec, RequirementGroup requirements, byte[] contentBytes) : this(moduleSpec, requirements) => this.ContentBytes = contentBytes;
+    public Compiled(
+        ModuleSpec moduleSpec,
+        RequirementGroup requirements,
+        Lazy<byte[]> contentBytes
+    ) : this(moduleSpec, requirements) => this.ContentBytes = contentBytes;
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -24,7 +28,8 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
 
     public virtual RequirementGroup Requirements { get; } = requirements;
 
-    public abstract byte[] ContentBytes { get; init; }
+    [NotNull]
+    public Lazy<byte[]>? ContentBytes { get; protected set; }
 
     /// <summary>
     /// Gets combined the hash of the content and requirements of the module.
@@ -34,7 +39,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
         // So we need to tell the compiler to not optimize this method.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         get {
-            var byteList = new List<byte>((byte[])this.ContentBytes.Clone());
+            var byteList = new List<byte>((byte[])this.ContentBytes!.Value.Clone());
             this.AddRequirementHashBytes(byteList, this.Requirements);
             return Convert.ToHexString(SHA256.HashData([.. byteList]));
         }
@@ -142,7 +147,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
             Logger.Error($"Module {this.ModuleSpec.Name} is not in the graph of its root parent.");
         }
 
-        hashableBytes.AddRange(this.GetRootParent()!.Graph.OutEdges(this).ToList()
+        hashableBytes.AddRange(rootGraph.OutEdges(this).ToList()
             .Select(edge => edge.Target.ComputedHash)
             .Select(Encoding.UTF8.GetBytes)
             .Flatten());

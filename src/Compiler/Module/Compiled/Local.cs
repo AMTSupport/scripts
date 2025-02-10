@@ -19,8 +19,6 @@ public class CompiledLocalModule : Compiled {
 
     public virtual CompiledDocument Document { get; }
 
-    public override byte[] ContentBytes { get; init; }
-
     [Pure]
     public CompiledLocalModule(
         PathedModuleSpec moduleSpec,
@@ -28,7 +26,7 @@ public class CompiledLocalModule : Compiled {
         RequirementGroup requirements
     ) : base(moduleSpec, requirements) {
         this.Document = document;
-        this.ContentBytes = Encoding.UTF8.GetBytes(this.StringifyContent());
+        this.ContentBytes = new(() => Encoding.UTF8.GetBytes(this.StringifyContent()));
     }
 
     public override string StringifyContent() => new StringBuilder()
