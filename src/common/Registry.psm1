@@ -37,6 +37,7 @@ function Invoke-EnsureRegistryPath {
 
 function Test-RegistryKey {
     [CmdletBinding()]
+    [OutputType([Boolean])]
     param (
         [Parameter(Mandatory)]
         [String]$Path,
@@ -74,7 +75,7 @@ function Get-RegistryKey {
 
     process {
         if (Test-RegistryKey -Path $Path -Key $Key) {
-            return Get-ItemProperty -Path $Path -Name $Key;
+            return Get-ItemProperty -Path $Path -Name $Key | Select-Object -ExpandProperty $Key;
         }
 
         return $Null;
