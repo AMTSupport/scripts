@@ -1,17 +1,17 @@
 Using module .\Logging.psm1
 
-[HashTable]$Global:ExitHandlers = @{};
-[HashTable]$Global:ExitCodes = @{};
-[Boolean]$Global:ExitHandlersRun = $false;
+[HashTable]$Script:ExitHandlers = @{};
+[HashTable]$Script:ExitCodes = @{};
+[Boolean]$Script:ExitHandlersRun = $false;
 
 function Invoke-Handlers([switch]$IsFailure) {
-    if ($Global:ExitHandlersRun) {
+    if ($Script:ExitHandlersRun) {
         Invoke-Debug -Message 'Exit handlers already run, skipping...';
         return;
     }
 
-    foreach ($Local:ExitHandlerName in $Global:ExitHandlers.Keys) {
-        [PSCustomObject]$Local:ExitHandler = $Global:ExitHandlers[$Local:ExitHandlerName];
+    foreach ($Local:ExitHandlerName in $Script:ExitHandlers.Keys) {
+        [PSCustomObject]$Local:ExitHandler = $Script:ExitHandlers[$Local:ExitHandlerName];
         if ($Local:ExitHandler.OnlyFailure -and (-not $IsFailure)) {
             continue;
         }
@@ -24,7 +24,7 @@ function Invoke-Handlers([switch]$IsFailure) {
         }
     }
 
-    $Global:ExitHandlersRun = $true;
+    $Script:ExitHandlersRun = $true;
 }
 
 function Invoke-FailedExit {
@@ -48,17 +48,14 @@ function Invoke-FailedExit {
         [System.Management.Automation.Cmdlet]$CallingCmdlet = $PSCmdlet
     )
 
-    [String]$Local:ExitDescription = $Global:ExitCodes[$ExitCode];
-    if ($null -ne $Local:ExitDescription -and $Local:ExitDescription.Length -gt 0) {
-        if ($FormatArgs) {
-            [String]$Local:ExitDescription = $Local:ExitDescription -f $FormatArgs;
-        }
+    [String]$ExitDescription = $Script:ExitCodes[$ExitCode];
+    if (-not [String]::IsNullOrEmpty($ExitDescription)) {
+        if ($FormatArgs) { $ExitDescription = $ExitDescription -f $FormatArgs }
 
-        Invoke-Error $Local:ExitDescription;
-    } elseif ($ExitCode -lt 1000) {
-        Invoke-FailedExit -ExitCode $Script:INVALID_ERROR_CODE -FormatArgs $ExitCode;
+        Invoke-Error $ExitDescription;
     } elseif ($ExitCode -ne 0 -and $ExitCode -ne 9999) {
-        Invoke-Warn "No exit description found for code '$ExitCode'";
+        $Category = [Enum]::ToObject([System.Management.Automation.ErrorCategory], 1)
+        Invoke-Error -Message "Exit code $Category";
     }
 
     # FIXME - Not getting to correct depth of exception
@@ -168,11 +165,11 @@ function Register-ExitHandler {
     [PSCustomObject]$Local:Value = @{ OnlyFailure = $OnlyFailure; Script = $ExitHandler };
     Invoke-Debug "Registering exit handler '$Local:TrimmedName'";
 
-    if ($Global:ExitHandlers[$Local:TrimmedName]) {
+    if ($Script:ExitHandlers[$Local:TrimmedName]) {
         Invoke-Warn "Exit handler '$Local:TrimmedName' already registered, overwriting...";
-        $Global:ExitHandlers[$Local:TrimmedName] = $Local:Value;
+        $Script:ExitHandlers[$Local:TrimmedName] = $Local:Value;
     } else {
-        $Global:ExitHandlers.add($Local:TrimmedName, $Local:Value);
+        $Script:ExitHandlers.add($Local:TrimmedName, $Local:Value);
     }
 }
 
@@ -185,12 +182,12 @@ function Register-ExitCode {
     )
 
     $Local:TrimmedDescription = $Description.Trim();
-    $Local:ExitCode = $Global:ExitCodes | Where-Object { $_.Value -eq $Local:TrimmedDescription };
+    $Local:ExitCode = $Script:ExitCodes | Where-Object { $_.Value -eq $Local:TrimmedDescription };
     if (-not $Local:ExitCode) {
-        $Local:ExitCode = $Global:ExitCodes.Count + 1001;
+        $Local:ExitCode = $Script:ExitCodes.Count + 1001;
 
         Invoke-Debug "Registering exit code '$Local:ExitCode' with description '$Local:TrimmedDescription'...";
-        $Global:ExitCodes.add($Local:ExitCode, $Local:TrimmedDescription);
+        $Script:ExitCodes.add($Local:ExitCode, $Local:TrimmedDescription);
     }
 
     return $Local:ExitCode;
