@@ -1,7 +1,5 @@
-BeforeDiscovery {
-    $Script:ModuleName = & $PSScriptRoot/Base.ps1;
-}
-
+BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../src/common/Flag.psm1" }
+AfterAll { Remove-Module Flag }
 
 Describe 'Flags.psm1 Tests' {
     AfterEach { $Flag.Remove(); }

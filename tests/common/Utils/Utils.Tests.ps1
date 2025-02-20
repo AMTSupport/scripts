@@ -1,6 +1,5 @@
-BeforeDiscovery {
-    $Script:ModuleName = & $PSScriptRoot/Base.ps1;
-}
+BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Utils.psm1" }
+AfterAll { Remove-Module Utils }
 
 Describe 'Utils Tests' {
     Context 'AST Helper functions' {

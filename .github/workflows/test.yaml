@@ -43,17 +43,25 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      checks: write
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install Dependencies
         shell: pwsh
-        run: |
-          Install-Module -Name Pester -Scope CurrentUser -Force
+        run: Install-Module -Name Pester -Scope CurrentUser -Force
 
       - name: Run Pester Tests
         shell: pwsh
-        run: .\utils\Invoke-CodeCoverage.ps1
+        run: |
+          $Config = Import-PowerShellDataFile -Path "tests/PesterConfiguration.psd1";
+          Invoke-Pester -Configuration $Config -PassThru
+
+      - name: Upload test results
+        id: test-results
+        uses: natescherer/pester-tests-report@combined
+        with:
+          test_results_path: "tests/TestResults/PesterTestResults.xml"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tests_fail_step: true
