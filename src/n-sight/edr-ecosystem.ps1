@@ -15,7 +15,7 @@
     This will enable verbose output.
 #>
 
-# Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 #Requires -Version 5.1
 
 Param (
@@ -28,12 +28,10 @@ function parseInput() {
     If ($VerbosePreference) {
         Write-Host "[VERBOSE] Verbose mode enabled."
     }
-
-    If ($dryrun) {
+    If ($dryrun) { # this is extra context after the error
         Write-Host "[DRY] Dry run mode enabled."
     }
 }
-
 function installWinget() {
     If (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Host "Winget is already installed."
