@@ -214,6 +214,7 @@ function Get-ReturnType {
 #>
 function Test-ReturnType {
     [CmdletBinding()]
+    [OutputType([Boolean])]
     param(
         [Parameter(Mandatory, HelpMessage = 'The AST object to test.')]
         [ValidateNotNullOrEmpty()]
@@ -1036,6 +1037,89 @@ function Test-IsWindows11 {
     return $Private:OSCaption -match 'Windows 11';
 }
 
+function Remove-EncodingBom {
+[CmdletBinding()]
+    [OutputType([Byte[]])]
+    param(
+        [Parameter(Mandatory)]
+        [Byte[]]$Bytes,
+
+        [Parameter(Mandatory)]
+        [System.Text.Encoding]$Encoding
+    )
+
+    begin {
+        $Bom = $Encoding.GetPreamble();
+        $BomLength = $Bom.Length;
+        $Comparer = [Collections.Generic.SortedSet[String]]::CreateSetComparer();
+    }
+
+    process {
+        if ($Bytes.Length -ge $BomLength -and $Comparer.Equals($Bytes[0..($BomLength - 1)], $Bom)) {
+            return $Bytes[$BomLength..($Bytes.Length - 1)];
+        }
+
+        return $Bytes;
+    }
+}
+
+function Get-ContentEncoding {
+[OutputType([System.Text.Encoder])]
+    param(
+        [Parameter(Mandatory, ParameterSetName = 'Bytes')]
+        [byte[]]$ContentBytes,
+
+        [Parameter(Mandatory, ParameterSetName = 'Path')]
+        [String]$Path
+    )
+
+    begin {
+        $Bytes = switch ($PSCmdlet.ParameterSetName) {
+            'Bytes' { $ContentBytes }
+            'Path' {
+                if (-not (Test-Path -LiteralPath $Path)) {
+                    throw [System.IO.FileNotFoundException]::new("The file $Path does not exist.");
+                }
+
+                $Stream = [System.IO.File]::OpenRead($Path);
+                $ReadLength = [System.Math]::Min($Stream.Length, 4);
+                try {
+                    $Bytes = New-Object byte[] $ReadLength;
+                    $Stream.Read($Bytes, 0, $ReadLength) | Out-Null;
+                    $Bytes;
+                } finally {
+                    $Stream.Close();
+                }
+            }
+        }
+
+        $Comparer = [Collections.Generic.SortedSet[String]]::CreateSetComparer();
+        $Encoders = @(
+            [System.Text.UTF8Encoding]::new($True),             # UTF-8 with BOM
+            [System.Text.UnicodeEncoding]::new($True, $True),   # UTF-16 Unicode Big-Endian
+            [System.Text.UnicodeEncoding]::new($False, $True),  # UTF-16 Unicode Little-Endian
+            [System.Text.UTF32Encoding]::new($True, $True),     # UTF-32 Big-Endian
+            [System.Text.UTF32Encoding]::new($False, $True)     # UTF-32 Little-Endian
+        );
+    }
+
+    process {
+        if ($Bytes.Length -lt 4) {
+            return [System.Text.Encoding]::UTF8;
+        }
+
+        foreach ($Encoder in $Encoders) {
+            $Bom = $Encoder.GetPreamble();
+            $BomLength = $Bom.Length;
+            if ($Bytes.Length -ge $BomLength -and $Comparer.Equals($Bytes[0..($BomLength - 1)], $Bom)) {
+                return $Encoder;
+            }
+        }
+
+        return [System.Text.Encoding]::UTF8;
+    }
+}
+
 Export-ModuleMember `
-    -Function Test-IsWindows11, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
+    -Function Test-IsWindows11, Get-ContentEncoding, Remove-EncodingBom, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
     -Alias await, async, lazy;

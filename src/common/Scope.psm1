@@ -5,7 +5,6 @@ Using module .\Logging.psm1
 [System.Collections.Stack]$Script:InvocationStack = [System.Collections.Stack]::new();
 [String]$Script:Tab = '  ';
 
-# Used so we can mock in tests.
 function Get-Stack {
     Get-Variable -Name 'InvocationStack' -ValueOnly;
 }
@@ -131,7 +130,7 @@ function Enter-Scope(
 ) {
     (Get-Stack).Push(@{ Invocation = $Invocation; StopWatch = [System.Diagnostics.Stopwatch]::StartNew(); });
 
-    if (-not $Global:Logging.Verbose) { return; } # If we aren't logging don't bother with the rest of the function.
+    if ($VerbosePreference -eq 'SilentlyContinue' -or $VerbosePreference -eq 'Ignore') { return; } # If we aren't logging don't bother with the rest of the function.
     if ($null -eq $ArgumentFormatter) {
         $ArgumentFormatter = @{};
     }
@@ -184,4 +183,5 @@ function Exit-Scope(
     (Get-Stack).Pop() | Out-Null;
 }
 
-Export-ModuleMember -Function Get-StackTop, Format-Parameters, Format-Variable, Format-ScopeName, Enter-Scope, Exit-Scope;
+Export-ModuleMember `
+    -Function Get-StackTop, Format-Parameters, Format-Variable, Format-ScopeName, Enter-Scope, Exit-Scope;
