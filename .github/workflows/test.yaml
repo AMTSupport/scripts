@@ -56,7 +56,7 @@ jobs:
         shell: pwsh
         run: |
           $Config = Import-PowerShellDataFile -Path "tests/PesterConfiguration.psd1";
-          Invoke-Pester -Configuration $Config -PassThru
+          Invoke-Pester -Configuration $Config
 
       - name: Upload test results
         id: test-results
