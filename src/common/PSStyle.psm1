@@ -1,3 +1,5 @@
+Using module .\ModuleUtils.psm1
+
 $Script:Below7_2 = $PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSVersion.Minor -lt 2;
 $ESC = [char]0x1b
 
@@ -237,3 +239,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7 -or $PSVersionTable.PSVersion.Minor -l
 } else {
     Export-ModuleMember -Function Get-ConsoleColour;
 }
+
+Export-Types @(
+    [PSStyle]
+);
