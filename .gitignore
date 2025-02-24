@@ -1,7 +1,8 @@
 .direnv
-obj
-bin
-Output
-coverage_report
-TestResults
-coverage.info
+**/obj
+**/bin
+**/Output
+**/coverage_report
+**/TestResults
+**/coverage.info
+**/Coverage
