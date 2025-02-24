@@ -25,9 +25,11 @@ function Get-CachedContent {
         [Parameter()]
         [ScriptBlock]$WriteBlock,
 
-        [Parameter(Mandatory, HelpMessage = 'The script block to parse the cached content.')]
+        [Parameter(HelpMessage = 'The script block to parse the cached content.')]
         [ValidateNotNullOrEmpty()]
-        [ScriptBlock]$ParseBlock,
+        [ScriptBlock]$ParseBlock = {
+            param($raw) return ConvertFrom-Json $raw -AsHashtable;
+        },
 
         [Parameter(HelpMessage = "Don't use the cached response, use the CreateBlock.")]
         [Switch]$NoCache
@@ -39,7 +41,6 @@ function Get-CachedContent {
     process {
         [HashTable]$Local:Params = $PSBoundParameters;
         $Local:Params.Remove('ParseBlock');
-        # $Local:FilteredParams = $Local:Params.GetEnumerator() | Where-Object { $null -ne $_.Value };
 
         Invoke-Debug "Cache parameters: $($PSBoundParameters | Out-String)"
         [String]$Local:CachePath = Get-CachedLocation @Local:Params;

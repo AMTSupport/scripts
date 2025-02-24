@@ -3,6 +3,33 @@
 Using module .\Logging.psm1
 Using module .\Exit.psm1
 
+$NULL_ARGUMENT = Register-ExitCode -Description 'An unexpected null value was encountered.';
+$FAILED_EXPECTED_VALUE = Register-ExitCode -Description 'Object [{}] does not equal expected value [{}].';
+
+
+<#
+.SYNOPSIS
+    Asserts that the given value is not null.
+
+.DESCRIPTION
+    The Assert-NotNull function checks if the provided value is not null.
+    If the value is null, it throws an exception.
+
+.PARAMETER Object
+    The value to be checked for null.
+
+.EXAMPLE
+    This will result in nothing happening as the value is not null.
+    ```powershell
+    Assert-NotNull -Object 'foo';
+    ```
+
+.EXAMPLE
+    This will result in an error being thrown as the value is null.
+    ```powershell
+    Assert-NotNull -Object $null;
+    ```
+#>
 function Assert-NotNull(
     [Parameter(ValueFromPipeline)]
     [Object]$Object,
@@ -10,29 +37,53 @@ function Assert-NotNull(
     [Parameter()]
     [String]$Message
 ) {
-    if ($null -eq $Object -or $Object -eq '') {
-        if ($null -eq $Message) {
-            Invoke-Error -Message 'Object is null';
-            Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
-        }
-        else {
-            Invoke-Error $Message;
-            Invoke-FailedExit -ExitCode $Script:NULL_ARGUMENT;
-        }
+    if ($null -ne $Object) {
+        return;
     }
+
+    if ($null -ne $Message) { Invoke-Error -Message $Message; }
+    Invoke-FailedExit -ExitCode $NULL_ARGUMENT;
 }
 
-function Assert-Equals([Parameter(Mandatory, ValueFromPipeline)][Object]$Object, [Parameter(Mandatory)][Object]$Expected, [String]$Message) {
-    if ($Object -ne $Expected) {
-        if ($null -eq $Message) {
-            Invoke-Error -Message "Object [$Object] does not equal expected value [$Expected]";
-            Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
-        }
-        else {
-            Invoke-Error -Message $Message;
-            Invoke-FailedExit -ExitCode $Script:FAILED_EXPECTED_VALUE;
-        }
-    }
+<#
+.SYNOPSIS
+    Asserts that two values are equal.
+
+.DESCRIPTION
+    The Assert-Equal function compares two values and throws an error if they are not equal.
+
+.PARAMETER Object
+    The object you want to test against the expected value.
+
+.PARAMETER Expected
+    The expected value.
+
+.EXAMPLE
+    This will pass as the expected value is equal to the actual value.
+    ```powershell
+    Assert-Equal -Expected 5 -Actual 5
+    ```
+
+.EXAMPLE
+    This will throw an error as the expected value is not equal to the actual value.
+    ```powershell
+    Assert-Equal -Expected 5 -Actual 3
+    ```
+#>
+function Assert-Equal(
+    [Parameter(Mandatory, ValueFromPipeline)]
+    [Object]$Object,
+
+    [Parameter(Mandatory)]
+    [Object]$Expected,
+
+    [Parameter()]
+    [String]$Message
+) {
+    if ($Object -eq $Expected) { return }
+
+    if ($null -ne $Message) { Invoke-Error -Message $Message; }
+    Invoke-FailedExit -ExitCode $FAILED_EXPECTED_VALUE;
 }
 
-Export-ModuleMember -Function Assert-NotNull, Assert-Equals;
+Export-ModuleMember -Function Assert-NotNull, Assert-Equal;

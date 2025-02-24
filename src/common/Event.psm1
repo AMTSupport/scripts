@@ -9,7 +9,7 @@ enum Priority {
 }
 
 class Subscription {
-    [GUID]$Guid;
+    [Guid]$Guid;
     [Type]$EventType;
     [Priority]$Priority;
     [ScriptBlock]$Callback;
@@ -19,7 +19,7 @@ class Subscription {
     }
 
     Subscription([Type]$EventType, [Priority]$Priority, [ScriptBlock]$Callback) {
-        $this.Guid = [GUID]::NewGuid()
+        $this.Guid = [Guid]::NewGuid()
         $this.EventType = $EventType
         $this.Priority = $Priority
         $this.Callback = $Callback
@@ -96,6 +96,8 @@ class EventRegistration {
 class Event { }
 
 function Register-EventSubscription {
+    [CmdletBinding()]
+    [OutputType([Guid])]
     param(
         [Type]$EventType,
         [Priority]$Priority = [Priority]::Normal,
@@ -109,21 +111,30 @@ function Register-EventSubscription {
 }
 
 function Submit-Event {
-    param([Object]$EventInstance)
+    [CmdletBinding()]
+    [OutputType([Void])]
+    param(
+        [Object]$EventInstance
+    )
 
     $Script:Events[$EventInstance.GetType()].Dispatch($EventInstance)
 }
 
 function Unregister-EventSubscription {
+    [CmdletBinding()]
+    [OutputType([Boolean])]
     param(
         [Type]$EventType,
-        [Int]$Id
+
+        [Guid]$Id
     )
 
     $Script:Events[$EventName].Unsubscribe($Id)
 }
 
 function Register-Event {
+    [CmdletBinding()]
+    [OutputType([Void])]
     param(
         [Type]$EventType
     )
@@ -131,7 +142,9 @@ function Register-Event {
     $Script:Events[$EventType] = [EventRegistration]::new($EventType)
 }
 
-function Get-Event {
+function Get-CustomEvent {
+    [CmdletBinding()]
+    [OutputType([EventRegistration], [Hashtable])]
     param(
         [Parameter()]
         [Type[]]$EventType
@@ -139,9 +152,9 @@ function Get-Event {
 
     if ($EventType) {
         return $Script:Events[$EventType]
-    } else {
-        return $Script:Events
     }
+
+    return $Script:Events
 }
 
 Export-Types -Types @(
@@ -151,3 +164,5 @@ Export-Types -Types @(
     [EventRegistration],
     [Event]
 )
+
+Export-ModuleMember -Function Register-EventSubscription, Submit-Event, Unregister-EventSubscription, Register-Event, Get-CustomEvent;
