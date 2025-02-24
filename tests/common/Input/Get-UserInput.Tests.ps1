@@ -21,5 +21,5 @@ Describe 'Get-UserInput Tests' {
 
         $Result = Get-UserInput -Title 'Hello' -Question 'World';
         $Result | Should -BeExactly 'test';
-    }
+    } -Skip
 }

@@ -1,4 +1,5 @@
 Using module .\ModuleUtils.psm1
+Using module .\Logging.psm1
 
 [HashTable]$Script:Events = @{};
 
@@ -93,16 +94,24 @@ class EventRegistration {
     }
 }
 
-class Event { }
-
 function Register-EventSubscription {
     [CmdletBinding()]
     [OutputType([Guid])]
     param(
+        [Parameter(Mandatory)]
         [Type]$EventType,
+
+        [Parameter()]
         [Priority]$Priority = [Priority]::Normal,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNull()]
         [ScriptBlock]$Callback
     )
+
+    if ($null -eq $Script:Events[$EventType]) {
+        Invoke-Error -Message "Event type $EventType has not been registered" -Throw -ErrorCategory InvalidArgument;
+    }
 
     [Subscription]$Private:Subscription = [Subscription]::new($EventType, $Priority, $Callback);
     $Script:Events[$EventType].Subscribe($Private:Subscription);
@@ -124,12 +133,18 @@ function Unregister-EventSubscription {
     [CmdletBinding()]
     [OutputType([Boolean])]
     param(
+        [Parameter(Mandatory)]
         [Type]$EventType,
 
+        [Parameter(Mandatory)]
         [Guid]$Id
     )
 
-    $Script:Events[$EventName].Unsubscribe($Id)
+    if ($null -eq $Script:Events[$EventType]) {
+        return $false;
+    }
+
+    return $Script:Events[$EventType].Unsubscribe($Id);
 }
 
 function Register-Event {
@@ -144,10 +159,11 @@ function Register-Event {
 
 function Get-CustomEvent {
     [CmdletBinding()]
-    [OutputType([EventRegistration], [Hashtable])]
+    [OutputType(ParameterSetName = 'Specific', [EventRegistration])]
+    [OutputType(ParameterSetName = 'Default', [Hashtable])]
     param(
-        [Parameter()]
-        [Type[]]$EventType
+        [Parameter(ParameterSetName = 'Specific')]
+        [Type]$EventType
     )
 
     if ($EventType) {
@@ -161,8 +177,7 @@ Export-Types -Types @(
     [Priority],
     [Subscription],
     [ByPriority],
-    [EventRegistration],
-    [Event]
+    [EventRegistration]
 )
 
 Export-ModuleMember -Function Register-EventSubscription, Submit-Event, Unregister-EventSubscription, Register-Event, Get-CustomEvent;
