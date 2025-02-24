@@ -9,13 +9,14 @@ Describe 'Submit-Event Tests' {
         }
 
         [Type]$Script:EventType = [TestEvent];
-        [ScriptBlock]$Script:Callback = { param($EventInstance) $Global:foo = 'bar'; };
+        [ScriptBlock]$Script:Callback = { param($EventInstance) $Global:EventName = $EventInstance.Name; };
 
         Register-Event -EventType:$Script:EventType;
     }
 
     It 'Should dispatch the event to all subscribers' {
         Register-EventSubscription -EventType $EventType -Callback $Callback;
-        Submit-Event -EventInstance ([TestEvent]::new('Test')) | Should -Be 'Test'
+        Submit-Event -EventInstance ([TestEvent]::new('Test'));
+        $Global:EventName | Should -Be 'Test';
     }
 }
