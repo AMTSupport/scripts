@@ -80,8 +80,7 @@ function Invoke-Write {
             return;
         }
 
-        # If PassThru is set, we should always return the message.
-        if (-not $ShouldWrite -and -not $PassThru) {
+        if (-not $ShouldWrite) {
             return;
         }
 
@@ -600,7 +599,7 @@ function Invoke-Error {
                 PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
                 PSMessage   = $Message;
                 PSColour    = 'Red';
-                ShouldWrite = $PSCmdlet.GetVariableValue('ErrorPreference') -notmatch 'SilentlyContinue|Ignore';
+                ShouldWrite = $PSCmdlet.GetVariableValue('ErrorActionPreference') -notmatch 'SilentlyContinue|Ignore';
                 PassThru    = $PassThru;
             };
 

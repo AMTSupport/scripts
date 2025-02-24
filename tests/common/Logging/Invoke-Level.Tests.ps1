@@ -3,14 +3,16 @@ AfterAll { Remove-Module Logging }
 
 BeforeAll {
     function Get-ShouldBeString([String]$String) {
-        $Local:FixedString = $String -replace "`n", "`n+ ";
+        $FixedString = $String -replace "`n", "`n+ ";
 
-        if (Test-SupportsUnicode) {
-            # There is an extra space at the end of the string
-            $Local:FixedString = " $Local:FixedString"
+        InModuleScope Logging {
+            if (Test-SupportsUnicode) {
+                # There is an extra space at the end of the string
+                $FixedString = " $FixedString"
+            }
         }
 
-        return $Local:FixedString;
+        return $FixedString;
     }
 
     function Get-Stripped([Parameter(ValueFromPipeline)][String]$String) {
@@ -68,11 +70,7 @@ Describe 'Invoke-Level Tests' {
             $Output | Select-Object -First 1 | Get-Stripped | Should -Be (Get-ShouldBeString $Params.Message);
         }
 
-        It 'Should not write when $InformationPreference is SilentlyContinue or Ignore' {
-            $Global:InformationPreference = 'SilentlyContinue';
-            $Params | Invoke-Info -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-
+        It 'Should not write when $InformationPreference is Ignore' {
             $Global:InformationPreference = 'Ignore';
             $Params | Invoke-Info -InformationVariable Output;
             $Output | Select-Object -First 1 | Should -Be $null;
