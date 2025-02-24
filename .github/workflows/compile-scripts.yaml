@@ -43,20 +43,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+        # TODO - Use a git diff to determine which files were deleted
       - name: Delete Compiled versions of deleted files
         id: delete_files
         run: |
           for file in $(find compiled -type f); do
             no_prefix=${file#compiled/}
             if [ ! -f "src/${no_prefix}" ]; then
-              echo ::set-output name=found_deleted::true
+              echo "FOUND_DELETED=true" >> $GITHUB_OUTPUT
               echo "Found deleted src file ${no_prefix}, deleting compiled version."
               rm $file
             fi
           done
 
       - name: Commit Changes
-        if: ${{ steps.delete_files.outputs.found_deleted == 'true' && github.event_name == 'push' }}
+        if: ${{ steps.delete_files.outputs.FOUND_DELETED == 'true' && github.event_name == 'push' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(compiled): Remove compiled versions of deleted files"

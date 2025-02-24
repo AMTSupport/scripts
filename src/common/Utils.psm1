@@ -1120,6 +1120,75 @@ function Get-ContentEncoding {
     }
 }
 
+<#
+.SYNOPSIS
+    Converts a value into something that can be embedded into a string and will return the original value when evaluated.
+
+.DESCRIPTION
+    Functionally this uses ConvertTo-Json under the hood, except for the following types:
+        - Boolean: Will be converted to $True or $False.
+        - Null: Will be converted to $null.
+        - Hashtable: Will be converted to @{ ... }.
+        - Array: Will be converted to @(...).
+        - PSCustomObject: Will be converted to [PSCustomObject]@{ ... }.
+        - ScriptBlock: Will be converted to { ... }.
+
+.OUTPUTS
+    [String]
+    The string representation of the value.
+
+.EXAMPLE
+    Convert a value to a string.
+    ```powershell
+    $Value = $False;
+    $InvokableValue = ConvertTo-InvokableValue -Value $Value;
+    (Invoke-Expression $InvokableValue) -eq $Value;
+    ```
+#>
+function ConvertTo-InvokableValue {
+    [CmdletBinding()]
+    [OutputType([String])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [Object]$Value
+    )
+
+    process {
+        if ($null -eq $Value) { return '$null' };
+
+        $Type = $Value.GetType();
+
+        if ($Type -eq [Boolean]) {
+            return "`$$Value";
+        } elseif ($Type -eq [Object[]]) {
+            $Array = @();
+            foreach ($Element in $Value) {
+                $Array += ConvertTo-InvokableValue -Value $Element;
+            }
+
+            return '@(' + ($Array -join ', ') + ')';
+        } elseif ($Type -eq [Hashtable]) {
+            $Hashtable = @();
+            foreach ($Key in $Value.Keys) {
+                $Hashtable += "$Key = $(ConvertTo-InvokableValue -Value $Value[$Key])";
+            }
+
+            return '@{' + ($Hashtable -join '; ') + '}';
+        } elseif ($Type -eq [PSCustomObject]) {
+            $Hashtable = @();
+            foreach ($Property in $Value.PSObject.Properties) {
+                $Hashtable += "$($Property.Name)=$(ConvertTo-InvokableValue -Value $Property.Value)";
+            }
+
+            return "[PSCustomObject]@{" + ($Hashtable -join '; ') + '}';
+        }
+
+
+        return ConvertTo-Json -InputObject $Value;
+    }
+}
+
 Export-ModuleMember `
-    -Function Test-IsWindows11, Get-ContentEncoding, Remove-EncodingBom, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
+    -Function ConvertTo-InvokableValue, Test-IsWindows11, Get-ContentEncoding, Remove-EncodingBom, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
     -Alias await, async, lazy;
