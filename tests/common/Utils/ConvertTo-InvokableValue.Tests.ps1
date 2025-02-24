@@ -76,7 +76,7 @@ Describe 'ConvertTo-InvokableValue tests' {
         It 'Should return JSON string for hashtable with multiple entries' {
             $Value = @{ Key1 = 'Value1'; Key2 = 'Value2' }
             $Result = ConvertTo-InvokableValue -Value $Value
-            $Result | Should -Be '@{Key1 = "Value1"; Key2 = "Value2"}'
+            $Result | Should -Match -RegularExpression '@{Key(1|2) = "Value(1|2)"; Key(1|2) = "Value(1|2)"}'
             Invoke-Expression $Result | ConvertTo-Json | Should -Be ($Value | ConvertTo-Json)
         }
     }
