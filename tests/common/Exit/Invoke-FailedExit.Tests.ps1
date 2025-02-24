@@ -1,6 +1,5 @@
-BeforeDiscovery {
-    . $PSScriptRoot/../../../src/common/Exit.psm1;
-}
+BeforeDiscovery { Import-Module "$PSScriptRoot/../../../src/common/Exit.psm1"; }
+AfterAll { Remove-Module "Exit"; }
 
 Describe 'Invoke-FailedExit Tests' {
     It 'Should throw with a FailedExit ErrorRecord with the ExitCode as the TargetObject' {
