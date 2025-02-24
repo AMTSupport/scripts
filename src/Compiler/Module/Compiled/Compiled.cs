@@ -22,6 +22,8 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
+    public virtual Option<CompiledScript> RootScript { get; set; }
+
     public virtual List<Compiled> Parents { get; } = [];
 
     public virtual ModuleSpec ModuleSpec { get; } = moduleSpec;
@@ -87,7 +89,11 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     /// While this method is nullable, it should never return null in practice.
     /// </remarks>
     public virtual CompiledScript? GetRootParent() {
-        if (this.Parents.Count == 0) return null; // If it was a script it would have overriden this method.
+        if (this.RootScript.IsSome) return this.RootScript.Unwrap();
+        if (this.Parents.Count == 0) {
+            Logger.Warn($"Module {this.ModuleSpec.Name} has no parents and is not a script.");
+            return null; // If it was a script it would have overriden this method.
+        }
 
         // All parents should point to the same root parent eventually.
         var parent = this.Parents[0];

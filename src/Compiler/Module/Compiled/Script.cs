@@ -16,6 +16,8 @@ using QuikGraph.Algorithms;
 namespace Compiler.Module.Compiled;
 
 public partial class CompiledScript : CompiledLocalModule {
+    private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+
     private static readonly Lazy<string> Template = new(() => {
         var info = Assembly.GetExecutingAssembly().GetName();
         using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
@@ -23,7 +25,7 @@ public partial class CompiledScript : CompiledLocalModule {
         return streamReader.ReadToEnd()[9..]; // Remove the #!ignore line.
     });
 
-    public virtual BidirectionalGraph<Compiled, Edge<Compiled>> Graph { get; } = new();
+    public readonly BidirectionalGraph<Compiled, Edge<Compiled>> Graph = new();
 
     public CompiledScript(
         PathedModuleSpec moduleSpec,
@@ -31,8 +33,11 @@ public partial class CompiledScript : CompiledLocalModule {
         RequirementGroup requirements
     ) : base(moduleSpec, document, requirements) {
         this.Graph.AddVertex(this);
-        // Add the parent-child relationships to each module.
-        this.Graph.EdgeAdded += edge => edge.Target.Parents.Add(edge.Source);
+        this.Graph.EdgeAdded += edge => {
+            lock (edge.Target.Parents) {
+                edge.Target.Parents.Add(edge.Source);
+            }
+        };
     }
 
     private CompiledScript(
@@ -56,19 +61,25 @@ public partial class CompiledScript : CompiledLocalModule {
         foreach (var resolvable in reversedLoadOrder) {
             var compiledRequirements = new List<Compiled>();
             foreach (var edge in thisGraph.OutEdges(resolvable)) {
+                Logger.Debug("Adding edge from {0} to {1}", resolvable.ModuleSpec, edge.Target.ModuleSpec);
                 var requirement = script.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec);
                 if (requirement is null) {
+                    Logger.Debug("Could not find {0} in the graph as the requirement, waiting for it to be compiled", edge.Target.ModuleSpec);
                     if ((await resolvableParent.WaitForCompiled(edge.Target.ModuleSpec)).IsErr(out var error, out var compiled)) {
                         return error;
                     }
 
+                    compiled.RootScript = script;
                     requirement = compiled;
                 }
+
+                Logger.Debug("Adding {0} to the requirements of {1}", requirement.ModuleSpec, resolvable.ModuleSpec);
                 compiledRequirements.Add(requirement);
             }
 
             Compiled? compiledModule = resolvable.ModuleSpec == thisResolvable.ModuleSpec ? script : null;
             if (compiledModule is null) {
+                Logger.Debug("Could not find {0} in the graph as the resolvable, waiting for it to be compiled", resolvable.ModuleSpec);
                 if ((await resolvableParent.WaitForCompiled(resolvable.ModuleSpec)).IsErr(out var error, out var compiled)) {
                     return error;
                 }
@@ -77,8 +88,10 @@ public partial class CompiledScript : CompiledLocalModule {
             }
 
             if (compiledRequirements.Count != 0) {
+                Logger.Debug("Adding {0} to the graph with requirements {1}", compiledModule.ModuleSpec, string.Join(", ", compiledRequirements.Select(module => module.ModuleSpec)));
                 script.Graph.AddVerticesAndEdgeRange(compiledRequirements.Select(requirement => new Edge<Compiled>(compiledModule, requirement)));
             } else {
+                Logger.Debug("Adding {0} to the graph without any requirements.", compiledModule.ModuleSpec);
                 script.Graph.AddVertex(compiledModule);
             }
         }
