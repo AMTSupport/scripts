@@ -233,7 +233,7 @@ function Invoke-Verbose {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🔍' };
             PSMessage   = $Message;
             PSColour    = 'Yellow';
-            ShouldWrite = $VerbosePreference -ne 'SilentlyContinue';
+            ShouldWrite = $PSCmdlet.GetVariableValue('VerbosePreference') -notmatch 'SilentlyContinue|Ignore';
             PassThru    = $PassThru;
         };
 
@@ -270,7 +270,7 @@ function Invoke-Debug {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '🐛' };
             PSMessage   = $Message;
             PSColour    = 'Magenta';
-            ShouldWrite = $DebugPreference -ne 'SilentlyContinue';
+            ShouldWrite = $PSCmdlet.GetVariableValue('DebugPreference') -notmatch 'SilentlyContinue|Ignore';
             PassThru    = $PassThru;
         };
 
@@ -307,7 +307,7 @@ function Invoke-Info {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { 'ℹ️' };
             PSMessage   = $Message;
             PSColour    = 'Cyan';
-            ShouldWrite = $InformationPreference -ne 'Ignore';
+            ShouldWrite = $PSCmdlet.GetVariableValue('InformationPreference') -ne 'Ignore'
             PassThru    = $PassThru;
         };
 
@@ -344,7 +344,7 @@ function Invoke-Warn {
             PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '⚠️' };
             PSMessage   = $Message;
             PSColour    = 'Yellow';
-            ShouldWrite = $WarningPreference -ne 'SilentlyContinue';
+            ShouldWrite = $PSCmdlet.GetVariableValue('WarningPreference') -notmatch 'SilentlyContinue|Ignore';
             PassThru    = $PassThru;
         };
 
