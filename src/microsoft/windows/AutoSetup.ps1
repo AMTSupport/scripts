@@ -13,6 +13,8 @@ Using module ..\..\common\Windows.psm1
 Using module ..\..\common\Temp.psm1
 
 Using module PSWindowsUpdate
+Using module PowerShellGet
+# Using module PackageManagement
 
 # Windows 10 Setup screen raw inputs
 # enter                                             - Language
@@ -936,7 +938,7 @@ function Invoke-PhaseInstall([Parameter(Mandatory)][ValidateNotNullOrEmpty()][PS
                 $ErrorActionPreference = 'Stop';
 
                 [System.Diagnostics.Process]$Local:Installer = Start-Process -FilePath $Local:OutputExe -Wait -PassThru;
-                $Local:Installer.ExitCode | Assert-Equals -Expected 0 -Message "Agent installer failed with exit code [$($Local:Installer.ExitCode)]";
+                $Local:Installer.ExitCode | Assert-Equal -Expected 0 -Message "Agent installer failed with exit code [$($Local:Installer.ExitCode)]";
 
                 (Get-RebootFlag).Set($null);
             } catch {

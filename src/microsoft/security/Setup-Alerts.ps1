@@ -9,10 +9,7 @@ Using module ..\Common.psm1
 Using module ExchangeOnlineManagement
 
 [CmdletBinding()]
-param(
-    [Parameter()]
-    [Switch]$UpdatePolicies
-)
+param()
 
 function Update-SecurityAndCompilence(
     [Parameter(Mandatory)]
@@ -65,7 +62,7 @@ function Update-SecurityAndCompilence(
 
 
 Invoke-RunMain $PSCmdlet {
-    Connect-Service -Services SecurityComplience,Graph -Scopes 'SecurityEvents.ReadWrite.All';
+    Connect-Service -Services SecurityComplience,Graph,ExchangeOnline -Scopes 'SecurityEvents.ReadWrite.All','User.ReadWrite.All','OrgContact.Read.All','Domain.Read.All';
 
     [MicrosoftGraphUser]$Local:AlertsUser = Get-AlertsUser;
     Update-SecurityAndCompilence -AlertsUser $Local:AlertsUser;

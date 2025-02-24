@@ -7,7 +7,7 @@ Using Module Microsoft.Graph.Authentication
 Using Module Microsoft.Graph.Identity.DirectoryManagement
 Using Module Microsoft.Graph.Users
 Using Module ExchangeOnlineManagement
-Using module PartnerCenter
+# Using module PartnerCenter
 Using module Az.Accounts
 Using module Az.KeyVault
 
@@ -23,7 +23,7 @@ function Get-AlertsUser {
         [String]$SupportEmail = 'amtsupport@amt.com.au'
     )
 
-    begin { Enter-Scope; Connect-Service -Services Graph, ExchangeOnline -Scopes 'User.ReadWrite.All', 'OrgContact.Read.All', 'Domain.Read.All'; }
+    begin { Enter-Scope; Connect-Service -Services Graph, ExchangeOnline -Scopes 'User.ReadWrite.All', 'OrgContact.Read.All', 'Domain.Read.All' -CheckOnly; }
     end { Exit-Scope -ReturnValue $Local:User; }
 
     process {
