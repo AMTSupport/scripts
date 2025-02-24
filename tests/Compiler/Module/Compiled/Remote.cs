@@ -32,9 +32,9 @@ public class CompiledRemoteModuleTests {
 
         Assert.Multiple(() => {
             Assert.That(bytes, Is.Not.Empty);
-            Assert.That(bytes, Is.EqualTo(module.ContentBytes));
+            Assert.That(bytes, Is.EqualTo(module.ContentBytes.Value));
 
-            using var zipArchive = new ZipArchive(new MemoryStream(module.ContentBytes), ZipArchiveMode.Read, false);
+            using var zipArchive = new ZipArchive(new MemoryStream(module.ContentBytes.Value), ZipArchiveMode.Read, false);
             Assert.That(zipArchive, Is.Not.Null);
             Assert.That(zipArchive.Entries, Is.Not.Empty);
             Assert.That(zipArchive.Entries, Is.All.Property(nameof(ZipArchiveEntry.Length)).GreaterThan(0));
