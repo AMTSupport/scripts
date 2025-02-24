@@ -323,6 +323,7 @@ function Format-Error(
 }
 
 #region Logging at Level Functions
+
 <#
 .SYNOPSIS
     Writes a message to the console at the Verbose level if the VerbosePreference is not SilentlyContinue or Ignore.
@@ -508,7 +509,7 @@ function Invoke-Warn {
         [ValidateNotNullOrEmpty()]
         [String]$Message,
 
-        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, Mandatory)]
+        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('Prefix')]
         [String]$UnicodePrefix,
@@ -567,7 +568,7 @@ function Invoke-Error {
         [ValidateNotNullOrEmpty()]
         [String]$Message,
 
-        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName, Mandatory)]
+        [Parameter(ParameterSetName = 'Splat', Position = 1, ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
         [Alias('Prefix')]
         [String]$UnicodePrefix,
