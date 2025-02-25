@@ -15,11 +15,17 @@ function Get-StackTop {
 
 function Format-ScopeName([Parameter(Mandatory)][Switch]$IsExit) {
     [String]$Local:CurrentScope = (Get-StackTop).Invocation.MyCommand.Name;
-    # Skip the first scope as it's the current scope, then sort in descending order so we can get the correct order for printing.
-    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.Invocation.MyCommand.Name } | Sort-Object -Descending;
 
-    [String]$Local:Scope = "$($Local:PreviousScopes -join ' > ')$(if ($Local:PreviousScopes.Count -gt 0) { if ($IsExit) { ' < ' } else { ' > ' } })$Local:CurrentScope";
-    return $Local:Scope;
+    [String[]]$Local:PreviousScopes = (Get-Stack).GetEnumerator() | Select-Object -Skip 1 | ForEach-Object { $_.Invocation.MyCommand.Name } | Sort-Object -Descending;
+    $ScopeString = [System.Text.StringBuilder]::new();
+    $null = $ScopeString.Append(($Local:PreviousScopes -join ' > '));
+    if ($Local:PreviousScopes.Count -gt 0) {
+        $Char = if ($IsExit) { ' < ' } else { ' > ' };
+        $null = $ScopeString.Append($Char);
+    }
+    $null = $ScopeString.Append($Local:CurrentScope);
+
+    return $ScopeString.ToString();
 }
 
 function Format-Parameters(
@@ -130,7 +136,10 @@ function Enter-Scope(
 ) {
     (Get-Stack).Push(@{ Invocation = $Invocation; StopWatch = [System.Diagnostics.Stopwatch]::StartNew(); });
 
-    if ($VerbosePreference -eq 'SilentlyContinue' -or $VerbosePreference -eq 'Ignore') { return; } # If we aren't logging don't bother with the rest of the function.
+    if ($PSCmdlet.GetVariableValue('VerbosePreference') -ne 'Continue') {
+        return;
+    }
+
     if ($null -eq $ArgumentFormatter) {
         $ArgumentFormatter = @{};
     }
@@ -142,7 +151,7 @@ function Enter-Scope(
         PSMessage   = "$Local:ScopeName$(if ($Local:ParamsFormatted) { "`n$Local:ParamsFormatted" })";
         PSColour    = 'Blue';
         PSPrefix    = '❯❯';
-        ShouldWrite = $Global:Logging.Verbose;
+        ShouldWrite = $True;
         PassThru    = $PassThru;
     } | Invoke-Write;
 }
@@ -151,10 +160,10 @@ function Exit-Scope(
     [Parameter()]
     [Object]$ReturnValue
 ) {
-    [System.Diagnostics.Stopwatch]$Local:StopWatch = (Get-StackTop).StopWatch;
-    $Local:StopWatch.Stop();
+    if ($PSCmdlet.GetVariableValue('VerbosePreference') -eq 'Continue') {
+        [System.Diagnostics.Stopwatch]$Local:StopWatch = (Get-StackTop).StopWatch;
+        $Local:StopWatch.Stop();
 
-    if ($Global:Logging.Verbose) {
         if ($null -eq $ArgumentFormatter) {
             $ArgumentFormatter = @{};
         }
@@ -176,12 +185,11 @@ function Exit-Scope(
             PSMessage   = $Local:Message;
             PSColour    = 'Blue';
             PSPrefix    = '❮❮';
-            ShouldWrite = $Global:Logging.Verbose;
+            ShouldWrite = $True;
         } | Invoke-Write;
     }
 
     (Get-Stack).Pop() | Out-Null;
 }
 
-Export-ModuleMember `
-    -Function Get-StackTop, Format-Parameters, Format-Variable, Format-ScopeName, Enter-Scope, Exit-Scope;
+Export-ModuleMember -Function Enter-Scope, Exit-Scope;
