@@ -185,14 +185,18 @@ function Get-ReturnType {
                     continue;
                 }
 
-                # Try to resolve the variable and check its type.
-                $Local:Variable = Get-Variable -Name:$Local:VariableName -ValueOnly -ErrorAction SilentlyContinue;
+                if ($Local:VariableName -eq 'true' -or $Local:VariableName -eq 'false') {
+                    $Local:ReturnTypes += [Boolean];
+                    continue;
+                }
 
+                # Try to resolve the variable and check its type.
+                $Local:Variable = $PSCmdlet.GetVariableValue($Local:VariableName);
                 if ($Local:Variable) {
                     [System.Reflection.TypeInfo]$Local:ReturnType = $Local:Variable.GetType();
                     $Local:ReturnTypes += $Local:ReturnType;
                 } else {
-                    Invoke-Warn -Message "Could not resolve the variable: $Local:VariableName.";
+                    Invoke-Debug -Message "Could not resolve the variable: $Local:VariableName.";
                     continue
                 }
             } else {
