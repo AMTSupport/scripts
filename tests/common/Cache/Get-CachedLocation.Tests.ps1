@@ -2,117 +2,93 @@ BeforeDiscovery { Import-Module -Force -Name $PSScriptRoot/../../../src/common/C
 AfterAll { Remove-Module -Name Cache }
 
 Describe 'Get-CachedLocation Tests' {
-    BeforeAll { Set-Variable -Name CacheName -Value "UNIQUE_CACHE_NAME" }
-
-    It "Creates the cache folder if missing" {
-        Mock Test-Path {
-            return $false
-        } -ParameterFilter { $Path -eq "$($Script:Folder)" }
-
-        Mock New-Item {}
-        Mock Remove-Item {}
-        Mock Set-Content {}
-
-        $Result = Get-CachedLocation -Name "test" -CreateBlock { return @{ Data = "Test" } }
-
-        Should -Invoke Test-Path -Exactly -Times 1
-        Should -Invoke New-Item -Exactly -Times 1
-        $Result | Should -Match "Cached-test"
-    }
-
-    It "Removes the cache if -NoCache is specified" {
-        Mock Test-Path { return $true }
-        Mock Remove-Item {}
-        Mock Set-Content {}
-
-        Get-CachedLocation -Name "test" -NoCache -CreateBlock { return @{ Data = "Test" } } | Out-Null
-        Should -Invoke Remove-Item -Exactly -Times 1
-    }
-
-    It "Uses CreateBlock if cache file does not exist" {
-        Mock Test-Path { return $false }
-        Mock Set-Content {}
-
-        $Result = Get-CachedLocation -Name "test" -CreateBlock { return @{ Data = "Created" } }
-        Should -Invoke Set-Content -Exactly -Times 1
-        $Result | Should -Match "Cached-test"
-    }
-
-    Context 'Cache folder handling' {
-        It 'Creates the cache folder when missing' {
-            Mock Test-Path {
-                # Folder not present for first check
-                if ($Path -eq "$($Script:Folder)") { return $false }
-                # Cache file does not exist for subsequent checks
-                return $false
-            }
-            Mock New-Item {}
-            Mock Set-Content {}
-            Mock Remove-Item {}
-
-            $Result = Get-CachedLocation -Name 'test' -CreateBlock { return '{"data":"new"}' }
-            Should -Invoke New-Item -Exactly -Times 1
-            $Result | Should -Match 'Cached-test'
+    BeforeAll {
+        $CacheName = "UNIQUE_CACHE_NAME";
+        InModuleScope Cache {
+            $Script:Folder = "$((Get-PSDrive TestDrive).Root)\PSCache"
         }
-
-        It 'Does not recreate folder if it already exists' {
-            Mock Test-Path { return $true }
-            Mock New-Item {}
-            Mock Set-Content {}
-
-            $Result = Get-CachedLocation -Name 'test2' -CreateBlock { return '{"data":"xyz"}' }
-            Should -Invoke New-Item -Times 0
-            $Result | Should -Match 'Cached-test2'
+    }
+    AfterEach {
+        InModuleScope Cache {
+            Remove-Item -Path $Script:Folder -Recurse -Force
         }
     }
 
-    Context 'Cache file checks' {
-        It 'Removes existing file if -NoCache is used' {
-            Mock Test-Path { return $true }
-            Mock Remove-Item {}
-            Mock Set-Content {}
+    It 'Should return the correct path' {
+        InModuleScope Cache -Parameters @{ CacheName = $CacheName } {
+            $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return "" }
+            $CachePath | Should -Be "$Script:Folder\Cached-$CacheName"
+        }
+    }
 
-            Get-CachedLocation -Name 'test' -NoCache -CreateBlock { return '{"data":"fresh"}' } | Out-Null
-            Should -Invoke Remove-Item -Times 1
+    It 'Create the file if it does not exist' {
+        InModuleScope Cache -Parameters @{ CacheName = $CacheName; } {
+            $Content = [System.Guid]::NewGuid().ToString()
+            $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return $Content }
+            Test-Path -Path $CachePath | Should -Be $true
+            Get-Content -Path $CachePath | Should -Be $Content
+        }
+    }
+
+    It 'Removes existing file if -NoCache is used' {
+        InModuleScope Cache -Parameters @{ CacheName = $CacheName; } {
+            $Content = [System.Guid]::NewGuid().ToString()
+            $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return $Content }
+            Get-Content -Path $CachePath | Should -Be $Content
+
+            $NewContent = [System.Guid]::NewGuid().ToString()
+            Get-CachedLocation -Name $CacheName -CreateBlock { return $NewContent } -NoCache
+            Get-Content -Path $CachePath | Should -Be $NewContent
+        }
+    }
+
+    It 'Should not override existing file' {
+        InModuleScope Cache -Parameters @{ CacheName = $CacheName; } {
+            $Content = [System.Guid]::NewGuid().ToString()
+            $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return $Content }
+            Get-Content -Path $CachePath | Should -Be $Content
+
+            Get-CachedLocation -Name $CacheName -CreateBlock { return [System.Guid]::NewGuid().ToString() }
+            Get-Content -Path $CachePath | Should -Be $Content
+        }
+    }
+
+    It 'Removes cache if MaxAge is exceeded' {
+        InModuleScope Cache -Parameters @{ CacheName = $CacheName; } {
+            $Content = [System.Guid]::NewGuid().ToString()
+            $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return $Content }
+            Test-Path -Path $CachePath | Should -Be $true
+
+            Start-Sleep -Seconds 1
+            $NewContent = [System.Guid]::NewGuid().ToString()
+            $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return $NewContent } -MaxAge (New-TimeSpan -Seconds 1)
+            Get-Content -Path $CachePath | Should -Be $NewContent
+        }
+    }
+
+    Context 'IsValidBlock Parameter Tests' {
+        It 'Uses IsValidBlock to replace cache' {
+            InModuleScope Cache -Parameters @{ CacheName = $CacheName } {
+                $InvalidContent = [System.Guid]::NewGuid().ToString()
+                $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return $InvalidContent }
+                Get-Content -Path $CachePath | Should -Be $InvalidContent
+
+                $ValidContent = [System.Guid]::NewGuid().ToString()
+                Get-CachedLocation -Name $CacheName -CreateBlock { return $ValidContent } -IsValidBlock { param($Path) return $false }
+                Get-Content -Path $CachePath | Should -Be $ValidContent
+            }
         }
 
-        It 'Removes cache if MaxAge is exceeded' {
-            Mock Test-Path { return $true }
-            Mock (Get-Item) {
-                # Return a last-write time older than 1 day
-                return [PSCustomObject]@{ LastWriteTime = (Get-Date).AddDays(-2) }
+        It 'Uses IsValidBlock to keep valid cache' {
+            InModuleScope Cache -Parameters @{ CacheName = $CacheName } {
+                $ValidContent = [System.Guid]::NewGuid().ToString()
+                $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return $ValidContent }
+                Get-Content -Path $CachePath | Should -Be $ValidContent
+
+                $InvalidContent = [System.Guid]::NewGuid().ToString()
+                Get-CachedLocation -Name $CacheName -CreateBlock { return $InvalidContent } -IsValidBlock { param($Path) return $true }
+                Get-Content -Path $CachePath | Should -Be $ValidContent
             }
-            Mock Remove-Item {}
-            Mock Set-Content {}
-
-            Get-CachedLocation -Name 'test' -MaxAge ([TimeSpan]::FromHours(12)) -CreateBlock { return '{"test":"maxage"}' } | Out-Null
-            Should -Invoke Remove-Item -Times 1
-        }
-
-        It 'Uses IsValidBlock to remove invalid cache' {
-            Mock Test-Path { return $true }
-            Mock Remove-Item {}
-            Mock Set-Content {}
-            Mock (Get-Item) {
-                return [PSCustomObject]@{ LastWriteTime = (Get-Date) }
-            }
-
-            $validBlock = { param($path) return $false }
-            Get-CachedLocation -Name 'test' -IsValidBlock $validBlock -CreateBlock { return '{"invalid":"cache"}' } | Out-Null
-            Should -Invoke Remove-Item -Times 1
-        }
-
-        It 'Creates a new file when none is found' {
-            Mock Test-Path {
-                # Folder exists, cache file doesn't
-                if ($_ -eq "$($Script:Folder)") { return $true }
-                return $false
-            }
-            Mock Set-Content {}
-
-            $Result = Get-CachedLocation -Name 'brandNew' -CreateBlock { return '{"created":"newfile"}' }
-            Should -Invoke Set-Content -Times 1
-            $Result | Should -Match 'Cached-brandNew'
         }
     }
 }
