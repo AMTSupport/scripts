@@ -42,10 +42,7 @@ function Invoke-FailedExit {
         [Switch]$DontExit,
 
         [Parameter()]
-        [String[]]$FormatArgs,
-
-        [Parameter(DontShow)]
-        [System.Management.Automation.Cmdlet]$CallingCmdlet = $PSCmdlet
+        [String[]]$FormatArgs
     )
 
     [String]$ExitDescription = $Script:ExitCodes[$ExitCode];
@@ -97,15 +94,15 @@ function Invoke-FailedExit {
         }
 
         if ($null -eq $Local:DeepestException.ErrorRecord.CategoryInfo.Category) {
-            [System.Management.Automation.ErrorCategory]$Local:Catagory = [System.Management.Automation.ErrorCategory]::NotSpecified;
+            [System.Management.Automation.ErrorCategory]$Local:Category = [System.Management.Automation.ErrorCategory]::NotSpecified;
         } else {
-            [System.Management.Automation.ErrorCategory]$Local:Catagory = $Local:DeepestException.ErrorRecord.CategoryInfo.Category;
+            [System.Management.Automation.ErrorCategory]$Local:Category = $Local:DeepestException.ErrorRecord.CategoryInfo.Category;
         }
 
         [System.Management.Automation.ErrorRecord]$Local:ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
             [System.Exception]$Local:DeepestException,
             'FailedExit',
-            $Local:Catagory,
+            $Local:Category,
             $ExitCode
         );
 
@@ -114,7 +111,7 @@ function Invoke-FailedExit {
             $Global:Error.Add($Local:DeepestException.ErrorRecord);
         }
 
-        $CallingCmdlet.ThrowTerminatingError($Local:ErrorRecord);
+        $PSCmdlet.ThrowTerminatingError($Local:ErrorRecord);
     }
 }
 
