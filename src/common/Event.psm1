@@ -27,22 +27,15 @@ class Subscription {
     }
 }
 
-class ByPriority: System.Collections.Generic.IComparer[Subscription] {
-    ByPriority() { }
+class SubscriptionComparer: System.Collections.Generic.IComparer[Subscription] {
+    SubscriptionComparer() { }
 
-    [Int] Compare([Subscription]$a, [Subscription]$b) {
-        [Int]$OneValue = [Int]$a.Priority;
-        [Int]$TwoValue = [Int]$b.Priority;
-
-        if ($OneValue -eq $TwoValue) {
-            return 0;
+    [Int] Compare([Subscription]$x, [Subscription]$y) {
+        if ($x.Priority -eq $y.Priority) {
+            return $x.Guid.CompareTo($y.Guid);
         }
 
-        if ($OneValue -lt $TwoValue) {
-            return -1;
-        }
-
-        return 1;
+        return $x.Priority.CompareTo($y.Priority);
     }
 }
 
@@ -52,6 +45,7 @@ class EventRegistration {
 
     EventRegistration([Type]$EventType) {
         $this.EventType = $EventType;
+        $this.Subscriptions = [System.Collections.Generic.SortedSet[Subscription]]::new([SubscriptionComparer]::new());
     }
 
     <#
@@ -61,11 +55,11 @@ class EventRegistration {
     [Guid] Subscribe([Subscription]$Subscription) {
         # Lazy initialization
         if ($null -eq $this.Subscriptions) {
-            $this.Subscriptions = [System.Collections.Generic.SortedSet[Subscription]]::new([ByPriority]::new());
+            $this.Subscriptions = [System.Collections.Generic.SortedSet[Subscription]]::new([SubscriptionComparer]::new());
         }
 
-        $this.Subscriptions.Add($Subscription);
-        return $this.Subscriptions.Guid;
+        $null = $this.Subscriptions.Add($Subscription);
+        return $Subscription.Guid;
     }
 
     [Boolean] Unsubscribe([Guid]$Guid) {
@@ -73,14 +67,12 @@ class EventRegistration {
             return $false;
         }
 
-        # FIXME: Performance issue
-        [Int]$Private:Index = $this.Subscriptions.FindIndex({ param($Subscription) $Subscription.Guid -eq $Guid });
-        if ($Private:Index -eq -1) {
+        $Subscription = $this.Subscriptions | Where-Object { $_.Guid -eq $Guid };
+        if ($null -eq $Subscription) {
             return $false;
         }
 
-        $this.Subscriptions.RemoveAt($Private:Index);
-        return $true;
+        return $this.Subscriptions.Remove($Subscription);
     }
 
     [Void] Dispatch([Object]$EventInstance) {
@@ -113,10 +105,8 @@ function Register-EventSubscription {
         Invoke-Error -Message "Event type $EventType has not been registered" -Throw -ErrorCategory InvalidArgument;
     }
 
-    [Subscription]$Private:Subscription = [Subscription]::new($EventType, $Priority, $Callback);
-    $Script:Events[$EventType].Subscribe($Private:Subscription);
-
-    return $Private:Subscription.Guid;
+    [Subscription]$Subscription = [Subscription]::new($EventType, $Priority, $Callback);
+    return $Script:Events[$EventType].Subscribe($Subscription);
 }
 
 function Submit-Event {
@@ -176,7 +166,7 @@ function Get-CustomEvent {
 Export-Types -Types @(
     [Priority],
     [Subscription],
-    [ByPriority],
+    [SubscriptionComparer],
     [EventRegistration]
 )
 
