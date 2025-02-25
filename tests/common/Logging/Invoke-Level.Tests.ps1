@@ -27,89 +27,32 @@ BeforeAll {
 }
 
 Describe 'Invoke-Level Tests' {
-    Context 'Invoke-Error Tests' {
-        It 'Should write when $ErrorActionPreference is Continue' {
-            $Global:ErrorActionPreference = 'Continue';
-            $Params | Invoke-Error -InformationVariable Output;
-            $Output | Select-Object -First 1 | Get-Stripped | Should -Be (Get-ShouldBeString $Params.Message);
-        }
+    It 'Invoke-<Function> should write when <Preference> is <Level>' {
+        Set-Variable -Name $Preference -Value $Level
+        & Invoke-$Function -InformationVariable Output @Params;
+        $Output | Select-Object -First 1 | Get-Stripped | Should -Be (Get-ShouldBeString $Params.Message);
+    } -ForEach @(
+        @{ Function = 'Verbose'; Preference = 'VerbosePreference'; Level = 'Continue'; },
+        @{ Function = 'Debug'; Preference = 'DebugPreference'; Level = 'Continue'; },
+        @{ Function = 'Warn'; Preference = 'WarningPreference'; Level = 'Continue'; },
+        @{ Function = 'Info'; Preference = 'InformationPreference'; Level = 'Continue'; },
+        @{ Function = 'Info'; Preference = 'InformationPreference'; Level = 'SilentlyContinue'; }, # By default info is silently continue which is dumb.
+        @{ Function = 'Error'; Preference = 'ErrorActionPreference'; Level = 'Continue'; }
+    )
 
-        It 'Should not write when $ErrorActionPreference is SilentlyContinue or Ignore' {
-            $Global:ErrorActionPreference = 'SilentlyContinue';
-            $Params | Invoke-Error -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-
-            $Global:ErrorActionPreference = 'Ignore';
-            $Params | Invoke-Error -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-        }
-    }
-
-    Context 'Invoke-Warn Tests' {
-        It 'Should write when $WarningPreference is Continue' {
-            $Global:WarningPreference = 'Continue';
-            $Params | Invoke-Warn -InformationVariable Output;
-            $Output | Select-Object -First 1 | Get-Stripped | Should -Be (Get-ShouldBeString $Params.Message);
-        }
-
-        It 'Should not write when $WarningPreference is SilentlyContinue or Ignore' {
-            $Global:WarningPreference = 'SilentlyContinue';
-            $Params | Invoke-Warn -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-
-            $Global:WarningPreference = 'Ignore';
-            $Params | Invoke-Warn -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-        }
-    }
-
-    Context 'Invoke-Info Tests' {
-        It 'Should write when $InformationPreference is Continue' {
-            $Global:InformationPreference = 'Continue';
-            $Params | Invoke-Info -InformationVariable Output;
-            $Output | Select-Object -First 1 | Get-Stripped | Should -Be (Get-ShouldBeString $Params.Message);
-        }
-
-        It 'Should not write when $InformationPreference is Ignore' {
-            $Global:InformationPreference = 'Ignore';
-            $Params | Invoke-Info -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-        }
-    }
-
-    Context 'Invoke-Verbose Tests' {
-        It 'Should write when $VerbosePreference is Continue' {
-            $Global:VerbosePreference = 'Continue';
-            $Params | Invoke-Verbose -InformationVariable Output;
-            $Output | Select-Object -First 1 | Get-Stripped | Should -Be (Get-ShouldBeString $Params.Message);
-        }
-
-        It 'Should not write when $VerbosePreference is SilentlyContinue or Ignore' {
-            $Global:VerbosePreference = 'SilentlyContinue';
-            $Params | Invoke-Verbose -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-
-            $Global:VerbosePreference = 'Ignore';
-            $Params | Invoke-Verbose -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-        }
-    }
-
-    Context 'Invoke-Debug Tests' {
-        It 'Should write when $DebugPreference is Continue' {
-            $Global:DebugPreference = 'Continue';
-            $Params | Invoke-Debug -InformationVariable Output;
-            $Output | Select-Object -First 1 | Get-Stripped | Should -Be (Get-ShouldBeString $Params.Message);
-        }
-
-        It 'Should not write when $DebugPreference is SilentlyContinue or Ignore' {
-            $Global:DebugPreference = 'SilentlyContinue';
-            $Params | Invoke-Debug -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-
-            $Global:DebugPreference = 'Ignore';
-            $Params | Invoke-Debug -InformationVariable Output;
-            $Output | Select-Object -First 1 | Should -Be $null;
-        }
-    }
+    It 'Invoke-<Function> should not write when <Preference> is <Level>' {
+        Set-Variable -Name $Preference -Value $Level
+        & Invoke-$Function -InformationVariable Output @Params;
+        $Output | Select-Object -First 1 | Should -Be $null;
+    } -ForEach @(
+        @{ Function = 'Verbose'; Preference = 'VerbosePreference'; Level = 'SilentlyContinue'; },
+        @{ Function = 'Verbose'; Preference = 'VerbosePreference'; Level = 'Ignore'; },
+        @{ Function = 'Debug'; Preference = 'DebugPreference'; Level = 'SilentlyContinue'; },
+        @{ Function = 'Debug'; Preference = 'DebugPreference'; Level = 'Ignore'; },
+        @{ Function = 'Warn'; Preference = 'WarningPreference'; Level = 'SilentlyContinue'; },
+        @{ Function = 'Warn'; Preference = 'WarningPreference'; Level = 'Ignore'; },
+        @{ Function = 'Info'; Preference = 'InformationPreference'; Level = 'Ignore'; },
+        @{ Function = 'Error'; Preference = 'ErrorActionPreference'; Level = 'SilentlyContinue'; },
+        @{ Function = 'Error'; Preference = 'ErrorActionPreference'; Level = 'Ignore'; }
+    )
 }
