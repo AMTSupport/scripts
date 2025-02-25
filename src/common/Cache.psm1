@@ -42,7 +42,6 @@ function Get-CachedContent {
         [HashTable]$Local:Params = $PSBoundParameters;
         $Local:Params.Remove('ParseBlock');
 
-        Invoke-Debug "Cache parameters: $($PSBoundParameters | Out-String)"
         [String]$Local:CachePath = Get-CachedLocation @Local:Params;
 
         $Local:RawContent = Get-Content -Path $Local:CachePath -Raw;
@@ -52,17 +51,48 @@ function Get-CachedContent {
     }
 }
 
+<#
+.SYNOPSIS
+    Get the location of a cached file, creating it if needed.
+
+.DESCRIPTION
+    This function checks if the cache file exists and is valid. If it doesn't exist, it calls the CreateBlock to generate the file.
+    The cache file is considered valid if it exists, is not older than MaxAge, and if provided, the IsValidBlock returns true.
+
+.PARAMETER Name
+    The unique name of the cache file, used to generate the file path.
+
+.PARAMETER MaxAge
+    The maximum age of the cache file.
+    If left empty, the cache file will always be considered valid by age.
+
+.PARAMETER IsValidBlock
+    A script block that determines if the cached content is still valid.
+    This should have one parameter: Path and return a boolean value.
+
+.PARAMETER CreateBlock
+    A script block that creates the content to be cached;
+    If WriteBlock not customised this will write verbatim into the cache file.
+
+.PARAMETER WriteBlock
+    A script block that writes the content to the cache file;
+    This should have two parameters: Path and Content.
+
+.PARAMETER NoCache
+    Indicates that the cache should be ignored and to recreate the content.
+#>
 function Get-CachedLocation {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory, HelpMessage = 'The unique name of the cache file.')]
+        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [String]$Name,
 
-        [Parameter(HelpMessage = 'The maximum age of the cache file.')]
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
         [TimeSpan]$MaxAge,
 
-        [Parameter(HelpMessage = 'A Custom script block to determine if the cached content is still valid.')]
+        [Parameter()]
         [ValidateNotNullOrEmpty()]
         [ValidateScript({
                 [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
@@ -81,7 +111,7 @@ function Get-CachedLocation {
             })]
         [ScriptBlock]$IsValidBlock,
 
-        [Parameter(Mandatory, HelpMessage = 'The script block which creates the content to be cached if needed, this should return a JSON object.')]
+        [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [ValidateScript({
                 [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
@@ -100,7 +130,7 @@ function Get-CachedLocation {
             })]
         [ScriptBlock]$CreateBlock,
 
-        [Parameter(HelpMessage = 'The script block used to write the content to the cache file.')]
+        [Parameter()]
         [ValidateScript({
                 [System.Management.Automation.Language.Ast]$Local:Ast = $_.Ast;
 
@@ -124,7 +154,7 @@ function Get-CachedLocation {
             $Content | Set-Content -Path $Path -Encoding UTF8;
         },
 
-        [Parameter(HelpMessage = "Don't use the cached response, use the CreateBlock.")]
+        [Parameter()]
         [Switch]$NoCache
     )
 
@@ -157,11 +187,13 @@ function Get-CachedLocation {
                 }
             }
 
-            if ($MaxAge) {
+            if ($NoCache) {
+                Remove-Cache -CachePath $Local:CachePath;
+            } elseif ($MaxAge) {
                 [TimeSpan]$Local:CacheAge = (Get-Date) - (Get-Item -Path $Local:CachePath).LastWriteTime;
                 Invoke-Debug "Cache has a maximum age of $($MaxAge.TotalMinutes) minutes, currently $($Local:CacheAge.TotalMinutes) minutes old.";
 
-                if ($NoCache -or $Local:CacheAge -gt $MaxAge) {
+                if ($Local:CacheAge -gt $MaxAge) {
                     Remove-Cache -CachePath $Local:CachePath;
                 }
             } elseif ($IsValidBlock) {
