@@ -32,7 +32,7 @@ Describe 'Register-EventSubscription Tests' {
             [Int]$Instances = 100;
             [Guid[]]$Ids = @();
             for ($i = 0; $i -lt $Instances; $i++) {
-                $Ids += Register-EventSubscription -EventType $EventType -Callback { };
+                $Ids += (Register-EventSubscription -EventType $EventType -Callback { });
             }
 
             ($Ids | Sort-Object -Unique).Count | Should -BeExactly $Instances;
