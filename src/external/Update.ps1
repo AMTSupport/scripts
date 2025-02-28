@@ -4,6 +4,7 @@ Using module ..\common\Environment.psm1
 Using module ..\common\Logging.psm1
 Using module ..\common\Scope.psm1
 Using module ..\common\Utils.psm1
+Using module ..\common\Input.psm1
 
 <#
 .SYNOPSIS
@@ -32,11 +33,18 @@ param(
     [ValidateScript({ Test-Path -Path $_ -PathType Container })]
     [String]$Output = ($PSScriptRoot + '/scripts/'),
 
+    [Parameter(ParameterSetName = 'Patch')]
+    [ValidateNotNullOrEmpty()]
+    [String]$Patches = ($PSScriptRoot + '/patches/'),
+
     [Parameter(ParameterSetName = 'Update')]
     [Switch]$Force,
 
     [Parameter(ParameterSetName = 'Validate')]
-    [Switch]$Validate
+    [Switch]$Validate,
+
+    [Parameter(ParameterSetName = 'Patch')]
+    [Switch]$CreatePatches
 )
 
 function Compare-LocalToRemote {
@@ -84,6 +92,10 @@ function Out-WithEncoding {
     end { Exit-Scope; }
 
     process {
+        if (Test-Path -Path $Path -PathType Leaf) {
+            Remove-Item -Path $Path -Force;
+        }
+
         $WriteStream = [System.IO.File]::OpenWrite($Path);
         if ($Encoding.GetPreamble().Length -gt 0) {
             $WriteStream.Write($Encoding.GetPreamble(), 0, $Encoding.GetPreamble().Length);
@@ -125,17 +137,59 @@ function Get-RemoteAndPatch {
 
         Out-WithEncoding -Path $OutputPath -Content $Content -Encoding $Encoding;
 
-        if ($Patches -and $Patches.Length -gt 0) {
-            Invoke-Info "Applying patches to $($OutputPath).";
-            git apply $Patches
-            $Content = Get-Content -Path $OutputPath -Raw;
+        $Hash = $Request.Headers['ETag'];
+        $ContextLine = "#!ignore $Hash";
+
+        try {
+            if (Invoke-ApplyPatch -OutputPath $OutputPath -Patches $Patches) {
+                $Content = Get-Content -Path $OutputPath -Raw;
+                $ContextLine += "[$($Patches -join ', ')]";
+            }
+        } catch {
+            Invoke-Error "Failed to apply patches to $($OutputPath).";
+            $PSCmdlet.ThrowTerminatingError($_);
         }
 
-        $Hash = $Request.Headers['ETag'];
-        $IgnoreAndHash = $Encoding.GetBytes("#!ignore $Hash`n");
+        $ContextLine += "`n";
+        $IgnoreAndHash = $Encoding.GetBytes($ContextLine);
         [Byte[]]$Content = Remove-EncodingBom $Encoding.GetBytes($Content) $Encoding;
         $Content = $IgnoreAndHash + $Content;
         Out-WithEncoding -Path $OutputPath -ContentBytes $Content -Encoding $Encoding;
+    }
+}
+
+function Invoke-ApplyPatch {
+    [OutputType([Bool])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$OutputPath,
+
+        [Parameter()]
+        [String[]]$Patches
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        $OutputPath = Join-Path -Path $Output -ChildPath $Definition.Output;
+
+        if ($Patches -and $Patches.Length -gt 0) {
+            Invoke-Info "Applying patches to $($OutputPath).";
+            $applyResult = git apply --no-index --ignore-space-change $Patches 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Invoke-Error "Failed to apply patches: $applyResult"
+                $ErrorRecord = New-Object System.Management.Automation.ErrorRecord `
+                              (New-Object System.Exception($applyResult), "PatchApplicationFailed", `
+                              [System.Management.Automation.ErrorCategory]::InvalidOperation, $Patches)
+                $PSCmdlet.ThrowTerminatingError($ErrorRecord);
+            }
+
+            return $True;
+        }
+
+        return $False;
     }
 }
 
@@ -180,9 +234,91 @@ function Test-ScriptsAreParsable {
     }
 }
 
+function New-ScriptPatches {
+    [CmdletBinding()]
+    [OutputType([Void])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [System.IO.FileInfo[]]$Definitions,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Patches
+    )
+
+    # If the working tree is dirty, fail and ask the user to commit or stash their changes.
+    if (git status --porcelain) {
+        Invoke-Error "Working tree is dirty, please commit or stash your changes.";
+        exit 1;
+    }
+
+    if (-not (Test-Path -Path $Patches -PathType Container)) {
+        New-Item -Path $Patches -ItemType Directory -Force;
+    }
+
+    # Remove the first line from each script, which contains the hash of the remote file. to get the original content.
+    $Scripts = Get-ChildItem -Path $Output -Filter '*.ps1' -File -Recurse;
+    foreach ($Script in $Scripts) {
+        $Encoding = Get-ContentEncoding -Path $Script.FullName;
+        $Content = Get-Content -Path $Script.FullName -Raw;
+        $Content = $Content.Substring($Content.IndexOf("`n") + 1);
+        Out-WithEncoding -Path $Script.FullName -Content $Content -Encoding $Encoding;
+    }
+
+    git add $Output
+
+    $Continue = Get-UserConfirmation -Title 'Patch Creation' -Question 'Make your changes then press ''Yes'' to continue, or ''No'' to abort.';
+    if (-not $Continue) {
+        git reset --hard;
+        exit;
+    }
+
+    foreach ($RawDefinition in $Definitions) {
+        $Definition = Get-Content -Path $RawDefinition.FullName | ConvertFrom-Json;
+
+        if (-not $Definition.Source -or -not $Definition.Output) {
+            Invoke-Error "Invalid definition file $($RawDefinition.Name).";
+            continue;
+        }
+
+        $OutputPath = $Output + $Definition.Output;
+        if (-not (Test-Path -Path $OutputPath -PathType Leaf)) {
+            Invoke-Warn "Output file $($OutputPath) does not exist, skipping...";
+            continue;
+        }
+
+        if (git diff $OutputPath) {
+            $LeafName = Split-Path -Path $OutputPath -Leaf;
+            $PatchName = Get-UserInput -Title 'Patch Name' -Question "Please provide a name for the patch for $($Definition.Output).";
+            $PatchName = Join-Path -Path $Patches -ChildPath ("${LeafName}_${PatchName}.patch");
+            git diff $OutputPath > $PatchName;
+
+            $Definition.Patches += $PatchName;
+            $Definition | ConvertTo-Json | Set-Content -Path $RawDefinition.FullName;
+
+            git add $PatchName;
+            git add $RawDefinition.FullName;
+            Invoke-Info "Patch created at $PatchName.";
+
+            git checkout HEAD -- $OutputPath;
+            try {
+                Invoke-ApplyPatch -OutputPath $OutputPath -Patches $Definition.Patches;
+            } catch {
+                Invoke-Error "Failed to apply patch to $($OutputPath).";
+                $PSCmdlet.ThrowTerminatingError($_);
+            }
+        } else {
+            Invoke-Info "No changes detected for $($Definition.Output), skipping patch creation.";
+            git checkout HEAD -- $OutputPath;
+        }
+    }
+}
+
 Invoke-RunMain $PSCmdlet {
     $Definitions = Resolve-Path -Path $Definitions;
     $Output = Resolve-Path -Path $Output;
+    $Patches = Resolve-Path -Path $Patches;
     $WantedDefinitions = Get-ChildItem -Path $Definitions -Filter '*.json?' -File -Recurse;
 
     if ($PSCmdlet.ParameterSetName -eq 'Update') {
@@ -225,5 +361,9 @@ Invoke-RunMain $PSCmdlet {
         if (-not (Test-ScriptsAreParsable -Path $Output)) {
             exit 1
         }
+    }
+
+    if ($PSCmdlet.ParameterSetName -eq 'Patch') {
+        New-ScriptPatches -Definitions $WantedDefinitions -Patches $Patches;
     }
 };
