@@ -21,7 +21,7 @@ insert_final_newline = false
 [*.{cmd,bat,cmd,vbs,bas}]
 end_of_line = crlf
 
-[*.{yml,yaml}]
+[*.{yml,yaml,json,jsonc}]
 indent_size = 2
 
 [*.{xml,xsd,wsb,csproj}]

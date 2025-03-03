@@ -1,8 +1,8 @@
 {
-    "$schema": "../../../resources/schemas/ExternalScript.schema.jsonc",
-    "Output": "Deploy-Nodeware.ps1",
-    "Source": "https://downloads.nodeware.com/deploy/agent-deploy.ps1",
-    "Patches": [
-        "./patches/Nodeware_parameters.patch"
-    ]
+  "$schema": "../../../resources/schemas/ExternalScript.schema.jsonc",
+  "Output": "Deploy-Nodeware.ps1",
+  "Source": "https://downloads.nodeware.com/deploy/agent-deploy.ps1",
+  "Patches": [
+    "./patches/Nodeware_parameters.patch"
+  ]
 }
