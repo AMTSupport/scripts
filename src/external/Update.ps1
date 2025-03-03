@@ -48,9 +48,15 @@ param(
 )
 
 function Compare-LocalToRemote {
+    [CmdletBinding()]
     [OutputType([Boolean])]
     param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [String]$LocalFile,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [String]$RemoteURI
     )
 
@@ -62,8 +68,7 @@ function Compare-LocalToRemote {
             return $False;
         }
 
-        # In the LocalFile we store a hash of the raw remote file we downloaded, its on the first line after #!ignore
-        $LocalHash = (Get-Content -Path $LocalFile -TotalCount 1).Substring(9);
+        $LocalHash = Get-Context -Path $LocalFile | Select-Object -ExpandProperty Hash;
         $RemoteHash = (Invoke-WebRequest -Uri $RemoteURI -Method Head).Headers['ETag'];
 
         return $LocalHash -eq $RemoteHash;
@@ -113,6 +118,47 @@ function Out-WithEncoding {
     }
 }
 
+function Out-WithContextAndEncoding {
+    [OutputType([Void])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Path,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Content,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [System.Text.Encoding]$Encoding,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [PSCustomObject]$Context
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        [String[]]$ContentSplit = $Content -split "`n";
+        if ($ContentSplit[0].StartsWith('#!ignore')) {
+            $Content = ($ContentSplit | Select-Object -Skip 1) -join "`n";
+        }
+
+        $Context.Patches = $Context.Patches | ForEach-Object {
+            Resolve-Path -Relative -RelativeBasePath ($Path | Split-Path -Parent) -Path $_;
+        }
+
+        $ContextLine = "#!ignore $($Context | ConvertTo-Json -Compress)`n";
+        $IgnoreAndHash = $Encoding.GetBytes($ContextLine);
+        [Byte[]]$Content = Remove-EncodingBom $Encoding.GetBytes($Content) $Encoding;
+        $Content = $IgnoreAndHash + $Content;
+        Out-WithEncoding -Path $Path -ContentBytes $Content -Encoding $Encoding;
+    }
+}
+
 function Get-RemoteAndPatch {
     param(
         [String]$RemoteURI,
@@ -135,31 +181,26 @@ function Get-RemoteAndPatch {
             $Content = $Request.Content;
         }
 
-        Out-WithEncoding -Path $OutputPath -Content $Content -Encoding $Encoding;
-
         $Hash = $Request.Headers['ETag'];
-        $ContextLine = "#!ignore $Hash";
+        $Context = New-Context -Hash $Hash -OutputPath $OutputPath -Patches $Patches;
+        Out-WithContextAndEncoding `
+            -Path $OutputPath `
+            -Context $Context `
+            -Content $Content `
+            -Encoding $Encoding;
 
         try {
-            if (Invoke-ApplyPatch -OutputPath $OutputPath -Patches $Patches) {
-                $Content = Get-Content -Path $OutputPath -Raw;
-                $ContextLine += "[$($Patches -join ', ')]";
-            }
+            Invoke-ApplyPatch -OutputPath $OutputPath -Patches $Patches;
         } catch {
             Invoke-Error "Failed to apply patches to $($OutputPath).";
             $PSCmdlet.ThrowTerminatingError($_);
         }
-
-        $ContextLine += "`n";
-        $IgnoreAndHash = $Encoding.GetBytes($ContextLine);
-        [Byte[]]$Content = Remove-EncodingBom $Encoding.GetBytes($Content) $Encoding;
-        $Content = $IgnoreAndHash + $Content;
-        Out-WithEncoding -Path $OutputPath -ContentBytes $Content -Encoding $Encoding;
     }
 }
 
 function Invoke-ApplyPatch {
-    [OutputType([Bool])]
+    [CmdletBinding()]
+    [OutputType([Void])]
     param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
@@ -173,23 +214,33 @@ function Invoke-ApplyPatch {
     end { Exit-Scope; }
 
     process {
-        $OutputPath = Join-Path -Path $Output -ChildPath $Definition.Output;
-
-        if ($Patches -and $Patches.Length -gt 0) {
-            Invoke-Info "Applying patches to $($OutputPath).";
-            $applyResult = git apply --no-index --ignore-space-change $Patches 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                Invoke-Error "Failed to apply patches: $applyResult"
-                $ErrorRecord = New-Object System.Management.Automation.ErrorRecord `
-                              (New-Object System.Exception($applyResult), "PatchApplicationFailed", `
-                              [System.Management.Automation.ErrorCategory]::InvalidOperation, $Patches)
-                $PSCmdlet.ThrowTerminatingError($ErrorRecord);
-            }
-
-            return $True;
+        $Context = Get-Context -Path $OutputPath;
+        if ($null -eq $Context.Patches) { $Context | Add-Member -MemberType NoteProperty -Name Patches -Value @(); }
+        $ResolvedExisting = $Context.Patches | ForEach-Object { Resolve-Path -Path $_; };
+        $Patches = $Patches | Where-Object {
+            $Patch = Resolve-Path -Path $_;
+            -not ($ResolvedExisting -contains $Patch);
         }
 
-        return $False;
+        if (-not $Patches -or $Patches.Length -le 0) {
+            return
+        }
+
+        Invoke-Info "Applying patches to $($OutputPath).";
+        $applyResult = git apply --no-index --ignore-space-change $Patches 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Invoke-Error "Failed to apply patches: $applyResult"
+            $ErrorRecord = New-Object System.Management.Automation.ErrorRecord `
+            (New-Object System.Exception($applyResult), 'PatchApplicationFailed', `
+                    [System.Management.Automation.ErrorCategory]::InvalidOperation, $Patches)
+            $PSCmdlet.ThrowTerminatingError($ErrorRecord);
+        }
+        $Context.Patches += $Patches;
+        Out-WithContextAndEncoding `
+            -Path $OutputPath `
+            -Context $Context `
+            -Content (Get-Content -Path $OutputPath -Raw) `
+            -Encoding (Get-ContentEncoding -Path $OutputPath);
     }
 }
 
@@ -234,9 +285,10 @@ function Test-ScriptsAreParsable {
     }
 }
 
-function New-ScriptPatches {
+function New-ScriptPatch {
     [CmdletBinding()]
     [OutputType([Void])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
@@ -258,17 +310,23 @@ function New-ScriptPatches {
     }
 
     # Remove the first line from each script, which contains the hash of the remote file. to get the original content.
-    $Scripts = Get-ChildItem -Path $Output -Filter '*.ps1' -File -Recurse;
-    foreach ($Script in $Scripts) {
-        $Encoding = Get-ContentEncoding -Path $Script.FullName;
-        $Content = Get-Content -Path $Script.FullName -Raw;
+    foreach ($RawDefinition in $Definitions) {
+        $Definition = Get-Content -Path $RawDefinition.FullName | ConvertFrom-Json;
+        $Script = Resolve-Path (Join-Path -Path $Output -ChildPath $Definition.Output);
+        if (-not (Test-Path -Path $Script -PathType Leaf)) {
+            Invoke-Warn "Output file $($Script) does not exist, skipping...";
+            continue;
+        }
+
+        $Encoding = Get-ContentEncoding -Path $Script;
+        $Content = Get-Content -Path $Script -Raw;
         $Content = $Content.Substring($Content.IndexOf("`n") + 1);
-        Out-WithEncoding -Path $Script.FullName -Content $Content -Encoding $Encoding;
+        Out-WithEncoding -Path $Script -Content $Content -Encoding $Encoding;
     }
 
     git add $Output
 
-    $Continue = Get-UserConfirmation -Title 'Patch Creation' -Question 'Make your changes then press ''Yes'' to continue, or ''No'' to abort.';
+    $Continue = Get-UserConfirmation -Title 'Patch Creation' -Question 'Make your changes then press ''Yes'' to continue, or ''No'' to abort.' -Default $True;
     if (-not $Continue) {
         git reset --hard;
         exit;
@@ -289,9 +347,19 @@ function New-ScriptPatches {
         }
 
         if (git diff $OutputPath) {
-            $LeafName = Split-Path -Path $OutputPath -Leaf;
-            $PatchName = Get-UserInput -Title 'Patch Name' -Question "Please provide a name for the patch for $($Definition.Output).";
-            $PatchName = Join-Path -Path $Patches -ChildPath ("${LeafName}_${PatchName}.patch");
+            $BaseName = [System.IO.Path]::GetFileNameWithoutExtension($OutputPath);
+            while ($True) {
+                $PatchName = Get-UserInput -Title 'Patch Name' -Question "Provide a name for the changes applied to $($Definition.Output).";
+                $PatchName = Join-Path -Path $Patches -ChildPath ("${BaseName}_${PatchName}.patch");
+
+                if (Test-Path -Path $PatchName -PathType Leaf) {
+                    Invoke-Warn "Patch $($PatchName) already exists, please provide a different name.";
+                    continue;
+                } else {
+                    break;
+                }
+            }
+
             git diff $OutputPath > $PatchName;
 
             $Definition.Patches += $PatchName;
@@ -304,6 +372,7 @@ function New-ScriptPatches {
             git checkout HEAD -- $OutputPath;
             try {
                 Invoke-ApplyPatch -OutputPath $OutputPath -Patches $Definition.Patches;
+                git add $OutputPath;
             } catch {
                 Invoke-Error "Failed to apply patch to $($OutputPath).";
                 $PSCmdlet.ThrowTerminatingError($_);
@@ -312,6 +381,58 @@ function New-ScriptPatches {
             Invoke-Info "No changes detected for $($Definition.Output), skipping patch creation.";
             git checkout HEAD -- $OutputPath;
         }
+    }
+}
+
+function Get-Context {
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [ValidateScript({ Test-Path -Path $_ -PathType Leaf })]
+        [String]$Path
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        $Content = Get-Content -Path $Path -Raw;
+        $Context = $Content -split "`n" | Select-Object -First 1;
+
+        $Context = $Context.Substring(9); # Drop #!ignore
+        return $Context | ConvertFrom-Json;
+    }
+}
+
+function New-Context {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Hash,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$OutputPath,
+
+
+        [Parameter()]
+        [String[]]$Patches
+    )
+
+    begin { Enter-Scope; }
+    end { Exit-Scope; }
+
+    process {
+        $Context = [PSCustomObject]@{
+            Hash = $Hash;
+            Patches = $Patches;
+        }
+
+        return $Context;
     }
 }
 
@@ -364,6 +485,6 @@ Invoke-RunMain $PSCmdlet {
     }
 
     if ($PSCmdlet.ParameterSetName -eq 'Patch') {
-        New-ScriptPatches -Definitions $WantedDefinitions -Patches $Patches;
+        New-ScriptPatch -Definitions $WantedDefinitions -Patches $Patches;
     }
 };

@@ -1,4 +1,4 @@
-﻿#!ignore "3b422ca6988d468f60e12d30418eaaf8"
+﻿#!ignore {"Hash":"3b422ca6988d468f60e12d30418eaaf8"}
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service.

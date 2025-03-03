@@ -1,4 +1,4 @@
-#!ignore "33efd32f2e789eb049f02a03631054ff"
+#!ignore {"Hash":"33efd32f2e789eb049f02a03631054ff"}
 param(
     [Parameter(Mandatory)]
     $customerID

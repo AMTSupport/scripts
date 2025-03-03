@@ -1,4 +1,4 @@
-﻿#!ignore "a659a16e1fec9fdf1933507d4019dd6d"
+﻿#!ignore {"Hash":"a659a16e1fec9fdf1933507d4019dd6d"}
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service. 
