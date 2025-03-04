@@ -1,4 +1,4 @@
-#!ignore {"Hash":"33efd32f2e789eb049f02a03631054ff"}
+﻿#!ignore {"Hash":"33efd32f2e789eb049f02a03631054ff","Patches":["./patches/Deploy-Nodeware_parameters.patch"]}
 param(
     [Parameter(Mandatory)]
     $customerID
@@ -27,4 +27,3 @@ try {
     Remove-Item -Path $msiPath -Force -ErrorAction SilentlyContinue
     Remove-Item -Path $tempDir -Force -Recurse -ErrorAction SilentlyContinue
 }
-
