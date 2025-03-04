@@ -1,4 +1,4 @@
-﻿#!ignore {"Hash":"947e90c09c394e715cd00d2fc57e7e09"}
+﻿#!ignore {"Hash":"947e90c09c394e715cd00d2fc57e7e09","Patches":"..\\..\\patches\\PMECleanup_EnsureLogDirectory.patch"}
 # '==================================================================================================================================================================
 # 'Disclaimer
 # 'The sample scripts are not supported under any N-able support program or service.
@@ -22,6 +22,20 @@ function setupLogging() {
 
 	If (($logFolder -match '.+?\\$') -eq $false) {
         $script:logFolder = $logFolder + "\"
+    }
+    $logFolderExists = Test-Path $logFolder
+    $logFileExists = Test-Path $logFilePath
+
+    If ($logFolderExists -eq $false) {
+        New-Item -ItemType 'directory' -Path $logFolder | Out-Null
+    }
+
+    If ($logFileExists -eq $true) {
+        Remove-Item $logFilePath -ErrorAction SilentlyContinue
+        Start-Sleep 2
+        New-Item -ItemType 'file' -Path $logFolder -Name $logFile | Out-Null
+    } Else {
+        New-Item -ItemType 'file' -Path $logFolder -Name $logFile | Out-Null
     }
 
 	$script:scriptLocation = $logFolder + "PMECleanup.ps1"
