@@ -148,7 +148,7 @@ function Out-WithContextAndEncoding {
         }
 
         $Context.Patches = $Context.Patches | ForEach-Object {
-            Resolve-Path -Relative -RelativeBasePath ($Path | Split-Path -Parent) -Path $_;
+            Resolve-Path -Relative -RelativeBasePath $PSScriptRoot -Path $_;
         }
 
         $ContextLine = "#!ignore $($Context | ConvertTo-Json -Compress)`n";
@@ -181,7 +181,9 @@ function Get-RemoteAndPatch {
             $Content = $Request.Content;
         }
 
-        $Hash = $Request.Headers['ETag'];
+        [String]$Hash = $Request.Headers['ETag'];
+        # Drop the quotes from the string
+        $Hash = $Hash.Substring(1, $Hash.Length - 2);
         $Context = New-Context -Hash $Hash -OutputPath $OutputPath -Patches $Patches;
         Out-WithContextAndEncoding `
             -Path $OutputPath `
@@ -216,17 +218,20 @@ function Invoke-ApplyPatch {
     process {
         $Context = Get-Context -Path $OutputPath;
         if ($null -eq $Context.Patches) { $Context | Add-Member -MemberType NoteProperty -Name Patches -Value @(); }
-        $ResolvedExisting = $Context.Patches | ForEach-Object { Resolve-Path -Path $_; };
-        $Patches = $Patches | Where-Object {
-            $Patch = Resolve-Path -Path $_;
-            -not ($ResolvedExisting -contains $Patch);
-        }
+        $ResolvedExisting = $Context.Patches | ForEach-Object { Resolve-Path -Path $_ -RelativeBasePath $PSScriptRoot; };
+        $Patches = $Patches | ForEach-Object { Resolve-Path -Path $_ -RelativeBasePath $PSScriptRoot } | Where-Object { $ResolvedExisting -notcontains $_ }
 
         if (-not $Patches -or $Patches.Length -le 0) {
             return
         }
 
         Invoke-Info "Applying patches to $($OutputPath).";
+
+        $Encoding = Get-ContentEncoding -Path $OutputPath;
+        $Content = Get-Content -Path $OutputPath -Raw;
+        $Content = $Content.Substring($Content.IndexOf("`n") + 1);
+        Out-WithEncoding -Path $OutputPath -Content $Content -Encoding $Encoding;
+
         $applyResult = git apply --no-index --ignore-space-change $Patches 2>&1
         if ($LASTEXITCODE -ne 0) {
             Invoke-Error "Failed to apply patches: $applyResult"
