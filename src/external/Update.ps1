@@ -69,8 +69,15 @@ function Compare-LocalToRemote {
         }
 
         $LocalHash = Get-Context -Path $LocalFile | Select-Object -ExpandProperty Hash;
-        $RemoteHash = (Invoke-WebRequest -Uri $RemoteURI -Method Head).Headers['ETag'];
+        [String]$RemoteHash = (Invoke-WebRequest -Uri $RemoteURI -Method Head).Headers['ETag'];
+        if (-not $RemoteHash) {
+            Invoke-Warn "Failed to get ETag for $($RemoteURI).";
+            return $False;
+        } elseif ($RemoteHash.StartsWith('"') -and $RemoteHash.EndsWith('"')) {
+            $RemoteHash = $RemoteHash.Substring(1, $RemoteHash.Length - 2);
+        }
 
+        Invoke-Debug "Local hash: $LocalHash, Remote hash: $RemoteHash.";
         return $LocalHash -eq $RemoteHash;
     }
 }
@@ -93,7 +100,7 @@ function Out-WithEncoding {
         [System.Text.Encoding]$Encoding
     )
 
-    begin { Enter-Scope; }
+    begin { Enter-Scope -IgnoreParams 'ContentBytes','Content'; }
     end { Exit-Scope; }
 
     process {
@@ -138,7 +145,7 @@ function Out-WithContextAndEncoding {
         [PSCustomObject]$Context
     )
 
-    begin { Enter-Scope; }
+    begin { Enter-Scope -IgnoreParams 'ContentBytes', 'Content'; }
     end { Exit-Scope; }
 
     process {
@@ -147,8 +154,12 @@ function Out-WithContextAndEncoding {
             $Content = ($ContentSplit | Select-Object -Skip 1) -join "`n";
         }
 
-        $Context.Patches = $Context.Patches | ForEach-Object {
-            Resolve-Path -Relative -RelativeBasePath $PSScriptRoot -Path $_;
+        if ($Context.Patches.Length -gt 0) {
+            [String[]]$Context.Patches = $Context.Patches | ForEach-Object {
+                (Resolve-Path -Relative -RelativeBasePath $PSScriptRoot -Path $_) -replace '\\', '/';
+            }
+        } else {
+            $Context.PSObject.Properties.Remove('Patches');
         }
 
         $ContextLine = "#!ignore $($Context | ConvertTo-Json -Compress)`n";
@@ -184,7 +195,7 @@ function Get-RemoteAndPatch {
         [String]$Hash = $Request.Headers['ETag'];
         # Drop the quotes from the string
         $Hash = $Hash.Substring(1, $Hash.Length - 2);
-        $Context = New-Context -Hash $Hash -OutputPath $OutputPath -Patches $Patches;
+        $Context = New-Context -Hash $Hash;
         Out-WithContextAndEncoding `
             -Path $OutputPath `
             -Context $Context `
@@ -217,9 +228,9 @@ function Invoke-ApplyPatch {
 
     process {
         $Context = Get-Context -Path $OutputPath;
-        if ($null -eq $Context.Patches) { $Context | Add-Member -MemberType NoteProperty -Name Patches -Value @(); }
-        $ResolvedExisting = $Context.Patches | ForEach-Object { Resolve-Path -Path $_ -RelativeBasePath $PSScriptRoot; };
-        $Patches = $Patches | ForEach-Object { Resolve-Path -Path $_ -RelativeBasePath $PSScriptRoot } | Where-Object { $ResolvedExisting -notcontains $_ }
+        $Patches = $Patches `
+            | ForEach-Object { Resolve-Path -Path $_ -RelativeBasePath $PSScriptRoot } `
+            | Where-Object { $null -eq $Context.Patches -or $Context.Patches -notcontains $_ };
 
         if (-not $Patches -or $Patches.Length -le 0) {
             return
@@ -232,7 +243,7 @@ function Invoke-ApplyPatch {
         $Content = $Content.Substring($Content.IndexOf("`n") + 1);
         Out-WithEncoding -Path $OutputPath -Content $Content -Encoding $Encoding;
 
-        $applyResult = git apply --no-index --ignore-space-change $Patches 2>&1
+        $applyResult = git apply --whitespace=fix $Patches 2>&1
         if ($LASTEXITCODE -ne 0) {
             Invoke-Error "Failed to apply patches: $applyResult"
             $ErrorRecord = New-Object System.Management.Automation.ErrorRecord `
@@ -240,7 +251,13 @@ function Invoke-ApplyPatch {
                     [System.Management.Automation.ErrorCategory]::InvalidOperation, $Patches)
             $PSCmdlet.ThrowTerminatingError($ErrorRecord);
         }
-        $Context.Patches += $Patches;
+
+        if (-not $Context.Patches) {
+            $Context | Add-Member -MemberType NoteProperty -Name Patches -Value $Patches;
+        } else {
+            $Context.Patches += $Patches;
+        }
+
         Out-WithContextAndEncoding `
             -Path $OutputPath `
             -Context $Context `
@@ -367,7 +384,7 @@ function New-ScriptPatch {
 
             git diff $OutputPath > $PatchName;
 
-            $Definition.Patches += $PatchName;
+            $Definition.Patches += (Resolve-Path -Relative -RelativeBasePath $PSScriptRoot -Path $PatchName) -replace '\\', '/';
             $Definition | ConvertTo-Json | Set-Content -Path $RawDefinition.FullName;
 
             git add $PatchName;
@@ -405,8 +422,19 @@ function Get-Context {
         $Content = Get-Content -Path $Path -Raw;
         $Context = $Content -split "`n" | Select-Object -First 1;
 
+        if (-not $Context.StartsWith('#!ignore')) {
+            Invoke-Warn "Missing context for $($Path)";
+            return New-Context -Hash ('0' * 32)
+        }
+
         $Context = $Context.Substring(9); # Drop #!ignore
-        return $Context | ConvertFrom-Json;
+        $Object = $Context | ConvertFrom-Json;
+
+        if ($Object.Patches) {
+            $Object.Patches = @($Object.Patches | ForEach-Object { Resolve-Path -Relative -RelativeBasePath $PSScriptRoot -Path $_; });
+        }
+
+        return $Object;
     }
 }
 
@@ -418,11 +446,6 @@ function New-Context {
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [String]$Hash,
-
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [String]$OutputPath,
-
 
         [Parameter()]
         [String[]]$Patches
