@@ -83,8 +83,19 @@ jobs:
           workflow_conclusion: success
           name: Compiler
 
+      # FIXME - Running the single instance which compiles a directory is broken, need to do it one by one for now.
       - name: Run Compiler
-        run: .\Compiler.exe -i .\src -o .\compiled
+        shell: pwsh
+        run: |
+          $OutputDir = "compiled"
+          $SourceFiles = Get-ChildItem -Path src -Recurse -Filter *.ps1
+          foreach ($file in $SourceFiles) {
+            $RelativePath = $file.DirectoryName.Substring((Get-Item $SourceDir).FullName.Length).TrimStart('\');
+            $OutputFolderPath = Join-Path $OutputDir $RelativePath;
+            $OutputFilePath = Join-Path $OutputFolderPath $file.Name;
+
+            .\Compiler.exe -i $file.FullName -o $OutputFilePath;
+          }
 
       - name: Commit Changes
         if: ${{ needs.changes.outputs.src == 'true' && github.event_name == 'push' }}
