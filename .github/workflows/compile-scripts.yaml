@@ -87,8 +87,9 @@ jobs:
       - name: Run Compiler
         shell: pwsh
         run: |
-          $OutputDir = "compiled"
-          $SourceFiles = Get-ChildItem -Path src -Recurse -Filter *.ps1
+          $SourceDir = Resolve-Path "src"
+          $OutputDir = Resolve-Path "compiled"
+          $SourceFiles = Get-ChildItem -Path $SourceDir -Recurse -Filter *.ps1
           foreach ($file in $SourceFiles) {
             $RelativePath = $file.DirectoryName.Substring((Get-Item $SourceDir).FullName.Length).TrimStart('\');
             $OutputFolderPath = Join-Path $OutputDir $RelativePath;
