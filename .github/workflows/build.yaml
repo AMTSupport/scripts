@@ -25,7 +25,7 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           cache: true
-          dotnet-version: 9.0.x
+          dotnet-version: 10.0.x
           cache-dependency-path: "src/Compiler/packages.lock.json"
 
       - name: Install dependencies
