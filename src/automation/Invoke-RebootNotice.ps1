@@ -19,6 +19,8 @@
     The default is 7-9, and 16-19.
     The format is an array of tuples with the first element being the start hour and the second element being the end hour.
     For example, [Tuple]::Create(7, 9) would be a time window from 7 to 9.
+.PARAMETER AlwaysShow
+    If this switch is set the message will be displayed even if it has already been shown for the time window or hour.
 .INPUTS
     None
 .OUTPUTS
@@ -44,11 +46,17 @@ using namespace System.Collections.Generic
 
 [CmdletBinding()]
 param(
+    [Parameter()]
     [TimeSpan]$MaxUpTime = [TimeSpan]::FromDays(7),
+
+    [Parameter()]
     [Tuple[int,int][]]$TimeWindows = @(
         [Tuple]::Create(7, 9),
         [Tuple]::Create(16, 19)
-    )
+    ),
+
+    [Parameter()]
+    [Switch]$AlwaysShow
 )
 
 function Format-Time {
@@ -137,7 +145,7 @@ Invoke-RunMain $PSCmdlet {
     $Local:DisplayedMessage = Get-Flag "REBOOT_HELPER_DISPLAYED_$($Local:WithinTimeWindow[0].Hour)-$($Local:WithinTimeWindow[1].Hour)";
     Invoke-Debug "Last displayed at $($Local:DisplayedMessage.GetData())";
     [Boolean]$Local:ShouldDisplayMessage = $True;
-    if ($Local:DisplayedMessage.Exists()) {
+    if (-not $AlwaysShow -and $Local:DisplayedMessage.Exists()) {
         [String]$Local:RawLastDisplayed = $Local:DisplayedMessage.GetData();
         [DateTime]$Local:LastDisplayed = [DateTime]::Parse($Local:RawLastDisplayed);
 
