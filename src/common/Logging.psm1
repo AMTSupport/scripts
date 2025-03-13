@@ -157,7 +157,7 @@ function Format-Error(
     } | Measure-Object -Maximum | Select-Object -ExpandProperty Maximum) + 1;
 
     if ($PSCmdlet.ParameterSetName -eq 'InvocationInfo') {
-        $Line = $InvocationInfo.Line;
+        $Line = $InvocationInfo.Line | ForEach-Object { $_.Trim() };
         if ($InvocationInfo.ScriptName) { $Rows.File.Value = (Format-TrimToConsoleWidth -Line $InvocationInfo.ScriptName -TrimType Left -Padding $Padding).String; }
 
         if ($InvocationInfo.Statement) {
@@ -171,7 +171,7 @@ function Format-Error(
             }
         } else {
             $StatementIndex = 0;
-            $Statement = $TrimmedLine;
+            $Statement = $Line;
         }
 
         $Padding = $Padding # + ($EllipsisLength * 2);
@@ -183,8 +183,9 @@ function Format-Error(
         $StatementIndex = $Content.IndexOf($Statement);
 
         $Result = Get-SurroundingContext `
+            -Statement $Statement `
             -StreamReader $StreamReader `
-            -FocusRange ([Range]::new($StatementIndex, ($StatementIndex + $Statement.Length))) `
+            -FocusRange ([Tuple]::Create($StatementIndex, ($StatementIndex + $Statement.Length))) `
             -MaxLineLength $ConsoleWidth;
         $String = [String]::new($Result.Buffer);
 
@@ -283,7 +284,10 @@ function Format-Error(
         (' ' * ($Rows.Preview.StatementIndex)) +
         ('^' * [Math]::Max(1, [Math]::Min($Rows.Preview.Statement.Length, $ConsoleWidth - $Rows.Preview.StatementIndex - 2)))
     ) $PSStyle.Foreground.Red;
-    if (-not [String]::IsNullOrWhiteSpace($Message)) { $Message = Format-ColourAndReset ((' ' * $Rows.Preview.StatementIndex) + $Message) $PSStyle.Foreground.Red; }
+    if (-not [String]::IsNullOrWhiteSpace($Message)) {
+        $Message = Format-ColourAndReset ((' ' * $Rows.Preview.StatementIndex) + $Message) $PSStyle.Foreground.Red;
+        $Message = $Message -replace "\. ", "`n"; # FIXME - Seems to be ok to split messages by sentances but needs a more robust implementation.
+    }
     $LineOffset = $Rows.Preview.StatementLine;
     if ($Rows.Preview.StatementLine -eq ($PreviewLines.Count - 1)) {
         $PreviewLines += $Highlight;
@@ -974,7 +978,7 @@ function Format-TrimToConsoleWidth {
             A range within the line that should not be touched while trimming.
             Note that this can prevent the line from being trimmed to the console width if the range is too large.
         ')]
-        [System.Range]$EnsureKeeping,
+        [Tuple[int,int]]$EnsureKeeping,
 
         [Parameter()]
         [Int]$Padding = 0,
@@ -990,7 +994,7 @@ function Format-TrimToConsoleWidth {
     if ($Line.Length -le $ConsoleWidth) {
         return [PSCustomObject]@{
             String = $Line;
-            KeepStartIndex = $EnsureKeeping.Start.Value;
+            KeepStartIndex = $EnsureKeeping.Item1;
         };
     }
 
@@ -1007,38 +1011,38 @@ function Format-TrimToConsoleWidth {
     if ($EnsureKeeping) {
         $SpareSpace = 0;
         do {
-            $LeftWithKeep = [Math]::Min($LeftSide, $EnsureKeeping.Start.Value);
-            $RightWithKeep = [Math]::Min($RightSide, $Line.Length - $EnsureKeeping.End.Value);
+            $LeftWithKeep = [Math]::Min($LeftSide, $EnsureKeeping.Item1);
+            $RightWithKeep = [Math]::Min($RightSide, $Line.Length - $EnsureKeeping.Item2);
             $SpareSpace += ($LeftSide - $LeftWithKeep) + ($RightSide - $RightWithKeep);
 
             $LeftSide = $LeftWithKeep;
             $RightSide = $RightWithKeep;
 
-            if ($LeftSide -ne $EnsureKeeping.Start.Value) {
-                $CanFill = $EnsureKeeping.Start.Value - $LeftSide;
+            if ($LeftSide -ne $EnsureKeeping.Item1) {
+                $CanFill = $EnsureKeeping.Item1 - $LeftSide;
                 $AmountToFill = [Math]::Min($SpareSpace, $CanFill);
                 $LeftSide += $AmountToFill;
                 $SpareSpace -= $AmountToFill;
             }
 
-            if ($RightSide -ne $Line.Length - $EnsureKeeping.End.Value) {
-                $CanFill = ($Line.Length - $EnsureKeeping.End.Value) - $RightSide;
+            if ($RightSide -ne $Line.Length - $EnsureKeeping.Item2) {
+                $CanFill = ($Line.Length - $EnsureKeeping.Item2) - $RightSide;
                 $AmountToFill = [Math]::Min($SpareSpace, $CanFill);
                 $RightSide += $AmountToFill;
                 $SpareSpace -= $AmountToFill;
             }
 
             # If we can't fill any more space then break.
-            if ($LeftSide -eq $EnsureKeeping.Start.Value -and $RightSide -eq $Line.Length - $EnsureKeeping.End.Value) {
+            if ($LeftSide -eq $EnsureKeeping.Item1 -and $RightSide -eq $Line.Length - $EnsureKeeping.Item2) {
                 break;
             }
         } while ($SpareSpace -ne 0);
 
-        $LeftWithKeep = [Math]::Min($LeftSide, $EnsureKeeping.Start.Value);
-        $RightWithKeep = [Math]::Min($RightSide, $Line.Length - $EnsureKeeping.End.Value);
+        $LeftWithKeep = [Math]::Min($LeftSide, $EnsureKeeping.Item1);
+        $RightWithKeep = [Math]::Min($RightSide, $Line.Length - $EnsureKeeping.Item2);
 
-        $LeftSide = [Math]::Min($LeftSide, $EnsureKeeping.Start.Value);
-        $RightSide = [Math]::Min($RightSide, $Line.Length - $EnsureKeeping.End.Value);
+        $LeftSide = [Math]::Min($LeftSide, $EnsureKeeping.Item1);
+        $RightSide = [Math]::Min($RightSide, $Line.Length - $EnsureKeeping.Item2);
     }
 
     if ($TrimType -eq 'Both') {
@@ -1099,7 +1103,7 @@ function Format-TrimToConsoleWidth {
 
     return [PSCustomObject]@{
         String = $Line;
-        KeepStartIndex = $EnsureKeeping.Start.Value - $StartIndex;
+        KeepStartIndex = $EnsureKeeping.Item1 - $StartIndex;
     };
 }
 
@@ -1254,12 +1258,15 @@ function Get-SurroundingContext {
     [CmdletBinding()]
     [OutputType({[PSCustomObject]@{
         Buffer = [Char[]];
-        FocusRange = [Range];
-        FocusLine = [Range];
+        FocusRange = [Tuple[int,int]];
+        FocusLine = [Tuple[int,int]];
     }})]
     param(
         [Parameter(Mandatory)]
-        [Range]$FocusRange,
+        [String]$Statement,
+
+        [Parameter(Mandatory)]
+        [Tuple[int,int]]$FocusRange,
 
         [Parameter(Mandatory)]
         [System.IO.StreamReader]$StreamReader,
@@ -1311,11 +1318,11 @@ function Get-SurroundingContext {
 
     $Result = [PSCustomObject]@{
         Buffer = $Buffer;
-        FocusRange = [Range]::new(
-            $FocusRange.Start.Value - $Backward.Offset,
-            $FocusRange.End.Value - $Backward.Offset
+        FocusRange = [Tuple]::Create(
+            $FocusRange.Item1 - $Backward.Offset,
+            $FocusRange.Item2 - $Backward.Offset
         );
-        FocusLine = [Range]::new(
+        FocusLine = [Tuple]::Create(
             $Backward.LinesAdded,
             $Backward.LinesAdded + ($Statement.Split("`n").Count - 1)
         );
