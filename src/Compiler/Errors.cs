@@ -48,7 +48,7 @@ public abstract record EnrichableError : Error {
         this.Module = module;
     }
 
-    public override bool Is<TE>() => (this.Inner.IsSome && this.Inner.Unwrap() is TE) || this is TE;
+    public override bool IsType<TE>() => (this.Inner.IsSome && this.Inner.Unwrap() is TE) || this is TE;
 
     public override ErrorException ToErrorException() {
         if (this.IsExceptional) {
