@@ -126,8 +126,10 @@ public class Program {
             }
         );
 
-        RunspacePool.Value.Close();
-        RunspacePool.Value.Dispose();
+        if (RunspacePool.IsValueCreated) {
+            RunspacePool.Value.Close();
+            RunspacePool.Value.Dispose();
+        }
         LogManager.Shutdown();
 
         return result != 0 ? result : Errors.IsEmpty ? 0 : 1;
