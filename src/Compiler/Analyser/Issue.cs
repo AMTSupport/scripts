@@ -73,7 +73,7 @@ public record Issue(
         [NotNull] Ast parent,
         [NotNull] Option<ModuleSpec> module = default) => new(IssueSeverity.Warning, message, extent, parent, module);
 
-    public override bool Is<TE>() => false;
+    public override bool IsType<TE>() => false;
 
     public T Enrich<T>(ModuleSpec module) where T : Exceptional => throw new NotImplementedException();
 }

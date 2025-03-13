@@ -3,7 +3,6 @@
 
 global using LanguageExt.Common;
 global using static LanguageExt.Prelude;
-global using LanguageExt.Pipes;
 
 using C = System.Collections.Generic;
 using System.Collections.Concurrent;

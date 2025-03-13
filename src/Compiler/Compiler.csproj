@@ -1,8 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+<?xml-model href="https://github.com/dotnet/msbuild/blob/main/src/MSBuild/Microsoft.Build.xsd"?>
+<Project Sdk="Microsoft.NET.Sdk" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <MainEntryPoint>Program</MainEntryPoint>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
@@ -11,7 +12,7 @@
     <UseWindowsForms>True</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
 
-    <LangVersion>preview</LangVersion>
+    <LangVersion>latest</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Compiler</RootNamespace>
     <AssemblyName>Compiler</AssemblyName>
@@ -54,10 +55,14 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>3</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
-    <!-- Required by WinForms, should be fixed in .NET 10 -->
+    <!-- Required by WinForms, should be fixed in .NET 10 (https://github.com/dotnet/winforms/issues/4649) -->
     <PublishTrimmed>false</PublishTrimmed>
+    <PublishTrimmedMode>link</PublishTrimmedMode>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishReadyToRunComposite>false</PublishReadyToRunComposite>
   </PropertyGroup>
 
   <ItemGroup>
@@ -70,7 +75,8 @@
   <ItemGroup>
     <!-- Misc -->
     <PackageReference Include="Extended.Collections" Version="1.1.1" />
-    <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-07" />
+    <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
+    <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-48" />
     <PackageReference Include="QuikGraph" Version="2.5.0" />
     <PackageReference Include="QuikGraph.Graphviz" Version="2.5.0" />
 
@@ -80,8 +86,13 @@
     <PackageReference Include="NLog" Version="5.3.2" />
 
     <!-- PowerShell Deps -->
-    <PackageReference Include="System.Management.Automation" Version="7.4.5" />
-    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.5" PrivateAssets="all" />
+    <PackageReference Include="System.Management.Automation" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.ConsoleHost" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Utility" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Diagnostics" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Management" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.WSMan.Management" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.0-preview.3" PrivateAssets="all" />
     <PackageReference Include="System.Windows.Forms" Version="4.0.0" />
     <PackageReference Include="NuGet.Commands" Version="6.9.1" />
     <PackageReference Include="NuGet.Common" Version="6.9.1" />
