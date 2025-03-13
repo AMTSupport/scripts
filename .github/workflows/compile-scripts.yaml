@@ -87,15 +87,15 @@ jobs:
       - name: Run Compiler
         shell: pwsh
         run: |
-          $SourceDir = Resolve-Path "src"
-          $OutputDir = Resolve-Path "compiled"
+          $SourceDir = "src"
+          $OutputDir = "compiled"
           $SourceFiles = Get-ChildItem -Path $SourceDir -Recurse -Filter *.ps1
           foreach ($file in $SourceFiles) {
             $RelativePath = $file.DirectoryName.Substring((Get-Item $SourceDir).FullName.Length).TrimStart('\');
-            $OutputFolderPath = Join-Path $OutputDir $RelativePath;
-            $OutputFilePath = Join-Path $OutputFolderPath $file.Name;
+            $SourcePath = Join-Path -Path $SourceDir -ChildPath ($RelativePath | Join-Path -ChildPath $file.Name)
+            $OutputPath = Join-Path -Path $OutputDir -ChildPath $RelativePath
 
-            .\Compiler.exe -i $file.FullName -o $OutputFilePath;
+            .\Compiler.exe -i $SourcePath -o $OutputPath -vvv -f;
           }
 
       - name: Commit Changes
