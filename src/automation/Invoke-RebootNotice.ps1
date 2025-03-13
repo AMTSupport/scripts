@@ -15,6 +15,7 @@
     The default is 7 days.
 .PARAMETER TimeWindows
     An array of time windows in which the message can be displayed.
+    If this is set to null or an empty array the message will be displayed at any time.
     The default is 7-9, and 16-19.
     The format is an array of tuples with the first element being the start hour and the second element being the end hour.
     For example, [Tuple]::Create(7, 9) would be a time window from 7 to 9.
@@ -26,10 +27,10 @@
     .\Invoke-RebootNotice.ps1
     This will check if a reboot is required and send a message to the user if it is.
 
-    .\Invoke-RebootNotice.ps1 -MaxUpTime [TimeSpan]::FromDays(1)
+    .\Invoke-RebootNotice.ps1 -MaxUpTime ([TimeSpan]::FromDays(1))
     Runs the script with a maximum uptime of 1 day instead of the default 7.
 
-    .\Invoke-RebootNotice.ps1 -TimeWindows @([Tuple]::Create(7, 9), [Tuple]::Create(12-2), [Tuple]::Create(16, 19))
+    .\Invoke-RebootNotice.ps1 -TimeWindows @([Tuple]::Create(7, 9), [Tuple]::Create(12, 14), [Tuple]::Create(16, 19))
     Runs the script with time windows from 7-9, 12-14, and 16-19.
 #>
 
@@ -108,15 +109,20 @@ Invoke-RunMain $PSCmdlet {
         return;
     }
 
-    [Tuple[DateTime,DateTime][]]$Local:DateTimeWindows = $TimeWindows | ForEach-Object {
-        [Tuple]::Create([DateTime]::Now.Date.AddHours($_.Item1), [DateTime]::Now.Date.AddHours($_.Item2))
+    if ($null -eq $TimeWindows -or $TimeWindows.Count -eq 0) {
+        Invoke-Debug 'No time windows specified, showing reboot notice at any time.';
+        $Local:DateTimeWindows = @([Tuple]::Create([DateTime]::Now, [DateTime]::Now.AddHours(3)));
+    } else {
+        [Tuple[DateTime,DateTime][]]$Local:DateTimeWindows = $TimeWindows | ForEach-Object {
+            [Tuple]::Create([DateTime]::Now.Date.AddHours($_.Item1), [DateTime]::Now.Date.AddHours($_.Item2))
+        };
     };
 
     $Local:Now = Get-Date;
     $Local:WithinTimeWindow = $null;
     foreach ($Local:TimeWindow in $Local:DateTimeWindows) {
         Invoke-Debug "Checking time window: $Local:TimeWindow";
-        if ($Local:TimeWindow[0] -le $Local:Now -and $Local:TimeWindow[1] -ge $Local:Now) {
+        if ($Local:TimeWindow.Item1 -le $Local:Now -and $Local:TimeWindow.Item2 -ge $Local:Now) {
             Invoke-Debug "Within time window: $Local:TimeWindow";
             $Local:WithinTimeWindow = $Local:TimeWindow;
             break;
@@ -129,7 +135,7 @@ Invoke-RunMain $PSCmdlet {
     }
 
     $Local:DisplayedMessage = Get-Flag "REBOOT_HELPER_DISPLAYED_$($Local:WithinTimeWindow[0].Hour)-$($Local:WithinTimeWindow[1].Hour)";
-    Invoke-Debug "Displayed message: $($Local:DisplayedMessage)";
+    Invoke-Debug "Last displayed at $($Local:DisplayedMessage.GetData())";
     [Boolean]$Local:ShouldDisplayMessage = $True;
     if ($Local:DisplayedMessage.Exists()) {
         [String]$Local:RawLastDisplayed = $Local:DisplayedMessage.GetData();
@@ -141,7 +147,7 @@ Invoke-RunMain $PSCmdlet {
         [Boolean]$Local:DisplayedWithinHour = $Local:LastDisplayed -gt (Get-Date).AddHours(-1);
 
         if ($Local:DisplayedToday -or $Local:DisplayedWithinHour) {
-            Invoke-Info "Reboot notice was already displayed today at $Local:LastDisplayed";
+            Invoke-Info "Reboot notice was already displayed within the time window or hour, not showing again.";
             $Local:ShouldDisplayMessage = $False;
         }
     }
@@ -171,6 +177,5 @@ At your earliest convenience, please perform a restart.
     }
 
     $ExitCode = Register-ExitCode $Local:RequiresRestart.reason;
-    # Invoke-Error $Local:RequiresRestart.Reason;
-    Invoke-FailedExit $ExitCode;
+    exit $ExitCode;
 };
