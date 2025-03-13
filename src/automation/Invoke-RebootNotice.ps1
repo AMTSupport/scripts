@@ -142,7 +142,7 @@ Invoke-RunMain $PSCmdlet {
         return;
     }
 
-    $Local:DisplayedMessage = Get-Flag "REBOOT_HELPER_DISPLAYED_$($Local:WithinTimeWindow[0].Hour)-$($Local:WithinTimeWindow[1].Hour)";
+    $Local:DisplayedMessage = Get-Flag "REBOOT_HELPER_DISPLAYED_$($Local:WithinTimeWindow.Item1.Hour)-$($Local:WithinTimeWindow.Item2.Hour)";
     Invoke-Debug "Last displayed at $($Local:DisplayedMessage.GetData())";
     [Boolean]$Local:ShouldDisplayMessage = $True;
     if (-not $AlwaysShow -and $Local:DisplayedMessage.Exists()) {
