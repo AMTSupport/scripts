@@ -219,7 +219,7 @@ function Invoke-RunMain {
             Invoke-Error 'Unable to execute script due to a parse error.';
             Invoke-FailedExit -ExitCode 9998 -ErrorRecord $_ -DontExit;
         } catch [System.Management.Automation.RuntimeException] {
-            if ($null -ne $_.Exception.InnerException) {
+            if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException -is [System.Management.Automation.RuntimeException]) {
                 $CatchingError = $_.Exception.InnerException.ErrorRecord;
             } else {
                 $CatchingError = $_.Exception.ErrorRecord;
