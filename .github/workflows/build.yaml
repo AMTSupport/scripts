@@ -12,7 +12,6 @@ on:
         value: ${{ github.inputs.artifact }}
         description: 'The artifact that was built'
 
-
 jobs:
   build:
     runs-on: ubuntu-latest

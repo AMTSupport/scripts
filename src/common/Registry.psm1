@@ -107,7 +107,6 @@ function Set-RegistryKey {
         if ($PSCmdlet.ShouldProcess($Path, 'Set')) {
             Invoke-Verbose "Setting registry key '$Path' to '$Value'...";
             Set-ItemProperty -Path $Path -Name $Key -Value $Value -Type $Kind;
-            [Microsoft.Win32.Registry]::SetValue($Path, $Key, $Value, $Kind);
         }
     }
 }

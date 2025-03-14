@@ -54,9 +54,9 @@
           ],
           "description": "Value of the registry key; If the value is null, the key will be deleted"
         },
-        "Validate": {
+        "ValidationBlock": {
           "type": "string",
-          "description": "A powershell script that will be executed against the value of the registry key to validate it; The key value will be passed as $PSItem",
+          "description": "A powershell block that will be executed against the value of the registry key to test if we should update the value\nThe current value is available as $CurrentValue",
           "contentMediaType": "text/powershell"
         }
       },
@@ -101,11 +101,43 @@
     }
   },
   "properties": {
+    "details": {
+      "type": "object",
+      "description": "Additional details for the script.",
+      "additionalProperties": false,
+      "properties": {
+        "synopsis": {
+          "type": "string",
+          "description": "Synopsis for the script."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description for the script."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes for the script."
+        },
+        "functionality": {
+          "type": "array",
+          "description": "Functionality of the script.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "entries": {
       "type": "array",
       "items": {
         "$ref": "#/definitions/RegistryEntry"
-      }
+      },
+      "minItems": 1,
+      "uniqueItems": true
     }
-  }
+  },
+  "required": [
+    "details",
+    "entries"
+  ]
 }
