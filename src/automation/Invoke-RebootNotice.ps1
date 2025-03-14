@@ -172,12 +172,12 @@ At your earliest convenience, please perform a restart.
 "@;
 
             $Local:Message | . msg * /TIME:3600;
+            $Local:DisplayedMessage.Set((Get-Date));
 
             if ($LASTEXITCODE -ne 0) {
                 Invoke-Error 'Failed to send reboot notice.';
             } else {
                 Invoke-Info 'Reboot notice sent.';
-                $Local:DisplayedMessage.Set((Get-Date));
             }
         } catch {
             Invoke-Error "Failed to send reboot notice: $_";
