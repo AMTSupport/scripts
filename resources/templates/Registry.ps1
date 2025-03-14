@@ -9,10 +9,13 @@
 
 using module <#SRC#>/common/Registry.psm1
 using module <#SRC#>/common/Environment.psm1
+using module <#SRC#>/common/Ensure.psm1
 
 [CmdletBinding()]
 param()
 
 Invoke-RunMain $PSCmdlet {
+    Invoke-EnsureAdministrator;
+
     <#REGISTRY_EDITS#>
 }
