@@ -7,9 +7,9 @@
     The marker <#SRC#\> will be replaced with the scripts location to src.
 #>
 
-using module <#SRC#>/common/Registry.psm1
-using module <#SRC#>/common/Environment.psm1
-using module <#SRC#>/common/Ensure.psm1
+using module <#SRC#>\common\Registry.psm1
+using module <#SRC#>\common\Environment.psm1
+using module <#SRC#>\common\Ensure.psm1
 
 [CmdletBinding()]
 param()
