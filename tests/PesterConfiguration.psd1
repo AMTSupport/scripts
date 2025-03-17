@@ -9,7 +9,9 @@
         Enabled      = $True;
         CoveragePercentTarget = 80;
         OutputFormat = 'JaCoCo';
-        OutputPath   = 'tests\Coverage\CodeCoverage.xml';
+        OutputPath   = 'tests\Coverage\PesterCodeCoverage.xml';
+        Path         = 'src';
+        RecursePaths = $True;
     }
     TestResult   = @{
         Enabled      = $True;
