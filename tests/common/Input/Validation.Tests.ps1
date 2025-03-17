@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Input.psm1" }
-AfterAll { Remove-Module Input -ErrorAction SilentlyContinue }
 
 Describe 'Validate Input Tests' {
     It 'Should export the validations variable for use in other tests' {

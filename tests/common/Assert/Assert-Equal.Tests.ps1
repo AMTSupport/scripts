@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module $PSScriptRoot/../../../src/common/Assert.psm1 }
-AfterAll { Remove-Module Assert -ErrorAction SilentlyContinue }
 
 Describe 'Assert-Equal Tests' {
     It 'Should throw an error if the object does not equal the expected value' {

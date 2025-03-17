@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Input.psm1" }
-AfterAll { Remove-Module Input -ErrorAction SilentlyContinue }
 
 BeforeAll {
     [Void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms');
@@ -14,12 +13,11 @@ BeforeAll {
     }
 }
 
+# Describe 'Get-UserInput Tests' {
+#     It 'Should return the user input' {
+#         Mock -CommandName Read-Host -MockWith { 'test' };
 
-Describe 'Get-UserInput Tests' {
-    It 'Should return the user input' {
-        Mock -CommandName Read-Host -MockWith { 'test' };
-
-        $Result = Get-UserInput -Title 'Hello' -Question 'World';
-        $Result | Should -BeExactly 'test';
-    } -Skip
-}
+#         $Result = Get-UserInput -Title 'Hello' -Question 'World';
+#         $Result | Should -BeExactly 'test';
+#     } -Skip
+# }

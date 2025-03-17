@@ -1,8 +1,7 @@
 BeforeDiscovery { Import-Module $PSScriptRoot/../../../src/common/Scope.psm1 }
-AfterAll { Remove-Module Scope -ErrorAction SilentlyContinue }
 
 Describe 'Exit-Scope Tests' {
-    BeforeAll {
+    BeforeEach {
         InModuleScope 'Scope' {
             $Script:InvocationStack = [System.Collections.Stack]::new(@(
                 @{Invocation = @{MyCommand = @{Name = 'Describe' } }},

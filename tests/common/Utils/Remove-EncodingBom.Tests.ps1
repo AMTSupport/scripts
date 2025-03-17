@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Utils.psm1" }
-AfterAll { Remove-Module Utils -ErrorAction SilentlyContinue }
 
 BeforeAll {
     $EncodingWithBom = @{

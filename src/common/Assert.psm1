@@ -4,7 +4,7 @@ Using module .\Logging.psm1
 Using module .\Exit.psm1
 
 $NULL_ARGUMENT = Register-ExitCode -Description 'An unexpected null value was encountered.';
-$FAILED_EXPECTED_VALUE = Register-ExitCode -Description 'Object [{}] does not equal expected value [{}].';
+$FAILED_EXPECTED_VALUE = Register-ExitCode -Description 'Object [{0}] does not equal expected value [{1}].';
 
 
 <#
@@ -35,13 +35,14 @@ function Assert-NotNull(
     [Object]$Object,
 
     [Parameter()]
+    [AllowNull()]
     [String]$Message
 ) {
     if ($null -ne $Object) {
         return;
     }
 
-    if ($null -ne $Message) { Invoke-Error -Message $Message; }
+    if (-not [String]::IsNullOrWhiteSpace($Message)) { Invoke-Error -Message $Message; }
     Invoke-FailedExit -ExitCode $NULL_ARGUMENT;
 }
 
@@ -82,8 +83,8 @@ function Assert-Equal(
 ) {
     if ($Object -eq $Expected) { return }
 
-    if ($null -ne $Message) { Invoke-Error -Message $Message; }
-    Invoke-FailedExit -ExitCode $FAILED_EXPECTED_VALUE;
+    if (-not [String]::IsNullOrWhiteSpace($Message)) { Invoke-Error -Message $Message; }
+    Invoke-FailedExit -ExitCode $FAILED_EXPECTED_VALUE -FormatArgs @($Object, $Expected);
 }
 
 Export-ModuleMember -Function Assert-NotNull, Assert-Equal;

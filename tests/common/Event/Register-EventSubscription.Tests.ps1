@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Event.psm1" }
-AfterAll { Remove-Module Event -ErrorAction SilentlyContinue }
 
 Describe 'Register-EventSubscription Tests' {
     It 'Should throw an error if the event type isn''t registered' {
@@ -10,7 +9,7 @@ Describe 'Register-EventSubscription Tests' {
     }
 
     Context 'With EventType Registered' {
-        BeforeAll {
+        BeforeEach {
             class TestEvent {
                 [String]$Name
                 TestEvent([String]$Name) { $this.Name = $Name }
