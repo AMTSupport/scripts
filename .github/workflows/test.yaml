@@ -59,6 +59,7 @@ jobs:
           Invoke-Pester -Configuration $Config
 
       - name: Upload test results
+        if: always()
         id: test-results
         uses: natescherer/pester-tests-report@combined
         with:
