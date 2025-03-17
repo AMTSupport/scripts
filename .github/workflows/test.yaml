@@ -66,7 +66,12 @@ jobs:
         id: test-results
         uses: natescherer/pester-tests-report@combined
         with:
-          test_results_path: "tests/TestResults/PesterTestResults.xml"
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          gist_token: ${{ secrets.PESTER_GIST_GH_TOKEN }}
+          test_results_path: "tests/TestResults/PesterTestResults.xml"
+          coverage_paths: "tests/Coverage/PesterCodeCoverage.xml"
           tests_fail_step: true
+          skip_check_run: true
+          coverage_gist: true
+          gist_name: "Pester Test Results on ${{ matrix.os }}"
           report_name: "TEST_RESULTS_${{ github.run_id }}_${{ github.run_number }}_${{ matrix.os }}"
