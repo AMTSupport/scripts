@@ -31,6 +31,5 @@
     "path-intellisense.autoTriggerNextSuggestion": true,
     "powershell.analyzeOpenDocumentsOnly": true,
     "powershell.developer.editorServicesLogLevel": "Diagnostic",
-    "powershell.integratedConsole.suppressStartupBanner": true,
-    "pester.runTestsInNewProcess": true
+    "powershell.integratedConsole.suppressStartupBanner": true
 }
