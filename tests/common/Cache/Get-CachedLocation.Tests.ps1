@@ -1,5 +1,5 @@
 BeforeDiscovery { Import-Module -Force -Name $PSScriptRoot/../../../src/common/Cache.psm1 }
-AfterAll { Remove-Module -Name Cache }
+AfterAll { Remove-Module Cache -ErrorAction SilentlyContinue }
 
 Describe 'Get-CachedLocation Tests' {
     BeforeAll {

@@ -1,5 +1,5 @@
 BeforeDiscovery { Import-Module "$PSScriptRoot/../../../src/common/Exit.psm1" }
-AfterAll { Remove-Module 'Exit' }
+AfterAll { Remove-Module Exit -ErrorAction SilentlyContinue }
 BeforeAll { $ModuleName = 'Exit' }
 
 Describe 'Invoke-Handlers Tests' {

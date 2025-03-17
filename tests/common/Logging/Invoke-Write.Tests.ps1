@@ -1,5 +1,5 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Logging.psm1" }
-AfterAll { Remove-Module Logging }
+AfterAll { Remove-Module Logging -ErrorAction SilentlyContinue }
 
 BeforeAll {
     function Get-ShouldBeString([String]$String) {
