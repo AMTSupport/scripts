@@ -1,5 +1,5 @@
 BeforeDiscovery { Import-Module $PSScriptRoot/../../../src/common/Assert.psm1 }
-AfterAll { Remove-Module Assert }
+AfterAll { Remove-Module Assert -ErrorAction SilentlyContinue }
 
 Describe 'Assert-NotNull Tests' {
     It 'Should throw an error if the object is null' {

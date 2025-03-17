@@ -2,7 +2,7 @@
 param()
 
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Utils.psm1" }
-AfterAll { Remove-Module Utils }
+AfterAll { Remove-Module Utils -ErrorAction SilentlyContinue }
 
 Describe 'ConvertTo-InvokableValue tests' {
     It 'Should return "$null" for null input' {

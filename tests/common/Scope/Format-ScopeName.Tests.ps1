@@ -1,5 +1,5 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Scope.psm1" }
-AfterAll { Remove-Module Scope }
+AfterAll { Remove-Module Scope -ErrorAction SilentlyContinue }
 
 Describe 'Format-ScopeName Tests' {
     It 'Should format a single scope correctly' {

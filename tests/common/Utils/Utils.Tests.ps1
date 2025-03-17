@@ -1,5 +1,5 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Utils.psm1" }
-AfterAll { Remove-Module Utils }
+AfterAll { Remove-Module Utils -ErrorAction SilentlyContinue }
 
 Describe 'Utils Tests' {
     Context 'AST Helper functions' {

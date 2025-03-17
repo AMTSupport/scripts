@@ -1,5 +1,5 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Event.psm1" }
-AfterAll { Remove-Module Event }
+AfterAll { Remove-Module Event -ErrorAction SilentlyContinue }
 
 Describe 'Register-EventSubscription Tests' {
     It 'Should throw an error if the event type isn''t registered' {
