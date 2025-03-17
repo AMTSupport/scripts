@@ -16,8 +16,6 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup DotNet
         uses: actions/setup-dotnet@v4
@@ -40,10 +38,15 @@ jobs:
           path: ./tests/Compiler/coverage.info
 
   test-scripts:
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       checks: write
+    strategy:
+        fail-fast: false
+        matrix:
+          os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: Run Pester Tests on ${{ matrix.os }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -66,3 +69,4 @@ jobs:
           test_results_path: "tests/TestResults/PesterTestResults.xml"
           github_token: ${{ secrets.GITHUB_TOKEN }}
           tests_fail_step: true
+          report_name: "TEST_RESULTS_${{ github.run_id }}_${{ github.run_number }}_${{ matrix.os }}"
