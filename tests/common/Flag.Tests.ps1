@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../src/common/Flag.psm1" }
-AfterAll { Remove-Module Flag -ErrorAction SilentlyContinue }
 
 Describe 'Flags.psm1 Tests' {
     AfterEach { $Flag.Remove(); }

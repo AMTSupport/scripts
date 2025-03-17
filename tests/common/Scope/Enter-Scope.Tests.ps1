@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module $PSScriptRoot/../../../src/common/Scope.psm1 }
-AfterAll { Remove-Module Scope -ErrorAction SilentlyContinue }
 BeforeAll { $ModuleName = 'Scope' }
 
 Describe 'Enter-Scope Tests' {

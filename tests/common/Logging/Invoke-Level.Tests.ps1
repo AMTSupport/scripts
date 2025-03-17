@@ -1,26 +1,9 @@
-BeforeDiscovery { Import-Module -Name "$PSScriptRoot/../../../src/common/Logging.psm1" }
-AfterAll { Remove-Module Logging -ErrorAction SilentlyContinue }
+BeforeDiscovery {
+    Import-Module -Name "$PSScriptRoot/../../../src/common/Logging.psm1"
+    Import-Module -Name "$PSScriptRoot/Helpers.psm1"
+}
 
 BeforeAll {
-    function Get-ShouldBeString([String]$String) {
-        $FixedString = $String -replace "`n", "`n+ ";
-
-        InModuleScope Logging {
-            if (Test-SupportsUnicode) {
-                # There is an extra space at the end of the string
-                $FixedString = " $FixedString"
-            }
-        }
-
-        return $FixedString;
-    }
-
-    function Get-Stripped([Parameter(ValueFromPipeline)][String]$String) {
-        # Replace all non-ASCII characters with a nothing string
-        # Replace all ANSI escape sequences with a nothing string
-        $String -replace '[^\u0000-\u007F]', '' -replace '\x1B\[[0-9;]*m', '';
-    }
-
     $Params = @{
         Message   = 'Test message'
     };

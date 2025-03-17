@@ -1,5 +1,4 @@
 BeforeDiscovery { Import-Module "$PSScriptRoot/../../../src/common/Cache.psm1" }
-AfterAll { Remove-Module Cache -ErrorAction SilentlyContinue }
 
 Describe 'Get-CachedContent Tests' {
     BeforeAll {
