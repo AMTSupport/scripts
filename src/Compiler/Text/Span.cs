@@ -67,11 +67,6 @@ public sealed record TextSpan : IComparable<TextSpan> {
         [NotNull, JetBrains.Annotations.NonNegativeValue] int endingIndex,
         [NotNull, JetBrains.Annotations.NonNegativeValue] int endingColumn
     ) {
-        ArgumentNullException.ThrowIfNull(startingIndex);
-        ArgumentNullException.ThrowIfNull(startingColumn);
-        ArgumentNullException.ThrowIfNull(endingIndex);
-        ArgumentNullException.ThrowIfNull(endingColumn);
-
         ArgumentOutOfRangeException.ThrowIfNegative(startingIndex);
         ArgumentOutOfRangeException.ThrowIfNegative(startingColumn);
         ArgumentOutOfRangeException.ThrowIfNegative(endingIndex);

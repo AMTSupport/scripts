@@ -163,6 +163,50 @@ public class AstHelperTests {
             Assert.That(result, Is.EquivalentTo(expectedModules));
         });
     }
+
+    [Test]
+    [TestCase(true), TestCase(false)]
+    public void GetTemplatedData_Tests(bool withExport) {
+        var template = """
+        <New-Alias -Name {name} -Value Test-Function{0}>
+        After the alias
+        """;
+
+        var nameTemplate = "Test-Alias{0}";
+        var count = 5;
+        var seperator = "\n";
+        var exportType = "Alias";
+
+        var (content, expected) = TestData.AstFinder.GetTemplatedData(template, nameTemplate, count, seperator, exportType, withExport);
+
+        Assert.Multiple(() => {
+            Assert.That(content, Is.Not.Null.Or.Empty);
+            Assert.That(content, Does.Contain(
+                """
+                New-Alias -Name Test-Alias0 -Value Test-Function0
+                After the alias
+                New-Alias -Name Test-Alias1 -Value Test-Function1
+                After the alias
+                New-Alias -Name Test-Alias2 -Value Test-Function2
+                After the alias
+                New-Alias -Name Test-Alias3 -Value Test-Function3
+                After the alias
+                New-Alias -Name Test-Alias4 -Value Test-Function4
+                After the alias
+                """));
+
+            if (withExport) {
+                Assert.That(content, Does.Contain("Export-ModuleMember -Alias Test-Alias0,Test-Alias1,Test-Alias2,Test-Alias3,Test-Alias4"));
+            } else {
+                Assert.That(content, Does.Not.Contain("Export-ModuleMember"));
+            }
+
+            Assert.That(expected, Is.Not.Null.Or.Empty);
+#pragma warning disable CA1861 // Avoid constant arrays as arguments
+            Assert.That(expected, Is.EquivalentTo(new[] { "Test-Alias0", "Test-Alias1", "Test-Alias2", "Test-Alias3", "Test-Alias4" }));
+#pragma warning restore CA1861 // Avoid constant arrays as arguments
+        });
+    }
 }
 
 file static class TestData {
@@ -488,9 +532,9 @@ file static class TestData {
                 for (var i = 0; i < counts.Length * 2; i++) {
                     var withExport = i % 2 == 0;
                     var count = counts[i / 2];
-                    var (byFunctionContent, expectedByFunction) = GetTemplatedData(templateByFunction, nameTemplate, count, Environment.NewLine, "Alias", withExport);
-                    var (byAttributeContent, expectedByAttribute) = GetTemplatedData(templateByAttribute, nameTemplate, count, Environment.NewLine, "Alias", withExport);
-                    var (byAttributeArrayContent, expectedByAttributeArray) = GetTemplatedData(templateByAttributeArray, nameTemplate, count, Environment.NewLine, "Alias", withExport);
+                    var (byFunctionContent, expectedByFunction) = GetTemplatedData(templateByFunction, nameTemplate, count, "\n", "Alias", withExport);
+                    var (byAttributeContent, expectedByAttribute) = GetTemplatedData(templateByAttribute, nameTemplate, count, "\n", "Alias", withExport);
+                    var (byAttributeArrayContent, expectedByAttributeArray) = GetTemplatedData(templateByAttributeArray, nameTemplate, count, "\n", "Alias", withExport);
 
                     yield return new TestCaseData(byFunctionContent, expectedByFunction, withExport);
                     yield return new TestCaseData(byAttributeContent, expectedByAttribute, withExport);
@@ -500,7 +544,23 @@ file static class TestData {
             }
         }
 
-        private static (string, IEnumerable<string>) GetTemplatedData(
+        /// <summary>
+        /// Get the templated data for the alias tests
+        ///
+        /// This will replace the {name} with the name template and {0} with the count provided.
+        /// </summary>
+        /// <param name="template">
+        /// The template to use for the data
+        /// </param>
+        /// <param name="nameTemplate">
+        /// The name template to use for the alias
+        /// </param>
+        /// <param name="count">The number of aliases to create</param>
+        /// <param name="seperator"></param>
+        /// <param name="exportType"></param>
+        /// <param name="withExport"></param>
+        /// <returns></returns>
+        internal static (string, IEnumerable<string>) GetTemplatedData(
             string template,
             string nameTemplate,
             int count,
@@ -523,27 +583,32 @@ file static class TestData {
                 var name = nameTemplate.Replace("{0}", i.ToString(CultureInfo.InvariantCulture));
                 exportNames.Add(name);
                 // Find each instance of {name} and add it to the export names
-                while (copyableZone.Contains("{name}")) {
-                    var index = copyableZone.IndexOf("{name}", StringComparison.Ordinal);
-                    var originalIndex = index;
-                    var originalEnd = index + 6;
+                var instancedZone = copyableZone.Clone().ToString()!;
+                while (instancedZone.Contains(value: "{name}")) {
+                    var nameIndex = instancedZone.IndexOf("{name}", StringComparison.Ordinal);
+                    var originalIndex = nameIndex;
+                    var originalEnd = nameIndex + 6;
                     // Go back and forward for all connecting characters, including only a-z and - characters
                     var start = originalIndex;
-                    while (start > 0 && (char.IsLetter(copyableZone[start - 1]) || copyableZone[start - 1] == '-')) start--;
+                    while (start > 0 && (char.IsLetter(instancedZone[start - 1]) || instancedZone[start - 1] == '-')) start--;
                     var end = originalEnd;
-                    while (end < copyableZone.Length - 1 && (char.IsLetter(copyableZone[end + 1]) || copyableZone[start + 1] == '-')) end++;
+                    while (end < instancedZone.Length - 1 && (char.IsLetter(instancedZone[end + 1]) || instancedZone[start + 1] == '-')) end++;
 
-                    name = copyableZone[start..end].Replace("{name}", name);
-                    // exportNames.Add(name);
-                    copyableZone = copyableZone.Remove(start, end - start).Insert(start, name);
+                    name = instancedZone[start..end].Replace("{name}", name);
+                    if (end - start > "{name}".Length) exportNames.Add(name); // Prevent duplicate of just the template name.
+                    instancedZone = instancedZone.Remove(start, end - start).Insert(start, name);
                 }
 
-                data.Append(copyableZone.Replace("{name}", name).Replace("{0}", i.ToString(CultureInfo.InvariantCulture)));
+                // Replace a single instance of {0} with the current index
+                var index = instancedZone.IndexOf("{0}", StringComparison.Ordinal);
+                if (index != -1) instancedZone = instancedZone.Remove(index, 3).Insert(index, i.ToString(CultureInfo.InvariantCulture));
+
+                data.Append(instancedZone);
+                if (afterZone.Length > 0) data.Append(afterZone);
                 if (i != count - 1) data.Append(seperator);
             }
 
             exportNames = [.. exportNames.Distinct()];
-            data.Append(afterZone);
 
             if (withExport) {
                 data.AppendLine();

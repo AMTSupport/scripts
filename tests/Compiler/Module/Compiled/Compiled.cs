@@ -109,7 +109,7 @@ file static class TestData {
             random.NextBytes(bytes);
         }
 
-        var mock = new Mock<RealCompiled>(moduleSpec, requirements, bytes) {
+        var mock = new Mock<RealCompiled>(moduleSpec, requirements, new Lazy<byte[]>(bytes)) {
             CallBase = true
         };
         CompiledUtils.AddDependency(parent, mock.Object);

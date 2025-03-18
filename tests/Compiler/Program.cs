@@ -35,7 +35,7 @@ public class ProgramTests {
         Assert.Multiple(() => {
             var exception = result.UnwrapError();
             Assert.That(exception.Message, Does.Contain(path));
-            Assert.That(exception.Is<FileNotFoundException>(), Is.True);
+            Assert.That(exception.HasException<FileNotFoundException>(), Is.True);
         });
     }
 
