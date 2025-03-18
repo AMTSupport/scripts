@@ -136,7 +136,8 @@ public class ResolvableRemoteModuleTests {
             Assert.That(this.ResolvableRemoteModule.CachedFile.Value, Is.EqualTo(task));
 
             manualEvent.Set();
-            await this.ResolvableRemoteModule.CachedFile.SwapAsync(async _ => await task);
+            await task;
+            this.ResolvableRemoteModule.CachedFile.Swap(_ => task);
 
             Assert.That(resultTask.IsCompleted, Is.True);
             Assert.That(resultTask.Result, Is.EqualTo(Prelude.Some("testfile")));
