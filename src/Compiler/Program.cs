@@ -27,7 +27,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Compiler;
 
-// TODO - Auto replace unicode characters with [char]0x{0:X4} in strings
+// TODO - Auto replace unicode characters with [char]0x{0:X4} in strings. see Logging.psm1 for an example of this being done (https://github.com/AMTSupport/scripts/blob/ac8ea57ada5628ccd789a0cd0e4ca2136174dd37/src/microsoft/windows/Update-ToWin11.psm1#L7-L9)
 // Fucking N-Sight forces encoding in UTF-8 without bom which breaks unicode in PS5
 public class Program {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();

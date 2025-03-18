@@ -1,3 +1,4 @@
+#!ignore
 <#
 .SYNOPSIS
     Generates a PowerShell script to apply registry changes defined in JSON.
