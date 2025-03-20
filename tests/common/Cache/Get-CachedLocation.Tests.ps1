@@ -16,7 +16,7 @@ Describe 'Get-CachedLocation Tests' {
     It 'Should return the correct path' {
         InModuleScope Cache -Parameters @{ CacheName = $CacheName } {
             $CachePath = Get-CachedLocation -Name $CacheName -CreateBlock { return "" }
-            $CachePath | Should -Be "$Script:Folder\Cached-$CacheName"
+            $CachePath | Should -Be (Join-Path -Path $Script:Folder -ChildPath "Cached-$CacheName")
         }
     }
 
@@ -73,7 +73,9 @@ Describe 'Get-CachedLocation Tests' {
                 Get-Content -Path $CachePath | Should -Be $InvalidContent
 
                 $ValidContent = [System.Guid]::NewGuid().ToString()
-                Get-CachedLocation -Name $CacheName -CreateBlock { return $ValidContent } -IsValidBlock { param($Path) return $false }
+                Get-CachedLocation -Name $CacheName `
+                    -CreateBlock { return $ValidContent } `
+                    -IsValidBlock { param($Path) return $false }
                 Get-Content -Path $CachePath | Should -Be $ValidContent
             }
         }
@@ -85,7 +87,9 @@ Describe 'Get-CachedLocation Tests' {
                 Get-Content -Path $CachePath | Should -Be $ValidContent
 
                 $InvalidContent = [System.Guid]::NewGuid().ToString()
-                Get-CachedLocation -Name $CacheName -CreateBlock { return $InvalidContent } -IsValidBlock { param($Path) return $true }
+                Get-CachedLocation -Name $CacheName `
+                    -CreateBlock { return $InvalidContent } `
+                    -IsValidBlock { param($Path) return $true }
                 Get-Content -Path $CachePath | Should -Be $ValidContent
             }
         }
