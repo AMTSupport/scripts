@@ -8,9 +8,11 @@
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
 
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
-    <UseWindowsForms>True</UseWindowsForms>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWindowsForms>True</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <ImportWindowsDesktopTargets>false</ImportWindowsDesktopTargets>
 
     <LangVersion>latest</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -34,6 +36,7 @@
     <RepositoryUrl>https://github.com/AMTSupport/scripts</RepositoryUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -58,12 +61,19 @@
     <!-- Required by WinForms, should be fixed in .NET 10 (https://github.com/dotnet/winforms/issues/4649) -->
     <PublishTrimmed>false</PublishTrimmed>
     <PublishTrimmedMode>link</PublishTrimmedMode>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <PublishReadyToRun>false</PublishReadyToRun>
     <PublishReadyToRunComposite>false</PublishReadyToRunComposite>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Resources/ScriptTemplate.ps1" />
@@ -93,7 +103,7 @@
     <PackageReference Include="Microsoft.PowerShell.Commands.Management" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.WSMan.Management" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.0-preview.3" PrivateAssets="all" />
-    <PackageReference Include="System.Windows.Forms" Version="4.0.0" />
+    <!-- <PackageReference Include="System.Windows.Forms" Version="4.0.0" /> -->
     <PackageReference Include="NuGet.Commands" Version="6.9.1" />
     <PackageReference Include="NuGet.Common" Version="6.9.1" />
   </ItemGroup>
