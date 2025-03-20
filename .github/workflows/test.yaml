@@ -35,7 +35,7 @@ jobs:
         if: ${{ always() }}
         with:
           name: dotnet-coverage
-          path: ./tests/Compiler/coverage.info
+          path: ./tests/Compiler/Coverage/coverage.info
 
   test-scripts:
     permissions:

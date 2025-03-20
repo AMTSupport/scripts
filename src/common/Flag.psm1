@@ -1,5 +1,6 @@
 Using module .\Logging.psm1
 Using module .\ModuleUtils.psm1
+Using module .\Temp.psm1
 
 class Flag {
     [String][ValidateNotNull()]$Context;
@@ -79,12 +80,13 @@ class RebootFlag: Flag {
             return $false;
         }
 
-        # Get the write time for the reboot flag file; if it was written before the computer started, we have reboot, return false;
-        [DateTime]$Local:RebootFlagTime = (Get-Item $this.FlagPath).LastWriteTime;
+        # Get the write time for the reboot flag file
+        # if it was written before the computer started, we have reboot, return false
+        [DateTime]$RebootFlagTime = (Get-Item $this.FlagPath).LastWriteTime;
         # Broken on first boot!
-        [DateTime]$Local:StartTime = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty LastBootUpTime;
+        [DateTime]$StartTime = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty LastBootUpTime;
 
-        return $Local:RebootFlagTime -gt $Local:StartTime;
+        return $RebootFlagTime -gt $StartTime;
     }
 }
 
@@ -96,13 +98,13 @@ function Get-FlagPath(
     process {
         # TODO - Make this dynamic based on the calling script's name
 
-        [String]$Local:FlagFolder = "$($env:TEMP)\Flags";
+        [String]$Local:FlagFolder = Get-NamedTempFolder -Name 'Flags';
         if (-not (Test-Path $Local:FlagFolder)) {
             Invoke-Verbose "Creating flag folder $Local:FlagFolder...";
             New-Item -ItemType Directory -Path $Local:FlagFolder;
         }
 
-        [String]$Local:FlagPath = "$Local:FlagFolder\$Context.flag";
+        [String]$Local:FlagPath = Join-Path -Path $Local:FlagFolder -ChildPath "$Context.flag";
         $Local:FlagPath
     }
 }
