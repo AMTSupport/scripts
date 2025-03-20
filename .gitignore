@@ -1,4 +1,7 @@
 .direnv
+.devenv
+result
+.pre-commit-config.yaml
 **/obj
 **/bin
 **/Output

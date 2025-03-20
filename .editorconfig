@@ -10,6 +10,12 @@ insert_final_newline = true
 max_line_length = 130
 rulers = 80,100,120
 
+[.editorconfig]
+max_line_length = 165 # Can't multiline the string so have to do this.
+
+[flake.{nix,lock}]
+indent_size = 2
+
 # Actually go fuck yourself microsoft.
 [*.{ps1,psm1}]
 charset = utf-8-bom
@@ -33,6 +39,10 @@ indent_style = tab
 
 [*.{csproj,vbproj,vcxproj.filters,proj,projiFems,shproj,props,targets,nuspec,resx,ruleset,vsixmanifest,vsct}]
 indent_size = 2
+
+[packages.lock.json]
+end_of_line = crlf
+insert_final_newline = false
 
 ##########################################
 # Default .NET Code Style Severities

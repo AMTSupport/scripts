@@ -893,11 +893,6 @@
         "resolved": "9.0.2",
         "contentHash": "xQkPGVn+H6rlge9Ig7RomYT/z+KwIa3lcVm16YTov4UZFUhEIp+9tPUhs5n9OmXimZkfAdN/CHK2q0aj979fNA=="
       },
-      "System.Windows.Forms": {
-        "type": "Transitive",
-        "resolved": "4.0.0",
-        "contentHash": "WL3QPG1q88aIWO0JPOlkCeyNE+FK4ufSKY5j6J6qAFQyfCFiiOYxi8RAhev9H0CS/wmKbIK8qr8xZBod85oWKw=="
-      },
       "compiler": {
         "type": "Project",
         "dependencies": {
@@ -916,8 +911,7 @@
           "Pastel": "[5.1.0, )",
           "QuikGraph": "[2.5.0, )",
           "QuikGraph.Graphviz": "[2.5.0, )",
-          "System.Management.Automation": "[7.6.0-preview.3, )",
-          "System.Windows.Forms": "[4.0.0, )"
+          "System.Management.Automation": "[7.6.0-preview.3, )"
         }
       }
     },
