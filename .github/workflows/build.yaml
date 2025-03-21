@@ -7,10 +7,6 @@ on:
   pull_request:
     paths: ["src/**", ".github/workflows/build.yaml"]
   workflow_call:
-    outputs:
-      artifact:
-        value: ${{ github.inputs.artifact }}
-        description: 'The artifact that was built'
 
 jobs:
   build:
