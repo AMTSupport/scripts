@@ -2,9 +2,11 @@
 
 ## Introduction
 
-Welcome to the AMTSupport's scripts repository. This repository contains a collection of scripts designed to support various tasks and operations. These scripts are maintained and regularly updated by our team to ensure reliability and efficiency.
+Welcome to the AMTSupport's scripts repository.
+This repository contains a collection of scripts designed to support various tasks and operations.
+These scripts are maintained and regularly updated by our team to ensure reliability and efficiency.
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
@@ -16,7 +18,7 @@ Welcome to the AMTSupport's scripts repository. This repository contains a colle
   - [Maintainers](#maintainers)
   - [License](#license)
 
----
+______________________________________________________________________
 
 ## Folder Structure
 
@@ -29,7 +31,7 @@ Welcome to the AMTSupport's scripts repository. This repository contains a colle
 - [**tests**](./tests): Test scripts and test data for ensuring script reliability.
 - [**utils**](./utils): Utility scripts that assist in development and maintenance.
 
----
+______________________________________________________________________
 
 ## Getting Started
 
@@ -38,19 +40,19 @@ Welcome to the AMTSupport's scripts repository. This repository contains a colle
 If you know which script you are trying to run, you can use this one-liner to download and execute it directly from the repository:
 
 ```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/AMTSupport/scripts/master/src/compiled/<script>.ps1'))
+Set-ExecutionPolicy Bypass Process -Force; iex ([System.Net.WebClient]::new().DownloadString('https://raw.githubusercontent.com/AMTSupport/scripts/master/src/compiled/<script>'))
 ```
 
----
+______________________________________________________________________
 
 ## Maintainers
 
 - [**James Draycott**](https://github.com/DaRacci) - *Initial Work and Maintenance*
 
----
+______________________________________________________________________
 
 ## License
 
 This project is licensed under GPL3 - see the [LICENSE](LICENSE) file for details.
 
----
+______________________________________________________________________

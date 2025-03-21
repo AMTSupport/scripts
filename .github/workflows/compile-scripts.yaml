@@ -47,13 +47,14 @@ jobs:
       - name: Delete Compiled versions of deleted files
         id: delete_files
         run: |
-          for file in $(find compiled -type f); do
-            no_prefix=${file#compiled/}
-            if [ ! -f "src/${no_prefix}" ]; then
-              echo "FOUND_DELETED=true" >> $GITHUB_OUTPUT
-              echo "Found deleted src file ${no_prefix}, deleting compiled version."
-              rm $file
-            fi
+          shopt -s globstar nullglob
+          for file in compiled/**/*; do
+              no_prefix=${file#compiled/}
+              if [ ! -f "src/${no_prefix}" ]; then
+                  echo "FOUND_DELETED=true" >> "$GITHUB_OUTPUT"
+                  echo "Found deleted src file ${no_prefix}, deleting compiled version."
+                  rm "$file"
+              fi
           done
 
       - name: Commit Changes

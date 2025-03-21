@@ -24,11 +24,14 @@ using LanguageExt;
 using System.Reflection;
 using System.Diagnostics.Contracts;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 
 namespace Compiler;
 
-// TODO - Auto replace unicode characters with [char]0x{0:X4} in strings. see Logging.psm1 for an example of this being done (https://github.com/AMTSupport/scripts/blob/ac8ea57ada5628ccd789a0cd0e4ca2136174dd37/src/microsoft/windows/Update-ToWin11.psm1#L7-L9)
 // Fucking N-Sight forces encoding in UTF-8 without bom which breaks unicode in PS5
+// TODO - Auto replace unicode characters with [char]0x{0:X4} in strings;
+// see Logging.psm1 for an example of this being done.
+// https://github.com/AMTSupport/scripts/blob/ac8ea57ada5628ccd789a0cd0e4ca2136174dd37/src/microsoft/windows/Update-ToWin11.psm1#L7-L9
 public class Program {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -68,14 +71,42 @@ public class Program {
     private static async Task<int> Main(string[] args) {
         var parser = new CommandLine.Parser(settings => settings.GetoptMode = true);
 
-        var result = await parser.ParseArguments<Options>(args).MapResult(
+        var result = await parser.ParseArguments<Options>(args)
+            .WithNotParsed(errors => {
+                Console.Error.WriteLine("There was an error parsing the command line arguments.");
+                errors.ToList().ForEach(error => {
+                    if (error is HelpVerbRequestedError) return;
+                    if (error is HelpRequestedError) return;
+                    if (error is VersionRequestedError) return;
+
+                    if (error is MissingRequiredOptionError missingRequiredOptionError) {
+                        Console.Error.WriteLine($"Missing required option: {missingRequiredOptionError.NameInfo}");
+                        return;
+                    }
+
+                    if (error is UnknownOptionError unknownOptionError) {
+                        Console.Error.WriteLine($"Unknown option: {unknownOptionError.Token}");
+                        return;
+                    }
+
+                    if (error is BadFormatConversionError badFormatConversionError) {
+                        Console.Error.WriteLine($"Bad format conversion: {badFormatConversionError.NameInfo}");
+                        return;
+                    }
+
+                    Console.Error.WriteLine($"Error: {error}");
+                });
+
+                Console.Error.WriteLine();
+            })
+            .WithParsedAsync(
             async opts => {
                 CleanInput(opts);
                 IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
 
                 if (GetFilesToCompile(opts.Input!).IsErr(out var error, out var filesToCompile)) {
                     Errors.Add(error);
-                    return 1;
+                    return;
                 }
 
                 EnsureDirectoryStructure(opts.Input!, opts.Output, filesToCompile);
@@ -85,7 +116,8 @@ public class Program {
                 var sourceRoot = File.Exists(opts.Input) ? Path.GetDirectoryName(opts.Input)! : opts.Input;
                 filesToCompile.ToList().ForEach(async scriptPath => {
                     var pathedModuleSpec = new PathedModuleSpec(sourceRoot, Path.GetFullPath(scriptPath));
-                    if ((await Resolvable.TryCreateScript(pathedModuleSpec, superParent)).IsErr(out var error, out var resolvableScript)) {
+                    var maybeScript = await Resolvable.TryCreateScript(pathedModuleSpec, superParent);
+                    if (maybeScript.IsErr(out var error, out var resolvableScript)) {
                         Errors.Add(error.Enrich(pathedModuleSpec));
                         return;
                     }
@@ -109,21 +141,18 @@ public class Program {
                 Logger.Trace("Finished compilation.");
 
                 await OutputErrors(Errors, sourceRoot, opts.Output);
-
-                return 1;
-            },
-#pragma warning disable CS1998
-            async errors => {
-#pragma warning restore CS1998
-                Console.Error.WriteLine("There was an error parsing the command line arguments.");
-                foreach (var err in errors) {
-                    Console.Error.WriteLine(err);
-                }
-                errors.Output();
-
-                return 1;
             }
         );
+
+        var helpText = CommandLine.Text.HelpText.AutoBuild(
+            result,
+            (current) => {
+                current.AdditionalNewLineAfterOption = false;
+                return current;
+            },
+            e => e);
+
+        Console.Error.WriteLine(helpText);
 
         if (RunspacePool.IsValueCreated) {
             RunspacePool.Value.Close();
@@ -131,7 +160,7 @@ public class Program {
         }
         LogManager.Shutdown();
 
-        return result != 0 ? result : Errors.IsEmpty ? 0 : 1;
+        return Errors.IsEmpty ? 0 : 1;
     }
 
     public static void CleanInput(Options opts) {
@@ -258,7 +287,9 @@ public class Program {
     public static Fin<IEnumerable<string>> GetFilesToCompile(string input) {
         var files = new List<string>();
         if (File.Exists(input)) {
-            if (!input.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)) return InvalidInputError.InvalidFileType(input, ".ps1");
+            if (!input.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)) {
+                return InvalidInputError.InvalidFileType(input, ".ps1");
+            }
             files.Add(input);
         } else if (Directory.Exists(input)) {
             foreach (var file in Directory.EnumerateFiles(input, "*.ps1", SearchOption.AllDirectories)) {
@@ -353,17 +384,19 @@ public class Program {
         string sourceDirectory,
         Option<string> outputDirectory
     ) {
-        // Wait for all threads to finish before outputting errors, this is to ensure all errors are captured.
+        // Wait for all threads to finish before outputting errors, ensures all errors are captured.
+        var runspacePool = RunspacePool.Value!;
+        var maxRunspaces = runspacePool.GetMaxRunspaces();
         do {
             Logger.Debug($$"""
             Waiting for all threads to finish {
                 Pending: {{ThreadPool.PendingWorkItemCount}}
                 Threads: {{ThreadPool.ThreadCount}}
-                Runspaces: {{Math.Abs(RunspacePool.Value.GetAvailableRunspaces() - RunspacePool.Value.GetMaxRunspaces())}} of {{RunspacePool.Value.GetMaxRunspaces()}}
+                Runspaces: {{Math.Abs(runspacePool.GetAvailableRunspaces() - maxRunspaces)}} of {{maxRunspaces}}
             }
             """);
             await Task.Delay(25);
-        } while (ThreadPool.PendingWorkItemCount != 0 && ThreadPool.ThreadCount > RunspacePool.Value.GetMaxRunspaces());
+        } while (ThreadPool.PendingWorkItemCount != 0 && ThreadPool.ThreadCount > maxRunspaces);
 
 
         if (Errors.IsEmpty) return 0;
@@ -447,7 +480,8 @@ public class Program {
 
         if (outputDebuggables.Count > 0) {
             Logger.Error($"""
-            Encountered ${outputDebuggables.Count} files with errors while compiling, the debuggable content has been output to the following files:
+            Encountered {outputDebuggables.Count} files with errors while compiling.
+            The debuggable content has been output to the following files:
             {string.Join("\n", outputDebuggables.Select(kv => $"\t{kv.Value}"))}
             """);
         }

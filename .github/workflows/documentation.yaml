@@ -16,7 +16,7 @@ jobs:
     name: Update Documentation
     runs-on: ubuntu-latest
     outputs:
-      changes: ${{ steps.changes.outputs.changes }}
+      docs: ${{ steps.changes.outputs.docs }}
     permissions:
       contents: write
       pull-requests: write
@@ -40,7 +40,7 @@ jobs:
               - 'docs/docs/**'
 
       - name: Commit changes
-        if: ${{ steps.changes.outputs.changes == 'true' }}
+        if: ${{ steps.changes.outputs.docs == 'true' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(docs): Update documentation"
@@ -49,7 +49,7 @@ jobs:
     name: Deploy Documentation
     runs-on: ubuntu-latest
     needs: update_docs
-    if: ${{ github.event_name == 'push' && needs.update_docs.outputs.changes.docs == 'true' }}
+    if: ${{ github.event_name == 'push' && needs.update_docs.outputs.docs == 'true' }}
     permissions:
       contents: read
       pull-requests: read
