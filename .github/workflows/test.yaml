@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: "src/Compiler/packages.lock.json"
 
       - name: Install dependencies
-        run: dotnet restore --locked-mode -r win-x64
+        run: dotnet restore --locked-mode
 
       - name: Test & Collect lcov coverage
         run: dotnet test --logger trx /p:CollectCoverage=true /p:CoverletOutput=Coverage/ /p:CoverletOutputFormat=lcov
