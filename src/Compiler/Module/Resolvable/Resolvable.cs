@@ -11,6 +11,7 @@ using LanguageExt;
 using NLog;
 using QuikGraph;
 using QuikGraph.Graphviz;
+using System.IO;
 
 namespace Compiler.Module.Resolvable;
 

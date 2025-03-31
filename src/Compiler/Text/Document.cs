@@ -2,6 +2,7 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Management.Automation.Language;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;

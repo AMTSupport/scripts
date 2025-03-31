@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.IO;
 using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Text;

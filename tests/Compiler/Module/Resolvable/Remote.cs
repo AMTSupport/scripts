@@ -174,7 +174,7 @@ public class ResolvableRemoteModuleTests {
 
             using var hasher = SHA256.Create();
             var hash = hasher.ComputeHash(reader);
-            var hashString = BitConverter.ToString(hash).Replace("-", "");
+            var hashString = Convert.ToHexString(hash);
             Assert.That(hashString, Is.EqualTo("3A9430315469465407F8D7830653BD2415A994625CE92722E5820A8286B7AD27"));
 
             Assert.That(() => new ZipArchive(reader, ZipArchiveMode.Read), Throws.Nothing);
