@@ -2,6 +2,7 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections.Concurrent;
+using System.IO;
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
@@ -13,7 +14,7 @@ namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableLocalModule : Resolvable {
     private static readonly string TempModuleExportPath = Path.Combine(Path.GetTempPath(), "Compiler", $"ExportedModules_{Environment.ProcessId}");
-    private static readonly ConcurrentDictionary<string, Fin<string>> EmbeddedResources = [];
+    private static readonly ConcurrentDictionary<string, Fin<string>> EmbeddedResources = new();
 
     internal readonly ScriptBlockAst RequirementsAst;
 

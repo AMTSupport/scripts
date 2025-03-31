@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.Diagnostics.Contracts;
+using System.IO;
 using System.IO.Compression;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
@@ -12,7 +13,7 @@ namespace Compiler.Module.Resolvable;
 
 public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSpec) {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-    private static readonly object UsingPSRepoLock = new();
+    private static readonly Lock UsingPSRepoLock = new();
     private byte[]? Bytes;
 
     // Only public for testing purposes.

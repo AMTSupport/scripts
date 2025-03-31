@@ -2,6 +2,7 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
+using System.IO;
 using System.IO.Compression;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
