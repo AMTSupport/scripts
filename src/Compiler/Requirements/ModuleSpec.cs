@@ -52,6 +52,22 @@ public sealed class PathedModuleSpec : ModuleSpec {
         if (ReferenceEquals(this, other)) return ModuleMatch.Same;
         if (this.FullPath == (other as PathedModuleSpec)?.FullPath) return ModuleMatch.Same;
 
+        // Due to how we have some builtin resources that are actually the same as the common modules
+        // we can't just compare the paths. We need to check the hashes of the files to see if they are the same.
+        if (other is PathedModuleSpec otherPathed) {
+            var otherName = Path.GetFileNameWithoutExtension(Path.GetRelativePath(this.SourceRoot, otherPathed.FullPath));
+            if (this.Name != otherName) return ModuleMatch.None;
+
+            using var thisFile = File.OpenRead(this.FullPath);
+            using var otherFile = File.OpenRead(otherPathed.FullPath);
+            var thisHash = SHA256.HashData(thisFile);
+            var otherHash = SHA256.HashData(otherFile);
+
+            if (thisHash.SequenceEqual(otherHash)) {
+                return ModuleMatch.Same;
+            }
+        }
+
         return ModuleMatch.None;
     }
 
