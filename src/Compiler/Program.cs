@@ -30,7 +30,6 @@ namespace Compiler;
 
 // Fucking N-Sight forces encoding in UTF-8 without bom which breaks unicode in PS5
 // TODO - Auto replace unicode characters with [char]0x{0:X4} in strings;
-// see Logging.psm1 for an example of this being done.
 // https://github.com/AMTSupport/scripts/blob/ac8ea57ada5628ccd789a0cd0e4ca2136174dd37/src/microsoft/windows/Update-ToWin11.psm1#L7-L9
 public class Program {
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
@@ -69,37 +68,13 @@ public class Program {
     }
 
     private static async Task<int> Main(string[] args) {
-        var parser = new CommandLine.Parser(settings => settings.GetoptMode = true);
+        var parser = new CommandLine.Parser(with => {
+            with.HelpWriter = Console.Error;
+            with.GetoptMode = true;
+            with.PosixlyCorrect = true;
+        });
 
-        var result = await parser.ParseArguments<Options>(args)
-            .WithNotParsed(errors => {
-                Console.Error.WriteLine("There was an error parsing the command line arguments.");
-                errors.ToList().ForEach(error => {
-                    if (error is HelpVerbRequestedError) return;
-                    if (error is HelpRequestedError) return;
-                    if (error is VersionRequestedError) return;
-
-                    if (error is MissingRequiredOptionError missingRequiredOptionError) {
-                        Console.Error.WriteLine($"Missing required option: {missingRequiredOptionError.NameInfo}");
-                        return;
-                    }
-
-                    if (error is UnknownOptionError unknownOptionError) {
-                        Console.Error.WriteLine($"Unknown option: {unknownOptionError.Token}");
-                        return;
-                    }
-
-                    if (error is BadFormatConversionError badFormatConversionError) {
-                        Console.Error.WriteLine($"Bad format conversion: {badFormatConversionError.NameInfo}");
-                        return;
-                    }
-
-                    Console.Error.WriteLine($"Error: {error}");
-                });
-
-                Console.Error.WriteLine();
-            })
-            .WithParsedAsync(
+        var result = await parser.ParseArguments<Options>(args).WithParsedAsync(
             async opts => {
                 CleanInput(opts);
                 IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
@@ -137,22 +112,20 @@ public class Program {
                 } catch (Exception err) {
                     Errors.Add(err);
                 }
-
-                Logger.Trace("Finished compilation.");
-
-                await OutputErrors(Errors, sourceRoot, opts.Output);
             }
         );
 
-        var helpText = CommandLine.Text.HelpText.AutoBuild(
-            result,
-            (current) => {
-                current.AdditionalNewLineAfterOption = false;
-                return current;
-            },
-            e => e);
 
-        Console.Error.WriteLine(helpText);
+        Option<string> sourceDirectory = None;
+        Option<string> outputDirectory = None;
+        if (result.Value.AsOption().IsSome(out var opts)) {
+            sourceDirectory = opts.Input.AsOption().Map(input => {
+                return File.Exists(opts.Input) ? Path.GetDirectoryName(opts.Input)! : opts.Input;
+            })!;
+
+            outputDirectory = opts.Output.AsOption().Map(Path.GetFullPath);
+        }
+        await OutputErrors(Errors, sourceDirectory, outputDirectory);
 
         if (RunspacePool.IsValueCreated) {
             RunspacePool.Value.Close();
@@ -381,7 +354,7 @@ public class Program {
 
     public static async Task<int> OutputErrors(
         IEnumerable<LanguageExt.Common.Error> errors,
-        string sourceDirectory,
+        Option<string> sourceDirectory,
         Option<string> outputDirectory
     ) {
         // Wait for all threads to finish before outputting errors, ensures all errors are captured.
@@ -416,7 +389,9 @@ public class Program {
         do {
             var err = errorQueue.PopFirst();
 
-            if (IsDebugging && outputDirectory.IsSome(out var outDir)
+            if (sourceDirectory.IsSome(out var sourceDir)
+                && IsDebugging
+                && outputDirectory.IsSome(out var outDir)
                 && err is WrappedErrorWithDebuggableContent wrappedDebuggable
                 && wrappedDebuggable.Module.IsSome(out var module)
                 && module is PathedModuleSpec pathedModuleSpec
@@ -424,18 +399,18 @@ public class Program {
             ) {
                 // We could be outputting a psm1 which would not have its structure copied
                 // Lets make sure its output path is created.
-                var outputParent = Directory.GetParent(GetOutputLocation(sourceDirectory, outDir, pathedModuleSpec.FullPath))!;
+                var outputParent = Directory.GetParent(GetOutputLocation(sourceDir, outDir, pathedModuleSpec.FullPath))!;
                 if (!outputParent.Exists) outputParent.Create();
 
                 Output(
-                    sourceDirectory,
+                    sourceDir,
                     outDir,
                     pathedModuleSpec.FullPath,
                     wrappedDebuggable.Content,
                     true
                 );
 
-                outputDebuggables.Add(module.Hash, Path.GetRelativePath(sourceDirectory, pathedModuleSpec.FullPath));
+                outputDebuggables.Add(module.Hash, Path.GetRelativePath(sourceDir, pathedModuleSpec.FullPath));
             }
 
             if (err is WrappedErrorWithDebuggableContent wrappedErr) {

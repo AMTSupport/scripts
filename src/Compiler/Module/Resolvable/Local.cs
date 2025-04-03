@@ -197,9 +197,9 @@ public partial class ResolvableLocalModule : Resolvable {
     public override bool Equals(object? obj) {
         if (obj is null) return false;
         if (ReferenceEquals(this, obj)) return true;
-        return obj is ResolvableLocalModule other &&
-            this.ModuleSpec.CompareTo(other.ModuleSpec) == ModuleMatch.Same &&
-            this.Editor.Document.GetLines() == other.Editor.Document.GetLines();
+        return obj is ResolvableLocalModule other
+            && this.ModuleSpec.CompareTo(other.ModuleSpec) == ModuleMatch.Same
+            && this.Editor.Document.GetLines() == other.Editor.Document.GetLines();
     }
 
     public override int GetHashCode() => this.ModuleSpec.GetHashCode();
