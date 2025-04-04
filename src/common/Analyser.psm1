@@ -19,16 +19,14 @@ namespace Compiler.Analyser {
     public sealed class SuppressAnalyserAttribute : Attribute {
         public readonly string CheckType;
         public readonly object Data;
-        public readonly string Justification;
+        public string Justification;
 
         public SuppressAnalyserAttribute(
             string CheckType,
-            object Data = null,
-            string Justification = ""
+            object Data
         ) {
             this.CheckType = CheckType;
             this.Data = Data;
-            this.Justification = Justification;
         }
     }
 }
