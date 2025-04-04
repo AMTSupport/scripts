@@ -152,11 +152,13 @@ public class Program {
     public static LogLevel SetupLogger(Options opts) {
         var logLevel = LogLevel.FromOrdinal(Math.Abs(Math.Min(opts.Quiet, 3) - Math.Min(opts.Verbosity, 2) + 2));
         LogManager.Setup().LoadConfiguration(builder => {
-            var layout = "${pad:padding=5:inner=${level:uppercase=true}}|${message}";
-            if (logLevel <= LogLevel.Debug) layout = "[${threadid}] " + layout;
+            var layout = new StringBuilder();
+            if (logLevel <= LogLevel.Debug) layout.Append("[${threadid:padding=2}] ");
+            if (logLevel <= LogLevel.Trace) layout.Append("[${substring:inner=${callsite}:start=9}] ");
+            layout.Append("${message}");
 
             var console = new ColoredConsoleTarget("console") {
-                Layout = layout,
+                Layout = layout.ToString(),
                 DetectConsoleAvailable = true,
                 EnableAnsiOutput = true,
                 RowHighlightingRules = {
@@ -198,7 +200,7 @@ public class Program {
             };
 
             var errorConsole = new ColoredConsoleTarget("errorConsole") {
-                Layout = layout,
+                Layout = layout.ToString(),
                 DetectConsoleAvailable = console.DetectConsoleAvailable,
                 EnableAnsiOutput = console.EnableAnsiOutput,
                 StdErr = true,

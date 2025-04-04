@@ -29,7 +29,12 @@ public sealed class RuleVisitor(
 
     public override AstVisitAction DefaultVisit(Ast ast) {
         if (GetSupressions(ast).IsErr(out var err, out var suppressions)) {
-            this.Issues.AddRange(((ManyErrors)err).Errors.Cast<Issue>());
+            if (err is Issue issue) {
+                this.Issues.Add(issue);
+            } else if (err is ManyErrors errors) {
+                this.Issues.AddRange(errors.Errors.Cast<Issue>());
+            }
+
             return AstVisitAction.SkipChildren;
         }
 
