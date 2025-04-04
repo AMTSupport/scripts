@@ -12,7 +12,7 @@ using NLog;
 using QuikGraph;
 using QuikGraph.Graphviz;
 using System.IO;
-
+using QuikGraph.Graphviz.Dot;
 namespace Compiler.Module.Resolvable;
 
 public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleSpec) {
@@ -57,7 +57,6 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
         if (parentResolvable.IsSome(out var parent) && parent is ResolvableLocalModule localParent) {
             var parentPath = Path.GetDirectoryName(localParent.ModuleSpec.FullPath)!;
             try {
-                Logger.Debug($"Looking for {moduleSpec.Name} module in {parentPath}.");
                 var pathedModuleSpec = new PathedModuleSpec(parentPath, moduleSpec.Name);
                 resolvable = new ResolvableLocalModule(parentPath, moduleSpec);
             } catch (ExceptionalException err) when (err.ToError() is InvalidModulePathError) {
@@ -109,13 +108,10 @@ public class ResolvableParent {
 
     public record ResolvableInfo(
         [NotNull] Option<Fin<Compiled.Compiled>> Compiled,
-        [NotNull] Option<Action<CompiledScript>> OnCompletion,
-        [NotNull] Option<Task<Fin<Compiled.Compiled>>> CompilingTask
+        [NotNull] Option<Action<CompiledScript>> OnCompletion
     );
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
-    private readonly List<(ModuleSpec Key, Task Task)> RunningTasks = [];
 
     public readonly ConcurrentDictionary<ModuleSpec, ResolvableInfo> Resolvables = [];
 
@@ -129,7 +125,6 @@ public class ResolvableParent {
     public ResolvableParent([NotNull] string sourceRoot) {
         this.SourceRoot = sourceRoot;
 
-        #region Deduplication and merging of Resolvables using events
         this.Graph.VertexAdded += vertex => Logger.Debug($"Vertex added: {vertex.ModuleSpec.Name}");
         this.Graph.VertexRemoved += vertex => Logger.Debug($"Vertex removed: {vertex.ModuleSpec.Name}");
         this.Graph.EdgeRemoved += edge => {
@@ -144,7 +139,6 @@ public class ResolvableParent {
                 edge.Source.Requirements.AddRequirement(edge.Target.ModuleSpec);
             }
         };
-        #endregion
     }
 
     public BidirectionalGraph<Resolvable, Edge<Resolvable>> GetGraphFromRoot(Resolvable resolvable) {
@@ -176,7 +170,7 @@ public class ResolvableParent {
             this.Graph.AddVertex(rootModule);
         }
 
-        this.Resolvables.TryAdd(rootModule.ModuleSpec, new(None, onCompletion.AsOption(), None));
+        this.Resolvables.TryAdd(rootModule.ModuleSpec, new(None, onCompletion.AsOption()));
     }
 
     /// <summary>
@@ -184,108 +178,75 @@ public class ResolvableParent {
     /// </summary>
     /// <param name="moduleSpec"></param>
     /// <returns></returns>
-    public async Task<Option<ResolvedMatch>> FindResolvable([NotNull] ModuleSpec moduleSpec) {
-        var resolvable = this.Graph.Vertices
-            .FirstOrDefault(resolvable => resolvable.ModuleSpec.CompareTo(moduleSpec) != ModuleMatch.None);
-
-        var fromRunningTask = this.RunningTasks
-            .Where(task => !ReferenceEquals(task.Key, moduleSpec))
-            .FirstOrDefault(task => task.Key.CompareTo(moduleSpec) != ModuleMatch.None);
-
-        if (resolvable is not null) {
-            return new ResolvedMatch(resolvable, resolvable.ModuleSpec.CompareTo(moduleSpec));
-        } else if (fromRunningTask.Key is not null) {
-            Logger.Debug($"{moduleSpec} is waiting for {fromRunningTask.Key} to complete.");
-            await fromRunningTask.Task;
-            lock (this.Graph) {
-                var awaitedResolvable = this.Graph.Vertices.FirstOrDefault(resolvable => ReferenceEquals(fromRunningTask.Key, resolvable.ModuleSpec))!;
-                return new ResolvedMatch(awaitedResolvable, fromRunningTask.Key.CompareTo(moduleSpec));
-            }
-        }
-
-        return None;
-    }
-
-    public async Task<Fin<Compiled.Compiled>> WaitForCompiled(ModuleSpec moduleSpec) {
-        Resolvable? resolvable;
-        lock (this.Graph) {
-            resolvable = this.Graph.Vertices.FirstOrDefault(res => res.ModuleSpec == moduleSpec);
-        }
-
-        if (resolvable is null) {
-            return FinFail<Compiled.Compiled>(Error.New($"No resolvable found for {moduleSpec}."));
-        }
-
-        if (!this.Resolvables.TryGetValue(moduleSpec, out var resolvableInfo)) {
-            return FinFail<Compiled.Compiled>(Error.New($"No resolvable info found for {moduleSpec}."));
-        }
-
-        var (compiledOpt, onCompletion, waitHandle) = resolvableInfo;
-        if (compiledOpt.IsSome(out var compiledFin)) {
-            if (compiledFin.IsErr(out var err, out var compiled)) {
-                return FinFail<Compiled.Compiled>(err);
-            }
-
-            return FinSucc(compiled);
-        }
-
-        // if the compiled is none and the error is none then we need to wait for the wait handle if it exists,
-        // otherwise we need to start the compilation.
-        if (waitHandle.IsSome(out var runningTask)) {
-            return await runningTask;
-        }
-
-        this.Resolvables.TryUpdate(moduleSpec, resolvableInfo with {
-            CompilingTask = Task.Run(async () => await resolvable.IntoCompiled())
-        }, resolvableInfo);
-
-        var submittedInfo = this.Resolvables[moduleSpec];
-        if (submittedInfo.CompilingTask.IsSome(out var task)) {
-            var taskResult = await task;
-
-            this.Resolvables.TryUpdate(moduleSpec, submittedInfo with {
-                Compiled = taskResult,
-                CompilingTask = None
-            }, submittedInfo);
-
-            taskResult.IfSucc(module => onCompletion.IfSome(action => action((CompiledScript)module)));
-
-            return taskResult;
-        } else if (submittedInfo.Compiled.IsSome(out var compiled)) {
-            return compiled;
-        } else {
-            return FinFail<Compiled.Compiled>(Error.New($"Failed to compile {moduleSpec}, no task or compiled found, submittedInfo: {submittedInfo}"));
-        }
-    }
+    public Option<ResolvedMatch> FindResolvable([NotNull] ModuleSpec moduleSpec) =>
+        (from resolvable in this.Graph.Vertices
+         where resolvable.ModuleSpec.CompareTo(moduleSpec) != ModuleMatch.None
+         select new ResolvedMatch(resolvable, resolvable.ModuleSpec.CompareTo(moduleSpec))
+        ).FirstOrDefault();
 
     public async Task StartCompilation() {
         await this.ResolveDepedencyGraph();
+        this.DebugGraphAtPoint();
 
-        // Get a list of the scripts which are roots and have no scripts depending on them.
-        var topLevelScripts = new Queue<Resolvable>(this.Graph.Vertices.Where(resolvable => !this.Graph.TryGetInEdges(resolvable, out var inEdges) || !inEdges.Any()));
-        var compileTasks = new List<Task>();
-        foreach (var resolvable in topLevelScripts) {
-            compileTasks.Add(Task.Run(async () => {
-                Logger.Trace($"Compiling top level script {resolvable.ModuleSpec.Name}");
+        var graph = this.Graph.Clone();
+        while (graph.Vertices.Any()) {
+            var nextBatch = from r in graph.Vertices
+                            where !graph.TryGetOutEdges(r, out var outEdges) || !outEdges.Any()
+                            select r;
 
-                var compiledModule = await this.WaitForCompiled(resolvable.ModuleSpec);
-                compiledModule.IfFail(err => Program.Errors.Add(err.Enrich(resolvable.ModuleSpec)));
-                Logger.Trace($"{(compiledModule.IsFail ? "Unsuccessfully" : "Successfully")} compiled script {resolvable.ModuleSpec.Name}");
-            }).ContinueWith(task => {
-                if (task.IsFaulted) {
-                    Logger.Error(task.Exception, "Failed to compile top level script {0}", resolvable.ModuleSpec.Name);
-                    Program.Errors.Add(task.Exception);
+            Logger.Debug($"Compiling batch of {nextBatch.Count()} modules: {string.Join(", ", nextBatch.Select(r => r.ModuleSpec.Name))}");
+
+            if (!nextBatch.Any()) {
+                // No progress can be made, but we haven't compiled everything
+                // This means we have a cycle in the dependency graph
+                var remaining = from r in graph.Vertices
+                                select r.ModuleSpec.ToString();
+
+                Logger.Error($"Dependency cycle detected! Cannot compile: {string.Join(", ", remaining)}");
+                throw new InvalidOperationException("Dependency cycle detected in the compilation graph");
+            }
+
+            var compileTasks = from mod in nextBatch
+                               select Task.Run(async () => {
+                                   try {
+                                       var result = await mod.IntoCompiled();
+                                       if (result.IsOk(out var compiled, out var _)) {
+                                           this.OnCompiledModule(mod.ModuleSpec, compiled);
+                                       }
+                                       return result;
+                                   } catch (Exception ex) {
+                                       Logger.Error(ex, $"Error compiling {mod.ModuleSpec}");
+                                       throw;
+                                   }
+                               });
+
+            await Task.WhenAll(compileTasks);
+            nextBatch.ToList().ForEach(mod => graph.RemoveVertex(mod));
+        }
+    }
+
+    private void OnCompiledModule(ModuleSpec moduleSpec, Compiled.Compiled compiled) {
+        if (this.Resolvables.TryGetValue(moduleSpec, out var info)) {
+            this.Resolvables.TryUpdate(
+                moduleSpec,
+                info with {
+                    Compiled = FinSucc(compiled),
+                },
+                info
+            );
+
+            info.OnCompletion.IfSome(action => {
+                if (compiled is CompiledScript script) {
+                    action(script);
                 }
-            }));
+            });
+        } else {
+            Logger.Warn($"Compiled module {moduleSpec.Name} but no resolvable info was found");
+            this.Resolvables[moduleSpec] = new ResolvableInfo(
+                FinSucc(compiled),
+                None
+            );
         }
-
-        while (compileTasks.Count > 0) {
-            var task = await Task.WhenAny(compileTasks);
-            Logger.Debug($"Task completed, {compileTasks.Count} remaining.");
-            compileTasks.Remove(task);
-        }
-
-        Logger.Trace("Finished compiling all top level scripts.");
     }
 
     /// <summary>
@@ -297,11 +258,12 @@ public class ResolvableParent {
             iterating = new(this.Graph.Vertices.Select(res => ((Resolvable?)null, res.ModuleSpec)));
         }
 
+        var runningTasks = new List<(ModuleSpec Key, Task Task)>();
         do {
             if (iterating.TryDequeue(out var item)) {
                 var (parentResolvable, workingModuleSpec) = item;
-                this.RunningTasks.Add((workingModuleSpec, Task.Run(async () => {
-                    Logger.Trace($"Resolving {workingModuleSpec} with parent {parentResolvable?.ModuleSpec}.");
+                runningTasks.Add((workingModuleSpec, Task.Run(async () => {
+                    // Logger.Trace($"Resolving {workingModuleSpec} with parent {parentResolvable?.ModuleSpec}.");
 
                     // If the parent module has already been resolved this will be an orphan.
                     if (parentResolvable != null && !this.Graph.ContainsVertex(parentResolvable)) {
@@ -319,8 +281,8 @@ public class ResolvableParent {
                     }
 
                     // If it was null or there are out edges it means this module has already been resolved.
-                    if (!workingResolvable.IsSome(out var safeWorkingResolvable) || (this.Graph.TryGetOutEdges(safeWorkingResolvable, out var outEdges) && outEdges.Any())) {
-                        Logger.Debug("Module has already been resolved, skipping.");
+                    if (!workingResolvable.IsSome(out var safeWorkingResolvable)
+                        || (this.Graph.TryGetOutEdges(safeWorkingResolvable, out var outEdges) && outEdges.Any())) {
                         return;
                     }
 
@@ -331,24 +293,15 @@ public class ResolvableParent {
                 })));
             }
 
-            this.RunningTasks.RemoveAll(task => task.Task.IsCompleted);
+            runningTasks.RemoveAll(task => task.Task.IsCompleted);
 
-            if (this.RunningTasks.Count != 0) {
-                Logger.Debug($"Waiting for tasks to complete, {this.RunningTasks.Count} running with {iterating.Count} left to process.");
-                await Task.WhenAny(this.RunningTasks.Select(task => task.Task));
+            if (runningTasks.Count != 0) {
+                Logger.Debug($"Waiting for tasks to complete, {runningTasks.Count} running with {iterating.Count} left to process.");
+                await Task.WhenAny(runningTasks.Select(task => task.Task));
             }
-        } while (iterating.Count != 0 || this.RunningTasks.Count != 0);
+        } while (iterating.Count != 0 || runningTasks.Count != 0);
 
         Logger.Debug("Finished resolving all modules.");
-
-        if (Program.IsDebugging) {
-            var dotGraph = this.Graph.ToGraphviz(alg => {
-                alg.FormatVertex += (sender, args) => {
-                    args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
-                };
-            });
-            Console.WriteLine(dotGraph);
-        }
     }
 
     /// <summary>
@@ -380,18 +333,20 @@ public class ResolvableParent {
         Resolvable? resultingResolvable = null;
         Resolvable? foundResolvable = null;
         var match = ModuleMatch.None;
-        (await this.FindResolvable(moduleToResolve)).IfSome(resolvableMatch => {
+        this.FindResolvable(moduleToResolve).IfSome(resolvableMatch => {
             resolvableMatch.Deconstruct(out foundResolvable, out match);
+            DebugVisualizeLinkAttempt(parentResolvable, moduleToResolve, match, foundResolvable, $"Found: {foundResolvable.ModuleSpec.Name}");
         });
 
         if (foundResolvable is not null) {
-            Logger.Debug($"Found existing resolvable for {moduleToResolve.Name}.");
+            Logger.Debug($"Found existing resolvable for {moduleToResolve.Name} with match: {match}");
 
             switch (match) {
                 case ModuleMatch.PreferOurs or ModuleMatch.Same or ModuleMatch.Looser:
                     resultingResolvable = foundResolvable;
                     break;
                 case ModuleMatch.Incompatible:
+                    Logger.Error($"⚠️ Incompatible module versions found for {moduleToResolve.Name}");
                     return FinFail<Option<Resolvable>>(Error.New($"Incompatible module versions found for {moduleToResolve.Name}."));
                 case ModuleMatch.MergeRequired or ModuleMatch.Stricter:
                     var (mergeFrom, mergeWith) = match switch {
@@ -399,6 +354,8 @@ public class ResolvableParent {
                         ModuleMatch.Stricter => (foundResolvable.ModuleSpec, [moduleToResolve]),
                         _ => (moduleToResolve, []),
                     };
+
+                    Logger.Debug($"Merging modules: {mergeFrom.Name} with {string.Join(", ", mergeWith.Select(m => m.Name))}");
 
                     var fin = await Resolvable.TryCreate(
                         parentResolvable.AsOption(),
@@ -409,9 +366,11 @@ public class ResolvableParent {
                     if (fin.IsErr(out var err, out var resolvable) && err is InvalidModulePathError) {
                         Logger.Debug($"Failed to find local module {moduleToResolve.Name}, trying remote.");
                     } else if (err is not null) {
+                        Logger.Error($"⚠️ Error creating resolvable for {moduleToResolve.Name}: {err}");
                         return FinFail<Option<Resolvable>>(err);
                     } else {
                         resultingResolvable = resolvable;
+                        Logger.Debug($"Successfully created merged resolvable for {moduleToResolve.Name}");
                     }
 
                     break;
@@ -446,8 +405,13 @@ public class ResolvableParent {
                 }
             }
         } else {
+            Logger.Debug($"No existing resolvable found for {moduleToResolve.Name}, creating new one");
             var newResolvable = await Resolvable.TryCreate(parentResolvable.AsOption(), moduleToResolve);
-            if (newResolvable.IsErr(out var err, out resultingResolvable)) return FinFail<Option<Resolvable>>(err);
+            if (newResolvable.IsErr(out var err, out resultingResolvable)) {
+                Logger.Error($"⚠️ Failed to create resolvable for {moduleToResolve.Name}: {err}");
+                return FinFail<Option<Resolvable>>(err);
+            }
+            Logger.Debug($"Successfully created new resolvable for {moduleToResolve.Name}");
         }
 
         lock (this.Graph) {
@@ -463,12 +427,65 @@ public class ResolvableParent {
                 }
                 this.Graph.AddVerticesAndEdge(new Edge<Resolvable>(parentResolvable, resultingResolvable));
             } else {
+                Logger.Debug($"Adding vertex: {resultingResolvable.ModuleSpec.Name}");
                 this.Graph.AddVertex(resultingResolvable);
             }
         }
 
-        this.Resolvables.TryAdd(resultingResolvable.ModuleSpec, new(None, None, None));
+        this.Resolvables.TryAdd(resultingResolvable.ModuleSpec, new(None, None));
 
         return FinSucc(Some(resultingResolvable));
+    }
+
+    public static void DebugVisualizeLinkAttempt(
+        Resolvable? parentResolvable,
+        ModuleSpec moduleToResolve,
+        ModuleMatch match = ModuleMatch.None,
+        Resolvable? foundResolvable = null,
+        string message = ""
+    ) {
+        if (!Program.IsDebugging) return;
+
+        Logger.Debug($"🔗 LINK ATTEMPT: {parentResolvable?.ModuleSpec.Name ?? "Root"} -> {moduleToResolve.Name} ({match}) {message}");
+
+        // Create a visualization of just this link
+        var tempGraph = new BidirectionalGraph<Resolvable, Edge<Resolvable>>();
+
+        if (parentResolvable != null) {
+            tempGraph.AddVertex(parentResolvable);
+        }
+
+        if (foundResolvable != null) {
+            tempGraph.AddVertex(foundResolvable);
+            if (parentResolvable != null) {
+                tempGraph.AddEdge(new Edge<Resolvable>(parentResolvable, foundResolvable));
+            }
+        }
+
+        var dotGraph = tempGraph.ToGraphviz(alg => {
+            alg.FormatVertex += (sender, args) => {
+                var color = GraphvizColor.Black;
+                if (ReferenceEquals(args.Vertex, parentResolvable)) color = GraphvizColor.Blue;
+                if (ReferenceEquals(args.Vertex, foundResolvable)) color = GraphvizColor.Green;
+
+                args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
+                args.VertexFormat.FontColor = color;
+                args.VertexFormat.StrokeColor = color;
+            };
+        });
+
+        Logger.Debug($"Link visualization:\n{dotGraph}");
+    }
+
+    public void DebugGraphAtPoint() {
+        if (!Program.IsDebugging) return;
+
+        var dotGraph = this.Graph.ToGraphviz(alg => {
+            alg.FormatVertex += (sender, args) => {
+                args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
+            };
+        });
+
+        Logger.Debug($"Graph: \n{dotGraph}");
     }
 }

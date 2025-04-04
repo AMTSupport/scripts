@@ -62,11 +62,9 @@ public partial class CompiledScript : CompiledLocalModule {
         foreach (var resolvable in reversedLoadOrder) {
             var compiledRequirements = new List<Compiled>();
             foreach (var edge in thisGraph.OutEdges(resolvable)) {
-                Logger.Debug("Adding edge from {0} to {1}", resolvable.ModuleSpec, edge.Target.ModuleSpec);
                 var requirement = script.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec);
                 if (requirement is null) {
-                    Logger.Debug("Could not find {0} in the graph as the requirement, waiting for it to be compiled", edge.Target.ModuleSpec);
-                    if ((await resolvableParent.WaitForCompiled(edge.Target.ModuleSpec)).IsErr(out var error, out var compiled)) {
+                    if (GetCompiledFromSpec(resolvableParent, edge.Target.ModuleSpec).IsErr(out var error, out var compiled)) {
                         return error;
                     }
 
@@ -74,14 +72,12 @@ public partial class CompiledScript : CompiledLocalModule {
                     requirement = compiled;
                 }
 
-                Logger.Debug("Adding {0} to the requirements of {1}", requirement.ModuleSpec, resolvable.ModuleSpec);
                 compiledRequirements.Add(requirement);
             }
 
             Compiled? compiledModule = resolvable.ModuleSpec == thisResolvable.ModuleSpec ? script : null;
             if (compiledModule is null) {
-                Logger.Debug("Could not find {0} in the graph as the resolvable, waiting for it to be compiled", resolvable.ModuleSpec);
-                if ((await resolvableParent.WaitForCompiled(resolvable.ModuleSpec)).IsErr(out var error, out var compiled)) {
+                if (GetCompiledFromSpec(resolvableParent, resolvable.ModuleSpec).IsErr(out var error, out var compiled)) {
                     return error;
                 }
 
@@ -89,10 +85,8 @@ public partial class CompiledScript : CompiledLocalModule {
             }
 
             if (compiledRequirements.Count != 0) {
-                Logger.Debug("Adding {0} to the graph with requirements {1}", compiledModule.ModuleSpec, string.Join(", ", compiledRequirements.Select(module => module.ModuleSpec)));
                 script.Graph.AddVerticesAndEdgeRange(compiledRequirements.Select(requirement => new Edge<Compiled>(compiledModule, requirement)));
             } else {
-                Logger.Debug("Adding {0} to the graph without any requirements.", compiledModule.ModuleSpec);
                 script.Graph.AddVertex(compiledModule);
             }
         }
@@ -237,4 +231,11 @@ public partial class CompiledScript : CompiledLocalModule {
 
     [GeneratedRegex(@"!DEFINE\s+(?<name>\w+)(?:\s+(?<args>[<>]+))?", RegexOptions.Multiline)]
     private static partial Regex DefineRegex();
+
+    private static Fin<Compiled> GetCompiledFromSpec(
+        ResolvableParent resolvableParent,
+        ModuleSpec moduleSpec
+    ) => resolvableParent.Resolvables.GetValueOrDefault(moduleSpec).AsOption()
+        .Bind(resolvableInfo => resolvableInfo.Compiled)
+        .IfNone(() => FinFail<Compiled>(Error.New($"No resolvable found for {moduleSpec}.")));
 }
