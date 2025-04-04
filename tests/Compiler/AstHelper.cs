@@ -39,7 +39,7 @@ public class AstHelperTests {
                     Assert.That(result?.Attributes, Is.Not.Null);
                     Assert.That(result?.Attributes, Has.Count.EqualTo(1));
 
-                    var attributes = SuppressAnalyserAttribute.FromAttributes(result!.Attributes).Unwrap();
+                    var attributes = SuppressAnalyserAttributeExt.FromAttributes(result!.Attributes).Unwrap();
                     var attribute = attributes.First();
                     Assert.That(attribute, Is.Not.Null);
                     Assert.That(attribute, Is.TypeOf<SuppressAnalyserAttribute>());

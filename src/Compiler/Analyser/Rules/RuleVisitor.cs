@@ -58,7 +58,7 @@ public sealed class RuleVisitor(
         var paramBlock = AstHelper.FindClosestParamBlock(ast);
         return paramBlock == null
             ? FinSucc(Enumerable.Empty<Suppression>())
-            : SuppressAnalyserAttribute.FromAttributes(paramBlock.Attributes)
-                .Map(suppressions => suppressions.Select(suppression => suppression.GetSupression()));
+            : SuppressAnalyserAttributeExt.FromAttributes(paramBlock.Attributes)
+                .Map(suppressions => suppressions.Select(suppression => suppression.GetSuppression()));
     }
 }
