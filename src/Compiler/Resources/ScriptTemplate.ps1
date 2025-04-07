@@ -93,26 +93,15 @@ begin {
 process {
     try {
         if ($env:COMPILED_NO_JOB -ne $True) {
-            $Result = Start-Job {
-                $VerbosePreference = $Using:VerbosePreference;
-                $DebugPreference = $Using:DebugPreference;
-                $InformationPreference = $Using:InformationPreference;
-                $WarningPreference = $Using:WarningPreference;
-                $ErrorActionPreference = $Using:ErrorActionPreference;
-                $WhatIfPreference = $Using:WhatIfPreference;
-                $ConfirmPreference = $Using:ConfirmPreference;
-
-                & $Using:ScriptPath @Using:PSBoundParameters
-            } | Receive-Job -Wait -AutoRemoveJob;
+            $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
+            & "$PowerShellPath" -NoProfile -Interactive $Script:ScriptPath @PSBoundParameters;
         } else {
-            $Result = & $Script:ScriptPath @PSBoundParameters;
+            & $Script:ScriptPath @PSBoundParameters;
         }
     } finally {
         $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
         $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force; }
     }
-
-    return $Result;
 } end {
     Remove-Variable -Name CompiledScript -Scope Global;
 }
