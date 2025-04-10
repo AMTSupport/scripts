@@ -28,9 +28,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.0-preview.1.25080.5, )",
-        "resolved": "10.0.0-preview.1.25080.5",
-        "contentHash": "vQBoEgri9joy6o8c/MJl7kHdgLYPgm81AZtDIvs6wkd2E/x1p7EvwllOBVQ1ZVF5wRjjxtKu0tBwcjk8av2+1Q=="
+        "requested": "[10.0.0-preview.2.25163.2, )",
+        "resolved": "10.0.0-preview.2.25163.2",
+        "contentHash": "Dy8UsVWQoxrxRNqyCxBKXKkW5AvsYaZgV4MGaAEMfM0/Fmut7Ok9uPSD7jPU05YezHyRzN/a24s2bOkhpuWWMA=="
       },
       "Microsoft.PowerShell.Commands.Diagnostics": {
         "type": "Direct",
