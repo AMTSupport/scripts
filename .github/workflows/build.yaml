@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: "src/Compiler/packages.lock.json"
 
       - name: Install dependencies
-        run: dotnet restore --locked-mode
+        run: dotnet restore
 
       - name: Build
         run: dotnet publish ./src/Compiler/Compiler.csproj --sc -c Release -r win-x64
