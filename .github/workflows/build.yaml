@@ -32,4 +32,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Compiler
-          path: ./src/Compiler/bin/Release/win-x64/publish/Compiler.exe
+          path: ./src/Compiler/bin/Release/win-x64/publish/

@@ -83,6 +83,7 @@ jobs:
           workflow: build.yaml
           workflow_conclusion: success
           name: Compiler
+          path: /tmp/Compiler
 
       # FIXME - Running the single instance which compiles a directory is broken, need to do it one by one for now.
       - name: Run Compiler
@@ -96,7 +97,7 @@ jobs:
             $SourcePath = Join-Path -Path $SourceDir -ChildPath ($RelativePath | Join-Path -ChildPath $file.Name)
             $OutputPath = Join-Path -Path $OutputDir -ChildPath $RelativePath
 
-            .\Compiler.exe -i $SourcePath -o $OutputPath -vvv -f;
+            /tmp/Compiler/Compiler.exe -i $SourcePath -o $OutputPath -vvv -f;
           }
 
       - name: Commit Changes
