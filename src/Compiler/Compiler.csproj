@@ -71,6 +71,11 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU5104</NoWarn> <!--Needed because only pre-releases for PS SDK & LanguageExt support what i need-->
+    <NoWarn>$(NoWarn);CA1716</NoWarn> <!--No-->
+  </PropertyGroup>
+
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
