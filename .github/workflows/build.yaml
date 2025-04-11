@@ -27,9 +27,9 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet publish ./src/Compiler/Compiler.csproj --sc -c Release -r win-x64
+        run: dotnet publish ./src/Compiler/Compiler.csproj -c Release -r win-x64
 
       - uses: actions/upload-artifact@v4
         with:
           name: Compiler
-          path: ./src/Compiler/bin/Release/win-x64/publish/
+          path: ./src/Compiler/bin/Release/win-x64/publish/Compiler.exe

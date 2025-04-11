@@ -904,6 +904,7 @@
           "Microsoft.PowerShell.Commands.Management": "[7.6.0-preview.3, )",
           "Microsoft.PowerShell.Commands.Utility": "[7.6.0-preview.3, )",
           "Microsoft.PowerShell.ConsoleHost": "[7.6.0-preview.3, )",
+          "Microsoft.PowerShell.SDK": "[7.6.0-preview.3, )",
           "Microsoft.WSMan.Management": "[7.6.0-preview.3, )",
           "NLog": "[5.3.2, )",
           "NuGet.Commands": "[6.9.1, )",

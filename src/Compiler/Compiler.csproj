@@ -102,8 +102,7 @@
     <PackageReference Include="Microsoft.PowerShell.Commands.Diagnostics" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.Commands.Management" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.WSMan.Management" Version="7.6.0-preview.3" />
-    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.0-preview.3" PrivateAssets="all" />
-    <!-- <PackageReference Include="System.Windows.Forms" Version="4.0.0" /> -->
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.0-preview.3" />
     <PackageReference Include="NuGet.Commands" Version="6.9.1" />
     <PackageReference Include="NuGet.Common" Version="6.9.1" />
   </ItemGroup>
