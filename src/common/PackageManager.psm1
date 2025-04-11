@@ -38,7 +38,7 @@ enum PackageManager {
 };
 
 [Boolean]$Script:CompletedSetup = $False;
-function Local:Install-Requirements {
+function Local:Install-Requirement {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSAvoidUsingInvokeExpression',
         '',
@@ -114,7 +114,7 @@ function Test-ManagedPackage {
         [String]$PackageName
     )
 
-    begin { Enter-Scope; Install-Requirements; }
+    begin { Enter-Scope; Install-Requirement; }
     end { Exit-Scope -ReturnValue $Local:Installed; }
 
     process {
@@ -168,7 +168,7 @@ function Install-ManagedPackage {
         # [String]$PackageVersion
     )
 
-    begin { Enter-Scope; Install-Requirements; }
+    begin { Enter-Scope; Install-Requirement; }
     end { Exit-Scope; }
 
     process {
@@ -214,7 +214,7 @@ function Uninstall-ManagedPackage {
         [Switch]$NoFail
     )
 
-    begin { Enter-Scope; Install-Requirements; }
+    begin { Enter-Scope; Install-Requirement; }
     end { Exit-Scope; }
 
     process {
@@ -258,7 +258,7 @@ function Update-ManagedPackage {
         [String]$PackageName
     )
 
-    begin { Enter-Scope; Install-Requirements; }
+    begin { Enter-Scope; Install-Requirement; }
     end { Exit-Scope; }
 
     process {
