@@ -14,7 +14,7 @@ Using module ..\..\common\Temp.psm1
 
 Using module PSWindowsUpdate
 Using module PowerShellGet
-# Using module PackageManagement
+Using module PackageManagement
 
 # Windows 10 Setup screen raw inputs
 # enter                                             - Language
