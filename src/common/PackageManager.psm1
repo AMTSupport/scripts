@@ -102,14 +102,18 @@ function Local:Install-Requirements {
 <#
 .SYNOPSIS
     Tests if a package is installed.
+
 .PARAMETER PackageName
     The name of the package to test.
 #>
-function Test-ManagedPackage(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$PackageName
-) {
+function Test-ManagedPackage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$PackageName
+    )
+
     begin { Enter-Scope; Install-Requirements; }
     end { Exit-Scope -ReturnValue $Local:Installed; }
 
@@ -130,23 +134,40 @@ function Test-ManagedPackage(
     }
 }
 
-function Install-ManagedPackage(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$PackageName,
+<#
+.SYNOPSIS
+    Installs a package using the system package manager.
+.DESCRIPTION
+    This function installs a package using the detected system package manager (e.g., Chocolatey).
+.PARAMETER PackageName
+    The name of the package to install.
 
-    [Parameter()]
-    [ValidateNotNullOrEmpty()]
-    [String]$Sha256,
+.PARAMETER Sha256
+    The expected SHA256 hash of the package for validation.
 
-    [Parameter()]
-    [ValidateNotNullOrEmpty()]
-    [Switch]$NoFail
+.PARAMETER NoFail
+    If specified, allows the script to continue even if the installation fails.
+#>
+function Install-ManagedPackage {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$PackageName,
 
-    # [Parameter()]
-    # [ValidateNotNullOrEmpty()]
-    # [String]$PackageVersion
-) {
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [String]$Sha256,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [Switch]$NoFail
+
+        # [Parameter()]
+        # [ValidateNotNullOrEmpty()]
+        # [String]$PackageVersion
+    )
+
     begin { Enter-Scope; Install-Requirements; }
     end { Exit-Scope; }
 
@@ -169,36 +190,97 @@ function Install-ManagedPackage(
     }
 }
 
-function Uninstall-ManagedPackage() {
+<#
+.SYNOPSIS
+    Uninstalls a package using the system package manager.
 
-}
+.DESCRIPTION
+    This function uninstalls a package using the detected system package manager (e.g., Chocolatey).
 
-function Update-ManagedPackage(
-    [Parameter(Mandatory)]
-    [ValidateNotNullOrEmpty()]
-    [String]$PackageName
-) {
+.PARAMETER PackageName
+    The name of the package to uninstall.
+
+.PARAMETER NoFail
+    If specified, allows the script to continue even if the uninstallation fails.
+#>
+function Uninstall-ManagedPackage {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$PackageName,
+
+        [Parameter()]
+        [Switch]$NoFail
+    )
+
     begin { Enter-Scope; Install-Requirements; }
     end { Exit-Scope; }
 
     process {
-        @{
-            PSPrefix  = '🔄';
-            PSMessage = "Updating package '$Local:PackageName'...";
-            PSColour  = 'Blue';
-        } | Invoke-Write;
+        if ($PSCmdlet.ShouldProcess($PackageName, "Uninstall package")) {
+            @{
+                PSPrefix  = '🗑️';
+                PSMessage = "Uninstalling package '$PackageName'...";
+                PSColour  = 'Yellow';
+            } | Invoke-Write;
 
-        try {
-            & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+            try {
+                & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Uninstall $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
 
-            if ($LASTEXITCODE -ne 0) {
-                throw "Error Code: $LASTEXITCODE";
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Error Code: $LASTEXITCODE";
+                }
+            } catch {
+                Invoke-Error "There was an issue while uninstalling $PackageName.";
+                Invoke-Error $_.Exception.Message;
+                if (-not $NoFail) {
+                    Invoke-FailedExit -ExitCode $LASTEXITCODE;
+                }
             }
-        } catch {
-            Invoke-Error "There was an issue while updating $Local:PackageName.";
-            Invoke-Error $_.Exception.Message;
         }
     }
 }
 
-Export-ModuleMember -Function Test-ManagedPackage, Install-ManagedPackage, Uninstall-Package, Update-ManagedPackage;
+<#
+.SYNOPSIS
+    Updates a package using the system package manager.
+.DESCRIPTION
+    This function updates a package to the latest version using the detected system package manager (e.g., Chocolatey).
+.PARAMETER PackageName
+    The name of the package to update.
+#>
+function Update-ManagedPackage {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [String]$PackageName
+    )
+
+    begin { Enter-Scope; Install-Requirements; }
+    end { Exit-Scope; }
+
+    process {
+        if ($PSCmdlet.ShouldProcess($PackageName, "Update package")) {
+            @{
+                PSPrefix  = '🔄';
+                PSMessage = "Updating package '$PackageName'...";
+                PSColour  = 'Blue';
+            } | Invoke-Write;
+
+            try {
+                & $Script:PackageManagerDetails.Executable $Script:PackageManagerDetails.Commands.Update $Script:PackageManagerDetails.Options.Common $PackageName | Out-Null;
+
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Error Code: $LASTEXITCODE";
+                }
+            } catch {
+                Invoke-Error "There was an issue while updating $PackageName.";
+                Invoke-Error $_.Exception.Message;
+            }
+        }
+    }
+}
+
+Export-ModuleMember -Function Test-ManagedPackage, Install-ManagedPackage, Uninstall-ManagedPackage, Update-ManagedPackage;
