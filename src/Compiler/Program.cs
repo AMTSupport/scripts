@@ -133,7 +133,7 @@ public class Program {
         }
         LogManager.Shutdown();
 
-        return Errors.IsEmpty ? 0 : 1;
+        return Errors.IsEmpty ? 0 : Errors.All(e => !e.IsExceptional) ? 0 : 1;
     }
 
     public static void CleanInput(Options opts) {
