@@ -1,4 +1,4 @@
-name: Compiler
+name: Powershell Compiler
 
 on:
   push:
@@ -87,7 +87,7 @@ jobs:
 
       - name: Run Compiler
         shell: pwsh
-        run: /tmp/Compiler/Compiler.exe --input src --output compiled --force
+        run: /tmp/Compiler/Compiler.exe --input src --output compiled --force -vvv -f
 
       - name: Commit Changes
         if: ${{ needs.changes.outputs.src == 'true' && github.event_name == 'push' }}
