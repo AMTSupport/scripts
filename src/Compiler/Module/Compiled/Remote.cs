@@ -88,7 +88,15 @@ public class CompiledRemoteModule : Compiled {
 
                 var sessionState = InitialSessionState.CreateDefault();
                 sessionState.ImportPSModulesFromPath(tempModuleRootPath);
-                var pwsh = PowerShell.Create(sessionState);
+                PowerShell pwsh;
+                try {
+                    pwsh = PowerShell.Create(sessionState);
+                } catch (Exception err) {
+                    Logger.Error($"Unable to create PowerShell session state: {err.Message}");
+                    Program.Errors.Add(err);
+                    return exported;
+                }
+
                 exported.AddRange(pwsh.Runspace.SessionStateProxy.InvokeCommand
                     .GetCommands("*", commandTypes, true)
                     .Where(command => command.ModuleName == this.ModuleSpec.Name)
