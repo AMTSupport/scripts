@@ -19,10 +19,13 @@
     ```
 #>
 
+Using module ..\common\Environment.psm1
+Using module ..\common\Ensure.psm1
+Using module ..\common\Registry.psm1
+
 [CmdletBinding()]
 param()
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 

@@ -1,9 +1,20 @@
+#Requires -Version 7.0
+
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\Scope.psm1
+Using module ..\common\Cache.psm1
+Using module ..\common\Input.psm1
+
+Using module ImportExcel
+
 [CmdletBinding()]
 param (
     [String]$Endpoint = 'system-monitor.com',
 
+    [Parameter(Mandatory)]
     [ValidateLength(32, 32)]
-    [String]$ApiKey = '',
+    [String]$ApiKey,
 
     [ValidateSet('Workstation', 'Server')]
     [String[]]$DeviceTypes = @('Workstation', 'Server')
@@ -142,11 +153,11 @@ function Out-ToExcel {
         # We should also have a matrix called data which is indexed by the row then by the column,
         # We should not have any rows longer than the header length.
         if (-not $Local:Headers -or -not $Local:Matrix) {
-            throw "Invalid data structure. Please ensure the object has headers and rows properties.";
+            throw 'Invalid data structure. Please ensure the object has headers and rows properties.';
         }
 
         if (-not $Local:Headers -is [Array] -or -not $Local:Matrix -is [System.Collections.Generic.List[System.Object]]) {
-            throw "Invalid data structure. Please ensure the headers and rows properties are arrays.";
+            throw 'Invalid data structure. Please ensure the headers and rows properties are arrays.';
         }
         #endregion
 
@@ -191,15 +202,8 @@ function Out-ToExcel {
     }
 }
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
-    Invoke-EnsureModule -Modules 'ImportExcel';
-
-    if (-not (Get-Variable Clients -Scope Global)) {
-        Invoke-Debug 'Creating global clients variable.';
-        $Local:Clients = @{ };
-    }
-
+    $Local:Clients = @{ };
     $Local:RawClients = (Get-NableClient);
 
     [Int]$Local:PercentPerItem = 100 / $Local:RawClients.items.client.Count;
@@ -207,41 +211,67 @@ Invoke-RunMain $PSCmdlet {
 
     Invoke-Debug "Processing clients: $($Local:RawClients.items.client.Count)";
 
-    for ($i = 0; $i -lt $Local:RawClients.items.client.Count; $i++) {
-        $Local:Client = $Local:RawClients.items.client[$i];
-        $ClientId = $Local:Client.clientid;
+    # Query user for what clients to process with a multi-select list.
+    $Local:SelectedClients = (Get-PopupSelection `
+            -AllowMultiple `
+            -Title 'Select Clients to Process' `
+            -Items ($Local:RawClients.items.client | ForEach-Object {
+                [PSCustomObject]@{
+                    Name             = $_.name.'#cdata-section';
+                    ClientId         = $_.clientid;
+                    WorkstationCount = $_.workstation_count;
+                    ServerCount      = $_.server_count;
+                }
+            })) | Where-Object { $null -ne $_ };
 
-        Invoke-Debug "Processing client: $($Local:Client.name.'#cdata-section')";
-        Write-Progress -Activity 'Calling API' -Status "$Local:PercentComplete% Complete" -CurrentOperation "Processing client [$($Local:Client.name)]..." -PercentComplete $Local:PercentComplete;
+    if ($null -eq $Local:SelectedClients -or $Local:SelectedClients.Count -eq 0) {
+        Invoke-Error 'No clients selected to process.';
+        return;
+    }
+
+    Invoke-Info "Processing $($Local:SelectedClients.Count) clients.";
+
+    foreach ($Client in $Local:SelectedClients) {
+        $ClientId = $Client.ClientId;
+        Invoke-Debug "Processing client: $($Local:Client.Name) with ID: $ClientId";
+
+        Invoke-Debug "Processing client: $($Local:Client.Name)";
+        Write-Progress `
+            -Activity 'Calling API' `
+            -Status "$Local:PercentComplete% Complete" `
+            -CurrentOperation "Processing client [$($Local:Client.name)]..." `
+            -PercentComplete $Local:PercentComplete;
 
         if ($Local:Clients[$ClientId] -and $Local:Clients[$ClientId].completed) {
             Invoke-Debug "Client already processed: $ClientId";
             continue;
         }
 
-        $Local:Clients[$ClientId] = @{ name = $Local:Client.name.'#cdata-section'; completed = $false; };
+        $Local:Clients[$ClientId] = @{ name = $Local:Client.Name; completed = $false; };
         $Local:Clients[$ClientId].sites = @{ };
 
         $Local:Sites = (Get-NableSite -ClientIds $ClientId);
         if ($Local:Sites -eq $null -or $Local:Sites.Count -eq 0) {
+            Invoke-Verbose "No sites found for client: $ClientId";
             continue;
         }
 
-        $Local:Sites | ForEach-Object {
-            $SiteId = $_.siteid;
+        foreach ($Local:Site in $Local:Sites) {
+            $SiteId = $Local:Site.siteid;
             Invoke-Debug "Processing site: $SiteId";
 
             if ($Local:Clients[$ClientId].sites[$SiteId] -and $Local:Clients[$ClientId].sites[$SiteId].completed) {
                 Invoke-Debug "Site already processed: $SiteId";
-                return;
+                continue;
             }
 
-            $Local:Clients[$ClientId].sites[$SiteId] = @{ name = $_.name.'#cdata-section'; completed = $false };
+            $Local:Clients[$ClientId].sites[$SiteId] = @{ name = $Local:Site.name.'#cdata-section'; completed = $false };
 
             #region Workstations
             function Set-DeviceSoftware {
                 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
                     'PSUseShouldProcessForStateChangingFunctions',
+                    '',
                     Justification = 'Only reading data from the API, no changes are being made to the system.'
                 )]
                 param(
@@ -259,17 +289,17 @@ Invoke-RunMain $PSCmdlet {
                     [Object]$Clients
                 )
 
-                Get-CachedContent -Name "NSIGHT_${ClientId}_${SiteId}_${DeviceType}" -CreateBlock {
+                Get-CachedContent -Name "NSIGHT_${ClientId}_${SiteId}_${DeviceType}" -MaxAge (New-TimeSpan -Days 1) -CreateBlock {
                     $Clients[$ClientId].sites[$SiteId].${DeviceType} = @{ };
                     $Local:Table = $Clients[$ClientId].sites[$SiteId].${DeviceType};
 
                     $Local:Devices = (Get-NableDevice -SiteIds $SiteId -DeviceType $DeviceType);
                     if ($null -eq $Local:Devices -or $Local:Devices.Count -eq 0) {
-                        return $null;
+                        return $Local:Table | ConvertTo-Json -Depth 9;
                     }
 
-                    $Local:Devices | ForEach-Object {
-                        $AssetId = $_.assetid;
+                    foreach ($Local:Device in $Local:Devices) {
+                        $AssetId = $Local:Device.assetid;
                         Invoke-Debug "Processing ${DeviceType}: $AssetId";
 
                         if ($Local:Table[$AssetId] -and $Local:Table[$AssetId].completed) {
@@ -277,7 +307,7 @@ Invoke-RunMain $PSCmdlet {
                             return;
                         }
 
-                        $Local:Table[$AssetId] = @{ type = $DeviceType; name = $_.name.'#cdata-section'; user = $_.user.'#cdata-section'; completed = $false };
+                        $Local:Table[$AssetId] = @{ type = $DeviceType; name = $Local:Device.name.'#cdata-section'; user = $Local:Device.user.'#cdata-section'; completed = $false };
                         $Local:Table[$AssetId].software = @{ };
 
                         $Local:Software = (Get-NableDeviceoftware -DeviceIds $AssetId);
@@ -285,26 +315,27 @@ Invoke-RunMain $PSCmdlet {
                             return;
                         }
 
-                        $Local:Software | ForEach-Object {
-                            $SoftwareId = $_.softwareid;
+                        foreach ($Local:Program in $Local:Software) {
+                            $SoftwareId = $Local:Program.softwareid;
                             Invoke-Debug "Processing software: $SoftwareId";
 
-                            $Local:Table[$AssetId].software[$SoftwareId] = @{ name = $_.name.'#cdata-section'; version = $_.version.'#cdata-section'; };
+                            $Local:Table[$AssetId].software[$SoftwareId] = @{ name = $Local:Program.name.'#cdata-section'; version = $Local:Program.version.'#cdata-section'; };
                         };
 
                         $Local:Table[$AssetId].completed = $true;
                     };
 
-                    return $Local:Table | ConvertTo-Json;
+                    return $Local:Table | ConvertTo-Json -Depth 9;
                 } -ParseBlock {
                     param($RawContent)
 
-                    return ConvertFrom-Json $RawContent;
-                }
+                    $Clients[$ClientId].sites[$SiteId].${DeviceType} = ConvertFrom-Json $RawContent -AsHashtable;
+                };
             }
 
-            Set-DeviceSoftware -DeviceType Workstation -SiteId $SiteId -ClientId $ClientId -Clients $Local:Clients;
-            Set-DeviceSoftware -DeviceType Server -SiteId $SiteId -ClientId $ClientId -Clients $Local:Clients;
+            foreach ($DeviceType in $DeviceTypes) {
+                Set-DeviceSoftware -DeviceType $DeviceType -SiteId $SiteId -ClientId $ClientId -Clients $Local:Clients;
+            }
 
             $Local:Clients[$ClientId].sites[$SiteId].completed = $true;
         };
@@ -313,17 +344,6 @@ Invoke-RunMain $PSCmdlet {
         $Local:PercentComplete += $Local:PercentPerItem;
     };
     Write-Progress -Activity 'Calling API' -PercentComplete 100 -Completed;
-
-    # $Local:Clients = Get-CachedContent -Name 'NSIGHT_CLIENTS' -CreateBlock {
-    #     $Local:RawClients = Get-NableClient;
-
-    #     $Local:RawClients.items.client | ForEach-Object {
-    #         []$Local:Client = $_;
-    #         [String]$Local:ClientId = $Local:Client.clientid;
-
-
-    #     }
-    # }
 
     $Local:Data = @{
         Headers = @('Client', 'Site', 'DeviceType', 'Device', 'User', 'Software', 'Version');
@@ -372,8 +392,9 @@ Invoke-RunMain $PSCmdlet {
                 };
             }
 
-            Add-ToMatrix -Data:$Local:Data -Client $Client -Site $Site -DeviceType Workstation;
-            Add-ToMatrix -Data:$Local:Data -Client $Client -Site $Site -DeviceType Server;
+            foreach ($DeviceType in $DeviceTypes) {
+                Add-ToMatrix -Data:$Local:Data -Client $Client -Site $Site -DeviceType $DeviceType;
+            }
         };
     };
 

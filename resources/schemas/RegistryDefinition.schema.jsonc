@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/AMTSupport/scripts/main/resources/schemas/RegistryDefinition.json",
+  "type": "object",
+  "definitions": {
+    "RegistryType": {
+      "type": "string",
+      "description": "Type of the registry value",
+      "enum": [
+        "String",
+        "ExpandString",
+        "Binary",
+        "DWord",
+        "MultiString",
+        "QWord"
+      ]
+    },
+    "RegistryPath": {
+      "type": "string",
+      "description": "Path of the registry key",
+      "patternProperties": {
+        "^(HKCU|HKLM)\\:\\\\[a-zA-Z0-9_\\-\\\\]+": {},
+        "^(HKEY_CURRENT_USER|HKEY_LOCAL_MACHINE)\\[a-zA-Z0-9_\\-\\\\]+": {}
+      }
+    },
+    "RegistryKey": {
+      "type": "string",
+      "description": "Name of the registry key",
+      "pattern": "^[a-zA-Z0-9_\\-\\\\]+"
+    },
+    "RegistryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Path": {
+          "$ref": "#/definitions/RegistryPath",
+          "description": "Path of the registry key"
+        },
+        "Key": {
+          "$ref": "#/definitions/RegistryKey",
+          "description": "Name of the registry key"
+        },
+        "Type": {
+          "$ref": "#/definitions/RegistryType",
+          "description": "Type of the registry key"
+        },
+        "Value": {
+          "type": [
+            "boolean",
+            "number",
+            "string",
+            "null",
+            "integer"
+          ],
+          "description": "Value of the registry key; If the value is null, the key will be deleted"
+        },
+        "ValidationBlock": {
+          "type": "string",
+          "description": "A powershell block that will be executed against the value of the registry key to test if we should update the value\nThe current value is available as $CurrentValue",
+          "contentMediaType": "text/powershell"
+        }
+      },
+      "required": [
+        "Path",
+        "Key",
+        "Type"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "Value": {
+                "not": true,
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "Type"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "Value": {
+                "type": "boolean"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "Type": {
+                "default": "DWord"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "details": {
+      "type": "object",
+      "description": "Additional details for the script.",
+      "additionalProperties": false,
+      "properties": {
+        "synopsis": {
+          "type": "string",
+          "description": "Synopsis for the script."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description for the script."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes for the script."
+        },
+        "functionality": {
+          "type": "array",
+          "description": "Functionality of the script.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RegistryEntry"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "details",
+    "entries"
+  ]
+}

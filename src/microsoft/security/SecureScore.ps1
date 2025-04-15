@@ -1,3 +1,12 @@
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Input.psm1
+Using module ..\Common.psm1
+
+Using module Microsoft.Graph.Beta.Security
+
+[CmdletBinding()]
+param()
+
 function Get-SecureScore(
     [System.DateTime]$Date = (Get-Date)
 ) {
@@ -9,7 +18,7 @@ function Get-SecureScoreDifference {
     $Local:ScoreToday = Get-SecureScore;
     $Local:ScoreLastMonth = Get-SecureScore -Date (Get-Date).AddMonths(-1);
 
-    if ($Local:ScoreToday -and $Local:ScoreLastMonth) {
+if ($Local:ScoreToday -and $Local:ScoreLastMonth) {
         function Get-Percentage($Score) {
             return [Math]::Round(($Score.CurrentScore / $Score.MaxScore) * 100, 2);
         }

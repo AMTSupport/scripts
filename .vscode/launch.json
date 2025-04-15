@@ -18,9 +18,12 @@
             "request": "launch",
             "script": "${file}",
             "cwd": "${cwd}",
-            "args": [ "-Verbose", "-Debug" ],
+            "args": [
+                "-Verbose",
+                "-Debug"
+            ],
             "createTemporaryIntegratedConsole": true,
-            "attachDotnetDebugger": true,
+            "attachDotnetDebugger": true
         },
         {
             "name": "PowerShell: Launch Current File",
@@ -29,6 +32,66 @@
             "script": "${file}",
             "cwd": "${workspaceFolder}",
             "createTemporaryIntegratedConsole": true
+        },
+        {
+            "name": ".NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/Compiler/bin/Debug/Compiler.exe",
+            "args": [
+                "-i",
+                "${input:sourceDirectory}",
+                "-vvv",
+                "-o",
+                "${input:outputDirectory}",
+                "-f"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "stopAtEntry": false,
+            "requireExactSource": true,
+            "internalConsoleOptions": "openOnSessionStart",
+            "justMyCode": true,
+            "enableStepFiltering": true
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+            "justMyCode": false,
+            "requireExactSource": false
+        },
+        {
+            "name": ".NET CLR Attach",
+            "type": "clr",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+            "justMyCode": false,
+            "requireExactSource": false
+        },
+        {
+            "name": "Launch Windows Powershell with Debugger",
+            "type": "clr",
+            "request": "launch",
+            "justMyCode": false,
+            "requireExactSource": false,
+            "program": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        }
+    ],
+    "inputs": [
+        {
+            "id": "sourceDirectory",
+            "description": "The source directory containing the scripts to compile.",
+            "default": "src",
+            "type": "promptString"
+        },
+        {
+            "id": "outputDirectory",
+            "description": "The output directory for the compiled scripts.",
+            "default": "compiled",
+            "type": "promptString"
         }
     ]
 }

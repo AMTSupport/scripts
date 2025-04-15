@@ -1,10 +1,10 @@
-Import-Module $PSScriptRoot/../src/common/00-Environment.psm1;
-Invoke-RunMain $PSCmdlet {
-    $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
+Using module ../src/common/Environment.psm1
+Using module ../src/common/Logging.psm1
+Using module Alt3.Docusaurus.Powershell
+Using module PlatyPS
 
-    Set-StrictMode -Version Latest;
+Invoke-RunMain $PSCmdlet {
     Push-Location -Path $PSScriptRoot;
-    Invoke-EnsureModule -Modules @('Alt3.Docusaurus.Powershell', 'PlatyPS');
 
     # -----------------------------------------------------------------------------
     # Use below settings to manipulate the rendered MDX files
@@ -41,8 +41,7 @@ Invoke-RunMain $PSCmdlet {
         Invoke-Info "Generating new MDX files for module: $($Local:Module.BaseName) in $Local:Parents";
         try {
             New-DocusaurusHelp @Local:ModuleDocusaurusOptions;
-        }
-        catch {
+        } catch {
             Invoke-Error "Failed to generate MDX files for module: $($Local:Module.BaseName) in $Local:Parents";
         }
 
@@ -63,8 +62,7 @@ Invoke-RunMain $PSCmdlet {
         Invoke-Info "Generating new MDX files for script: $($Local:Script.BaseName) in $Local:Parents";
         try {
             New-DocusaurusHelp @Local:ScriptDocusaurusOptions;
-        }
-        catch {
+        } catch {
             Invoke-Error "Failed to generate MDX files for script: $($Local:Script.BaseName) in $Local:Parents";
         }
 

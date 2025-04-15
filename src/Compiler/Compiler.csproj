@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml-model href="https://github.com/dotnet/msbuild/blob/main/src/MSBuild/Microsoft.Build.xsd"?>
+<Project Sdk="Microsoft.NET.Sdk" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MainEntryPoint>Program</MainEntryPoint>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWindowsForms>True</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <ImportWindowsDesktopTargets>false</ImportWindowsDesktopTargets>
+
+    <LangVersion>latest</LangVersion>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Compiler</RootNamespace>
+    <AssemblyName>Compiler</AssemblyName>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateAssemblyInfo>True</GenerateAssemblyInfo>
+    <DefineConstants>$(DefineConstants);PSV7;CORECLR</DefineConstants>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+    <PackageVersion>0.0.1</PackageVersion>
+    <AssemblyVersion>0.0.1</AssemblyVersion>
+    <FileVersion>0.0.1</FileVersion>
+    <PackageId>Compiler</PackageId>
+    <Authors>Applied Marketing Technologies</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/AMTSupport/scripts</RepositoryUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>3</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <!-- Required by WinForms, should be fixed in .NET 10 (https://github.com/dotnet/winforms/issues/4649) -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishTrimmedMode>link</PublishTrimmedMode>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishReadyToRunComposite>false</PublishReadyToRunComposite>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);NU5104</NoWarn> <!--Needed because only pre-releases for PS SDK & LanguageExt support what i need-->
+    <NoWarn>$(NoWarn);CA1716</NoWarn> <!--No-->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/ScriptTemplate.ps1" />
+    <EmbeddedResource Include="Resources/ExtraModuleInfo/*.jsonc" />
+    <EmbeddedResource Include="Resources/ExtraModuleInfo/*.json" />
+    <EmbeddedResource Include="Resources/*.psm1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Misc -->
+    <PackageReference Include="Extended.Collections" Version="1.1.1" />
+    <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
+    <PackageReference Include="LanguageExt.Core" Version="5.0.0-beta-48" />
+    <PackageReference Include="QuikGraph" Version="2.5.0" />
+    <PackageReference Include="QuikGraph.Graphviz" Version="2.5.0" />
+
+    <!-- CLI Stuff -->
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Pastel" Version="5.1.0" />
+    <PackageReference Include="NLog" Version="5.3.2" />
+
+    <!-- PowerShell Deps -->
+    <PackageReference Include="System.Management.Automation" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.ConsoleHost" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Utility" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Diagnostics" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.Commands.Management" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.WSMan.Management" Version="7.6.0-preview.3" />
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.0-preview.3" />
+    <PackageReference Include="NuGet.Commands" Version="6.9.1" />
+    <PackageReference Include="NuGet.Common" Version="6.9.1" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,25 @@
+diff --git a/src/external/scripts/N-Sight/PMECleanup.ps1 b/src/external/scripts/N-Sight/PMECleanup.ps1
+index 2d6de4f..5bcd132 100644
+--- a/src/external/scripts/N-Sight/PMECleanup.ps1
++++ b/src/external/scripts/N-Sight/PMECleanup.ps1
+@@ -22,6 +22,20 @@ function setupLogging() {
+ 	If (($logFolder -match '.+?\\$') -eq $false) {
+         $script:logFolder = $logFolder + "\"
+     }
++    $logFolderExists = Test-Path $logFolder
++    $logFileExists = Test-Path $logFilePath
++
++    If ($logFolderExists -eq $false) {
++        New-Item -ItemType 'directory' -Path $logFolder | Out-Null
++    }
++
++    If ($logFileExists -eq $true) {
++        Remove-Item $logFilePath -ErrorAction SilentlyContinue
++        Start-Sleep 2
++        New-Item -ItemType 'file' -Path $logFolder -Name $logFile | Out-Null
++    } Else {
++        New-Item -ItemType 'file' -Path $logFolder -Name $logFile | Out-Null
++    }
+ 
+ 	$script:scriptLocation = $logFolder + "PMECleanup.ps1"
+ 

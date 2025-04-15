@@ -1,12 +1,20 @@
 #Requires -Version 5.1
 
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Input.psm1
+Using module ..\..\common\Ensure.psm1
+Using module ..\..\common\Utils.psm1
+Using module ..\..\common\PackageManager.psm1
+Using module ..\..\common\UsersAndAccounts.psm1
+Using module ..\..\common\Registry.psm1
+
 [CmdletBinding(SupportsShouldProcess)]
 param (
     [Parameter()]
     [String]$WireGuardPackage = 'wireguard'
 )
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 
@@ -16,8 +24,8 @@ Invoke-RunMain $PSCmdlet {
         Install-ManagedPackage -PackageName 'WireGuard';
     }
 
-    Invoke-Info 'Setting up LimitedUI Registry Key...';
-    Set-RegistryKey -Path HKLM:\SOFTWARE\WireGuard -Key 'LimitedUserUI' -Value 1 -Kind DWord;
+    Invoke-Info 'Setting up LimitedOperatorUI Registry Key...';
+    Set-RegistryKey -Path HKLM:\SOFTWARE\WireGuard -Key 'LimitedOperatorUI' -Value 1 -Kind DWord;
 
     # Query for if any users need to be added to Network Configuration Operators
     Invoke-Info 'Querying for if any users need to be added to Network Configuration Operators...';
@@ -50,8 +58,7 @@ Invoke-RunMain $PSCmdlet {
 
             if (Get-UserConfirmation -Title 'Add another user?' -Question 'Do you want to add another user to Network Configuration Operators?' -Default $True) {
                 continue;
-            }
-            else {
+            } else {
                 break;
             }
         }

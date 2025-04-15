@@ -1,6 +1,15 @@
+Using module ..\common\Environment.psm1
+Using module ..\common\Connection.psm1
+Using module .\Common.psm1
+
+Using module Microsoft.Online.SharePoint.PowerShell
+Using module AzureAD
+Using module ExchangeOnlineManagement
+
+[CmdletBinding()]
 Param(
     [Parameter(Mandatory)]
-    [ValidateSet("SecurityAlerts", "ConditionalAccess", "Sharepoint", "Exchange")]
+    [ValidateSet('SecurityAlerts', 'ConditionalAccess', 'Sharepoint', 'Exchange')]
     [String]$Action
 )
 
@@ -24,39 +33,13 @@ function Disable-Outlook_StorageProviders {
 
 #region - Alerts and Notifications
 
-function Get-AlertsUser {
-    $User = (Get-User | Where-Object { $_.Name -like 'Alerts*' } | Select-Object -First 1)
-
-    if ($User) {
-        return $User
-    } else {
-        # TODO :: Auto-create with memorable-pass
-        Write-Warning "No Alerts user found. Please create one manually."
-        return $null
-
-        # $params = @{
-        #     Name             = "Alerts"
-        #     DisplayName      = "Alerts"
-        #     UserPrincipalName = "Alerts@$(Get-OrganizationConfig).PrimarySmtpAddress.Domain"
-        #     FirstName        = "Alerts"
-        #     LastName         = "Alerts"
-        #     Password         = (ConvertTo-SecureString -String "P@ssw0rd" -AsPlainText -Force)
-        #     ResetPasswordOnNextLogon = $false
-        #     PasswordNeverExpires    = $true
-        #     UsageLocation           = "US"
-        #     ForceChangePasswordNextLogon = $false
-        # }
-        # New-User @params
-    }
-}
-
 function Set-SecurityAndCompilenceAlerts([PSObject]$AlertsUser) {
     $Alerts = Get-ProtectionAlert
     $AlertNames = $Alerts | Select-Object -ExpandProperty Name
     $Alerts = $Alerts | Where-Object { ($_.NotifyUser -ne $AlertsUser.WindowsLiveID) -and !$_.Disabled }
 
     if ($null -eq $Alerts -or $Alerts.Count -eq 0) {
-        Write-Host "All Security and Complience alerts are already configured to notify the Alerts user."
+        Write-Host 'All Security and Complience alerts are already configured to notify the Alerts user.'
         return
     }
 
@@ -83,8 +66,7 @@ function Set-SecurityAndCompilenceAlerts([PSObject]$AlertsUser) {
                 Write-Warning "Unable to create custom alert for $($Alert.Name)."
                 $UnableToCreate += $Alert.Name
             }
-        }
-        else {
+        } else {
             Set-ProtectionAlert -Identity $Alert.Name -NotifyUser $AlertsUser.WindowsLiveID | Out-Null
         }
     }
@@ -103,53 +85,50 @@ function New-ConditionalAccessPrivilegedIdentityManagementPolicy {
     Connect-Service AzureAD;
 
     #region - Const Variables
-    $Local:PolicyName = "Privileged Identity Managementt"
-    $Local:DirectoryRoles = @("Application administrator", "Authentication administrator", "Billing administrator", "Cloud application administrator", "Conditional Access administrator", "Exchange administrator", "Global administrator", "Global reader", "Helpdesk administrator", "Password administrator", "Privileged authentication administrator", "Privileged role administrator", "Security administrator", "SharePoint administrator", "User administrator")
+    $Local:PolicyName = 'Privileged Identity Managementt'
+    $Local:DirectoryRoles = @('Application administrator', 'Authentication administrator', 'Billing administrator', 'Cloud application administrator', 'Conditional Access administrator', 'Exchange administrator', 'Global administrator', 'Global reader', 'Helpdesk administrator', 'Password administrator', 'Privileged authentication administrator', 'Privileged role administrator', 'Security administrator', 'SharePoint administrator', 'User administrator')
     #endregion
 
     $Local:ExistingPolicy = Get-AzureADMSConditionalAccessPolicy | Where-Object { $_.DisplayName -eq $Local:PolicyName }
 
     # TODO :: Check if policy is configured correctly
     if ($Local:ExistingPolicy) {
-        Write-Host "Privileged Identity Management policy already exists. Skipping..."
+        Write-Host 'Privileged Identity Management policy already exists. Skipping...'
         return
     }
 
     [Microsoft.Open.MSGraph.Model.ConditionalAccessConditionSet]$Local:Conditions = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessConditionSet
     # Apply to all cloud applications
     $Local:Conditions.Applications = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessApplicationCondition
-    $Local:Conditions.Applications.IncludeApplications = "All"
+    $Local:Conditions.Applications.IncludeApplications = 'All'
     # Apply to administator roles
     $Local:Conditions.Users = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessUserCondition
     $Local:Conditions.Users.IncludeRoles = Get-AzureADMSRoleDefinition | Where-Object { $Local:DirectoryRoles -contains $_.DisplayName } | Select-Object -ExpandProperty Id
 
     [Microsoft.Open.MSGraph.Model.ConditionalAccessGrantControls]$Local:GrantControls = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessGrantControls
     # Enforce MFA
-    $Local:GrantControls._Operator = "OR"
-    $Local:GrantControls.BuiltInControls = @("mfa")
+    $Local:GrantControls._Operator = 'OR'
+    $Local:GrantControls.BuiltInControls = @('mfa')
 
     [Microsoft.Open.MSGraph.Model.ConditionalAccessSessionControls]$Local:SessionControls = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessSessionControls
     # Disable persistent browser
     $Local:SessionControls.PersistentBrowser = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessPersistentBrowser
     $Local:SessionControls.PersistentBrowser.IsEnabled = $true
-    $Local:SessionControls.PersistentBrowser.Mode = "Never"
+    $Local:SessionControls.PersistentBrowser.Mode = 'Never'
     # Require Re-authentication every 4 hours
     $Local:SessionControls.SignInFrequency = New-Object -TypeName Microsoft.Open.MSGraph.Model.ConditionalAccessSignInFrequency
     $Local:SessionControls.SignInFrequency.IsEnabled = $true
-    $Local:SessionControls.SignInFrequency.Value = "4"
-    $Local:SessionControls.SignInFrequency.Type = "hours"
+    $Local:SessionControls.SignInFrequency.Value = '4'
+    $Local:SessionControls.SignInFrequency.Type = 'hours'
 
-    New-AzureADMSConditionalAccessPolicy -DisplayName $Local:PolicyName -State "Enabled" -Conditions $Local:Conditions -GrantControls $Local:GrantControls -SessionControls $Local:SessionControls -ErrorAction Stop | Out-Null
+    New-AzureADMSConditionalAccessPolicy -DisplayName $Local:PolicyName -State 'Enabled' -Conditions $Local:Conditions -GrantControls $Local:GrantControls -SessionControls $Local:SessionControls -ErrorAction Stop | Out-Null
 }
 
 #endregion - Conditional Access Policies
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     switch ($Action) {
         'SecurityAlerts' {
-            Invoke-EnsureModule MSOnline, AzureAD;
-
             $AlertsUser = Get-AlertsUser
             if ($AlertsUser) {
                 $Continue = $Host.UI.PromptForChoice("Alerts User: $($AlertsUser.WindowsLiveID)", 'Is this the correct alerts user?', @('&Yes', '&No'), 0)
@@ -165,18 +144,7 @@ Invoke-RunMain $PSCmdlet {
             New-ConditionalAccessPrivilegedIdentityManagementPolicy;
         }
         'Sharepoint' {
-            Invoke-EnsureModule Microsoft.Online.Sharepoint.Powershell;
-        }
-        'Exchange' {
-            Invoke-EnsureModule ExchangeOnlineManagement;
-
-            Disable-Outlook_StorageProviders
-
-            Set-Exchange_SafeAttachmentsPolicy
-            Set-Exchange_SafeLinksPolicy
-
-            Enable-Exchange_MailboxAuditing
-            Enable-Exchange_MailTips
+            # Invoke-EnsureModule Microsoft.Online.Sharepoint.Powershell;
         }
     }
 };

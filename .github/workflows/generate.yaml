@@ -1,0 +1,64 @@
+name: Generate Scripts
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "src/automation/registry/Generate.ps1"
+      - "src/automation/registry/definitions/**"
+      - ".github/workflows/generate.yaml"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect Changes
+        uses: dorny/paths-filter@v3.0.2
+        id: changes
+        with:
+          list-files: shell
+          filters: |
+            definition:
+              - 'src/automation/registry/definitions/**'
+            definition_deleted:
+              - deleted: 'src/automation/registry/definitions/**'
+
+      - name: Remove Deleted Definitions
+        id: delete_files
+        if: ${{ steps.changes.outputs.definition_deleted == 'true' }}
+        run: |
+          shopt -s globstar nullglob
+          for file in src/automation/registry/definitions/**; do
+            no_prefix=${file#src/automation/registry/definitions/}
+            if [ ! -f "src/automation/registry/Generate.ps1" ]; then
+              echo "Found deleted definition file ${no_prefix}, deleting."
+              rm "$file"
+            fi
+          done
+
+          DIR="src/automation/registry"
+          DEFINITIONS_DIR="${DIR}/definitions"
+          GENERATED_DIR="${DIR}/generated"
+          for file in "${GENERATED_DIR}"/*; do
+            no_prefix=${file#"$GENERATED_DIR"/}
+            without_extension=${no_prefix%.*}
+            fullWithoutExtension="${DEFINITIONS_DIR}/${without_extension}"
+            if [ ! -f "$fullWithoutExtension.json" ] && [ ! -f "$fullWithoutExtension.jsonc" ]; then
+              echo "FOUND_DELETED=true" >> "$GITHUB_OUTPUT"
+              echo "Found deleted generated file ${no_prefix}, deleting."
+              rm "$file"
+            fi
+          done
+          echo "Cleanup completed."
+
+      - name: Execute Generate Script
+        if: ${{ steps.changes.outputs.definition == 'true' }}
+        run: pwsh src/automation/registry/Generate.ps1
+
+      - name: Commit Changes
+        if: ${{ (steps.changes.outputs.definition == 'true' || steps.delete_files.outputs.FOUND_DELETED == 'true') && github.event_name == 'push' }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(Generated): Update generated scripts"

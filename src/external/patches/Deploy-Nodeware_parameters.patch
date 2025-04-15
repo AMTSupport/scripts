@@ -1,0 +1,15 @@
+diff --git a/src/external/scripts/Deploy-Nodeware.ps1 b/src/external/scripts/Deploy-Nodeware.ps1
+index 4e7f022..e28ee87 100644
+--- a/src/external/scripts/Deploy-Nodeware.ps1
++++ b/src/external/scripts/Deploy-Nodeware.ps1
+@@ -1,6 +1,7 @@
+-﻿$customerID = '' 
+-# Enter numerical portion of customer ID between the single quotes
+-# No other modifications are required
++﻿param(
++    [Parameter(Mandatory)]
++    $customerID
++)
+ 
+ $url = "https://downloads.nodeware.com/agent/windows/NodewareAgentSetup.msi"
+ $msiName = "NodewareAgentSetup.msi"

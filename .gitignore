@@ -1,3 +1,11 @@
 .direnv
-obj
-bin
+.devenv
+result
+.pre-commit-config.yaml
+**/obj
+**/bin
+**/Output
+**/coverage_report
+**/TestResults
+**/coverage.info
+**/Coverage

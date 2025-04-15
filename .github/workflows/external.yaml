@@ -1,0 +1,30 @@
+name: External Script Updater
+
+on:
+  workflow_dispatch:
+  push:
+    paths: [ 'src/external/source/**', 'src/external/Update.ps1' ]
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Update Script
+        shell: pwsh
+        run: ./src/external/Update.ps1
+
+      - name: Validate Scripts
+        shell: pwsh
+        run: ./src/external/Update.ps1 -Validate
+
+      - name: Commit Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(external): Update external scripts"
+          file_pattern: "src/external/scripts/*"

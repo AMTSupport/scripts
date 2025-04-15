@@ -1,5 +1,14 @@
 #Requires -Version 5.1
 
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\Exit.psm1
+Using module ..\common\Ensure.psm1
+Using module ..\common\Assert.psm1
+Using module ..\common\Scope.psm1
+Using module ..\common\UsersAndAccounts.psm1
+
+[CmdletBinding()]
 Param(
     [Parameter()]
     [Switch]$NoModify,
@@ -52,8 +61,7 @@ function Get-FilteredUsers(
 
                 (-not $Local:Exception) -or ($Local:Exception.Computers -contains $env:COMPUTERNAME)
             };
-        }
-        else {
+        } else {
             [HashTable[]]$Local:FilteredMembers = $Local:Members;
         }
 
@@ -165,8 +173,7 @@ function Get-ProcessedExceptions(
                     Name   = $Split[1];
                     Domain = $Split[0];
                 };
-            }
-            else {
+            } else {
                 Invoke-Debug "No domain specified for [$Name], using local domain";
 
                 return @{
@@ -194,8 +201,7 @@ function Get-ProcessedExceptions(
 
                     [String[]]$Local:Computers = if ($Local:Split[1].Contains(',')) {
                         $Local:Split[1].Split(',');
-                    }
-                    else {
+                    } else {
                         @($Local:Split[1])
                     }
 
@@ -205,13 +211,11 @@ function Get-ProcessedExceptions(
                     $Local:Exception | Add-Member -MemberType NoteProperty -Name Computers -Value $Local:Computers;
 
                     return $Local:Exception;
-                }
-                else {
+                } else {
                     Invoke-Error "Invalid format for exception [$_]";
                     Invoke-FailedExit -ExitCode 1003;
                 }
-            }
-            else {
+            } else {
                 Invoke-Debug "Exception for [$Local:Exception] is not scoped";
 
                 [HashTable]$Local:Exception = Split-NameAndDomain -Name $Local:Exception;
@@ -225,12 +229,10 @@ function Get-ProcessedExceptions(
     }
 }
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     if ($NoModify) {
         Invoke-Info 'Running in WhatIf mode, no changes will be made.';
-    }
-    else {
+    } else {
         Invoke-EnsureAdministrator;
     }
 
@@ -243,8 +245,7 @@ Invoke-RunMain $PSCmdlet {
 
     if ($RemovedAdmins.Count -eq 0 -and $FixedUsers.Count -eq 0) {
         Invoke-Info 'No accounts modified'
-    }
-    else {
+    } else {
         foreach ($User in $FixedUsers) {
             Invoke-Info "Fixed user $($User.Name) by adding them to the Users group"
         }

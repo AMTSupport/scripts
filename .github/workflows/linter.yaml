@@ -1,25 +1,37 @@
 name: Lint
 
-on: [workflow_dispatch]
+on:
+  pull_request:
+    paths: ["src/**", "tests/**", "utils/**", ".github/workflows/**"]
+  push:
+    branches: [master]
+    paths: ["src/**", "tests/**", "utils/**", ".github/workflows/**"]
 
 jobs:
-  lint:
-    name: Lint
+  powershell:
+    name: PowerShell Lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
-      statuses: write
+      security-events: write
+      actions: read
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Super-Linter
-        uses: super-linter/super-linter@v6.7.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EDITORCONFIG_FILE_NAME: ".editorconfig"
-          POWERSHELL_CONFIG_FILE: "PSScriptAnalyzerSettings.psd1"
-          FILTER_REGEX_EXCLUDE: ".*compiled/.*|.*docs/.*|LICENSE"
+      - name: Run PSScriptAnalyzer
+        uses: microsoft/psscriptanalyzer-action@main
+        with:
+          path: .\
+          recurse: true
+          ignorePattern: '"n-sight/cleaners", "compiled/", "external/scripts"'
+          settings: .\PSScriptAnalyzerSettings.psd1
+          output: results.sarif
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: ${{ always() }}
+        with:
+          sarif_file: results.sarif

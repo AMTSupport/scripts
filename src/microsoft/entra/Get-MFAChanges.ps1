@@ -1,5 +1,17 @@
 #Requires -Version 5.1
 
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Connection.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Ensure.psm1
+Using module ..\..\common\Scope.psm1
+Using module ..\..\common\Exit.psm1
+Using module ..\..\common\Assert.psm1
+Using module ..\..\common\Input.psm1
+
+Using module ImportExcel
+Using module MSOnline
+
 [CmdletBinding(SupportsShouldProcess)]
 Param(
     [Parameter(Mandatory)]
@@ -11,13 +23,13 @@ Param(
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
-    [String]$ExcelFileName = "MFA Numbers.xlsx"
+    [String]$ExcelFileName = 'MFA Numbers.xlsx'
 )
 
 $Script:Columns = @{
     DisplayName = 1;
-    Email = 2;
-    Phone = 3;
+    Email       = 2;
+    Phone       = 3;
 };
 
 # Section Start - Main Functions
@@ -40,8 +52,6 @@ function Invoke-SetupEnvironment(
 
     process {
         Invoke-EnsureUser;
-        Invoke-EnsureModule -Modules @('AzureAD', 'MSOnline', 'ImportExcel');
-
         Connect-Service -Services 'Msol', 'AzureAD';
 
         # Get the first client folder that exists
@@ -82,13 +92,13 @@ function Get-CurrentData {
     process {
         [Object[]]$Local:LicensedUsers = Get-MsolUser -All | Where-Object { $_.isLicensed -eq $true } | Sort-Object DisplayName;
         [PSCustomObject[]]$Local:ExpandedUsers = $Local:LicensedUsers `
-            | Select-Object `
-                DisplayName, `
-                @{ N = 'Email'; E = { $_.UserPrincipalName } }, `
-                MobilePhone, `
-                @{ N = 'MFA_App'; E = { $_.StringAuthenticationPhoneAppDetails }  }, `
-                @{ N = 'MFA_Email'; E = { $_.StrongAuthenticationUserDetails.Email } }, `
-                @{ N = 'MFA_Phone'; E = { $_.StrongAuthenticationUserDetails.PhoneNumber } };
+        | Select-Object `
+            DisplayName, `
+        @{ N = 'Email'; E = { $_.UserPrincipalName } }, `
+            MobilePhone, `
+        @{ N = 'MFA_App'; E = { $_.StringAuthenticationPhoneAppDetails } }, `
+        @{ N = 'MFA_Email'; E = { $_.StrongAuthenticationUserDetails.Email } }, `
+        @{ N = 'MFA_Phone'; E = { $_.StrongAuthenticationUserDetails.PhoneNumber } };
 
         return $Local:ExpandedUsers;
     }
@@ -100,29 +110,29 @@ function Get-Excel {
 
     process {
         $Local:Import = if (Test-Path $Script:ExcelFile) {
-            Invoke-Info "Excel file found, importing data...";
+            Invoke-Info 'Excel file found, importing data...';
             try {
                 Import-Excel $Script:ExcelFile
             } catch {
-                Invoke-Error "Failed to import Excel file.";
+                Invoke-Error 'Failed to import Excel file.';
 
                 $Local:Message = $_.Exception.Message
                 $Local:WriteMessage = switch -Regex ($Local:Message) {
-                    "Duplicate column headers" {
+                    'Duplicate column headers' {
                         [System.Text.RegularExpressions.Match]$Local:Match = Select-String "Duplicate column headers found on row '(?<row>[0-9]+)' in columns '(?:(?<column>[0-9]+)(?:[ ]?))+'." -InputObject $_
                         [String]$Row = $Match.Matches.Groups[1].Captures;
                         [String]$Columns = $Match.Matches.Groups[2].Captures;
 
-                        "There were duplicate columns found on row $Row in columns $($Columns -join ", "); Please remove any duplicate columns and try again";
+                        "There were duplicate columns found on row $Row in columns $($Columns -join ', '); Please remove any duplicate columns and try again";
                     }
-                    default { "Unknown error; Please examine the error message and try again"; }
+                    default { 'Unknown error; Please examine the error message and try again'; }
                 }
 
                 Invoke-Error $WriteMessage;
                 exit 1004;
             }
         } else {
-            Invoke-Info "Excel file not found, creating new file...";
+            Invoke-Info 'Excel file not found, creating new file...';
             New-Object -TypeName System.Collections.ArrayList;
         }
 
@@ -146,7 +156,7 @@ function Get-EmailToCell([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Office
         [Int]$Local:ColumnIndex = 2;
         foreach ($Local:Row in 2..$Local:SheetRows) {
             [String]$Local:Email = $WorkSheet.Cells[$Local:Row, $Local:ColumnIndex].Value;
-            $Local:Email | Assert-NotNull -Message "Email was null";
+            $Local:Email | Assert-NotNull -Message 'Email was null';
 
             $Local:EmailTable.Add($Local:Email, $Local:Row);
         }
@@ -162,7 +172,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
     process {
         # This is a new worksheet, no history to update
         if ($ActiveWorkSheet.Dimension.Columns -lt 4) {
-            Invoke-Info  "No data found in worksheet $($ActiveWorkSheet.Name), skipping history update."
+            Invoke-Info "No data found in worksheet $($ActiveWorkSheet.Name), skipping history update."
             return
         }
 
@@ -362,7 +372,7 @@ function Invoke-CleanupWorksheet(
                             }
 
                             # With the columns we want to display, we can now format the rows.
-                            [String[]]$Local:Lines = "";
+                            [String[]]$Local:Lines = '';
                             $Rows | ForEach-Object {
                                 [String[]]$Local:Row = $_;
                                 for ($Local:Index = $Local:CurrentLongest - 1; $Local:Index -le ($Local:LongestColumns.Count - 1); $Local:Index++) {
@@ -486,7 +496,7 @@ function Add-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
         # Each value is a boolean which is only true if they are a new user.
         # This should be sorted by displayName, so that we can insert them in the correct order.
         [HashTable]$Local:TableWithInsertions = @{};
-        $Local:EmailTable.GetEnumerator().ForEach({$Local:TableWithInsertions.Add($_.Key, $false); });
+        $Local:EmailTable.GetEnumerator().ForEach({ $Local:TableWithInsertions.Add($_.Key, $false); });
         $Local:NewUsers | ForEach-Object { $Local:TableWithInsertions.Add($_.Email, $true); };
         [Object[]]$Local:TableWithInsertions = $Local:TableWithInsertions.GetEnumerator() | Sort-Object -Property Key;
 
@@ -589,7 +599,7 @@ function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$
 
         # Only insert new column if required.
         If ($AddNewData) {
-            [String]$Local:NewColumnName = Get-Date -Format "MMM-yy";
+            [String]$Local:NewColumnName = Get-Date -Format 'MMM-yy';
             [Int]$Local:NewColumnIndex = [Math]::Max(3, $WorkSheet.Dimension.Columns + 1);
             $WorkSheet.Cells[1, $Local:NewColumnIndex].Value = $Local:NewColumnName;
         }
@@ -612,7 +622,7 @@ function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$
             If ($AddNewData) {
                 $Local:Cell = $WorkSheet.Cells[$Local:Row, $Local:NewColumnIndex];
                 $Local:Cell.Value = $Local:User.MFA_Phone;
-                $Local:Cell.Style.Numberformat.Format = "@";
+                $Local:Cell.Style.Numberformat.Format = '@';
                 $Local:Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::None;
             }
         }
@@ -677,7 +687,7 @@ function Set-Styles(
         [String]$Local:LastColumn = $Local:LastColumn -replace '[0-9]', '';
 
         Set-ExcelRange -Worksheet $WorkSheet -Range "A1:$($Local:LastColumn)1" -Bold -HorizontalAlignment Center;
-        if ($WorkSheet.Dimension.Columns -ge 4) { Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($Local:LastColumn)1" -NumberFormat "MMM-yy" };
+        if ($WorkSheet.Dimension.Columns -ge 4) { Set-ExcelRange -Worksheet $WorkSheet -Range "D1:$($Local:LastColumn)1" -NumberFormat 'MMM-yy' };
         Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($Local:LastColumn)$(($WorkSheet.Dimension.Rows))" -AutoSize -ResetFont -BackgroundPattern Solid;
         # Set-ExcelRange -Worksheet $WorkSheet -Range "A2:$($lastColumn)$($WorkSheet.Dimension.Rows)"  # [System.Drawing.Color]::LightSlateGray
         # Set-ExcelRange -Worksheet $WorkSheet -Range "D2:$($lastColumn)$($WorkSheet.Dimension.Rows)" -NumberFormat "[<=9999999999]####-###-###;+(##) ###-###-###"
@@ -695,9 +705,9 @@ function New-BaseWorkSheet([Parameter(Mandatory)][ValidateNotNullOrEmpty()][Offi
     $WorkSheet.InsertRow(1, 1)
 
     $Local:Cells = $WorkSheet.Cells
-    $Local:Cells[1, 1].Value = "Name"
-    $Local:Cells[1, 2].Value = "Email"
-    $Local:Cells[1, 3].Value = "Phone"
+    $Local:Cells[1, 1].Value = 'Name'
+    $Local:Cells[1, 2].Value = 'Email'
+    $Local:Cells[1, 3].Value = 'Phone'
 }
 
 function Get-ActiveWorkSheet(
@@ -712,10 +722,10 @@ function Get-ActiveWorkSheet(
         [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = $ExcelData.Workbook.Worksheets | Where-Object { $_.Name -eq 'Working' };
         if ($null -eq $Local:ActiveWorkSheet) {
             [OfficeOpenXml.ExcelWorksheet]$Local:ActiveWorkSheet = $ExcelData.Workbook.Worksheets.Add('Working')
-        } else { $Local:ActiveWorkSheet.Name = "Working" }
+        } else { $Local:ActiveWorkSheet.Name = 'Working' }
 
         # Move the worksheets to the correct position
-        $ExcelData.Workbook.Worksheets.MoveToStart("Working")
+        $ExcelData.Workbook.Worksheets.MoveToStart('Working')
 
         New-BaseWorkSheet -WorkSheet $Local:ActiveWorkSheet;
 
@@ -733,13 +743,13 @@ function Get-HistoryWorkSheet(
 
     process {
         [OfficeOpenXml.ExcelWorksheet]$Local:HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
-        if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne "History") {
-            Write-Host -ForegroundColor Cyan "Creating new worksheet for history"
-            $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Add("History")
+        if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne 'History') {
+            Write-Host -ForegroundColor Cyan 'Creating new worksheet for history'
+            $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Add('History')
         }
 
         # Move the worksheets to the correct position
-        $ExcelData.Workbook.Worksheets.MoveAfter("History", "Working")
+        $ExcelData.Workbook.Worksheets.MoveAfter('History', 'Working')
 
         New-BaseWorkSheet -WorkSheet $Local:HistoryWorkSheet;
 
@@ -764,7 +774,6 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
 
 }
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     if (-not $ClientsFolder) {
         [String[]]$Local:PossiblePaths = @(

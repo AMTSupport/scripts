@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Disables Windows Fast Boot, also known as Hiberboot or Fast Startup.",
+    "description": "In this day and age, realistically Fast Boot causes more issues than it solves, the time saving is less than a matter of seconds.\nDisabling Fast Boot will keep the system healthier and more reliable in day to day use.",
+    "functionality": [ "System, Windows, Power, Boot" ]
+  },
+  "entries": [
+    {
+      "Key": "HiberbootEnabled",
+      "Path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power",
+      "Type": "DWord",
+      "Value": 0,
+      "ValidationBlock": "$CurrentValue -eq 0"
+    }
+  ]
+}

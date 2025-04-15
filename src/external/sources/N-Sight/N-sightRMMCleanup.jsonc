@@ -1,0 +1,6 @@
+{
+  "$schema": "../../../../resources/schemas/ExternalScript.schema.jsonc",
+  "Output": "N-Sight/N-sightRMMCleanup.ps1",
+  "Source": "https://s3.amazonaws.com/new-swmsp-net-supportfiles/PermanentFiles/FeatureCleanup/Cleanup Scripts/N-sightRMMCleanup.ps1",
+  "Patches": []
+}

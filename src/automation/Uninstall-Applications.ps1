@@ -1,12 +1,28 @@
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\Utils.psm1
+Using module ..\common\Analyser.psm1
+
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)]
     [String[]]$ApplicationName
 )
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
+# TODO wmic no longer available on Windows 11 need to find alternative.
 Invoke-RunMain $PSCmdlet {
-    $Local:Applications = Get-WmiObject -Class Win32_Product | Select-Object -Property Name,Version;
+    [Compiler.Analyser.SuppressAnalyserAttribute(
+        'UseOfUndefinedFunction',
+        'wmic',
+        Justification = 'wmic is not available on the builder machine'
+    )]
+    param()
+
+    if (Test-IsWindows11) {
+        Invoke-Error 'This script is currently broken due to wmic not being available on Windows 11';
+    }
+
+    $Local:Applications = Get-CimInstance -ClassName Win32_Product | Select-Object -Property Name,Version;
     $Local:LikeApplications = $Local:Applications | Where-Object {
         $Application = $_;
         ($ApplicationName | Where-Object { $Application.Name -like $_; }).Count -gt 0;

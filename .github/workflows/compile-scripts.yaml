@@ -1,0 +1,87 @@
+name: Powershell Compiler
+
+on:
+  push:
+    branches: [master]
+    paths: [ "src/**/*.ps1", ".github/workflows/compile-scripts.yaml" ]
+  pull_request:
+    paths: [ "src/**/*.ps1", ".github/workflows/compile-scripts.yaml" ]
+  workflow_dispatch:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      compiled: ${{ steps.changes.outputs.compiled }}
+      src: ${{ steps.changes.outputs.src }}
+      src_deleted: ${{ steps.changes.outputs.src_deleted }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+        # Checks for changes in the 'compiled' and 'src' directories
+        # We also check for deleted files so we can cleanup the compiled directory
+      - name: Collect Changes for Upcoming Jobs
+        uses: dorny/paths-filter@v3.0.2
+        id: changes
+        with:
+          list-files: shell
+          filters: |
+            compiled:
+              - 'compiled/**'
+            src:
+              - 'src/**/*.(ps1|psm1)'
+            src_deleted:
+              - deleted: 'src/**/*.(ps1|psm1)'
+
+  cleanup-directory:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src_deleted == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete Compiled versions of deleted files
+        id: delete_files
+        run: ./utils/clean-compiled.sh
+
+      - name: Commit Changes
+        if: ${{ steps.delete_files.outputs.FOUND_DELETED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(compiled): Remove compiled versions of deleted files"
+
+  build:
+    uses: ./.github/workflows/build.yaml
+
+  compile-scripts:
+    runs-on: windows-latest
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.src == 'true' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Compiler Artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: build.yaml
+          workflow_conclusion: success
+          name: Compiler
+          path: /tmp/Compiler
+
+      - name: Run Compiler
+        shell: pwsh
+        run: /tmp/Compiler/Compiler.exe --input src --output compiled --force -vvv -f
+
+      - name: Commit Changes
+        if: ${{ github.event_name == 'workflow_dispatch' || (needs.changes.outputs.src == 'true' && github.event_name == 'push') }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(compiled): Compile scripts"

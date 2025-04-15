@@ -1,9 +1,12 @@
+Using module ..\common\Environment.psm1
+Using module ..\common\Exit.psm1
+
+[CmdletBinding()]
 Param(
     [Parameter(Mandatory)]
     [ScriptBlock]$Expression
 )
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     try {
         & $Expression;

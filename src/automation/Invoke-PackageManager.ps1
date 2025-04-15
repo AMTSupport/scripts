@@ -1,3 +1,9 @@
+Using module ..\common\Environment.psm1
+Using module ..\common\Exit.psm1
+Using module ..\common\Ensure.psm1
+Using module ..\common\Logging.psm1
+Using module ..\common\PackageManager.psm1
+
 [CmdletBinding(SupportsShouldProcess)]
 Param(
     [Parameter(ValueFromRemainingArguments)]
@@ -21,7 +27,6 @@ $Script:DefaultPackages = @{
     displaylink = {};
 }
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 

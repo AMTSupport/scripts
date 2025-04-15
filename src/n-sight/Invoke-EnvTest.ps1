@@ -3,7 +3,12 @@
     Used to print environment variables and other information within a N-Able ScriptRunner environment.
 #>
 
-Import-Module $PSScriptRoot/../common/00-Environment.psm1;
+Using module ..\common\Environment.psm1
+Using module ..\common\Logging.psm1
+
+[CmdletBinding()]
+param()
+
 Invoke-RunMain $PSCmdlet {
     Invoke-Info 'Printing environment variables...'
     [Object[]]$Local:EnvironmentVariables = Get-ChildItem -Path 'env:';

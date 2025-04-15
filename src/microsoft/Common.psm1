@@ -1,11 +1,19 @@
-Using Module Microsoft.Graph.Authentication;
-Using Module Microsoft.Graph.Identity.DirectoryManagement;
-Using Module Microsoft.Graph.Users;
-Using Module ExchangeOnlineManagement;
+Using module ..\common\Logging.psm1
+Using module ..\common\Scope.psm1
+Using module ..\common\Connection.psm1
+Using module ..\common\Input.psm1
 
-Using namespace Microsoft.Graph.PowerShell.Models;
+Using Module Microsoft.Graph.Authentication
+Using Module Microsoft.Graph.Identity.DirectoryManagement
+Using Module Microsoft.Graph.Users
+Using Module ExchangeOnlineManagement
+# Using module PartnerCenter
+Using module Az.Accounts
+Using module Az.KeyVault
 
-Function Get-PrimaryDomain {
+Using namespace Microsoft.Graph.PowerShell.Models
+
+function Get-PrimaryDomain {
     Get-MgDomain | Where-Object { $_.IsDefault -eq $True };
 }
 
@@ -15,15 +23,15 @@ function Get-AlertsUser {
         [String]$SupportEmail = 'amtsupport@amt.com.au'
     )
 
-    begin { Enter-Scope; Connect-Service -Services Graph,ExchangeOnline -Scopes 'User.ReadWrite.All','OrgContact.Read.All','Domain.Read.All'; }
+    begin { Enter-Scope; Connect-Service -Services Graph, ExchangeOnline -Scopes 'User.ReadWrite.All', 'OrgContact.Read.All', 'Domain.Read.All' -CheckOnly; }
     end { Exit-Scope -ReturnValue $Local:User; }
 
     process {
         Trap {
-            Invoke-Warn @"
+            Invoke-Warn @'
 There was an error during the creation of the Alerts user.
 If a new mailbox was created, please ensure that the user account is correctly disabled at the least.
-"@;
+'@;
             Write-Error -ErrorRecord $_;
             return $null;
         }
@@ -248,8 +256,6 @@ function Invoke-ForEachCustomer {
     end { Exit-Scope; }
 
     process {
-        Invoke-EnsureModule 'PartnerCenter','Az.Accounts','Az.KeyVault';
-
         Invoke-Info 'Please sign in with the Azure AD account that has access to the Delegated Access Tokens...';
         Connect-AzAccount -UseDeviceAuthentication;
 
@@ -262,7 +268,7 @@ function Invoke-ForEachCustomer {
 
         Invoke-Info 'Getting Partner Center token...'
         [System.Management.Automation.PSCredential]$Private:Credential = New-Object System.Management.Automation.PSCredential -ArgumentList $Private:AppilicationID, $Private:ApplicationSecret;
-        $Private:GraphToken = Get-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://graph.microsoft.com/.default' -ServicePrincipal;
+        $Private:GraphToken = New-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://graph.microsoft.com/.default' -ServicePrincipal;
 
         Invoke-Info 'Getting Partner Center customers...';
         Connect-MgGraph -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
@@ -271,7 +277,7 @@ function Invoke-ForEachCustomer {
 
         foreach ($Private:Customer in $Private:Customers) {
             Invoke-Info 'Getting customer token...';
-            $Private:GraphToken = Get-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://management.azure.com' -ServicePrincipal -TenantId $Private:Customer.TenantId;
+            $Private:GraphToken = New-PartnerAccessToken -ApplicationId $Private:AppilicationID -Credential $Private:Credential -RefreshToken $Private:RefreshToken -Scopes 'https://management.azure.com' -ServicePrincipal -TenantId $Private:Customer.TenantId;
             Invoke-Info 'Connecting to services...';
             Connect-MgGraph -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
             Connect-ExchangeOnline -AccessToken $Private:GraphToken.AccessToken -NoWelcome;
@@ -285,3 +291,5 @@ function Invoke-ForEachCustomer {
         }
     }
 }
+
+Export-ModuleMember -Function Get-AlertsUser, Invoke-ForEachCustomer;

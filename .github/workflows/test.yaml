@@ -1,0 +1,101 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [master]
+    paths: ["src/**", "tests/**", ".github/workflows/test.yaml"]
+  pull_request:
+    paths: ["src/**", "tests/**", ".github/workflows/test.yaml"]
+
+jobs:
+  what-changed:
+    runs-on: ubuntu-latest
+    outputs:
+      compiler: ${{ steps.changes.outputs.compiler }}
+      scripts: ${{ steps.changes.outputs.scripts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect Changes for Upcoming Jobs
+        uses: dorny/paths-filter@v3.0.2
+        id: changes
+        with:
+          list-files: shell
+          filters: |
+            compiler:
+              - 'src/Compiler/**'
+              - 'tests/Compiler/**'
+            scripts:
+              - 'src/**/*.(ps1|psm1)'
+              - 'tests/**/*.(ps1|psm1)'
+
+  test-compiler:
+    name: Run Compiler Tests
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    if: ${{ needs.what-changed.outputs.compiler == 'true' }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup DotNet
+        uses: actions/setup-dotnet@v4
+        with:
+          cache: true
+          dotnet-version: 10.0.x
+          cache-dependency-path: "src/Compiler/packages.lock.json"
+
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Test & Collect lcov coverage
+        run: dotnet test --logger trx /p:CollectCoverage=true /p:CoverletOutput=Coverage/ /p:CoverletOutputFormat=lcov
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: dotnet-coverage
+          path: ./tests/Compiler/Coverage/coverage.info
+
+  test-scripts:
+    permissions:
+      contents: read
+      checks: write
+    strategy:
+        fail-fast: false
+        matrix:
+          os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: Run Pester Tests on ${{ matrix.os }}
+    if : ${{ needs.what-changed.outputs.scripts == 'true' }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        shell: pwsh
+        run: Install-Module -Name Pester -Scope CurrentUser -Force
+
+      - name: Run Pester Tests
+        shell: pwsh
+        run: |
+          $Config = Import-PowerShellDataFile -Path "tests/PesterConfiguration.psd1";
+          Invoke-Pester -Configuration $Config
+
+      - name: Upload test results
+        if: always()
+        id: test-results
+        uses: natescherer/pester-tests-report@combined
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          gist_token: ${{ secrets.PESTER_GIST_GH_TOKEN }}
+          test_results_path: "tests/TestResults/PesterTestResults.xml"
+          coverage_paths: "tests/Coverage/PesterCodeCoverage.xml"
+          tests_fail_step: true
+          skip_check_run: true
+          coverage_gist: true
+          gist_name: "Pester Test Results on ${{ matrix.os }}"
+          report_name: "TEST_RESULTS_${{ github.run_id }}_${{ github.run_number }}_${{ matrix.os }}"

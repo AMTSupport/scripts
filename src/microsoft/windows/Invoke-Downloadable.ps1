@@ -1,3 +1,10 @@
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Scope.psm1
+Using module ..\..\common\Utils.psm1
+Using module ..\..\common\Temp.psm1
+
+
 [CmdletBinding(SupportsShouldProcess)]
 Param(
     [Parameter(Mandatory)]
@@ -18,7 +25,7 @@ function Get-Executable(
     [Parameter()]
     [String]$ExecutablePattern
 ) {
-    begin { Enter-Scope -Invocation $MyInvocation; }
+    begin { Enter-Scope; }
     end { Exit-Scope; }
 
     process {
@@ -27,8 +34,7 @@ function Get-Executable(
             [String]$Local:Executable = $URL.Split('/')[-1];
             Invoke-Info "No executable pattern specified, assuming executable is $Local:Executable";
             Invoke-WebRequest -Uri $URL -OutFile $Local:Executable -UseBasicParsing;
-        }
-        else {
+        } else {
             [String]$Local:OutFolder = $URL.Split('/')[-1].Split('.')[0];
 
             Invoke-Info "Downloading $URL to $Local:OutFolder.zip"
@@ -66,11 +72,9 @@ function Invoke-Exec(
 
 }
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Invoke-WithinEphemeral {
         [String]$Local:Executable = Get-Executable -URL:$URL -ExecutablePattern:$ExecutablePattern;
         Invoke-Exec -Executable:$Local:Executable -ExecutableArgs:$ExecArgs;
     }
 };
-

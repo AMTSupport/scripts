@@ -2,9 +2,11 @@
 
 ## Introduction
 
-Welcome to the AMTSupport's scripts repository. This repository contains a collection of scripts designed to support various tasks and operations. These scripts are maintained and regularly updated by our team to ensure reliability and efficiency.
+Welcome to the AMTSupport's scripts repository.
+This repository contains a collection of scripts designed to support various tasks and operations.
+These scripts are maintained and regularly updated by our team to ensure reliability and efficiency.
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
@@ -16,39 +18,41 @@ Welcome to the AMTSupport's scripts repository. This repository contains a colle
   - [Maintainers](#maintainers)
   - [License](#license)
 
-
----
+______________________________________________________________________
 
 ## Folder Structure
 
-- [**compiled**](./compiled/): Contains compiled versions of the scripts for easy use.
+- [**compiled**](./compiled/): Contains compiled versions of the scripts for usage outside of the repository.
 - [**src**](./src): Contains the source code for all the scripts.
+  - [**Compiler**](./src/Compiler): Contains the C# Compiler which is used to compile the scripts.
+  - [**Common**](./src/common): Contains common utility modules.
+  - [**External**](./src/external): Contains scripts that are from external sources which are patched or modified.
+  - [**Automation/Registry**](./src/automation/registry): Contains generated registry scripts.
 - [**tests**](./tests): Test scripts and test data for ensuring script reliability.
 - [**utils**](./utils): Utility scripts that assist in development and maintenance.
 
----
+______________________________________________________________________
 
 ## Getting Started
 
-To get started with these scripts, you need to clone this repository to your local machine. Use the following command:
+### One-Liner usage
 
-````sh
-git clone https://github.com/AMTSupport/scripts.git
-cd scripts
+If you know which script you are trying to run, you can use this one-liner to download and execute it directly from the repository:
 
-./compiled/the-script-you-want-to-run.ps1
-````
+```powershell
+Set-ExecutionPolicy Bypass Process -Force; iex ([System.Net.WebClient]::new().DownloadString('https://raw.githubusercontent.com/AMTSupport/scripts/master/src/compiled/<script>'))
+```
 
----
+______________________________________________________________________
 
 ## Maintainers
 
-- **James Draycott** - *Initial Work and Maintenance* - [DaRacci](https://github.com/DaRacci)
+- [**James Draycott**](https://github.com/DaRacci) - *Initial Work and Maintenance*
 
----
+______________________________________________________________________
 
 ## License
 
-This project is licensed under [SPECIFY LICENSE HERE] - see the [LICENSE](LICENSE) file for details.
+This project is licensed under GPL3 - see the [LICENSE](LICENSE) file for details.
 
----
+______________________________________________________________________

@@ -11,12 +11,18 @@
         - Intune Device Configuration Profile (Optional)
 #>
 
-Using module Microsoft.Graph.Identity.SignIns;
-Using module Microsoft.Graph.Authentication;
-Using module Microsoft.Graph.Groups;
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Input.psm1
+Using module ..\..\common\Connection.psm1
 
-Using namespace Microsoft.Graph.PowerShell.Models;
-Using namespace System.Management.Automation;
+Using module Microsoft.Graph.Identity.SignIns
+Using module Microsoft.Graph.Authentication
+Using module Microsoft.Graph.Groups
+Using module Microsoft.Graph.Users
+
+Using namespace Microsoft.Graph.PowerShell.Models
+Using namespace System.Management.Automation
 
 [CmdletBinding()]
 param()
@@ -24,8 +30,8 @@ param()
 Class CountryNames : System.Management.Automation.IValidateSetValuesGenerator {
     [String[]]GetValidValues() {
         return [CultureInfo]::GetCultures([System.Globalization.CultureTypes]::SpecificCultures) `
-            | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
-            | Select-Object -Unique | Sort-Object;
+        | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
+        | Select-Object -Unique | Sort-Object;
     }
 }
 
@@ -92,7 +98,7 @@ function Set-SecurityGroup {
         -MailEnabled:$True `
         -SecurityEnabled:$True `
         -MailNickname:$GroupName `
-        -Description:"Staff Security Group";
+        -Description:'Staff Security Group';
 
     Invoke-Info "Security Group $GroupName has been updated.";
 
@@ -179,8 +185,8 @@ function Set-ConditionalAccessPolicy {
     #     -Question 'Please enter the name which will be used to create the security group, named location and conditional access policy.';
 
     [String[]]$Local:PossibleCountries = [CultureInfo]::GetCultures([System.Globalization.CultureTypes]::SpecificCultures) `
-        | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
-        | Select-Object -Unique | Sort-Object;
+    | ForEach-Object { (New-Object System.Globalization.RegionInfo $_.Name).EnglishName } `
+    | Select-Object -Unique | Sort-Object;
 
     Invoke-Info 'Please select the primary country first and then select the secondary countries.';
     [String[]]$Local:Countries = @();
@@ -209,7 +215,7 @@ function Set-ConditionalAccessPolicy {
             [Boolean]$Local:ValidatedPolicy = Test-ConditionalAccessPolicy -PolicyName:$Local:PolicyName;
 
             if ($Local:ValidatedGroup -and $Local:ValidatedLocation -and $Local:ValidatedPolicy) {
-                Invoke-Info "Staff Location is setup correctly.";
+                Invoke-Info 'Staff Location is setup correctly.';
             } else {
                 Invoke-Info "
                 Component Test Results:
@@ -217,7 +223,7 @@ function Set-ConditionalAccessPolicy {
                 - Named Location: $Local:LocationName
                 - Conditional Access Policy: $Local:PolicyName
                 ".Trim();
-                Invoke-Info "Staff Location is not setup correctly.";
+                Invoke-Info 'Staff Location is not setup correctly.';
                 Invoke-Info "Please run the script with the 'Set' action to create the missing components.";
             }
         }
@@ -241,48 +247,47 @@ function Set-ConditionalAccessPolicy {
 };
 
 # Register-ArgumentCompleter -CommandName:($PSCommandPath | Split-Path -Leaf) -ScriptBlock $Local:ScriptBlock
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet -Main:$Local:ScriptBlock;
 
-dynamicparam {
-    Start-Sleep -Seconds 15;
+# dynamicparam {
+#     Start-Sleep -Seconds 15;
 
-    $Parameters = $Local:ScriptBlock.Ast.ParamBlock.Parameters;
-    if ($Parameters.Count -eq 0) {
-        Write-Host "No parameters found.";
-        return;
-    } else {
-        Write-Host "Found $($Parameters.Count) parameters.";
-    }
+#     $Parameters = $Local:ScriptBlock.Ast.ParamBlock.Parameters;
+#     if ($Parameters.Count -eq 0) {
+#         Write-Host 'No parameters found.';
+#         return;
+#     } else {
+#         Write-Host "Found $($Parameters.Count) parameters.";
+#     }
 
-    $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary;
+#     $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary;
 
-    foreach ($Param in $Parameters) {
-        $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute];
+#     foreach ($Param in $Parameters) {
+#         $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute];
 
-        foreach ($Attribute in $Param.Attributes) {
-            $AttributeSet = New-Object "System.Management.Automation.$($Attribute.TypeName)Attribute";
-            foreach ($Argument in $Attribute.NamedArguments) {
-                if ($Argument.ExpressionOmmited) {
-                    # Assume its a switch parameter
-                    $AttributeSet.($Argument.ArgumentName) = $True;
-                } else {
-                    # Invoke the expression to get the value
-                    $AttributeSet.($Argument.ArgumentName) = Invoke-Expression $Attribute.Argument.Extent.Text;
-                }
-            }
+#         foreach ($Attribute in $Param.Attributes) {
+#             $AttributeSet = New-Object "System.Management.Automation.$($Attribute.TypeName)Attribute";
+#             foreach ($Argument in $Attribute.NamedArguments) {
+#                 if ($Argument.ExpressionOmmited) {
+#                     # Assume its a switch parameter
+#                     $AttributeSet.($Argument.ArgumentName) = $True;
+#                 } else {
+#                     # Invoke the expression to get the value
+#                     $AttributeSet.($Argument.ArgumentName) = Invoke-Expression $Attribute.Argument.Extent.Text;
+#                 }
+#             }
 
-            $AttributeCollection.Add($AttributeSet);
-        }
+#             $AttributeCollection.Add($AttributeSet);
+#         }
 
-        $ParameterName = $Param.Name.VariablePath.UserPath;
-        $ParameterType = $Param.StaticType;
-        $RuntimeParameter = [System.Management.Automation.RuntimeDefinedParameter]::new($ParameterName, $ParameterType, $AttributeCollection);
-        $RuntimeParameterDictionary.Add($ParameterName, $RuntimeParameter);
-    }
+#         $ParameterName = $Param.Name.VariablePath.UserPath;
+#         $ParameterType = $Param.StaticType;
+#         $RuntimeParameter = [System.Management.Automation.RuntimeDefinedParameter]::new($ParameterName, $ParameterType, $AttributeCollection);
+#         $RuntimeParameterDictionary.Add($ParameterName, $RuntimeParameter);
+#     }
 
-    return $RuntimeParameterDictionary
-}
+#     return $RuntimeParameterDictionary
+# }
 # dynamicparam {
 #     [RuntimeDefinedParameterDictionary]$Parameters = [RuntimeDefinedParameterDictionary]::new();
 

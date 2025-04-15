@@ -1,0 +1,35 @@
+name: Build Compiler
+
+on:
+  push:
+    branches: [ master ]
+    paths: ["src/Compiler/**", ".github/workflows/build.yaml"]
+  pull_request:
+    paths: ["src/Compiler/**", ".github/workflows/build.yaml"]
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup DotNet
+        uses: actions/setup-dotnet@v4
+        with:
+          cache: true
+          dotnet-version: 10.0.x
+          cache-dependency-path: "src/Compiler/packages.lock.json"
+
+      - name: Install dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet publish ./src/Compiler/Compiler.csproj -c Release -r win-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Compiler
+          path: ./src/Compiler/bin/Release/win-x64/publish/Compiler.exe

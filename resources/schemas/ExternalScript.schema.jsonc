@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/AMTSupport/scripts/main/resources/schemas/ExternalScript.json",
+  "type": "object",
+  "properties": {
+    "Output": {
+      "type": "string",
+      "description": "Name of the script file for output"
+    },
+    "Source": {
+      "type": "string",
+      "description": "URL to the raw script file that is to be downloaded"
+    },
+    "Patches": {
+      "type": "array",
+      "description": "Array of patch files to be applied to the script",
+      "items": [
+        {
+          "type": "string",
+          "description": "Relative path to the patch file from this json file"
+        }
+      ]
+    }
+  },
+  "required": [
+    "Output",
+    "Source"
+  ]
+}

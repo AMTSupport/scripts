@@ -3,9 +3,18 @@
     Before use, must opt into beta shcemas, after logging into MSGraph run Update-MSGraphEnvironment -SchemaVersion 'beta';
 #>
 
-#Requires -Modules Microsoft.Graph.Authentication,Microsoft.Graph.Beta.DeviceManagement,Microsoft.Graph.Beta.Groups
+Using module ..\..\common\Environment.psm1
+Using module ..\..\common\Logging.psm1
+Using module ..\..\common\Connection.psm1
+Using module ..\..\common\Scope.psm1
+Using module ..\..\common\Exit.psm1
 
-using namespace Microsoft.Graph.Beta.PowerShell.Models;
+Using module Microsoft.Graph.Authentication
+Using module Microsoft.Graph.Beta.DeviceManagement
+Using module Microsoft.Graph.Beta.Groups
+Using module Microsoft.Graph.Beta.Identity.DirectoryManagement
+
+using namespace Microsoft.Graph.Beta.PowerShell.Models
 
 [CmdletBinding()]
 param()
@@ -13,7 +22,7 @@ param()
 #region - Utilities functions
 
 function Get-IntuneGroup {
-    $Local:GroupName = "Intune Users";
+    $Local:GroupName = 'Intune Users';
     $Local:IntuneGroup = Get-MgBetaGroup -Filter "displayName eq '$Local:GroupName'" -All:$true;
 
     if (-not $Local:IntuneGroup) {
@@ -21,7 +30,7 @@ function Get-IntuneGroup {
         $Local:IntuneGroup = New-MgBetaGroup `
             -DisplayName $Local:GroupName `
             -MailEnabled:$False `
-            -MailNickname "intune" `
+            -MailNickname 'intune' `
             -SecurityEnabled:$True `
             -Description 'Group for users that are managed by Intune.';
     }
@@ -91,8 +100,7 @@ function Local:Set-Configuration(
 
                     $Local:ConfigurationIsDifferent = $true;
                     break;
-                }
-                else {
+                } else {
                     Invoke-Debug "Property '$($Local:Property.Name)' is the same, skipping.";
                 }
             }
@@ -105,8 +113,7 @@ function Local:Set-Configuration(
             [String]$Local:ConfigurationId = $Local:ExistingConfiguration.Id;
             [String]$Local:JsonConfiguration = $Configuration | ConvertTo-Json -Depth 99;
             $UpdateConfiguration.InvokeReturnAsIs(@($Local:ConfigurationId, $Local:JsonConfiguration));
-        }
-        else {
+        } else {
             Invoke-Info "Creating configuration '$Local:ConfigurationName'.";
 
             if ($null -ne $NewConfigurationExtra) {
@@ -215,9 +222,9 @@ function Get-CommonCompliance(
     [Switch]$WithHarden
 ) {
     $Local:Common = @{
-        "${PassVar}Required"                        = $true;
-        "${PassVar}RequiredType"                    = 'deviceDefault';
-        "${PassVar}MinutesOfInactivityBeforeLock"   = 15;
+        "${PassVar}Required"                      = $true;
+        "${PassVar}RequiredType"                  = 'deviceDefault';
+        "${PassVar}MinutesOfInactivityBeforeLock" = 15;
     };
 
     if ($WithExpiration) {
@@ -235,89 +242,89 @@ function Get-CommonCompliance(
 
 function New-DeviceCompliancePolicy_Windows {
     New-CompliancePolicy 'Windows' '#microsoft.graph.windows10CompliancePolicy' (@{
-        passwordRequiredToUnlockFromIdle        = $true;
-        passwordMinimumCharacterSetCount        = $null;
+            passwordRequiredToUnlockFromIdle            = $true;
+            passwordMinimumCharacterSetCount            = $null;
 
-        requireHealthyDeviceReport      = $true;
-        osMinimumVersion                = $null;
-        osMaximumVersion                = $null;
-        mobileOsMinimumVersion          = $null;
-        mobileOsMaximumVersion          = $null;
-        validOperatingSystemBuildRanges = @();
+            requireHealthyDeviceReport                  = $true;
+            osMinimumVersion                            = $null;
+            osMaximumVersion                            = $null;
+            mobileOsMinimumVersion                      = $null;
+            mobileOsMaximumVersion                      = $null;
+            validOperatingSystemBuildRanges             = @();
 
-        tpmRequired                                 = $true;
-        bitLockerEnabled                            = $true;
-        secureBootEnabled                           = $true;
-        codeIntegrityEnabled                        = $true;
-        storageRequireEncryption                    = $true;
-        earlyLaunchAntiMalwareDriverEnabled         = $false;
-        # TODO: Figure out how to enable these
-        #memoryIntegrityEnabled                      = $true;
-        #kernelDmaProtectionEnabled                  = $true;
-        #virtualizationBasedSecurityEnabled          = $true;
-        #firmwareProtectionEnabled                   = $true;
+            tpmRequired                                 = $true;
+            bitLockerEnabled                            = $true;
+            secureBootEnabled                           = $true;
+            codeIntegrityEnabled                        = $true;
+            storageRequireEncryption                    = $true;
+            earlyLaunchAntiMalwareDriverEnabled         = $false;
+            # TODO: Figure out how to enable these
+            #memoryIntegrityEnabled                      = $true;
+            #kernelDmaProtectionEnabled                  = $true;
+            #virtualizationBasedSecurityEnabled          = $true;
+            #firmwareProtectionEnabled                   = $true;
 
-        activeFirewallRequired                      = $true;
-        defenderEnabled                             = $true;
-        defenderVersion                             = $null;
-        signatureOutOfDate                          = $true;
-        rtpEnabled                                  = $false; # SentinalOne is used
-        antivirusRequired                           = $true;
-        antiSpywareRequired                         = $true;
+            activeFirewallRequired                      = $true;
+            defenderEnabled                             = $true;
+            defenderVersion                             = $null;
+            signatureOutOfDate                          = $true;
+            rtpEnabled                                  = $false; # SentinalOne is used
+            antivirusRequired                           = $true;
+            antiSpywareRequired                         = $true;
 
-        deviceThreatProtectionEnabled               = $true;
-        deviceThreatProtectionRequiredSecurityLevel = 'low';
+            deviceThreatProtectionEnabled               = $true;
+            deviceThreatProtectionRequiredSecurityLevel = 'low';
 
-        deviceCompliancePolicyScript = $null
-        configurationManagerComplianceRequired      = $false;
-    } + (Get-CommonCompliance -PassVar 'password' -WithExpiration -WithHarden));
+            deviceCompliancePolicyScript                = $null
+            configurationManagerComplianceRequired      = $false;
+        } + (Get-CommonCompliance -PassVar 'password' -WithExpiration -WithHarden));
 }
 
 function New-DeviceCompliancePolicy_Android {
     New-CompliancePolicy 'Android' '#microsoft.graph.androidWorkProfileCompliancePolicy' (@{
-        requiredPasswordComplexity  = 'medium'
+            requiredPasswordComplexity                         = 'medium'
 
-        securityPreventInstallAppsFromUnknownSources        = $false
-        securityDisableUsbDebugging                         = $false
-        securityRequireVerifyApps                           = $false
-        securityBlockJailbrokenDevices                      = $false
-        securityRequireSafetyNetAttestationBasicIntegrity   = $true
-        securityRequireSafetyNetAttestationCertifiedDevice  = $true
-        securityRequireGooglePlayServices                   = $true
-        securityRequireUpToDateSecurityProviders            = $true
-        securityRequireCompanyPortalAppIntegrity            = $true
+            securityPreventInstallAppsFromUnknownSources       = $false
+            securityDisableUsbDebugging                        = $false
+            securityRequireVerifyApps                          = $false
+            securityBlockJailbrokenDevices                     = $false
+            securityRequireSafetyNetAttestationBasicIntegrity  = $true
+            securityRequireSafetyNetAttestationCertifiedDevice = $true
+            securityRequireGooglePlayServices                  = $true
+            securityRequireUpToDateSecurityProviders           = $true
+            securityRequireCompanyPortalAppIntegrity           = $true
 
-        deviceThreatProtectionEnabled                   = $true
-        deviceThreatProtectionRequiredSecurityLevel     = 'low'
-        advancedThreatProtectionRequiredSecurityLevel   = 'low'
+            deviceThreatProtectionEnabled                      = $true
+            deviceThreatProtectionRequiredSecurityLevel        = 'low'
+            advancedThreatProtectionRequiredSecurityLevel      = 'low'
 
-        osMinimumVersion = '11'
-        storageRequireEncryption = $true
-    } + (Get-CommonCompliance -PassVar 'password'));
+            osMinimumVersion                                   = '11'
+            storageRequireEncryption                           = $true
+        } + (Get-CommonCompliance -PassVar 'password'));
 }
 
 function New-DeviceCompliancePolicy_MacOS {
     New-CompliancePolicy 'MacOS' '#microsoft.graph.macOSCompliancePolicy' (@{
-        systemIntegrityProtectionEnabled    = $true
-        deviceThreatProtectionEnabled       = $true
-        storageRequireEncryption            = $true
-        firewallEnabled                     = $true
-        firewallBlockAllIncoming            = $false
-        firewallEnableStealthMode           = $true
-        gatekeeperAllowedAppSource          = 'macAppStoreAndIdentifiedDevelopers'
-    } + (Get-CommonCompliance -PassVar 'password' -WithExpiration -WithHarden));
+            systemIntegrityProtectionEnabled = $true
+            deviceThreatProtectionEnabled    = $true
+            storageRequireEncryption         = $true
+            firewallEnabled                  = $true
+            firewallBlockAllIncoming         = $false
+            firewallEnableStealthMode        = $true
+            gatekeeperAllowedAppSource       = 'macAppStoreAndIdentifiedDevelopers'
+        } + (Get-CommonCompliance -PassVar 'password' -WithExpiration -WithHarden));
 }
 
 function New-DeviceCompliancePolicy_iOS {
     New-CompliancePolicy 'iOS' '#microsoft.graph.iosCompliancePolicy' (@{
-        passcodeMinutesOfInactivityBeforeScreenTimeout = 15
+            passcodeMinutesOfInactivityBeforeScreenTimeout = 15
 
-        securityBlockJailbrokenDevices = $true
-        deviceThreatProtectionEnabled = $true
-        deviceThreatProtectionRequiredSecurityLevel = 'low'
-        advancedThreatProtectionRequiredSecurityLevel = 'low'
-        managedEmailProfileRequired = $false
-    } + (Get-CommonCompliance -PassVar 'passcode' -WithExpiration -Expiration:65535 -WithHarden));
+            securityBlockJailbrokenDevices                 = $true
+            deviceThreatProtectionEnabled                  = $true
+            deviceThreatProtectionRequiredSecurityLevel    = 'low'
+            advancedThreatProtectionRequiredSecurityLevel  = 'low'
+            managedEmailProfileRequired                    = $false
+        } + (Get-CommonCompliance -PassVar 'passcode' -WithExpiration -Expiration:65535 -WithHarden));
 }
 
 #endregion - Device Compliance Policies
@@ -381,28 +388,28 @@ $Script:DeviceConfigurationProfiles = @(
     #     activeDirectoryDomainName       = (Get-MgDomain | Where-Object { $_.IsDefault -eq $True } | Select-Object -ExpandProperty Id);
     # })
     (New-DeviceConfigurationProfile 'Windows' 'Debloat' @{
-        '@odata.type' = '#microsoft.graph.windows10GeneralConfiguration';
-        searchDisableUseLocation = $True;
-        searchDisableLocation = $True;
-        searchBlockWebResults = $True;
+        '@odata.type'                     = '#microsoft.graph.windows10GeneralConfiguration';
+        searchDisableUseLocation          = $True;
+        searchDisableLocation             = $True;
+        searchBlockWebResults             = $True;
 
-        diagnosticsDataSubmissionMode = 'basic';
+        diagnosticsDataSubmissionMode     = 'basic';
 
-        inkWorkspaceAccess = 'disabled';
-        inkWorkspaceAccessState = 'blocked';
-        inkWorkspaceBlockSuggestedApps = $True;
+        inkWorkspaceAccess                = 'disabled';
+        inkWorkspaceAccessState           = 'blocked';
+        inkWorkspaceBlockSuggestedApps    = $True;
 
-        lockScreenBlockCortana = $True;
+        lockScreenBlockCortana            = $True;
         lockScreenBlockToastNotifications = $True;
 
-        settingsBlockGamingPage = $True;
+        settingsBlockGamingPage           = $True;
 
-        cortanaBlocked = $True;
-        windowsSpotlightBlocked = $True;
-        smartScreenBlockPromptOverride = $True;
-        internetSharingBlocked = $True;
-        gameDvrBlocked = $True;
-        uninstallBuiltInApps = $True;
+        cortanaBlocked                    = $True;
+        windowsSpotlightBlocked           = $True;
+        smartScreenBlockPromptOverride    = $True;
+        internetSharingBlocked            = $True;
+        gameDvrBlocked                    = $True;
+        uninstallBuiltInApps              = $True;
     })
     # (New-DeviceConfigurationProfile 'Windows' 'Identity Protection' @{
 
@@ -450,7 +457,6 @@ function Set-CustomPolicies {
 
 #endregion - Conditional Access Policies
 
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Connect-Service -Services 'Graph' -Scopes DeviceManagementServiceConfig.ReadWrite.All,deviceManagementConfiguration.ReadWrite.All, Group.ReadWrite.All;
 
@@ -461,13 +467,13 @@ Invoke-RunMain $PSCmdlet {
     # Set the Connectors
     Invoke-Info 'Setting up the Intune Connectors...';
     Invoke-MgGraphRequest -Method POST -Uri 'beta/deviceManagement/dataProcessorServiceForWindowsFeaturesOnboarding' -Body (@{
-        "@odata.type" = "#microsoft.graph.dataProcessorServiceForWindowsFeaturesOnboarding";
-        hasValidWindowsLicense = $True;
-        areDataProcessorServiceForWindowsFeaturesEnabled = $True;
-    })
+            '@odata.type'                                    = '#microsoft.graph.dataProcessorServiceForWindowsFeaturesOnboarding';
+            hasValidWindowsLicense                           = $True;
+            areDataProcessorServiceForWindowsFeaturesEnabled = $True;
+        })
 
     # Setup the Intune Group
-    [MicrosoftGraphGroup]$Local:IntuneGroup = Get-IntuneGroup
+    [MicrosoftGraphGroup]$Local:IntuneGroup = Get-IntuneGroup;
 
     Invoke-Info 'Setting up Intune device compliance policies...';
     [PSCustomObject[]]$Local:DeviceCompliancePolicies = @((New-DeviceCompliancePolicy_Windows), (New-DeviceCompliancePolicy_Android), (New-DeviceCompliancePolicy_MacOS), (New-DeviceCompliancePolicy_iOS));

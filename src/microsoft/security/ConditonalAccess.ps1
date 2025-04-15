@@ -1,5 +1,8 @@
+#!ignore
 #Requires -Version 5.1
-#Requires -Modules AzureADPreview
+
+Using module ..\..\common\Environment.psm1
+Using module AzureAD
 
 function New-Condition_AllCloudApps(
     [Parameter(Mandatory)]
@@ -108,8 +111,6 @@ function New-ConditionalAccessPrivilegedIdentityManagementPolicy {
     New-AzureADMSConditionalAccessPolicy -DisplayName $Local:PolicyName -State 'Enabled' -Conditions $Local:Conditions -GrantControls $Local:GrantControls -SessionControls $Local:SessionControls -ErrorAction Stop | Out-Null
 }
 
-
-Import-Module $PSScriptRoot/../../common/00-Environment.psm1;
 Invoke-RunMain $PSCmdlet {
     Connect-Service AzureAD;
 };

@@ -1,3 +1,9 @@
+Using module ..\common\Logging.psm1
+Using module ..\common\Scope.psm1
+Using module ..\common\Input.psm1
+Using module ..\common\Exit.psm1
+Using module ..\common\Utils.psm1
+
 function Get-HuduApiKey {
     begin { Enter-Scope; }
     end { Exit-Scope; }
