@@ -23,7 +23,7 @@ public sealed class RequirementGroup {
     public ImmutableList<T> GetRequirements<T>() where T : Requirement {
         var typeName = typeof(T);
         if (this.StoredRequirements.TryGetValue(typeName, out var value)) {
-            return value.Cast<T>().ToImmutableList();
+            return [.. value.Cast<T>()];
         }
 
         return [];
@@ -47,4 +47,3 @@ public sealed class RequirementGroup {
         return [.. flattenedList.OrderBy(x => x, new RequirementWeightSorter())];
     }
 }
-
