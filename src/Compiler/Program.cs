@@ -41,7 +41,6 @@ public class Program {
     public static readonly Lazy<RunspacePool> RunspacePool = new(() => {
         var sessionState = InitialSessionState.CreateDefault();
         sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
-        sessionState.ImportPSModule(["Microsoft.PowerShell.PSResourceGet"]);
 
         var rsPool = RunspaceFactory.CreateRunspacePool(sessionState);
         rsPool.SetMinRunspaces(1);

@@ -168,7 +168,18 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
 
         var versionString = ConvertVersionParameters(this.ModuleSpec.RequiredVersion?.ToString(), this.ModuleSpec.MinimumVersion?.ToString(), this.ModuleSpec.MaximumVersion?.ToString());
         var powerShellCode = /*ps1*/ $$"""
+        $ErrorActionPreference = "Stop";
         Set-StrictMode -Version 3;
+
+        # For some reason it seems some environments don't have this module installed by default.
+        $HasModule = Get-Module -Name Microsoft.PowerShell.PSResourceGet -ListAvailable;
+        if ($HasModule -eq $null) {
+            Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue -Force | Out-Null;
+            Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
+            Install-Module -Name Microsoft.PowerShell.PSResourceGet -Force -Scope CurrentUser;
+        }
+        Import-Module -Name Microsoft.PowerShell.PSResourceGet -Force;
+
         Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
 
         $Module = Find-PSResource -Name '{{this.ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
