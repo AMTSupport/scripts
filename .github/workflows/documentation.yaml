@@ -1,15 +1,13 @@
-name: Documentaion
+name: Generate PowerShell Docs
 
 on:
   push:
     branches: [master]
     paths:
-      [
-        "docs/**",
-        "src/**",
-        "utils/Generate-Documentation.ps1",
-        ".github/workflows/documentation.yaml",
-      ]
+      - "docs/**"
+      - "src/**"
+      - "utils/Generate-Documentation.ps1"
+      - ".github/workflows/documentation.yaml"
 
 jobs:
   update_docs:

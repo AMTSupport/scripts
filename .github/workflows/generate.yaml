@@ -5,12 +5,7 @@ on:
     branches: [master]
     paths:
       - "src/automation/registry/Generate.ps1"
-      - "src/automation/registry/definitions/**/*.(json|jsonc)"
-      - ".github/workflows/generate.yaml"
-  pull_request:
-    paths:
-      - "src/automation/registry/Generate.ps1"
-      - "src/automation/registry/definitions/**/*.(json|jsonc)"
+      - "src/automation/registry/definitions/**"
       - ".github/workflows/generate.yaml"
 
 jobs:
@@ -26,16 +21,16 @@ jobs:
           list-files: shell
           filters: |
             definition:
-              - 'src/automation/registry/definitions/**/*.(json|jsonc)'
+              - 'src/automation/registry/definitions/**'
             definition_deleted:
-              - deleted: 'src/automation/registry/definitions/**/*.(json|jsonc)'
+              - deleted: 'src/automation/registry/definitions/**'
 
       - name: Remove Deleted Definitions
         id: delete_files
         if: ${{ steps.changes.outputs.definition_deleted == 'true' }}
         run: |
           shopt -s globstar nullglob
-          for file in src/automation/registry/definitions/**/*; do
+          for file in src/automation/registry/definitions/**; do
             no_prefix=${file#src/automation/registry/definitions/}
             if [ ! -f "src/automation/registry/Generate.ps1" ]; then
               echo "Found deleted definition file ${no_prefix}, deleting."
