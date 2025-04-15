@@ -26,7 +26,8 @@ jobs:
       - name: Generate Documentation
         shell: pwsh
         run: |
-          Install-Module -Name platyPS -Scope CurrentUser -Force
+          Install-Module Alt3.Docusaurus.Powershell -Scope CurrentUser -Force
+          Install-Module platyPS -Scope CurrentUser -Force
           .\utils\Generate-Documentation.ps1
 
       - name: Check for changes
