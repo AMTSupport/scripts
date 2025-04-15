@@ -158,6 +158,31 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
             .Select(Encoding.UTF8.GetBytes)
             .Flatten());
     }
+
+    /// <summary>
+    /// Gets all dependencies and their dependencies of this module.
+    /// </summary>
+    /// <returns>A list of compiled modules.</returns>
+    [Pure]
+    public List<Compiled> GetDownstreamModules() {
+        var rootParent = this.GetRootParent();
+        if (rootParent is not CompiledScript script) return [];
+
+        var downstreamModules = new List<Compiled>();
+        var graph = script.Graph.Clone();
+        while (graph.OutDegree(this) > 0) {
+            var edges = graph.OutEdges(this).ToList();
+            foreach (var edge in edges) {
+                var target = edge.Target;
+                if (target is Compiled compiled) {
+                    downstreamModules.Add(compiled);
+                    graph.RemoveEdge(edge);
+                }
+            }
+        }
+
+        return [.. downstreamModules.Distinct()];
+    }
 }
 
 public enum ContentType {
