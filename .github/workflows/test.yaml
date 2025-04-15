@@ -1,4 +1,4 @@
-name: Tests
+name: Run Tests
 
 on:
   push:
@@ -8,11 +8,34 @@ on:
     paths: ["src/**", "tests/**", ".github/workflows/test.yaml"]
 
 jobs:
+  what-changed:
+    runs-on: ubuntu-latest
+    outputs:
+      compiler: ${{ steps.changes.outputs.compiler }}
+      scripts: ${{ steps.changes.outputs.scripts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect Changes for Upcoming Jobs
+        uses: dorny/paths-filter@v3.0.2
+        id: changes
+        with:
+          list-files: shell
+          filters: |
+            compiler:
+              - 'src/Compiler/**'
+              - 'tests/Compiler/**'
+            scripts:
+              - 'src/**/*.(ps1|psm1)'
+              - 'tests/**/*.(ps1|psm1)'
+
   test-compiler:
+    name: Run Compiler Tests
     runs-on: windows-latest
     permissions:
       contents: read
-
+    if: ${{ needs.what-changed.outputs.compiler == 'true' }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -47,6 +70,7 @@ jobs:
           os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     name: Run Pester Tests on ${{ matrix.os }}
+    if : ${{ needs.what-changed.outputs.scripts == 'true' }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4

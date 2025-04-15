@@ -35,24 +35,3 @@ jobs:
         if: ${{ always() }}
         with:
           sarif_file: results.sarif
-
-  # lint:
-  #   name: Lint
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     packages: read
-  #     statuses: write
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
-
-  #     - name: Super-Linter
-  #       uses: super-linter/super-linter@v6.8.0
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         POWERSHELL_CONFIG_FILE: .\PSScriptAnalyzerSettings.psd1
-  #         FILTER_REGEX_EXCLUDE: ".*compiled/.*|.*docs/.*|LICENSE"
-  #         SAVE_SUPER_LINTER_OUTPUT: true
