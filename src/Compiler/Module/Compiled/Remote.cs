@@ -77,17 +77,15 @@ public class CompiledRemoteModule : Compiled {
                 exported.AddRange(strings.Cast<string>());
                 break;
             case string starString when starString == "*":
-                var version = this.GetPowerShellManifest()["ModuleVersion"]!.ToString()!;
-                var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{this.ModuleSpec.Name}");
-                var tempOutput = Path.Combine(tempModuleRootPath, this.ModuleSpec.Name, version);
-                if (!Directory.Exists(tempOutput)) {
-                    Directory.CreateDirectory(tempOutput);
-                    using var archive = this.GetZipArchive();
-                    archive.ExtractToDirectory(tempOutput);
+                var sessionState = InitialSessionState.CreateDefault();
+                sessionState.ImportPSModulesFromPath(GetExportedModule(this));
+
+                // Also ensure all dependencies are loaded
+                foreach (var dependency in this.GetDownstreamModules()) {
+                    var dependencyExportPath = GetExportedModule(dependency);
+                    sessionState.ImportPSModulesFromPath(dependencyExportPath);
                 }
 
-                var sessionState = InitialSessionState.CreateDefault();
-                sessionState.ImportPSModulesFromPath(tempModuleRootPath);
                 PowerShell pwsh;
                 try {
                     pwsh = PowerShell.Create(sessionState);
@@ -169,5 +167,30 @@ public class CompiledRemoteModule : Compiled {
                     return this.PowerShellManifest = [];
                 }
             );
+    }
+
+    private static string GetExportedModule(Compiled module) {
+        var version = module.Version.ToString();
+        var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{module.GetNameHash()}");
+        var tempOutput = Path.Combine(tempModuleRootPath, module.ModuleSpec.Name, version);
+        if (!Directory.Exists(tempOutput)) {
+            Directory.CreateDirectory(tempOutput);
+
+            if (module is CompiledRemoteModule remoteModule) {
+                using var archive = remoteModule.GetZipArchive();
+                archive.ExtractToDirectory(tempOutput);
+            } else if (module is CompiledLocalModule localModule) {
+                var lines = localModule.Document.GetLines();
+                using var stream = new FileStream(Path.Combine(tempOutput, $"{module.ModuleSpec.Name}.psm1"), FileMode.Create);
+                using var writer = new StreamWriter(stream);
+                foreach (var line in lines) {
+                    writer.WriteLine(line.ToString());
+                }
+            }
+        }
+
+
+        Logger.Debug($"Exported module path: {tempOutput}");
+        return tempOutput;
     }
 }
