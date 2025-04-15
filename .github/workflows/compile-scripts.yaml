@@ -6,6 +6,7 @@ on:
     paths: [ "src/**/*.ps1", ".github/workflows/compile-scripts.yaml" ]
   pull_request:
     paths: [ "src/**/*.ps1", ".github/workflows/compile-scripts.yaml" ]
+  workflow_dispatch:
 
 jobs:
   changes:
