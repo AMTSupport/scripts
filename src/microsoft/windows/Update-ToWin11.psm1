@@ -147,6 +147,18 @@ function Write-SetupError([Bool]$MaybeSuccess) {
     $Success = Get-RegistryKey $RegPath 'OperationCompletedSuccessfully';
     if ($False -and $MaybeSuccess -and $Success -eq 'True') {
         Invoke-Info 'Windows 11 upgrade completed successfully';
+
+
+        $Local:Message = @"
+Message from AMT
+
+Your PC needs to restart to install Windows 11.
+Please save your work and close all applications before proceeding.
+
+This will take place in 30 minutes at $([DateTime]::Now.AddMinutes(30).ToString('hh:mm tt')) or reboot immediately if you choose to do so.
+"@;
+
+        $Local:Message | . msg * /TIME:3600;
     } else {
         $FailureData = Get-RegistryKey $RegPath 'FailureData';
         $FailureDetails = Get-RegistryKey $RegPath 'FailureDetails';
@@ -218,10 +230,8 @@ function Update-ToWin11 {
             }
 
             # TODO - Maybe use the processes resource monitor to determine if its downloading, copying or what?
-            # Dont auto reboot
             Start-Process -FilePath $Private:OutputFile -ArgumentList "/QuietInstall /SkipEULA /auto upgrade /UninstallUponUpgrade /copylogs $Private:Dir" -Wait;
 
-            # send ui message after complete
             Write-SetupError $True;
         } catch {
             Invoke-Error "There was an error upgrading to Windows 11, please check the logs for more information inside $Private:Dir";
