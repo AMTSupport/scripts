@@ -94,7 +94,7 @@ process {
     try {
         if ($env:COMPILED_NO_JOB -ne $True) {
             $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
-            & "$PowerShellPath" -NoProfile -Interactive $Script:ScriptPath @PSBoundParameters;
+            & "$PowerShellPath" -NoProfile $Script:ScriptPath @PSBoundParameters;
         } else {
             & $Script:ScriptPath @PSBoundParameters;
         }
