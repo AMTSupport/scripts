@@ -4,8 +4,6 @@ Using module .\Exit.psm1
 Using module .\Input.psm1
 Using module Microsoft.Graph.Authentication
 Using module ExchangeOnlineManagement
-Using module AzureAD
-Using module MSOnline
 
 $Script:ExchangeSessionId;
 $Script:IPPSSessionId;
@@ -64,18 +62,6 @@ $Script:Services = @{
             $Script:IPPSSessionId = Get-ConnectionInformation | Select-Object -Last 1 -ExpandProperty ConnectionId;
         };
         Disconnect = { Disconnect-ExchangeOnline -Confirm:$False; };
-    };
-    AzureAD            = @{
-        Matchable  = $True;
-        Context    = { Get-AzureADCurrentSessionInfo | Select-Object -ExpandProperty Account; };
-        Connect    = { Connect-AzureAD };
-        Disconnect = { Disconnect-AzureAD };
-    };
-    Msol               = @{
-        Matchable  = $False;
-        Context    = { Get-MsolCompanyInformation | Select-Object -ExpandProperty DisplayName; };
-        Connect    = { param($AccessToken) Invoke-NonNullParams 'Connect-MsolService' @{ MsGraphAccessToken = $PSBoundParameters['AccessToken'] }; };
-        Disconnect = { [Microsoft.Online.Administration.Automation.ConnectMsolService]::ClearUserSessionState() };
     };
     Graph              = @{
         Matchable  = $True;
@@ -140,7 +126,7 @@ function Local:Disconnect-ServiceInternal {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$Service
     )
 
@@ -164,7 +150,7 @@ function Local:Connect-ServiceInternal {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$Service,
 
         [Parameter()]
@@ -192,7 +178,7 @@ function Local:Get-ServiceContext {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$Service
     )
 
@@ -208,7 +194,7 @@ function Local:Test-HasContext {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$Service
     )
 
@@ -219,11 +205,11 @@ function Local:Test-IsMatchable {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$ServiceA,
 
         [Parameter()]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$ServiceB
     )
 
@@ -234,11 +220,11 @@ function Local:Test-SameContext {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$ServiceA,
 
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$ServiceB
     )
 
@@ -251,11 +237,11 @@ function Local:Test-NotMatchableOrSameContext {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$ServiceA,
 
         [Parameter(Mandatory)]
-        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+        [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
         [String]$ServiceB
     )
 
@@ -268,7 +254,7 @@ function Local:Test-NotMatchableOrSameContext {
 [Int]$Script:ERROR_NOT_MATCHING_ACCOUNTS = Register-ExitCode -Description 'Not all services are connected with the same account, please ensure all services are connected with the same account.';
 function Connect-Service(
     [Parameter(Mandatory)]
-    [ValidateSet('ExchangeOnline', 'SecurityComplience', 'AzureAD', 'Graph', 'Msol')]
+    [ValidateSet('ExchangeOnline', 'SecurityComplience', 'Graph')]
     [String[]]$Services,
 
     [Parameter()]
