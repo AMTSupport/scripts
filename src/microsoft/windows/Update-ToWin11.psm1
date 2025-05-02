@@ -142,63 +142,101 @@ function Test-CanUpgrade {
     }
 }
 
-function Write-SetupError([Bool]$MaybeSuccess) {
+function Write-SetupError {
     $RegPath = 'HKLM:\SYSTEM\Setup\setupdiag\results';
-    $Success = Get-RegistryKey $RegPath 'OperationCompletedSuccessfully';
-    if ($False -and $MaybeSuccess -and $Success -eq 'True') {
-        Invoke-Info 'Windows 11 upgrade completed successfully';
+    $FailureData = Get-RegistryKey $RegPath 'FailureData';
+    $FailureDetails = Get-RegistryKey $RegPath 'FailureDetails';
 
+    Invoke-Error "Windows 11 upgrade failed, see the details below:";
+    Invoke-Error "Failure Data: $FailureData";
+    Invoke-Error "Failure Details: $FailureDetails";
 
-        $Local:Message = @"
-Message from AMT
+    $ScanResultFile = "$env:SystemDrive\`$WINDOWS.~BT\Sources\Panther\ScanResult.xml";
+    if (Test-Path $ScanResultFile) {
+        Invoke-Verbose 'Checking for blocking drivers...';
 
-Your PC needs to restart to install Windows 11.
-Please save your work and close all applications before proceeding.
+        $PnpDevices = Get-PnpDevice -PresentOnly;
+        $PnpDeviceInfs = @{};
+        $PnpDevices | ForEach-Object {
+            $InfPath = $_ | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverInfPath';
+            $PnpDeviceInfs[$_.InstanceId] = $InfPath.Data;
+        }
 
-This will take place in 30 minutes at $([DateTime]::Now.AddMinutes(30).ToString('hh:mm tt')) or reboot immediately if you choose to do so.
-"@;
-
-        $Local:Message | . msg * /TIME:3600;
-    } else {
-        $FailureData = Get-RegistryKey $RegPath 'FailureData';
-        $FailureDetails = Get-RegistryKey $RegPath 'FailureDetails';
-
-        Invoke-Error "Windows 11 upgrade failed, see the details below:";
-        Invoke-Error "Failure Data: $FailureData";
-        Invoke-Error "Failure Details: $FailureDetails";
-
-        # $ErrorCode = $FailureDetails | Select-String -Pattern 'ErrorCode = (0x\d+),' | ForEach-Object { $_.Matches.Groups[1].Value };
-        # $ScanResultFile = "$env:SystemDrive\`$WINDOWS.~BT\Sources\Panther\ScanResult.xml";
-        $ScanResultFile = "C:\Users\JamesDraycott\AppData\Local\Temp\ScanResult.xml";
-        if (Test-Path $ScanResultFile) {
-            Invoke-Verbose 'Checking for blocking drivers...';
-
-            $PnpDevices = Get-PnpDevice -PresentOnly;
-            $PnpDeviceInfs = @{};
-            $PnpDevices | ForEach-Object {
-                $InfPath = $_ | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Device_DriverInfPath';
-                $PnpDeviceInfs[$_.InstanceId] = $InfPath.Data;
-            }
-
-            $DriverPackages = (Select-Xml -Path $ScanResultFile -XPath '/*').Node.DriverPackages.DriverPackage;
-            $DriverPackages | ForEach-Object {
-                $Driver = $_;
-                if ($Driver.BlockMigration -eq 'True') {
-                    $DriverName = $Driver.Inf;
-                    $DriverDetails = Get-WindowsDriver -Online -Driver $DriverName;
-                    $InUseByDevices = $PnpDevices | Where-Object {
-                        $PnpDeviceInfs[$_.InstanceId] -eq $DriverName;
-                    }
-
-                    Invoke-Error @"
-Driver: $DriverName is blocking the upgrade to Windows 11, see the details below:
-    In Use By Devices: $($InUseByDevices | Select-Object -ExpandProperty FriendlyName -Join ', ')
-    Driver Details: $DriverDetails
-"@
+        $DriverPackages = (Select-Xml -Path $ScanResultFile -XPath '/*').Node.DriverPackages.DriverPackage;
+        $DriverPackages | ForEach-Object {
+            $Driver = $_;
+            if ($Driver.BlockMigration -eq 'True') {
+                $DriverName = $Driver.Inf;
+                $DriverDetails = Get-WindowsDriver -Online -Driver $DriverName;
+                $InUseByDevices = $PnpDevices | Where-Object {
+                    $PnpDeviceInfs[$_.InstanceId] -eq $DriverName;
                 }
+
+                Invoke-Error @"
+Driver: $DriverName is blocking the upgrade to Windows 11, see the details below:
+In Use By Devices: $($InUseByDevices | Select-Object -ExpandProperty FriendlyName -Join ', ')
+Driver Details: $DriverDetails
+"@
             }
         }
     }
+}
+
+$Script:LogPhaseReader = @{
+    LastKnownPhase = 'Unknown';
+    LastKnownPhaseTime = [DateTime]::Now;
+
+    LinesRead          = 0;
+    ReadHandle         = $null;
+};
+function Get-CurrentUpgradePhase {
+    $Path = "C:\`$WINDOWS.~BT\Sources\Panther\setupact.log"
+    $PrefixRegex = '(^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}), Info\s+MOUPG\s+';
+    $Regex1 = $PrefixRegex + 'Setup phase change: \[(.+?)\] -> \[(.+?)\]$';
+    $Regex2 = $PrefixRegex + 'SetupManager::DetermineSetupPhase: CurrentSetupPhase \[(.+?)\]$';
+    
+    # Approx 400k lines in total on a clean install.
+
+    if (-not (Test-Path $Path)) {
+        return $null; # Not started yet.
+    }
+
+    if ($null -eq $Script:LogPhaseReader.ReadHandle) {
+        $Script:LogPhaseReader.ReadHandle = [System.IO.StreamReader]::new($Path);
+    }
+
+    for ($i = $Script:LogPhaseReader.LinesRead; $i -lt $LogPhaseReader.Handle.BaseStream.Length) {
+        $Line = $Script:LogPhaseReader.ReadHandle.ReadLine();
+        $Script:LogPhaseReader.LinesRead++;
+
+        # We know all the lines we care about are less than 140 characters long.
+        if ($Line.Length -gt 140) {
+            continue;
+        }
+
+        if ($Line -match $Regex1) {
+            $Time = [DateTime]::ParseExact($matches[1], "yyyy-MM-dd HH:mm:ss", $null);
+            $OldPhase = $matches[1];
+            $NewPhase = $matches[2];
+
+            if ($NewPhase -ne $Script:LogPhaseReader.LastKnownPhase) {
+                Invoke-Info "Setup phase changed from $OldPhase to $NewPhase at $Time";
+                $Script:LogPhaseReader.LastKnownPhase = $NewPhase;
+                $Script:LogPhaseReader.LastKnownPhaseTime = $Time;
+            }
+        } elseif ($Line -match $Regex2) {
+            $Time = [DateTime]::ParseExact($matches[1], "yyyy-MM-dd HH:mm:ss", $null);
+            $NewPhase = $matches[2];
+
+            if ($NewPhase -ne $Script:LogPhaseReader.LastKnownPhase) {
+                Invoke-Info "Setup phase changed to $NewPhase at $Time";
+                $Script:LogPhaseReader.LastKnownPhase = $NewPhase;
+                $Script:LogPhaseReader.LastKnownPhaseTime = $Time;
+            }
+        }
+    }
+
+    return $Script:LogPhaseReader.LastKnownPhase;
 }
 
 function Update-ToWin11 {
@@ -225,20 +263,42 @@ function Update-ToWin11 {
                 $Status = Get-WindowsOptionalFeature -FeatureName $_ -Online;
                 if ($Status.State -eq 'Enabled' -or $Status.State -eq 'EnablePending') {
                     Invoke-Info "Disabling feature: $_";
-                    Disable-WindowsOptionalFeature -FeatureName $_ -Online;
+                    Disable-WindowsOptionalFeature -FeatureName $_ -Online -NoRestart;
                 }
             }
 
-            # TODO - Maybe use the processes resource monitor to determine if its downloading, copying or what?
-            Start-Process -FilePath $Private:OutputFile -ArgumentList "/QuietInstall /SkipEULA /auto upgrade /UninstallUponUpgrade /copylogs $Private:Dir" -Wait;
+            $UpgradeJob = Start-Job -ScriptBlock {
+                Start-Process -FilePath $Using:OutputFile -ArgumentList "/QuietInstall","/SkipEULA","/auto","upgrade","/UninstallUponUpgrade","/copylogs $Using:Dir" -Wait;
+            };
 
-            Write-SetupError $True;
+            while ($UpgradeJob.Finished -eq $False) {
+                # TODO - This can probably find errors too.
+                $CurrentPhase = Get-CurrentUpgradePhase;
+                if ($CurrentPhase -eq 'SetupPhasePostFinalize') {
+                    Invoke-Info 'Windows 11 upgrade is complete, notifying user & exiting...';
+                    $Local:Message = @"
+Message from AMT
+
+Your PC needs to restart to install Windows 11.
+Please save your work and close all applications before proceeding.
+
+This will take place in 30 minutes at $([DateTime]::Now.AddMinutes(30).ToString('hh:mm tt')) or reboot immediately if you choose to do so.
+"@;
+
+                    $Local:Message | . msg * /TIME:3600;
+
+                    return;
+                }
+
+                Start-Sleep -Seconds 5;
+            }
+
+            Write-SetupError;
         } catch {
-            Invoke-Error "There was an error upgrading to Windows 11, please check the logs for more information inside $Private:Dir";
-            Write-SetupError $False;
+            Write-SetupError;
             $PSCmdlet.ThrowTerminatingError($_);
         }
     }
 }
 
-Export-ModuleMember -Function 'Update-ToWin11', 'Test-CanUpgrade', 'Get-SupportedProcessor', 'Write-SetupError';
+Export-ModuleMember -Function 'Update-ToWin11', 'Test-CanUpgrade';
