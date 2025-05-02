@@ -92,9 +92,67 @@ begin {
 }
 process {
     try {
+        function ConvertTo-InvokableValue {
+            [CmdletBinding()]
+            [OutputType([String])]
+            param(
+                [Parameter(Mandatory)]
+                [AllowNull()]
+                [Object]$Value
+            )
+
+            process {
+                if ($null -eq $Value) { return '$null' };
+
+                $Type = $Value.GetType();
+
+                if ($Type -eq [Boolean]) {
+                    return "`$$Value";
+                } elseif ($Type -eq [Object[]]) {
+                    $Array = @();
+                    foreach ($Element in $Value) {
+                        $Array += ConvertTo-InvokableValue -Value $Element;
+                    }
+
+                    return '@(' + ($Array -join ', ') + ')';
+                } elseif ($Type -eq [Hashtable]) {
+                    $Hashtable = @();
+                    foreach ($Key in $Value.Keys) {
+                        $Hashtable += "$Key = $(ConvertTo-InvokableValue -Value $Value[$Key])";
+                    }
+
+                    return '@{' + ($Hashtable -join '; ') + '}';
+                } elseif ($Type -eq [PSCustomObject]) {
+                    $Hashtable = @();
+                    foreach ($Property in $Value.PSObject.Properties) {
+                        $Hashtable += "$($Property.Name)=$(ConvertTo-InvokableValue -Value $Property.Value)";
+                    }
+
+                    return '[PSCustomObject]@{' + ($Hashtable -join '; ') + '}';
+                }
+
+
+                return ConvertTo-Json -InputObject $Value;
+            }
+        }
+
         if ($env:COMPILED_NO_JOB -ne $True) {
             $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
-            & "$PowerShellPath" -NoProfile $Script:ScriptPath @PSBoundParameters;
+
+            # Fucking PS5 is dumb
+            $ArgumentString = '';
+            $PSBoundParameters.GetEnumerator() | ForEach-Object {
+                $Value;
+                if ($_.Value -is [System.Management.Automation.SwitchParameter]) {
+                    $Value = $_.Value.ToBool();
+                } else {
+                    $Value = $_.Value;
+                }
+
+                $ArgumentString += " -$($_.Key):$(ConvertTo-InvokableValue $Value)"
+            }
+
+            & "$PowerShellPath" -NoProfile $Script:ScriptPath $ArgumentString;
         } else {
             & $Script:ScriptPath @PSBoundParameters;
         }
