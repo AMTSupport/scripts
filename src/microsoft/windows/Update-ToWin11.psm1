@@ -194,10 +194,11 @@ function Get-CurrentUpgradePhase {
     $PrefixRegex = '(^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}), Info\s+MOUPG\s+';
     $Regex1 = $PrefixRegex + 'Setup phase change: \[(.+?)\] -> \[(.+?)\]$';
     $Regex2 = $PrefixRegex + 'SetupManager::DetermineSetupPhase: CurrentSetupPhase \[(.+?)\]$';
-    
+
     # Approx 400k lines in total on a clean install.
 
     if (-not (Test-Path $Path)) {
+        Invoke-Info "Log file not found, assuming upgrade has not started yet.";
         return $null; # Not started yet.
     }
 
@@ -205,7 +206,7 @@ function Get-CurrentUpgradePhase {
         $Script:LogPhaseReader.ReadHandle = [System.IO.StreamReader]::new($Path);
     }
 
-    for ($i = $Script:LogPhaseReader.LinesRead; $i -lt $LogPhaseReader.Handle.BaseStream.Length) {
+    while ($Script:LogPhaseReader.ReadHandle.Peek() -ne -1) {
         $Line = $Script:LogPhaseReader.ReadHandle.ReadLine();
         $Script:LogPhaseReader.LinesRead++;
 
@@ -216,8 +217,8 @@ function Get-CurrentUpgradePhase {
 
         if ($Line -match $Regex1) {
             $Time = [DateTime]::ParseExact($matches[1], "yyyy-MM-dd HH:mm:ss", $null);
-            $OldPhase = $matches[1];
-            $NewPhase = $matches[2];
+            $OldPhase = $matches[2];
+            $NewPhase = $matches[3];
 
             if ($NewPhase -ne $Script:LogPhaseReader.LastKnownPhase) {
                 Invoke-Info "Setup phase changed from $OldPhase to $NewPhase at $Time";
