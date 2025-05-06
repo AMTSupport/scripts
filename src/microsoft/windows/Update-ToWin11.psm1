@@ -185,9 +185,7 @@ Driver Details: $DriverDetails
 $Script:LogPhaseReader = @{
     LastKnownPhase = 'Unknown';
     LastKnownPhaseTime = [DateTime]::Now;
-
-    LinesRead          = 0;
-    ReadHandle         = $null;
+    Position          = 0;
 };
 function Get-CurrentUpgradePhase {
     $Path = "C:\`$WINDOWS.~BT\Sources\Panther\setupact.log"
@@ -198,43 +196,47 @@ function Get-CurrentUpgradePhase {
     # Approx 400k lines in total on a clean install.
 
     if (-not (Test-Path $Path)) {
-        Invoke-Info "Log file not found, assuming upgrade has not started yet.";
         return $null; # Not started yet.
     }
 
-    if ($null -eq $Script:LogPhaseReader.ReadHandle) {
-        $Script:LogPhaseReader.ReadHandle = [System.IO.StreamReader]::new($Path);
-    }
+    $FileStream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite);
+    $FileStream.Seek($Script:LogPhaseReader.Position, [System.IO.SeekOrigin]::Begin) | Out-Null;
+    $Reader = [System.IO.StreamReader]::new($FileStream, [System.Text.Encoding]::UTF8);
 
-    while ($Script:LogPhaseReader.ReadHandle.Peek() -ne -1) {
-        $Line = $Script:LogPhaseReader.ReadHandle.ReadLine();
-        $Script:LogPhaseReader.LinesRead++;
+    try {
+        while ($Reader.Peek() -ne -1) {
+            $Line = $Reader.ReadLine();
+            $Script:LogPhaseReader.Position = $FileStream.Position;
 
-        # We know all the lines we care about are less than 140 characters long.
-        if ($Line.Length -gt 140) {
-            continue;
-        }
-
-        if ($Line -match $Regex1) {
-            $Time = [DateTime]::ParseExact($matches[1], "yyyy-MM-dd HH:mm:ss", $null);
-            $OldPhase = $matches[2];
-            $NewPhase = $matches[3];
-
-            if ($NewPhase -ne $Script:LogPhaseReader.LastKnownPhase) {
-                Invoke-Info "Setup phase changed from $OldPhase to $NewPhase at $Time";
-                $Script:LogPhaseReader.LastKnownPhase = $NewPhase;
-                $Script:LogPhaseReader.LastKnownPhaseTime = $Time;
+            # We know all the lines we care about are less than 140 characters long.
+            if ($Line.Length -gt 140) {
+                continue;
             }
-        } elseif ($Line -match $Regex2) {
-            $Time = [DateTime]::ParseExact($matches[1], "yyyy-MM-dd HH:mm:ss", $null);
-            $NewPhase = $matches[2];
 
-            if ($NewPhase -ne $Script:LogPhaseReader.LastKnownPhase) {
-                Invoke-Info "Setup phase changed to $NewPhase at $Time";
-                $Script:LogPhaseReader.LastKnownPhase = $NewPhase;
-                $Script:LogPhaseReader.LastKnownPhaseTime = $Time;
+            if ($Line -match $Regex1) {
+                $Time = [DateTime]::ParseExact($matches[1], 'yyyy-MM-dd HH:mm:ss', $null);
+                $OldPhase = $matches[2];
+                $NewPhase = $matches[3];
+
+                if ($NewPhase -ne $Script:LogPhaseReader.LastKnownPhase) {
+                    Invoke-Info "Setup phase changed from $OldPhase to $NewPhase at $Time";
+                    $Script:LogPhaseReader.LastKnownPhase = $NewPhase;
+                    $Script:LogPhaseReader.LastKnownPhaseTime = $Time;
+                }
+            } elseif ($Line -match $Regex2) {
+                $Time = [DateTime]::ParseExact($matches[1], 'yyyy-MM-dd HH:mm:ss', $null);
+                $NewPhase = $matches[2];
+
+                if ($NewPhase -ne $Script:LogPhaseReader.LastKnownPhase) {
+                    Invoke-Info "Setup phase changed to $NewPhase at $Time";
+                    $Script:LogPhaseReader.LastKnownPhase = $NewPhase;
+                    $Script:LogPhaseReader.LastKnownPhaseTime = $Time;
+                }
             }
         }
+    } finally {
+        $Reader.Close();
+        $FileStream.Close();
     }
 
     return $Script:LogPhaseReader.LastKnownPhase;
@@ -250,7 +252,7 @@ function Update-ToWin11 {
     process {
         $Private:Dir = "$env:TEMP\Windows11Upgrade";
         if (-not (Test-Path $Private:Dir)) {
-            New-Item -ItemType Directory -Path $Private:Dir;
+            New-Item -ItemType Directory -Path $Private:Dir | Out-Null;
         }
 
         $Private:OutputFile = "$Private:Dir\Windows11InstallationAssistant.exe";
@@ -269,10 +271,10 @@ function Update-ToWin11 {
             }
 
             $UpgradeJob = Start-Job -ScriptBlock {
-                Start-Process -FilePath $Using:OutputFile -ArgumentList "/QuietInstall","/SkipEULA","/auto","upgrade","/UninstallUponUpgrade","/copylogs $Using:Dir" -Wait;
+                Start-Process -FilePath $Using:OutputFile -ArgumentList '/QuietInstall', '/SkipEULA', '/auto upgrade', '/UninstallUponUpgrade', "/copylogs $Using:Dir" -Wait;
             };
 
-            while ($UpgradeJob.Finished -eq $False) {
+            while ($UpgradeJob.State -eq 'Running') {
                 # TODO - This can probably find errors too.
                 $CurrentPhase = Get-CurrentUpgradePhase;
                 if ($CurrentPhase -eq 'SetupPhasePostFinalize') {
