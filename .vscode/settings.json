@@ -26,7 +26,7 @@
         120,
         130
     ],
-    "files.eol": "\n",
+    "files.eol": "auto",
     "path-intellisense.autoSlashAfterDirectory": true,
     "path-intellisense.autoTriggerNextSuggestion": true,
     "powershell.analyzeOpenDocumentsOnly": true,

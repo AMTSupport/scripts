@@ -27,6 +27,9 @@ max_line_length = 180
 [*.{ps1,psm1}]
 charset = utf-8-bom
 
+[compiled/**/*.ps1]
+end_of_line = crlf
+
 [*.{patch,diff}]
 trim_trailing_whitespace = false
 insert_final_newline = false
