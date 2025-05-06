@@ -3,9 +3,9 @@ name: Powershell Compiler
 on:
   push:
     branches: [master]
-    paths: [ "src/**/*.ps1", ".github/workflows/compile-scripts.yaml" ]
+    paths: [ "src/**/*.ps1", "src/**/*.psm1", ".github/workflows/compile-scripts.yaml" ]
   pull_request:
-    paths: [ "src/**/*.ps1", ".github/workflows/compile-scripts.yaml" ]
+    paths: [ "src/**/*.ps1", "src/**/*.psm1", ".github/workflows/compile-scripts.yaml" ]
   workflow_dispatch:
 
 jobs:
