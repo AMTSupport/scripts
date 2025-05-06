@@ -316,6 +316,9 @@ public class Program {
         string content,
         bool forceOverwrite
     ) {
+        // All files should use CRLF so we should convert before writing
+        content = content.Replace("\n", "\r\n");
+
         if (string.IsNullOrWhiteSpace(outputDirectory)) {
             // Output to console to allow for piping
             Console.Out.Write(content);
@@ -324,6 +327,16 @@ public class Program {
 
         var outputPath = GetOutputLocation(sourceDirectory, outputDirectory, fileName);
         if (File.Exists(outputPath)) {
+            var hashEngine = System.Security.Cryptography.SHA256.Create();
+            var existingFileStream = File.OpenRead(outputPath);
+            var hash = hashEngine.ComputeHash(existingFileStream);
+            existingFileStream.Close();
+            var newHash = hashEngine.ComputeHash(Encoding.UTF8.GetBytes(content));
+            if (hash.SequenceEqual(newHash)) {
+                Logger.Trace($"File {outputPath} already exists and is identical. Skipping.");
+                return;
+            }
+
             var removeFile = forceOverwrite;
             if (!removeFile) {
                 Logger.Info($"File {outputPath} already exists. Overwrite? (Y/n)");
