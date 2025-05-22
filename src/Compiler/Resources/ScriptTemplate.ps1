@@ -140,7 +140,7 @@ process {
             $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
 
             # Fucking PS5 is dumb
-            $ArgumentString = '';
+            $ArgSplat = @{ }
             $PSBoundParameters.GetEnumerator() | ForEach-Object {
                 $Value;
                 if ($_.Value -is [System.Management.Automation.SwitchParameter]) {
@@ -148,11 +148,16 @@ process {
                 } else {
                     $Value = $_.Value;
                 }
+                $InvokableValue = ConvertTo-InvokableValue -Value $Value;
 
-                $ArgumentString += " -$($_.Key):$(ConvertTo-InvokableValue $Value)"
+                if ($ArgSplat.ContainsKey($_.Key)) {
+                    $ArgSplat[$_.Key] = $InvokableValue;
+                } else {
+                    $ArgSplat.Add($_.Key, $InvokableValue);
+                }
             }
 
-            & "$PowerShellPath" -NoProfile $Script:ScriptPath $ArgumentString;
+            & "$PowerShellPath" -NoProfile -Command $Script:ScriptPath @ArgSplat
         } else {
             & $Script:ScriptPath @PSBoundParameters;
         }
