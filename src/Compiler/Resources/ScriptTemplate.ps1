@@ -13,7 +13,7 @@ begin {
     [String]$Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath "AMT/PowerShell/Modules/PS$($PSVersionTable.PSVersion.Major)";
     if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
         Write-Verbose "Creating module root folder: $Local:PrivatePSModulePath";
-        New-Item -Path $Local:PrivatePSModulePath -ItemType Directory | Out-Null;
+        New-Item -Path $Local:PrivatePSModulePath -ItemType Directory -WhatIf:$False | Out-Null;
     }
 
     if (-not ($Env:PSModulePath -like "*$Local:PrivatePSModulePath*")) {
@@ -40,7 +40,7 @@ begin {
         $Local:ModuleFolderPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath $Local:NameHash;
         if (-not (Test-Path -Path $Local:ModuleFolderPath)) {
             Write-Verbose "Creating module folder: $Local:ModuleFolderPath";
-            New-Item -Path $Local:ModuleFolderPath -ItemType Directory | Out-Null;
+            New-Item -Path $Local:ModuleFolderPath -ItemType Directory -WhatIf:$False | Out-Null;
         }
 
         switch ($_.Type) {
@@ -50,7 +50,7 @@ begin {
 
                 if (-not (Test-Path -Path $Local:InnerModulePath)) {
                     Write-Verbose "Writing content to module file: $Local:InnerModulePath"
-                    Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding;
+                    Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -WhatIf:$False;
                 } else {
                     $Local:Params = @{ Path = $Local:InnerModulePath; TotalCount = $Local:Bom.Length; };
                     if ($Local:PSBelow6) { $Local:Params.Add('Encoding', 'Byte'); } else { $Local:Params.Add('AsByteStream', $True); }
@@ -61,7 +61,7 @@ begin {
                     if ($Local:WantBom -ne $Local:IsBomEncoded) {
                         Write-Debug "Replacing module to ensure correct UTF-8 encoding: $Local:InnerModulePath"
 
-                        Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -Force;
+                        Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -Force -WhatIf:$False;
                     }
                 }
 
@@ -78,11 +78,11 @@ begin {
                 [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
 
                 Write-Verbose "Expanding module file: $Local:TempFile"
-                Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force;
+                Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force -WhatIf:$False;
 
                 $Local:ManifestPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:Name.psd1";
                 $Local:NewManifestPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.psd1";
-                Move-Item -Path $Local:ManifestPath -Destination $Local:NewManifestPath -Force;
+                Move-Item -Path $Local:ManifestPath -Destination $Local:NewManifestPath -Force -WhatIf:$False;
             }
             Default {
                 Write-Warning "Unknown module type: $($_)";
@@ -158,8 +158,8 @@ process {
         }
     } finally {
         $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
-        $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force; }
+        $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force -WhatIf:$False; }
     }
 } end {
-    Remove-Variable -Name CompiledScript -Scope Global;
+    Remove-Variable -Name CompiledScript -Scope Global -WhatIf:$False;
 }
