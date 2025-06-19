@@ -131,10 +131,106 @@ process {
             }
         }
 
-        if ($env:COMPILED_NO_JOB -ne $True) {
-            $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
+        function Invoke-ScriptWithErrorCapture {
+            <#
+            .SYNOPSIS
+                Runs a PowerShell script while capturing errors as rich objects.
 
-            # Fucking PS5 is dumb
+            .DESCRIPTION
+                Executes a PowerShell script in a new process,
+                maintaining interactivity (this is why we can't just do a $result = )
+                while capturing any errors that occur using file-based serialization.
+
+            .PARAMETER ScriptPath
+                The path to the PowerShell script to execute.
+
+            .PARAMETER ArgumentTable
+                A HashTable of arguments to pass to the script.
+
+            .NOTES
+                Errors captured will be limited in their depth to 5 levels.
+            #>
+            [CmdletBinding()]
+            param(
+                [Parameter(Mandatory = $true, Position = 0)]
+                [string]$ScriptPath,
+
+                [Parameter(Position = 1)]
+                [HashTable]$ArgumentTable
+            )
+
+            if (-not (Test-Path -Path $ScriptPath -PathType Leaf)) {
+                throw "Script not found at path: $ScriptPath"
+            }
+
+            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) 'PSErrorCapture'
+            New-Item -Path $tempDir -ItemType Directory -Force -WhatIf:$False | Out-Null
+            $ErrorOutputPath = Join-Path $tempDir "script_$PID_$(Get-Random)_errors.xml"
+
+            try {
+                $wrapperPath = Join-Path ([System.IO.Path]::GetTempPath()) "error_wrapper_$(Get-Random).ps1"
+                @"
+`$ErrorOutputPath = '$ErrorOutputPath'
+`$ErrorActionPreference = 'Continue'
+`$Error.Clear()
+
+`$ArgSplat = $(ConvertTo-InvokableValue $ArgumentTable)
+try {
+    & "$ScriptPath" @ArgSplat
+} finally {
+    if (`$Error.Count -gt 0) {
+        `$Error | Export-Clixml -Path "$ErrorOutputPath" -Depth 4
+    } else {
+        Set-Content -Path "$ErrorOutputPath" -Value "NO_ERRORS" -Force
+    }
+}
+"@ | Set-Content -Path $wrapperPath -Encoding UTF8 -WhatIf:$False
+
+
+                $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
+                & "$PowerShellPath" -NoProfile -File "$wrapperPath"
+
+                $capturedErrors = @()
+                if (Test-Path -Path $ErrorOutputPath) {
+                    $fileContent = Get-Content -Path $ErrorOutputPath -Raw -ErrorAction SilentlyContinue
+                    if ($fileContent -ne 'NO_ERRORS') {
+                        $capturedErrors = Import-Clixml -Path $ErrorOutputPath
+
+                        Write-Debug "Captured $($capturedErrors.Count) errors from script execution:"
+                        foreach ($err in $capturedErrors) {
+                            if ($err.ErrorCategory_Reason -eq 'ParentContainsErrorRecordException') {
+                                continue;
+                            }
+
+                            $global:Error.Insert(0, $err)
+                        }
+                    } else {
+                        Write-Debug 'No errors were captured during script execution'
+                    }
+                } else {
+                    Write-Warning 'Error output file was not created. Script may have terminated unexpectedly.'
+                }
+
+                return $capturedErrors
+            } finally {
+                if ($DebugPreference -ne 'Continue') {
+                    if (Test-Path $wrapperPath) {
+                        Remove-Item -Path $wrapperPath -Force -ErrorAction SilentlyContinue -WhatIf:$False
+                    }
+
+                    if (Test-Path $ErrorOutputPath) {
+                        Remove-Item -Path $ErrorOutputPath -Force -ErrorAction SilentlyContinue -WhatIf:$False
+                    }
+                }
+            }
+        }
+
+        if ($env:COMPILED_NO_RUN -eq $True) {
+            Write-Verbose 'Skipping script execution due to COMPILED_NO_RUN environment variable.';
+            return;
+        }
+
+        if ($env:COMPILED_NO_JOB -ne $True) {
             $ArgSplat = @{ }
             $PSBoundParameters.GetEnumerator() | ForEach-Object {
                 $Value;
@@ -143,16 +239,15 @@ process {
                 } else {
                     $Value = $_.Value;
                 }
-                $InvokableValue = ConvertTo-InvokableValue -Value $Value;
 
                 if ($ArgSplat.ContainsKey($_.Key)) {
-                    $ArgSplat[$_.Key] = $InvokableValue;
+                    $ArgSplat[$_.Key] = $Value;
                 } else {
-                    $ArgSplat.Add($_.Key, $InvokableValue);
+                    $ArgSplat.Add($_.Key, $Value);
                 }
-            }
+            } | Out-Null;
 
-            & "$PowerShellPath" -NoProfile -Command $Script:ScriptPath @ArgSplat
+            Invoke-ScriptWithErrorCapture $Script:ScriptPath $ArgSplat
         } else {
             & $Script:ScriptPath @PSBoundParameters;
         }
@@ -161,5 +256,5 @@ process {
         $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force -WhatIf:$False; }
     }
 } end {
-    Remove-Variable -Name CompiledScript -Scope Global -WhatIf:$False;
+    Remove-Variable -Name CompiledScript -Scope Global -WhatIf:$False -ErrorAction SilentlyContinue;
 }
