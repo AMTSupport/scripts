@@ -25,7 +25,7 @@ Using module ..\..\common\Exit.psm1
     A 5 minute timeout will be used to wait for the driver to be installed asychronously.
 
 .PARAMETER Manufacturer
-    If specified and one of 'Ricoh', 'HP', or 'Konica Minolta', the driver will be installed based on the manufacturer.
+    If specified and one of 'Ricoh', 'HP', 'Konica Minolta', or 'Kyocera', the driver will be installed based on the manufacturer.
 
 .PARAMETER Force
     If specified, printer will be added even if the computer cannot contact the printer.
@@ -50,7 +50,7 @@ Param(
     [String]$ChocoDriver,
 
     [Parameter(Mandatory, Position = 2, ParameterSetName = 'ByManufacturer')]
-    [ValidateSet('Ricoh', 'HP', 'Konica Minolta')]
+    [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera')]
     [String]$Manufacturer,
 
     [Parameter(Position = 4, ParameterSetName = 'ByDriverName')]
@@ -100,6 +100,54 @@ function Install-Driver_Ricoh() {
 
         Add-PrinterDriver -Name $DriverName -InfPath $Local:DriverInfPath.FullName;
     }
+
+    return $DriverName;
+}
+
+function Install-Driver_Kyocera() {
+    [String]$DriverName = 'KX DRIVER for Universal Printing';
+
+    if (Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue) {
+        Invoke-Info "Driver $DriverName already installed, skipping...";
+        return $DriverName;
+    }
+
+    Invoke-WithinEphemeral {
+        [String]$URL = 'https://www.kyoceradocumentsolutions.us/content/download-center-americas/us/drivers/drivers/KX_DRIVER_zip.download.zip';
+        [String]$FileName = $URL.Split('/')[-1];
+        [String]$ExpandedPath = $FileName.Split('.')[0];
+
+        Invoke-Info "Downloading Kyocera driver from $URL...";
+        Invoke-WebRequest -Uri $URL -OutFile $FileName;
+        Invoke-Info 'Extracting Kyocera driver...';
+        Expand-Archive -Path $FileName -DestinationPath $ExpandedPath;
+        Invoke-Info 'Entering Kyocera driver directory...';
+        Push-Location -Path $ExpandedPath;
+
+        Invoke-Info 'Finding Kyocera driver inf file...';
+        $Arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture;
+        $Folder = switch -Wildcard ($Arch) {
+            'X64' { '32bit' }
+            'X86' { '64bit' }
+            'Arm*' { 'arm64' }
+            default { throw "Unsupported architecture: $Arch" }
+        }
+
+        [System.IO.FileInfo]$InfPath = Get-ChildItem -Path ".\**\${Folder}\*.inf" -Recurse | Select-Object -First 1;
+        [String]$InfName = $InfPath | Split-Path -Leaf;
+
+        Invoke-Info "Inf file found: $($InfPath.FullName)";
+        Invoke-Info "Inf name: $InfName";
+        Invoke-Info 'Installing Kyocera driver...';
+        pnputil.exe /add-driver $InfPath.FullName /install | Out-Null;
+
+        try {
+            Add-PrinterDriver -Name $DriverName;
+        } catch {
+            Invoke-Error "Failed to add Kyocera driver $DriverName. Trying to install from inf file." -Throw;
+        }
+    }
+
 
     return $DriverName;
 }
@@ -189,6 +237,7 @@ function Install-Driver_ByManufacturer {
             'Ricoh' { return Install-Driver_Ricoh; }
             'HP' { return Install-Driver_HP; }
             'Konica Minolta' { return Install-Driver_KonciaMinolta; }
+            'Kyocera' { return Install-Driver_Kyocera; }
             default { throw "Unknown manufacturer $Manufacturer"; }
         }
     }
