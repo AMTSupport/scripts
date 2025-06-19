@@ -1,79 +1,63 @@
-Using module ../src/common/Environment.psm1
-Using module ../src/common/Logging.psm1
 Using module Alt3.Docusaurus.Powershell
 Using module PlatyPS
 
-Invoke-RunMain $PSCmdlet {
-    Push-Location -Path $PSScriptRoot;
+Set-StrictMode -Version Latest;
 
-    # -----------------------------------------------------------------------------
-    # Use below settings to manipulate the rendered MDX files
-    # -----------------------------------------------------------------------------
-    $Local:DocusaurusOptions = @{
-        DocsFolder      = '../docs/docs'
-        EditUrl         = ''
-        Exclude         = @()
-        MetaDescription = 'Help page for the "%1" command'
-        MetaKeywords    = @('PowerShell', 'Help', 'Documentation')
+# -----------------------------------------------------------------------------
+# Use below settings to manipulate the rendered MDX files
+# -----------------------------------------------------------------------------
+$DocusaurusOptions = @{
+    DocsFolder      = Resolve-Path "$PSScriptRoot/../docs/docs"
+    EditUrl         = "null"
+    Exclude         = @()
+    MetaDescription = 'Help page for the "%1" command'
+    MetaKeywords    = @('PowerShell', 'Help', 'Documentation')
+}
+
+Write-Output 'Removing existing MDX files';
+$OutputFolder = $DocusaurusOptions.DocsFolder | Join-Path -ChildPath 'modules';
+if (Test-Path -Path $OutputFolder) {
+    Remove-Item -Path $OutputFolder -Recurse -Force;
+}
+$OutputFolder = $DocusaurusOptions.DocsFolder | Join-Path -ChildPath 'scripts';
+if (Test-Path -Path $OutputFolder) {
+    Remove-Item -Path $OutputFolder -Recurse -Force;
+}
+$TempFolder = Join-Path -Path $Env:TEMP -ChildPath 'Alt3.Docusaurus.Powershell';
+if (Test-Path -Path $TempFolder) {
+    Remove-Item -Path $TempFolder -Recurse -Force;
+}
+
+# -----------------------------------------------------------------------------
+# Generate the new MDX Files for each module
+# -----------------------------------------------------------------------------
+# TODO - Add support for scripts
+$Modules = Get-ChildItem -Path "$PSScriptRoot/../src/" -Include '*.psm1' -File -Recurse |
+    Where-Object { $_.FullName -notlike '*\Compiler\*' };
+foreach ($Module in $Modules) {
+    $ModuleDocusaurusOptions = $DocusaurusOptions.Clone();
+    $ModuleDocusaurusOptions.Module = $Module.BaseName;
+
+    $Parents = $Module.DirectoryName.Split('\src\')[1];
+    $Type = $Module.Extension -eq '.psm1' ? 'module' : 'script';
+    $ModuleDocusaurusOptions.SideBar = "$Type/$Parents/$($Module.BaseName)";
+
+    Write-Output "Generating new MDX files for module: $($Module.BaseName) in $Parents";
+    try {
+        Import-Module -Name $Module.FullName -Force -ErrorAction Stop;
+        New-DocusaurusHelp @ModuleDocusaurusOptions;
+    } catch {
+        Write-Error "Failed to generate MDX files for module: $($Module.BaseName) in $Parents";
+    } finally {
+        Remove-Module -Name $Module.BaseName -Force -ErrorAction SilentlyContinue;
     }
+}
 
-    Invoke-Info 'Removing existing MDX files';
-    $Local:OutputFolder = Join-Path -Path $Local:DocusaurusOptions.DocsFolder -ChildPath ('modules' | Join-Path -ChildPath '*.*');
-    if (Test-Path -Path $Local:OutputFolder) {
-        Remove-Item -Path $Local:OutputFolder;
-    }
-    $Local:OutputFolder = Join-Path -Path $Local:DocusaurusOptions.DocsFolder -ChildPath ('scripts' | Join-Path -ChildPath '*.*');
-    if (Test-Path -Path $Local:OutputFolder) {
-        Remove-Item -Path $Local:OutputFolder;
-    }
-
-    # -----------------------------------------------------------------------------
-    # Generate the new MDX Files for each module
-    # -----------------------------------------------------------------------------
-    $Local:Modules = Get-ChildItem -Path '../src/' -Include '*.psm1' -File -Recurse | ForEach-Object { $_ } | Sort-Object;
-    foreach ($Local:Module in $Local:Modules) {
-        $Local:ModuleDocusaurusOptions = $Local:DocusaurusOptions.Clone();
-        $Local:ModuleDocusaurusOptions.Module = $Local:Module.BaseName;
-
-        $Local:Parents = $Local:Module.DirectoryName.Split('\src\')[1];
-        $Local:ModuleDocusaurusOptions.SideBar = "modules/$Local:Parents/$($Local:Module.BaseName)";
-
-        Invoke-Info "Generating new MDX files for module: $($Local:Module.BaseName) in $Local:Parents";
-        try {
-            New-DocusaurusHelp @Local:ModuleDocusaurusOptions;
-        } catch {
-            Invoke-Error "Failed to generate MDX files for module: $($Local:Module.BaseName) in $Local:Parents";
-        }
-
-        Invoke-Info 'Render completed successfully';
-    }
-
-    # -----------------------------------------------------------------------------
-    # Generate the new MDX Files for each script
-    # -----------------------------------------------------------------------------
-    $Local:Scripts = Get-ChildItem -Path '../src/' -Include '*.ps1' -File -Recurse | ForEach-Object { $_ } | Sort-Object;
-    foreach ($Local:Script in $Local:Scripts) {
-        $Local:ScriptDocusaurusOptions = $Local:DocusaurusOptions.Clone();
-        $Local:ScriptDocusaurusOptions.Module = $Local:Script.BaseName;
-
-        $Local:Parents = $Local:Script.DirectoryName.Split('\src\')[1];
-        $Local:ScriptDocusaurusOptions.SideBar = "scripts/$Local:Parents/$($Local:Script.BaseName)";
-
-        Invoke-Info "Generating new MDX files for script: $($Local:Script.BaseName) in $Local:Parents";
-        try {
-            New-DocusaurusHelp @Local:ScriptDocusaurusOptions;
-        } catch {
-            Invoke-Error "Failed to generate MDX files for script: $($Local:Script.BaseName) in $Local:Parents";
-        }
-
-        Invoke-Info 'Render completed successfully';
-    }
-
-    # -----------------------------------------------------------------------------
-    # Generate the Sidebar file
-    # -----------------------------------------------------------------------------
-    $Local:Sidebar = '../docs/sidebars.js';
-    @'
+# -----------------------------------------------------------------------------
+# Generate the Sidebar file
+# -----------------------------------------------------------------------------
+$Sidebar = "$PSScriptRoot/../docs/sidebars.js";
+@'
 // @ts-check
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
@@ -84,7 +68,5 @@ const sidebars = {
 
 export default sidebars;
 
-'@ | Set-Content -Path $Local:Sidebar -Force;
+'@ | Set-Content -Path $Sidebar -Force;
 
-    Pop-Location;
-}
