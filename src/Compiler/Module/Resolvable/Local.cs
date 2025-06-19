@@ -186,13 +186,15 @@ public partial class ResolvableLocalModule : Resolvable {
         return Option<Error>.None.AsTask();
     }
 
-    public override Task<Fin<Compiled.Compiled>> IntoCompiled() => CompiledDocument.FromBuilder(this.Editor, 0)
+    public override Task<Fin<Compiled.Compiled>> IntoCompiled(ResolvableParent resolvableParent) => CompiledDocument.FromBuilder(this.Editor, 0)
         .BindFail(err => err.Enrich(this.ModuleSpec))
         .AndThenTry(doc => new CompiledLocalModule(
             this.ModuleSpec,
             doc,
             this.Requirements
-        ) as Compiled.Compiled).AsTask();
+        ) {
+            ResolvableParent = resolvableParent
+        } as Compiled.Compiled).AsTask();
 
     public override bool Equals(object? obj) {
         if (obj is null) return false;

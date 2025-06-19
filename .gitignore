@@ -1,11 +1,19 @@
+# Nix Flake
 .direnv
 .devenv
 result
 .pre-commit-config.yaml
+
+# C#
 **/obj
 **/bin
 **/Output
+
+# Coverage
 **/coverage_report
 **/TestResults
 **/coverage.info
 **/Coverage
+
+# We also ignore the compiled files to not pollute the repository while developing
+compiled/**

@@ -79,10 +79,6 @@ begin {
 
                 Write-Verbose "Expanding module file: $Local:TempFile"
                 Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force -WhatIf:$False;
-
-                $Local:ManifestPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:Name.psd1";
-                $Local:NewManifestPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.psd1";
-                Move-Item -Path $Local:ManifestPath -Destination $Local:NewManifestPath -Force -WhatIf:$False;
             }
             Default {
                 Write-Warning "Unknown module type: $($_)";
@@ -130,7 +126,6 @@ process {
 
                     return '[PSCustomObject]@{' + ($Hashtable -join '; ') + '}';
                 }
-
 
                 return ConvertTo-Json -InputObject $Value;
             }

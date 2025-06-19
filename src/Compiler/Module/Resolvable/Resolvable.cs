@@ -28,7 +28,7 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
     public abstract Task<Option<Error>> ResolveRequirements();
 
     [return: NotNull]
-    public abstract Task<Fin<Compiled.Compiled>> IntoCompiled();
+    public abstract Task<Fin<Compiled.Compiled>> IntoCompiled(ResolvableParent resolvableParent);
 
     /// <summary>
     /// Create an instance of the Resolvable class,
@@ -184,7 +184,7 @@ public class ResolvableParent {
          select new ResolvedMatch(resolvable, resolvable.ModuleSpec.CompareTo(moduleSpec))
         ).FirstOrDefault();
 
-    public async Task StartCompilation() {
+    public async Task Compile() {
         await this.ResolveDepedencyGraph();
         this.DebugGraphAtPoint();
 
@@ -209,7 +209,7 @@ public class ResolvableParent {
             var compileTasks = from mod in nextBatch
                                select Task.Run(async () => {
                                    try {
-                                       var result = await mod.IntoCompiled();
+                                       var result = await mod.IntoCompiled(this);
                                        if (result.IsOk(out var compiled, out var _)) {
                                            this.OnCompiledModule(mod.ModuleSpec, compiled);
                                        }
@@ -223,6 +223,19 @@ public class ResolvableParent {
             await Task.WhenAll(compileTasks);
             nextBatch.ToList().ForEach(mod => graph.RemoveVertex(mod));
         }
+
+        var completionTasks = from resolvable in this.Resolvables.Values
+                              where resolvable.Compiled.IsSome
+                              let compiled = resolvable.Compiled.Unwrap().Unwrap()
+                              select Task.Run(() => {
+                                  compiled.CompleteCompileAfterResolution();
+                                  resolvable.OnCompletion.IfSome(onComplete => {
+                                      if (compiled is CompiledScript script) {
+                                          onComplete(script);
+                                      }
+                                  });
+                              });
+        await Task.WhenAll(completionTasks);
     }
 
     private void OnCompiledModule(ModuleSpec moduleSpec, Compiled.Compiled compiled) {
@@ -234,12 +247,6 @@ public class ResolvableParent {
                 },
                 info
             );
-
-            info.OnCompletion.IfSome(action => {
-                if (compiled is CompiledScript script) {
-                    action(script);
-                }
-            });
         } else {
             Logger.Warn($"Compiled module {moduleSpec.Name} but no resolvable info was found");
             this.Resolvables[moduleSpec] = new ResolvableInfo(
@@ -263,8 +270,6 @@ public class ResolvableParent {
             if (iterating.TryDequeue(out var item)) {
                 var (parentResolvable, workingModuleSpec) = item;
                 runningTasks.Add((workingModuleSpec, Task.Run(async () => {
-                    // Logger.Trace($"Resolving {workingModuleSpec} with parent {parentResolvable?.ModuleSpec}.");
-
                     // If the parent module has already been resolved this will be an orphan.
                     if (parentResolvable != null && !this.Graph.ContainsVertex(parentResolvable)) {
                         Logger.Debug("Parent module had already been resolved, skipping orphan.");
@@ -342,16 +347,16 @@ public class ResolvableParent {
             Logger.Debug($"Found existing resolvable for {moduleToResolve.Name} with match: {match}");
 
             switch (match) {
-                case ModuleMatch.PreferOurs or ModuleMatch.Same or ModuleMatch.Looser:
+                case ModuleMatch.PreferOurs or ModuleMatch.Same:
                     resultingResolvable = foundResolvable;
                     break;
                 case ModuleMatch.Incompatible:
                     Logger.Error($"⚠️ Incompatible module versions found for {moduleToResolve.Name}");
                     return FinFail<Option<Resolvable>>(Error.New($"Incompatible module versions found for {moduleToResolve.Name}."));
-                case ModuleMatch.MergeRequired or ModuleMatch.Stricter:
+                case ModuleMatch.MergeRequired or ModuleMatch.Stricter or ModuleMatch.Looser:
                     var (mergeFrom, mergeWith) = match switch {
                         ModuleMatch.MergeRequired => (moduleToResolve, new List<ModuleSpec> { foundResolvable.ModuleSpec }),
-                        ModuleMatch.Stricter => (foundResolvable.ModuleSpec, [moduleToResolve]),
+                        ModuleMatch.Stricter or ModuleMatch.Looser => (foundResolvable.ModuleSpec, [moduleToResolve]),
                         _ => (moduleToResolve, []),
                     };
 
@@ -399,6 +404,8 @@ public class ResolvableParent {
                     this.Graph.AddVerticesAndEdge(new Edge<Resolvable>(resultingResolvable, edge.Target));
                     this.Graph.RemoveEdge(edge);
                 });
+
+                this.Graph.RemoveVertex(foundResolvable);
 
                 if (this.Resolvables.Remove(foundResolvable.ModuleSpec, out var resolvableInfo)) {
                     this.Resolvables[resultingResolvable.ModuleSpec] = resolvableInfo;
@@ -483,6 +490,7 @@ public class ResolvableParent {
         var dotGraph = this.Graph.ToGraphviz(alg => {
             alg.FormatVertex += (sender, args) => {
                 args.VertexFormat.Label = args.Vertex.ModuleSpec.Name;
+                args.VertexFormat.Comment = args.Vertex.ModuleSpec.ToString();
             };
         });
 

@@ -107,7 +107,7 @@ public class Program {
                 });
 
                 try {
-                    await superParent.StartCompilation();
+                    await superParent.Compile();
                 } catch (Exception err) {
                     Errors.Add(err);
                 }
@@ -487,7 +487,14 @@ public class Program {
     internal static Fin<Collection<PSObject>> RunPowerShell(string script, params object[] args) {
         var pwsh = GetPowerShellSession();
         pwsh.AddScript(script);
-        args.ToList().ForEach(arg => pwsh.AddArgument(arg));
+        args.ToList().ForEach(arg => {
+            if (arg is KeyValuePair<string, object> keyValuePair) {
+                // If the argument is a KeyValuePair, add it as a named parameter
+                pwsh.AddParameter(keyValuePair.Key, keyValuePair.Value);
+            } else {
+                pwsh.AddArgument(arg);
+            }
+        });
 
         var result = pwsh.Invoke();
 

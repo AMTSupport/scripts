@@ -53,7 +53,9 @@ public partial class CompiledScript : CompiledLocalModule {
         ResolvableParent resolvableParent,
         RequirementGroup requirements
     ) {
-        var script = new CompiledScript(thisResolvable, document, requirements);
+        var script = new CompiledScript(thisResolvable, document, requirements) {
+            ResolvableParent = resolvableParent,
+        };
 
         var thisGraph = resolvableParent.GetGraphFromRoot(thisResolvable);
         var loadOrder = thisGraph.TopologicalSort();

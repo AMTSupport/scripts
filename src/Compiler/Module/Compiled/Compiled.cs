@@ -6,6 +6,7 @@ using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using LanguageExt;
 using NLog;
@@ -29,6 +30,14 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     public virtual ModuleSpec ModuleSpec { get; } = moduleSpec;
 
     public virtual RequirementGroup Requirements { get; } = requirements;
+
+    /// <summary>
+    /// This is the resolving parent of this module which can be used to reference other info the module may need.
+    ///
+    /// This will be null during the initialisation of the object, but will be set after object creation.
+    /// </summary>
+    [NotNull]
+    public required ResolvableParent ResolvableParent { get; set; }
 
     [NotNull]
     public Lazy<byte[]>? ContentBytes { get; protected set; }
@@ -182,6 +191,33 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
         }
 
         return [.. downstreamModules.Distinct()];
+    }
+
+    /// <summary>
+    /// Gets a compiled module from a resolvable, if it exists.
+    /// This will search the root parent of this module for the compiled module.
+    /// </summary>
+    /// <param name="resolvable"></param>
+    /// <returns></returns>
+    [Pure]
+    public Option<Compiled> GetCompiledFromResolvable(
+        [NotNull] Resolvable.Resolvable resolvable
+    ) {
+        var rootParent = this.GetRootParent();
+        if (rootParent is not CompiledScript script) return Option<Compiled>.None;
+
+        return script.Graph.Vertices.FirstOrDefault(compiled =>
+            compiled.ModuleSpec == resolvable.ModuleSpec);
+    }
+
+    /// <summary>
+    /// Completes the compile process after all modules have been resolved.
+    ///
+    /// This is called after all modules have been resolved and their dependencies have been resolved.
+    /// This stage should not make any changes that will change the module's hash.
+    /// </summary>
+    public virtual void CompleteCompileAfterResolution() {
+
     }
 }
 

@@ -59,9 +59,10 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
                             _ = Version.TryParse((string?)requiredModule["ModuleVersion"], out var minimumVersion);
                             _ = Version.TryParse((string?)requiredModule["MaximumVersion"], out var maximumVersion);
                             _ = Version.TryParse((string?)requiredModule["RequiredVersion"], out var requiredVersion);
-                            _ = Guid.TryParse((string?)requiredModule["Guid"], out var guid);
+                            _ = Guid.TryParse((string?)requiredModule["GUID"], out var guid);
+                            Guid? actualGuid = guid == Guid.Empty ? null : guid;
 
-                            var requiredModuleSpec = new ModuleSpec(moduleName!, guid, minimumVersion, maximumVersion, requiredVersion);
+                            var requiredModuleSpec = new ModuleSpec(moduleName!, actualGuid, minimumVersion, maximumVersion, requiredVersion);
                             this.Requirements.AddRequirement(requiredModuleSpec);
                         }
                     }
@@ -71,7 +72,7 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
             );
     }
 
-    public override async Task<Fin<Compiled.Compiled>> IntoCompiled() {
+    public override async Task<Fin<Compiled.Compiled>> IntoCompiled(ResolvableParent resolvableParent) {
         if (this.Bytes == null) {
             var bytesResult = (await this.GetNupkgPath())
                 .BindFail(err => err.Enrich(this.ModuleSpec))
@@ -84,7 +85,9 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
             this.ModuleSpec,
             this.Requirements,
             this.Bytes
-        );
+        ) {
+            ResolvableParent = resolvableParent
+        };
     }
 
     [Pure]
