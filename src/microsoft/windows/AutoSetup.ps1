@@ -724,6 +724,7 @@ function Invoke-PhaseCleanup {
                     'HP Sure Sense Installer'
                     'HP Wolf Security'
                     'HP Wolf Security - Console'
+                    'HP Wolf Security Update Service'
                     'HP Wolf Security Application Support for Sure Sense'
                     'HP Wolf Security Application Support for Windows'
                     'HP Wolf Security Application Support for Chrome'
