@@ -56,23 +56,29 @@ Invoke-RunMain $PSCmdlet {
     Set-Service -Name Winmgmt -StartupType Disabled;
     Stop-Service -Name Winmgmt;
 
-    Invoke-Info 'Making a backup of the repository';
-    Copy-Item -Path $env:windir\System32\wbem\Repository -Destination $env:windir\System32\wbem\Repository_Backup -Recurse -Force;
+    if ($Cmdlet.ShouldProcess('WMI Repository', 'Backup')) {
+        Invoke-Info 'Making a backup of the repository';
+        Copy-Item -Path $env:windir\System32\wbem\Repository -Destination $env:windir\System32\wbem\Repository_Backup -Recurse -Force;
+    }
 
     if ($Nuke) {
-        Invoke-Info 'Nuking the WMI repository';
-        try {
-            Remove-Item -Path $env:windir\System32\wbem\Repository -Recurse -Force;
-        } catch {
-            Invoke-Error $_.Exception.Message;
+        if ($Cmdlet.ShouldProcess('WMI Repository', 'Nuke')) {
+            Invoke-Info 'Nuking the WMI repository';
+            try {
+                Remove-Item -Path $env:windir\System32\wbem\Repository -Recurse -Force;
+            } catch {
+                Invoke-Error $_.Exception.Message;
+            }
         }
     } else {
-        Invoke-Info 'Attempting to repair the WMI repository';
-        try {
-            Start-Process -FilePath "$env:windir\System32\wbem\winmgmt.exe" -ArgumentList "/salvagerepository $env:windir\System32\wbem" -Wait -NoNewWindow;
-            Start-Process -FilePath "$env:windir\System32\wbem\winmgmt.exe" -ArgumentList "/resetrepository $env:windir\System32\wbem" -Wait -NoNewWindow;
-        } catch {
-            Invoke-Error $_.Exception.Message;
+        if ($Cmdlet.ShouldProcess('WMI Repository', 'Repair')) {
+            Invoke-Info 'Attempting to repair the WMI repository';
+            try {
+                Start-Process -FilePath "$env:windir\System32\wbem\winmgmt.exe" -ArgumentList "/salvagerepository $env:windir\System32\wbem" -Wait -NoNewWindow;
+                Start-Process -FilePath "$env:windir\System32\wbem\winmgmt.exe" -ArgumentList "/resetrepository $env:windir\System32\wbem" -Wait -NoNewWindow;
+            } catch {
+                Invoke-Error $_.Exception.Message;
+            }
         }
     }
 
