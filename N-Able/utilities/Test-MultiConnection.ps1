@@ -5,23 +5,21 @@ Param(
 
 while ($true) {
     $start = Get-Date
-    $Adresses | Foreach-Object {
+    $Adresses | ForEach-Object {
         $result = [ordered]@{
-            DNSName    = $_.Trim()
-            Up         = ""
-            Timestamp  = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+            DNSName   = $_.Trim()
+            Up        = ''
+            Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
         }
-        Try {
+        try {
             [array]$x = Test-Connection $result.DNSName -Delay 15 -Count 1 -ErrorAction SilentlyContinue
             if ($x) {
                 $Output = "$($result.Timestamp): Reply from $($result.DNSName) time=$($x[0].ResponseTime)ms"
-            }
-            else {
+            } else {
                 $Output = "$($result.Timestamp): Reply from $($result.DNSName) timed out."
             }
-        }
-        Catch {
-            $result.Up = "Unknown"
+        } catch {
+            $result.Up = 'Unknown'
         }
 
         $LogFilePath = "$env:TEMP\ping_tester.log"

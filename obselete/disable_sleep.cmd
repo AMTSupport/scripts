@@ -1,1 +1,0 @@
-powercfg /x -standby-timeout-ac 0

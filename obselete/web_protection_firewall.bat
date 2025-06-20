@@ -1,1 +1,0 @@
-netsh advfirewall firewall add rule name="Web Protection Agent" dir=out action=allow protocol=TCP localport=2316

@@ -1,1 +1,0 @@
-c:\windows\system32\NET.exe SESSION /DELETE /Y
