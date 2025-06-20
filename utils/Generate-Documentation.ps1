@@ -32,13 +32,14 @@ if (Test-Path -Path $TempFolder) {
 # Generate the new MDX Files for each module
 # -----------------------------------------------------------------------------
 # TODO - Add support for scripts
+$Slash = [System.IO.Path]::DirectorySeparatorChar;
 $Modules = Get-ChildItem -Path "$PSScriptRoot/../src/" -Include '*.psm1' -File -Recurse |
-    Where-Object { $_.FullName -notlike '*\Compiler\*' };
+    Where-Object { $_.FullName -notlike "*${Slash}Compiler${Slash}*" };
 foreach ($Module in $Modules) {
     $ModuleDocusaurusOptions = $DocusaurusOptions.Clone();
     $ModuleDocusaurusOptions.Module = $Module.BaseName;
 
-    $Parents = $Module.DirectoryName.Split('\src\')[1];
+    $Parents = $Module.DirectoryName.Split("${Slash}src${Slash}")[1];
     $Type = $Module.Extension -eq '.psm1' ? 'module' : 'script';
     $ModuleDocusaurusOptions.SideBar = "$Type/$Parents/$($Module.BaseName)";
 
