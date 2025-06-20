@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Enforce SMB Signing",
+    "description": "This policy setting allows you to configure SMB signing requirements for clients and servers.",
+    "functionality": [
+      "System",
+      "Windows",
+      "Security",
+      "Network"
+    ]
+  },
+  "entries": [
+    {
+      "Key": "EnableSecuritySignature",
+      "Path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "RequireSecuritySignature",
+      "Path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanServer\\Parameters",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "RequireSecuritySignature",
+      "Path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters",
+      "Type": "DWord",
+      "Value": 1
+    }
+  ]
+}

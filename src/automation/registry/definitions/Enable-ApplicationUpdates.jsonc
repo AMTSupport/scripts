@@ -1,0 +1,53 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Ensures that the internal auto-update behaviour of these applications is not disabled.",
+    "description": "This setting ensures that the internal auto-update behaviour of these applications is not disabled.\nThis is important for keeping applications up to date with the latest features and security patches.",
+    "functionality": [
+      "System",
+      "Windows",
+      "Applications",
+      "Updates"
+    ]
+  },
+  "entries": [
+    // Google Chrome
+    {
+      "Key": "Update{8A69D345-D564-463C-AFF1-A69D9E530F96}",
+      "Path": "HKLM:\\SOFTWARE\\Policies\\Google\\Update",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "Update{4DC8B4CA-1BDA-483E-B5FA-D3C12E15B62D}",
+      "Path": "HKLM:\\SOFTWARE\\Policies\\Google\\Update",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "Update{8BA986DA-5100-405E-AA35-86F34A02ACBF}",
+      "Path": "HKCU:\\SOFTWARE\\Policies\\Google\\Update",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "UpdateDefault",
+      "Path": "HKCU:\\SOFTWARE\\Policies\\Google\\Update",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "Update{4DC8B4CA-1BDA-483E-B5FA-D3C12E15B62D}",
+      "Path": "HKCU:\\SOFTWARE\\Policies\\Google\\Update",
+      "Type": "DWord",
+      "Value": 1
+    },
+    // Zoom
+    {
+      "Key": "EnableClientAutoUpdate",
+      "Path": "HKLM:\\SOFTWARE\\Policies\\Zoom\\Zoom Meetings\\General",
+      "Type": "DWord",
+      "Value": 1
+    }
+  ]
+}

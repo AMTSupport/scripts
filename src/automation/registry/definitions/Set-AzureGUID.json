@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Set the Azure AD Join Machine Domain GUID",
+    "functionality": [
+      "System",
+      "Windows"
+    ]
+  },
+  "entries": [
+    {
+      "Key": "AADJMachineDomainGuid",
+      "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\OneDrive",
+      "Type": "String",
+      "ParameterName": "Guid"
+    }
+  ]
+}

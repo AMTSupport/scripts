@@ -1,0 +1,21 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Disables the autorun feature for all drives in Windows.",
+    "description": "Disabling autorun helps prevent malware from spreading via removable drives.\nThis setting will disable the autorun functionality for all drives, including USB drives and network shares.",
+    "functionality": [
+      "System",
+      "Windows",
+      "Removable Drives",
+      "Security"
+    ]
+  },
+  "entries": [
+    {
+      "Key": "NoDriveTypeAutoRun",
+      "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+      "Type": "DWord",
+      "Value": 255
+    }
+  ]
+}

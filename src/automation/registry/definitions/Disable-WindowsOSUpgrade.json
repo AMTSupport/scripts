@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Disables automatic upgrades to newer versions of Windows.",
+    "description": "Disabling automatic upgrades helps maintain system stability and control over updates.\nThis setting will prevent Windows from automatically upgrading to a newer major OS versions.",
+    "functionality": [
+      "System",
+      "Windows",
+      "Updates"
+    ]
+  },
+  "entries": [
+    {
+      "Key": "DisableOSUpgrade",
+      "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "DisableGwx",
+      "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Gwx",
+      "Type": "DWord",
+      "Value": 1
+    }
+  ]
+}

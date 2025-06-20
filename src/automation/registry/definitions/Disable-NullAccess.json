@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Disables the Null Session Access feature in Windows.",
+    "description": "Null Session Access allows unauthenticated users to access certain system resources, which can pose a security risk. Disabling this feature enhances system security by preventing unauthorized access.",
+    "functionality": [ "System", "Windows", "Security" ]
+  },
+  "entries": [
+    {
+      "Key": "restrictanonymous",
+      "Path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "restrictanonymoussam",
+      "Path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa",
+      "Type": "DWord",
+      "Value": 1
+    },
+    {
+      "Key": "restrictnullsessaccess",
+      "Path": "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\lanmanserver\\parameters",
+      "Type": "DWord",
+      "Value": 1
+    }
+  ]
+}
