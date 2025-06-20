@@ -8,7 +8,12 @@ on:
       - "src/automation/registry/definitions/**"
       - ".github/workflows/generate.yaml"
   workflow_dispatch:
-
+    inputs:
+      force:
+        description: 'Force generation of scripts'
+        required: false
+        default: false
+        type: boolean
 jobs:
   generate:
     runs-on: ubuntu-latest
@@ -16,6 +21,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Collect Changes
+        if : ${{ inputs.force != true }}
         uses: dorny/paths-filter@v3.0.2
         id: changes
         with:
@@ -28,7 +34,7 @@ jobs:
 
       - name: Remove Deleted Definitions
         id: delete_files
-        if: ${{ steps.changes.outputs.definition_deleted == 'true' }}
+        if: ${{ steps.changes.outputs.changes.definition_deleted == 'true' || inputs.force == true }}
         run: |
           shopt -s globstar nullglob
           for file in src/automation/registry/definitions/**; do
@@ -55,11 +61,11 @@ jobs:
           echo "Cleanup completed."
 
       - name: Execute Generate Script
-        if: ${{ steps.changes.outputs.definition == 'true' }}
+        if: ${{ steps.changes.outputs.changes.definition == 'true' || inputs.force == true }}
         run: pwsh src/automation/registry/Generate.ps1
 
       - name: Commit Changes
-        if: ${{ (steps.changes.outputs.definition == 'true' || steps.delete_files.outputs.FOUND_DELETED == 'true') && github.event_name == 'push' }}
+        if: ${{ ((steps.changes.outputs.changes.definition == 'true' || steps.delete_files.outputs.FOUND_DELETED == 'true') && github.event_name == 'push') || inputs.force == true }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(Generated): Update generated scripts"
