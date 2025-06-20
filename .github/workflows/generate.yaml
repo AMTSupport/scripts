@@ -7,6 +7,7 @@ on:
       - "src/automation/registry/Generate.ps1"
       - "src/automation/registry/definitions/**"
       - ".github/workflows/generate.yaml"
+  workflow_dispatch:
 
 jobs:
   generate:
