@@ -23,7 +23,7 @@ $OutputFolder = $DocusaurusOptions.DocsFolder | Join-Path -ChildPath 'scripts';
 if (Test-Path -Path $OutputFolder) {
     Remove-Item -Path $OutputFolder -Recurse -Force;
 }
-$TempFolder = Join-Path -Path $Env:TEMP -ChildPath 'Alt3.Docusaurus.Powershell';
+$TempFolder = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath 'Alt3.Docusaurus.Powershell';
 if (Test-Path -Path $TempFolder) {
     Remove-Item -Path $TempFolder -Recurse -Force;
 }
