@@ -54,6 +54,11 @@
           ],
           "description": "Value of the registry key; If the value is null, the key will be deleted"
         },
+        "ParameterName": {
+          "type": "string",
+          "description": "The parameter name for the scripts parameter block that will be used to pass the value of the registry key\nThis is only used if the value is not null",
+          "contentMediaType": "text/plain"
+        },
         "ValidationBlock": {
           "type": "string",
           "description": "A powershell block that will be executed against the value of the registry key to test if we should update the value\nThe current value is available as $CurrentValue",
@@ -65,22 +70,23 @@
         "Key",
         "Type"
       ],
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "Value": {
-                "not": true,
-                "type": "null"
-              }
+      "dependencies": {
+        "Value": {
+          "properties": {
+            "ParameterName": {
+              "type": "null"
             }
-          },
-          "then": {
-            "required": [
-              "Type"
-            ]
           }
         },
+        "ParameterName": {
+          "properties": {
+            "Value": {
+              "type": "null"
+            }
+          }
+        }
+      },
+      "allOf": [
         {
           "if": {
             "properties": {

@@ -13,7 +13,7 @@ using module <#SRC#>\common\Ensure.psm1
 using module <#SRC#>\common\Logging.psm1
 
 [CmdletBinding()]
-param()
+param(<#REGISTRY_PARAMETERS#>)
 
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
