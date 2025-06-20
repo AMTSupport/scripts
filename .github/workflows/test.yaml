@@ -11,8 +11,8 @@ jobs:
   what-changed:
     runs-on: ubuntu-latest
     outputs:
-      compiler: ${{ steps.changes.outputs.compiler }}
-      scripts: ${{ steps.changes.outputs.scripts }}
+      compiler: ${{ steps.changes.outputs.changes.compiler }}
+      scripts: ${{ steps.changes.outputs.changes.scripts }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,6 +33,7 @@ jobs:
   test-compiler:
     name: Run Compiler Tests
     runs-on: windows-latest
+    needs: what-changed
     permissions:
       contents: read
     if: ${{ needs.what-changed.outputs.compiler == 'true' }}
@@ -70,6 +71,7 @@ jobs:
           os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     name: Run Pester Tests on ${{ matrix.os }}
+    needs: what-changed
     if : ${{ needs.what-changed.outputs.scripts == 'true' }}
     steps:
       - name: Checkout Repo
