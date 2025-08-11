@@ -231,7 +231,7 @@ function Update-PerUserSystemParameters {
     process {
         $Local:ScriptBlock = {
             # For some reason, we need to run this multiple times to get it to work
-            for ($i = 0; $i -lt 50; $i++) {
+            for ($i = 0; $i -lt 20; $i++) {
                 rundll32 user32.dll, UpdatePerUserSystemParameters;
             }
         }
