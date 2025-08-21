@@ -74,7 +74,7 @@ $Script:Services = @{
         };
         Connect    = { param($Scopes, $AccessToken)
             if ($AccessToken) {
-                Connect-MgGraph -AccessToken:$AccessToken -NoWelcome;
+                Connect-MgGraph -AccessToken:$AccessToken -NoWelcome -ContextScope Process;
 
                 $Local:ContextScopes = Get-MgContext | Select-Object -ExpandProperty Scopes;
                 if ($Scopes) {
@@ -92,7 +92,7 @@ $Script:Services = @{
             } catch { }
 
             if (-not $Local:Context) {
-                Connect-MgGraph -Scopes:$Scopes -NoWelcome;
+                Connect-MgGraph -Scopes:$Scopes -NoWelcome -ContextScope Process;
             }
         };
         Disconnect = { Disconnect-MgGraph };
