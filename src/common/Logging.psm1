@@ -80,7 +80,7 @@ function Invoke-Write {
             return;
         }
 
-        if (-not $ShouldWrite) {
+        if ($PSBoundParameters.ContainsKey('ShouldWrite') -and (-not $ShouldWrite)) {
             return;
         }
 
