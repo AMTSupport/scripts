@@ -90,7 +90,11 @@ function Invoke-FailedExit {
     Invoke-Handlers -IsFailure:($ExitCode -ne 0);
     if (-not $DontExit) {
         if (-not $Local:DeepestException) {
-            [System.Exception]$Local:DeepestException = [System.Exception]::new('Failed Exit');
+            if ($null -ne $ExitDescription) {
+                $DeepestException = [System.Exception]::new($ExitDescription);
+            } else {
+                $DeepestException = [System.Exception]::new('Failed Exit');
+            }
         }
 
         if ($null -eq $Local:DeepestException.ErrorRecord.CategoryInfo.Category) {
