@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7
 
 Using module ..\..\common\Environment.psm1
 Using module ..\..\common\Connection.psm1
@@ -9,8 +9,11 @@ Using module ..\..\common\Exit.psm1
 Using module ..\..\common\Assert.psm1
 Using module ..\..\common\Input.psm1
 
+Using module PSToml
 Using module ImportExcel
-Using module MSOnline
+Using module Microsoft.Graph.Users
+Using module Microsoft.Graph.Authentication
+Using module Microsoft.Graph.Identity.SignIns
 
 [CmdletBinding(SupportsShouldProcess)]
 Param(
@@ -52,14 +55,14 @@ function Invoke-SetupEnvironment(
 
     process {
         Invoke-EnsureUser;
-        Connect-Service -Services 'Msol', 'AzureAD';
+        Connect-Service -Services 'Graph' -Scopes 'User.Read.All','UserAuthenticationMethod.Read.All';
 
         # Get the first client folder that exists
         $Local:ReportFolder = "$ClientFolder/Monthly Report"
         $Script:ExcelFile = "$Local:ReportFolder/$ExcelFileName"
 
         if ((Test-Path $Local:ReportFolder) -eq $false) {
-            Invoke-Info -ForegroundColor Cyan "Report folder not found; creating $Local:ReportFolder";
+            Invoke-Info "Report folder not found; creating $Local:ReportFolder";
             New-Item -Path $Local:ReportFolder -ItemType Directory | Out-Null;
         }
 
@@ -76,12 +79,16 @@ Get the up to date online data from MSOL for user auth methods.
 
 .NOTES
 The returned data is a PSCustomObject with the following properties:
-    DisplayName
     Email
-    MobilePhone
-    MFA_App
-    MFA_Email
-    MFA_Phone
+    DisplayName
+    Password
+        Enabled
+        Change
+    MFA
+        Phone
+        Email
+        App
+        Fido
 
 It is ordered by DisplayName.
 #>
@@ -90,17 +97,83 @@ function Get-CurrentData {
     end { Exit-Scope -ReturnValue $Local:ExpandedUsers; }
 
     process {
-        [Object[]]$Local:LicensedUsers = Get-MsolUser -All | Where-Object { $_.isLicensed -eq $true } | Sort-Object DisplayName;
-        [PSCustomObject[]]$Local:ExpandedUsers = $Local:LicensedUsers `
-        | Select-Object `
-            DisplayName, `
-        @{ N = 'Email'; E = { $_.UserPrincipalName } }, `
-            MobilePhone, `
-        @{ N = 'MFA_App'; E = { $_.StringAuthenticationPhoneAppDetails } }, `
-        @{ N = 'MFA_Email'; E = { $_.StrongAuthenticationUserDetails.Email } }, `
-        @{ N = 'MFA_Phone'; E = { $_.StrongAuthenticationUserDetails.PhoneNumber } };
+        $LicensedUsers = Get-MgUser -Filter '(assignedLicenses/$count ne 0) and (AccountEnabled eq true)' -ConsistencyLevel eventual -CountVariable LicensedUserCount -All;
 
-        return $Local:ExpandedUsers;
+        $ExpandedUsers = $LicensedUsers | ForEach-Object -Parallel {
+            $User = $_;
+            $AuthMethods = Get-MgUserAuthenticationMethod -UserId $User.Id | ForEach-Object {
+                $Properties = $_ | Select-Object -ExpandProperty AdditionalProperties
+                $Properties.Add('Id', $_.Id)
+
+                $Properties
+            }
+
+            $PasswordAuth = $AuthMethods | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.passwordAuthenticationMethod' }
+            $PhoneAuth = $AuthMethods | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.phoneAuthenticationMethod' }
+            $EmailAuth = $AuthMethods | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.emailAuthenticationMethod' }
+            $AppAuth = $AuthMethods | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.microsoftAuthenticatorAuthenticationMethod' }
+
+            # We want to skip the Android and iOS devices, as they are not FIDO2 keys but rather the app registering as a FIDO2 key.
+            $FidoAuth = $AuthMethods | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.fido2AuthenticationMethod' } `
+            | Where-Object { $_.model.StartsWith('Microsoft Authenticator') -eq $False };
+
+            # Looks like these now get registered with the DisplayName being the Computer's Name
+            # However old ones don't have these details so we are just going to ignore them for now.
+            $WindowsHelloAuth = $AuthMethods | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.windowsHelloForBusinessAuthenticationMethod' } `
+            | Where-Object { [String]::IsNullOrEmpty($_.displayName) -eq $false };
+
+            $UserData = @{
+                DisplayName     = $User.DisplayName;
+                Email           = $null;
+
+                # TODO - Can i find the IP / location of the last password change?
+                PasswordChanged = [DateTime]::ParseExact($PasswordAuth.createdDateTime, 'yyyy-MM-dd\TH:mm:ss\Z', $null);
+
+                MFA             = @{ }
+            };
+
+            function Format-SingleOrList([Object]$Value, [ScriptBlock]$Format) {
+                if ($null -eq $Value) {
+                    return $null;
+                }
+
+                if ($Value.GetType() -eq [Object[]]) {
+                    return $Value | ForEach-Object { Format-SingleOrList $_ $Format }
+                }
+
+                return & $Format $Value;
+            }
+
+            if ($null -ne $User.UserPrincipalName) {
+                $UserData.Email = $User.UserPrincipalName
+            } else {
+                $UserData.Email = $User.Mail;
+            }
+
+            # TODO - Validate each MFA method is enabled against entra policies
+            # -and $PhoneAuth.smsSignInState -ne 'notAllowedByPolicy'
+            if ($null -ne $PhoneAuth) {
+                $UserData.MFA.Phone = $PhoneAuth.phoneNumber;
+            }
+            if ($null -ne $EmailAuth -and $EmailAuth.emailSignInState -ne 'notAllowedByPolicy') {
+                $UserData.MFA.Email = $EmailAuth.emailAddress;
+            }
+            # TODO - Can i find the IP / location that registered the App?
+            if ($null -ne $AppAuth -and $AppAuth.appSignInState -ne 'notAllowedByPolicy') {
+                $UserData.MFA.App = Format-SingleOrList $AppAuth { "$($args[0].deviceTag) $($args[0].displayName) - $($args[0].Id)" };
+            }
+            if ($null -ne $FidoAuth) {
+                # Display Name should contain a unique identifier like a S\N
+                $UserData.MFA.Fido = Format-SingleOrList $FidoAuth { "$($args[0].model) - $($args[0].displayName)" };
+            }
+            if ($null -ne $WindowsHelloAuth) {
+                $UserData.MFA.WindowsHello = $WindowsHelloAuth.displayName;
+            }
+
+            return $UserData;
+        }
+
+        return $ExpandedUsers;
     }
 }
 
@@ -454,20 +527,21 @@ function Remove-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]
     end { Exit-Scope; }
 
     process {
-        [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
-        $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
+        [HashTable]$EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
+        $EmailTable | Assert-NotNull -Message 'Email table was null';
 
-        # Sort decenting by value, so that we can remove from the bottom up without affecting the index.
-        [HashTable]$Local:EmailTable = $Local:EmailTable | Sort-Object -Property Values -Descending;
+        # Sort decenting by value, so that we can remove from the bottom up without affecting the index during the operation.
+        [HashTable]$EmailTable = $EmailTable | Sort-Object -Property Values -Descending;
 
-        $Local:EmailTable | ForEach-Object {
-            [String]$Local:ExistingEmail = $_.Name;
-            [Int]$Local:ExistingRow = $_.Value;
+        $EmailTable.Values | Sort-Object -Descending | ForEach-Object {
+            [Int]$ExistingRow = $_;
+            [String]$ExistingEmail = $EmailTable.GetEnumerator() | Where-Object { $_.Value -eq $ExistingRow } | Select-Object -First 1 -ExpandProperty Name;
 
-            # Find the object in the new data which matches the existing email.
-            [String]$Local:NewData = $NewData | Where-Object { $_.Email -eq $Local:ExistingEmail } | Select-Object -First 1;
-            If ($null -eq $Local:NewData) {
-                Invoke-Verbose "$Local:ExistingEmail is not longer present in the new data, removing from row $Local:ExistingRow";
+            Invoke-Verbose "Checking if $Local:ExistingEmail exists in the new data";
+            [PSCustomObject]$Local:NewDataInstance = $NewData | Where-Object { $_.Email -eq $Local:ExistingEmail } | Select-Object -First 1;
+            Invoke-Debug "New data instance for $Local:ExistingEmail is $($Local:NewDataInstance | ConvertTo-Json)";
+            If ($null -eq $Local:NewDataInstance) {
+                Invoke-Verbose "$Local:ExistingEmail is no longer present in the new data, removing from row $Local:ExistingRow";
                 $WorkSheet.DeleteRow($Local:ExistingRow);
             }
         }
@@ -486,7 +560,11 @@ function Add-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
         [HashTable]$Local:EmailTable = Get-EmailToCell -WorkSheet $WorkSheet;
         $Local:EmailTable | Assert-NotNull -Message 'Email table was null';
 
-        [PSCustomObject]$Local:NewUsers = $NewData | Where-Object { -not $Local:EmailTable.ContainsKey($_.Email) };
+        [PSCustomObject[]]$Local:NewUsers = $NewData | Where-Object { try {
+                -not $Local:EmailTable.ContainsKey($_.Email)
+            } catch {
+                Write-Error "Failed to check if email exists in table: $_";
+            } };
         If ($null -eq $Local:NewUsers) {
             Invoke-Debug 'No new users found, skipping add users.';
             return;
@@ -510,12 +588,11 @@ function Add-Users([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$Wo
                 Invoke-Verbose "$Local:Email is a new user, inserting into row $($Local:LastRow + 1)";
 
                 [PSCustomObject]$Local:NewUserData = $NewData | Where-Object { $_.Email -eq $Local:Email } | Select-Object -First 1;
-                # $Local:NewUserData | Assert-NotNull -Message 'New user data was null';
 
                 $WorkSheet.InsertRow($Local:LastRow, 1);
                 $WorkSheet.Cells[$Local:LastRow, 1].Value = $Local:NewUserData.DisplayName;
                 $WorkSheet.Cells[$Local:LastRow, 2].Value = $Local:NewUserData.Email;
-                $WorkSheet.Cells[$Local:LastRow, 3].Value = $Local:NewUserData.MobilePhone;
+                $WorkSheet.Cells[$Local:LastRow, 3].Value = $null;
             }
         }
     }
@@ -602,8 +679,14 @@ function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$
             [String]$Local:NewColumnName = Get-Date -Format 'MMM-yy';
             [Int]$Local:NewColumnIndex = [Math]::Max(3, $WorkSheet.Dimension.Columns + 1);
             $WorkSheet.Cells[1, $Local:NewColumnIndex].Value = $Local:NewColumnName;
+
+            # Set-ExcelColumn -Worksheet $WorkSheet `
+            # -Column $Local:NewColumnIndex `
+            # -AutoSize `
+            # -Heading $Local:NewColumnName;
         }
 
+        $LongestLineLength = 0;
         foreach ($Local:User in $NewData) {
             [String]$Local:Email = $Local:User.Email;
             [Int]$Local:Row = $Local:EmailTable[$Local:Email];
@@ -617,15 +700,29 @@ function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$
 
             $WorkSheet.Cells[$Local:Row, 1].Value = $Local:User.DisplayName;
             $WorkSheet.Cells[$Local:Row, 2].Value = $Local:User.Email;
-            $WorkSheet.Cells[$Local:Row, 3].Value = $Local:User.MobilePhone;
 
             If ($AddNewData) {
                 $Local:Cell = $WorkSheet.Cells[$Local:Row, $Local:NewColumnIndex];
-                $Local:Cell.Value = $Local:User.MFA_Phone;
-                $Local:Cell.Style.Numberformat.Format = '@';
+
+                $Cell.Value = $Local:User.MFA.Phone;
+                # $Local:Cell.Value = $Local:User | Select-Object -ExcludeProperty Email, DisplayName | ConvertTo-FormattedToml;
+                # $Cell.Style.WrapText = $true
+                # $Local:Cell.Style.Numberformat.Format = '@';
                 $Local:Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::None;
+
+                # $ThisLongestLineLength = $Local:Cell.Value -split "`n" | ForEach-Object { $_.Length } | Measure-Object -Maximum | Select-Object -ExpandProperty Maximum;
+                # if ($ThisLongestLineLength -gt $LongestLineLength) {
+                #     $LongestLineLength = $ThisLongestLineLength;
+                # }
             }
         }
+
+        # if ($AddNewData) {
+        #     Invoke-Info "Setting column width for column $Local:NewColumnIndex to $LongestLineLength";
+        #     Set-ExcelColumn -Worksheet $WorkSheet `
+        #         -Column $Local:NewColumnIndex `
+        #         -Width $LongestLineLength;
+        # }
     }
 }
 
@@ -638,39 +735,98 @@ function Set-Check(
     end { Exit-Scope; }
 
     process {
-        $Local:Cells = $WorkSheet.Cells;
         $Local:LastColumn = $WorkSheet.Dimension.Columns;
         $Local:PrevColumn = $Local:LastColumn - 1;
         $Local:CurrColumn = $Local:LastColumn;
         $Local:CheckColumn = $Local:LastColumn + 1;
 
         if ($WorkSheet.Dimension.Columns -eq 4) {
-            $Local:prevColumn = $Local:lastColumn + 2;
+            $Local:PrevColumn = $Local:LastColumn + 2;
         }
 
         foreach ($Local:Row in 2..$WorkSheet.Dimension.Rows) {
-            [String]$Local:PrevNumber = $Cells[$Local:Row, $Local:PrevColumn].Value;
-            [String]$Local:CurrNumber = $Cells[$Local:Row, $Local:CurrColumn].Value;
-            $Local:Cell = $Cells[$Local:Row, $Local:CheckColumn];
+            $Local:Cell = $WorkSheet.Cells[$Local:Row, $Local:CheckColumn];
+            # New Check Logic Follows
+            if ($False) {
+                $PreviousCellValue = $WorkSheet.Cells[$Local:Row, $Local:PrevColumn].Value
 
-            ($Local:Result, $Local:Colour) = if ([String]::IsNullOrWhitespace($Local:PrevNumber) -and [String]::IsNullOrWhitespace($Local:CurrNumber)) {
-                'Missing',[System.Drawing.Color]::Turquoise;
-            } elseif ([String]::IsNullOrWhitespace($Local:PrevNumber)) {
-                'No Previous',[System.Drawing.Color]::Yellow;
-            } elseif ($Local:PrevNumber -eq $Local:CurrNumber) {
-                'Match',[System.Drawing.Color]::Green;
+                if ($null -eq $PreviousCellValue) {
+                    $Local:Cell.Value = 'No Previous';
+                    $Local:Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid;
+                    $Local:Cell.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::Yellow);
+                    continue;
+                }
+
+                try {
+                    $PreviousData = $PreviousCellValue | ConvertFrom-Toml;
+                } catch {
+                    # previous version data
+                    $PreviousData = @{MFA = @{Phone = $PreviousCellValue } };
+                }
+                $CurrentCellValue = $WorkSheet.Cells[$Local:Row, $Local:CurrColumn].Value;
+                if ($null -eq $CurrentCellValue) {
+                    $Local:Cell.Value = 'No MFA';
+                    $Local:Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid;
+                    $Local:Cell.Style.Fill.BackgroundColor.SetColor([System.Drawing.Color]::YellowGreen);
+                    continue;
+                }
+
+                $CurrentData = $CurrentCellValue | ConvertFrom-Toml;
+
+                $PrevKeys = $PreviousData.MFA.Keys;
+                $CurrKeys = $CurrentData.MFA.Keys;
+                $AllKeys = $PrevKeys + $CurrKeys | Sort-Object -Unique;
+
+                $Local:ChangedValues = @();
+                foreach ($Key in $AllKeys) {
+                    $PrevValue = $PreviousData.MFA.$Key;
+                    $CurrValue = $CurrentData.MFA.$Key;
+
+                    if ($null -eq $PrevValue) {
+                        $Local:ChangedValues += "+ $Key";
+                    } elseif ($null -eq $CurrValue) {
+                        $Local:ChangedValues += "- $Key";
+                    } elseif ($PrevValue.GetType() -eq [Object[]]) {
+                        $ValuesRemoved = $PrevValue | Where-Object { $CurrValue -notcontains $_ };
+                        $ValuesAdded = $CurrValue | Where-Object { $PrevValue -notcontains $_ };
+                        if ($ValuesRemoved.Count -gt 0) {
+                            $Local:ChangedValues += "~- $Key $($ValuesRemoved -join ', ')";
+                        }
+                        if ($ValuesAdded.Count -gt 0) {
+                            $Local:ChangedValues += "~+ $Key $($ValuesAdded -join ', ')";
+                        }
+                    } else {
+                        $Local:ChangedValues += "~ $($Key): '$($PrevValue | ConvertTo-Json)' -> '$($CurrValue | ConvertTo-Json)'";
+                    }
+                }
+
+                if ($ChangedValues.Count -gt 0) {
+                    $Message = $ChangedValues -join "`r`n";
+                    $MessageColour = [System.Drawing.Color]::Red;
+                } else {
+                    $Message = 'No changes';
+                    $MessageColour = [System.Drawing.Color]::Green;
+                }
             } else {
-                'Miss-match',[System.Drawing.Color]::Red;
+                [String]$Local:PrevNumber = $WorkSheet.Cells[$Local:Row, $Local:PrevColumn].Value;
+                [String]$Local:CurrNumber = $WorkSheet.Cells[$Local:Row, $Local:CurrColumn].Value;
+                ($Message, $MessageColour) = if ([String]::IsNullOrWhitespace($Local:PrevNumber) -and [String]::IsNullOrWhitespace($Local:CurrNumber)) {
+                    'Missing',[System.Drawing.Color]::Turquoise;
+                } elseif ([String]::IsNullOrWhitespace($Local:PrevNumber)) {
+                    'No Previous',[System.Drawing.Color]::Yellow;
+                } elseif ($Local:PrevNumber -eq $Local:CurrNumber) {
+                    'Match',[System.Drawing.Color]::Green;
+                } else {
+                    'Mismatch',[System.Drawing.Color]::Red;
+                }
             }
 
-            Invoke-Debug "Setting cell $Local:Row,$Local:CheckColumn to $Local:Colour";
-
-            $Local:Cell.Value = $Local:Result;
+            $Local:Cell.Value = $Message;
             $Local:Cell.Style.Fill.PatternType = [OfficeOpenXml.Style.ExcelFillStyle]::Solid;
-            $Local:Cell.Style.Fill.BackgroundColor.SetColor(($Local:Colour));
+            $Local:Cell.Style.Fill.BackgroundColor.SetColor(($MessageColour));
         }
 
-        $Cells[1, $Local:CheckColumn].Value = 'Check';
+        $WorkSheet.Cells[1, $Local:CheckColumn].Value = 'Check';
     }
 }
 
@@ -694,7 +850,11 @@ function Set-Styles(
     }
 }
 
-function New-BaseWorkSheet([Parameter(Mandatory)][ValidateNotNullOrEmpty()][OfficeOpenXml.ExcelWorksheet]$WorkSheet) {
+function New-BaseWorkSheet(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [OfficeOpenXml.ExcelWorksheet]$WorkSheet
+) {
     # Test if the worksheet has data by checking the dimension
     # If the dimension is null then there is no data
     if ($null -ne $WorkSheet.Dimension) {
@@ -744,7 +904,7 @@ function Get-HistoryWorkSheet(
     process {
         [OfficeOpenXml.ExcelWorksheet]$Local:HistoryWorkSheet = $ExcelData.Workbook.Worksheets[2]
         if ($null -eq $HistoryWorkSheet -or $HistoryWorkSheet.Name -ne 'History') {
-            Write-Host -ForegroundColor Cyan 'Creating new worksheet for history'
+            Invoke-Info 'Creating new worksheet for history'
             $HistoryWorkSheet = $ExcelData.Workbook.Worksheets.Add('History')
         }
 
@@ -757,7 +917,9 @@ function Get-HistoryWorkSheet(
     }
 }
 
-function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
+function Save-Excel(
+    [OfficeOpenXml.ExcelPackage]$ExcelData
+) {
     begin { Enter-Scope; }
     end { Exit-Scope; }
 
@@ -770,8 +932,40 @@ function Save-Excel([OfficeOpenXml.ExcelPackage]$ExcelData) {
         }
 
         Close-ExcelPackage $ExcelData -Show;
+        # $ExcelData | Export-Excel "$Script:ExcelFile" -PassThru -AutoSize -FreezeTopRowFirstColumn
+    }
+}
+
+function ConvertTo-FormattedToml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)]
+        $Object
+    )
+
+    begin {
+        $Regex = [Regex]::new('(?<=\s*=\s*\[)(?:("(?!").+(?!")",?)(?:\s*)?)+(?=\])');
     }
 
+    process {
+        $RawToml = $Object | ConvertTo-Toml -Depth 5;
+        if ($null -eq $RawToml) {
+            return $null;
+        }
+
+        while ($True) {
+            $Match = $Regex.Match($RawToml);
+            if (-not $Match.Success) {
+                break;
+            }
+
+            $RawToml = $RawToml.Remove($Match.Index, $Match.Length);
+            $ValueLines = $Match.Groups[1].Captures.Value -join "`n  ";
+            $RawToml = $RawToml.Insert($Match.Index, "`n  " + $ValueLines + "`n");
+        }
+
+        return $RawToml;
+    };
 }
 
 Invoke-RunMain $PSCmdlet {
