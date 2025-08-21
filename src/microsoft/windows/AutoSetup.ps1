@@ -636,7 +636,7 @@ function Invoke-PhaseCleanup {
             end { Exit-Scope; }
 
             process {
-                [String[]]$Services = @('HotKeyServiceUWP', 'HPAppHelperCap', 'HP Comm Recover', 'HPDiagsCap', 'HotKeyServiceUWP', 'LanWlanWwanSwitchingServiceUWP', 'HPNetworkCap', 'HPSysInfoCap', 'HP TechPulse Core');
+                [String[]]$Services = @('SecurityUpdateService', 'HPAudioAnalytics', 'HotKeyServiceUWP', 'HPAppHelperCap', 'HP Comm Recover', 'HPDiagsCap', 'HotKeyServiceUWP', 'HotKeyServiceDSU', 'LanWlanWwanSwitchingServiceUWP', 'LanWlanWwanSwitchingServiceDSU', 'HPNetworkCap', 'HPSysInfoCap', 'HP TechPulse Core');
 
                 Invoke-Info "Disabling $($Services.Count) services...";
                 Invoke-Progress -GetItems { $Services; } -ProcessItem {
@@ -715,6 +715,12 @@ function Invoke-PhaseCleanup {
                     'HP System Info HSA Service'
                     'HP Security Update Service'
                     'HP System Default Settings'
+                    'HP Wolf Security'
+                    'HP Wolf Security - Console'
+                    'HP Wolf Security Update Service'
+                    'HP Wolf Security Application Support for Sure Sense'
+                    'HP Wolf Security Application Support for Windows'
+                    'HP Wolf Security Application Support for Chrome'
                     'HP Sure Click'
                     'HP Sure Click Security Browser'
                     'HP Sure Run'
@@ -722,12 +728,8 @@ function Invoke-PhaseCleanup {
                     'HP Sure Recover'
                     'HP Sure Sense'
                     'HP Sure Sense Installer'
-                    'HP Wolf Security'
-                    'HP Wolf Security - Console'
-                    'HP Wolf Security Update Service'
-                    'HP Wolf Security Application Support for Sure Sense'
-                    'HP Wolf Security Application Support for Windows'
-                    'HP Wolf Security Application Support for Chrome'
+                    'HP One Agent'
+                    'Poly Lens'
                 );
 
                 Invoke-Progress `
