@@ -56,6 +56,9 @@ param(
     ),
 
     [Parameter()]
+    [DayOfWeek[]]$AllowedDays = [Enum]::GetValues([System.DayOfWeek]),
+
+    [Parameter()]
     [Switch]$AlwaysShow
 )
 
@@ -121,20 +124,42 @@ Invoke-RunMain $PSCmdlet {
         Invoke-Debug 'No time windows specified, showing reboot notice at any time.';
         $Local:DateTimeWindows = @([Tuple]::Create([DateTime]::Now, [DateTime]::Now.AddHours(3)));
     } else {
-        [Tuple[DateTime,DateTime][]]$Local:DateTimeWindows = $TimeWindows | ForEach-Object {
+        [Tuple[DateTime, DateTime][]]$Local:DateTimeWindows = $TimeWindows | ForEach-Object {
             [Tuple]::Create([DateTime]::Now.Date.AddHours($_.Item1), [DateTime]::Now.Date.AddHours($_.Item2))
         };
     };
 
     $Local:Now = Get-Date;
+    if (-not $AllowedDays.Contains($Local:Now.DayOfWeek)) {
+        Invoke-Info "Today is $($Local:Now.DayOfWeek), which is not in the allowed days to show a reboot notice.";
+        return;
+    }
+
     $Local:WithinTimeWindow = $null;
+    $TimeWindowFlags = @{};
+    $AnyFlagWasShownToday = $False;
     foreach ($Local:TimeWindow in $Local:DateTimeWindows) {
+        $TimeWindowFlags[$Local:TimeWindow] = Get-Flag "REBOOT_HELPER_DISPLAYED_$($Local:TimeWindow.Item1.Hour)-$($Local:TimeWindow.Item2.Hour)";
+
         Invoke-Debug "Checking time window: $Local:TimeWindow";
         if ($Local:TimeWindow.Item1 -le $Local:Now -and $Local:TimeWindow.Item2 -ge $Local:Now) {
             Invoke-Debug "Within time window: $Local:TimeWindow";
             $Local:WithinTimeWindow = $Local:TimeWindow;
             break;
         }
+
+        if ($TimeWindowFlags[$Local:TimeWindow].Exists()) {
+            [DateTime]$Local:FlagSetTime = [DateTime]::Parse($TimeWindowFlags[$Local:TimeWindow].GetData());
+            if ($Local:FlagSetTime.Date -eq (Get-Date).Date) {
+                Invoke-Debug "Flag for time window $Local:TimeWindow was already set today at $Local:FlagSetTime";
+                $AnyFlagWasShownToday = $True;
+            }
+        }
+    }
+
+    if ($AnyFlagWasShownToday) {
+        Invoke-Info 'A reboot notice was already shown today for one of the time windows.';
+        return;
     }
 
     if ($null -eq $Local:WithinTimeWindow) {
@@ -142,7 +167,7 @@ Invoke-RunMain $PSCmdlet {
         return;
     }
 
-    $Local:DisplayedMessage = Get-Flag "REBOOT_HELPER_DISPLAYED_$($Local:WithinTimeWindow.Item1.Hour)-$($Local:WithinTimeWindow.Item2.Hour)";
+    $Local:DisplayedMessage = $TimeWindowFlags[$Local:WithinTimeWindow];
     Invoke-Debug "Last displayed at $($Local:DisplayedMessage.GetData())";
     [Boolean]$Local:ShouldDisplayMessage = $True;
     if (-not $AlwaysShow -and $Local:DisplayedMessage.Exists()) {
