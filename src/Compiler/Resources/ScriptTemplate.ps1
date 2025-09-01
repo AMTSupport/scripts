@@ -104,7 +104,7 @@ process {
 
                 if ($Type -eq [Boolean]) {
                     return "`$$Value";
-                } elseif ($Type -eq [Object[]]) {
+                } elseif ($Type.IsArray) {
                     $Array = @();
                     foreach ($Element in $Value) {
                         $Array += ConvertTo-InvokableValue -Value $Element;
@@ -125,6 +125,14 @@ process {
                     }
 
                     return '[PSCustomObject]@{' + ($Hashtable -join '; ') + '}';
+                } elseif ($Type.FullName -like 'System.Tuple``*') {
+                    $Elements = @();
+                    for ($i = 0; $i -lt $Value.GetType().GenericTypeArguments.Count; $i++) {
+                        $Elements += ConvertTo-InvokableValue -Value $Value[$i];
+                    }
+                    return '[Tuple]::Create(' + ($Elements -join ', ') + ')';
+                } elseif ($Type.IsSerializable -and -not $Type.IsPrimitive) {
+                    return "(ConvertFrom-CliXML -InputObject '$(($Value | ConvertTo-CliXml -Depth 5) -replace "'", "''")')";
                 }
 
                 return ConvertTo-Json -InputObject $Value;
@@ -151,6 +159,7 @@ process {
                 Errors captured will be limited in their depth to 5 levels.
             #>
             [CmdletBinding()]
+            [OutputType([System.Management.Automation.ErrorRecord[]])]
             param(
                 [Parameter(Mandatory = $true, Position = 0)]
                 [string]$ScriptPath,
@@ -163,6 +172,14 @@ process {
                 throw "Script not found at path: $ScriptPath"
             }
 
+            $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
+
+            if ($env:NO_ERROR_WRAPPER -eq $True) {
+                Write-Verbose 'Skipping error capture wrapper due to NO_ERROR_WRAPPER environment variable.';
+                & "$PowerShellPath" -NoProfile -File "$ScriptPath" @PSBoundParameters;
+                return;
+            }
+
             $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) 'PSErrorCapture'
             New-Item -Path $tempDir -ItemType Directory -Force -WhatIf:$False | Out-Null
             $ErrorOutputPath = Join-Path $tempDir "script_$PID_$(Get-Random)_errors.xml"
@@ -170,16 +187,25 @@ process {
             try {
                 $wrapperPath = Join-Path ([System.IO.Path]::GetTempPath()) "error_wrapper_$(Get-Random).ps1"
                 @"
-`$ErrorOutputPath = '$ErrorOutputPath'
-`$ErrorActionPreference = 'Continue'
 `$Error.Clear()
+
+`$Script:DisplayedErrorLog = [System.Collections.Generic.List[pscustomobject]]::new()
+`$Script:__ErrorComingFromStream = `$False
 
 `$ArgSplat = $(ConvertTo-InvokableValue $ArgumentTable)
 try {
-    & "$ScriptPath" @ArgSplat
+    & "$ScriptPath" @ArgSplat 2>&1 | ForEach-Object {
+        if (`$_ -is [System.Management.Automation.ErrorRecord]) {
+            if (`$_.ErrorDetails.RecommendedAction -ne 'Silent') {
+                Write-Error -ErrorRecord `$_ -ErrorAction Continue
+            }
+
+            `$Script:DisplayedErrorLog.Add(`$_)
+        }
+    }
 } finally {
-    if (`$Error.Count -gt 0) {
-        `$Error | Export-Clixml -Path "$ErrorOutputPath" -Depth 4
+    if (`$Script:DisplayedErrorLog.Count -gt 0) {
+        `$Script:DisplayedErrorLog | Export-Clixml -Path "$ErrorOutputPath" -Depth 4
     } else {
         Set-Content -Path "$ErrorOutputPath" -Value "NO_ERRORS" -Force
     }
@@ -187,13 +213,12 @@ try {
 "@ | Set-Content -Path $wrapperPath -Encoding UTF8 -WhatIf:$False
 
 
-                $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
                 & "$PowerShellPath" -NoProfile -File "$wrapperPath"
 
                 $capturedErrors = @()
                 if (Test-Path -Path $ErrorOutputPath) {
                     $fileContent = Get-Content -Path $ErrorOutputPath -Raw -ErrorAction SilentlyContinue
-                    if ($fileContent -ne 'NO_ERRORS') {
+                    if ($fileContent.Trim() -ne 'NO_ERRORS') {
                         $capturedErrors = Import-Clixml -Path $ErrorOutputPath
 
                         Write-Debug "Captured $($capturedErrors.Count) errors from script execution:"
@@ -202,7 +227,7 @@ try {
                                 continue;
                             }
 
-                            $global:Error.Insert(0, $err)
+                            $Global:Error.Insert(0, $err)
                         }
                     } else {
                         Write-Debug 'No errors were captured during script execution'
@@ -211,7 +236,9 @@ try {
                     Write-Warning 'Error output file was not created. Script may have terminated unexpectedly.'
                 }
 
-                return $capturedErrors
+                if ($DebugPreference -eq 'Continue') {
+                    return $capturedErrors
+                }
             } finally {
                 if ($DebugPreference -ne 'Continue') {
                     if (Test-Path $wrapperPath) {
