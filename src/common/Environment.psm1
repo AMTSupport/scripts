@@ -15,7 +15,7 @@ $Script:ModuleSnapshot = Get-Module | Select-Object -ExpandProperty Path | Where
 };
 
 #region - Utility Functions
-function Get-OrFalse {
+function Local:Get-OrFalse {
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNull()]
@@ -35,32 +35,37 @@ function Get-OrFalse {
     }
 }
 
-function Test-IsNableRunner {
+function Local:Test-IsNableRunner {
     $WindowName = $Host.UI.RawUI.WindowTitle;
     if (-not $WindowName) { return $False; };
     return ($WindowName | Split-Path -Leaf) -eq 'fmplugin.exe';
 }
+
+function Local:Test-IsCompiled {
+    Get-Variable -Name 'CompiledScript' -ValueOnly -ErrorAction SilentlyContinue
+}
 #endregion
 
 function Invoke-Setup {
-    $PSDefaultParameterValues['*:ErrorAction'] = $ErrorActionPreference;
-    $PSDefaultParameterValues['*:WarningAction'] = $WarningPreference;
-    $PSDefaultParameterValues['*:InformationAction'] = $InformationPreference;
-    $PSDefaultParameterValues['*:Verbose'] = $VerbosePreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore'; ;
-    $PSDefaultParameterValues['*:Debug'] = $DebugPreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore';
+    $Global:PSDefaultParameterValues['*:ErrorAction'] = $ErrorActionPreference;
+    $Global:PSDefaultParameterValues['*:WarningAction'] = $WarningPreference;
+    $Global:PSDefaultParameterValues['*:InformationAction'] = $InformationPreference;
+    $Global:PSDefaultParameterValues['*:Verbose'] = $VerbosePreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore'; ;
+    $Global:PSDefaultParameterValues['*:Debug'] = $DebugPreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore';
 
     # Only log module if wanting to debug, its a bit spammy otherwise.
-    $PSDefaultParameterValues["*-Module:Verbose"] = $PSDefaultParameterValues['*:Debug'];
+    $Global:PSDefaultParameterValues['*-Module:Verbose'] = $DebugPreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore';
 
     $Global:ErrorActionPreference = 'Stop';
 }
 
 function Invoke-Teardown {
-    $PSDefaultParameterValues.Remove('*:ErrorAction');
-    $PSDefaultParameterValues.Remove('*:WarningAction');
-    $PSDefaultParameterValues.Remove('*:InformationAction');
-    $PSDefaultParameterValues.Remove('*:Verbose');
-    $PSDefaultParameterValues.Remove('*:Debug');
+    $Global:PSDefaultParameterValues.Remove('*:ErrorAction');
+    $Global:PSDefaultParameterValues.Remove('*:WarningAction');
+    $Global:PSDefaultParameterValues.Remove('*:InformationAction');
+    $Global:PSDefaultParameterValues.Remove('*:Verbose');
+    $Global:PSDefaultParameterValues.Remove('*:Debug');
+    $Global:PSDefaultParameterValues.Remove('*-Module:Verbose');
 }
 
 <#
@@ -96,9 +101,13 @@ function Invoke-BlockWrapper {
 
         if ($Cmdlet.InvokeCommand.HasErrors) {
             Invoke-Verbose 'Throwing error from wrapped script block!';
-            $Error.RemoveAt(-0);
-            # FIXME - Throw all errors.
-            $PSCmdlet.ThrowTerminatingError($Cmdlet.InvokeCommand.Streams.Error[0]);
+            foreach ($err in $Cmdlet.InvokeCommand.Streams.Error) {
+                Invoke-Verbose "Viewing error record from wrapped script block: $($err.ToString())";
+                Write-Error -ErrorRecord $err;
+            }
+
+            $lastError = $Cmdlet.InvokeCommand.Streams.Error[-1];
+            $PSCmdlet.ThrowTerminatingError($lastError);
         }
 
 
@@ -109,7 +118,7 @@ function Invoke-BlockWrapper {
     }
 }
 
-function Remove-FinishedModule {
+function Local:Remove-FinishedModule {
     [CmdletBinding()]
     param(
         [Switch]$Teardown
@@ -204,7 +213,10 @@ function Invoke-RunMain {
         try {
             if ($null -ne $Cmdlet) {
                 Invoke-Verbose -UnicodePrefix '🚀' -Message 'Running main function.';
-                Invoke-BlockWrapper -Cmdlet $Cmdlet -ScriptBlock $Main;
+                $Parameters = $Cmdlet.MyInvocation.BoundParameters;
+                & $Main @Parameters;
+
+                # Invoke-BlockWrapper -Cmdlet $Cmdlet -ScriptBlock $Main;
                 Invoke-Info 'Main function finished successfully.';
             } else {
                 Invoke-Verbose -UnicodePrefix '📦' -Message 'Script is being imported, skipping main function.';
@@ -219,7 +231,9 @@ function Invoke-RunMain {
             Invoke-Error 'Unable to execute script due to a parse error.';
             Invoke-FailedExit -ExitCode 9998 -ErrorRecord $_ -DontExit;
         } catch [System.Management.Automation.RuntimeException] {
-            if ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException -is [System.Management.Automation.RuntimeException]) {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                $CatchingError = $_;
+            } elseif ($null -ne $_.Exception.InnerException -and $_.Exception.InnerException -is [System.Management.Automation.RuntimeException]) {
                 $CatchingError = $_.Exception.InnerException.ErrorRecord;
             } else {
                 $CatchingError = $_.Exception.ErrorRecord;
@@ -239,6 +253,10 @@ function Invoke-RunMain {
                 }
                 default {
                     Invoke-Error 'Uncaught Exception during script execution';
+                    if (Test-IsCompiled) {
+                        $Error.Add($CatchingError);
+                        Write-Error -ErrorRecord $CatchingError -ErrorAction Continue -RecommendedAction 'Silent';
+                    }
                     Invoke-FailedExit -ExitCode 9999 -ErrorRecord $CatchingError -DontExit;
                 }
             }
