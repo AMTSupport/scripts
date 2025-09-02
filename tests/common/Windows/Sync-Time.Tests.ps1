@@ -1,6 +1,20 @@
-BeforeDiscovery { Import-Module "$PSScriptRoot/../../../src/common/Windows.psm1" }
+BeforeDiscovery { 
+    Import-Module "$PSScriptRoot/../../../src/common/Windows.psm1"
+}
 
 Describe 'Sync-Time Tests' {
+    BeforeAll {
+        # Mock all external dependencies for cross-platform testing
+        Mock w32tm { return 'Sending resync command to local computer' } -ModuleName Windows
+        Mock Get-LastSyncTime { return (Get-Date).AddHours(-1) } -ModuleName Windows
+    }
+    
+    BeforeEach {
+        # Reset mocks for each test to ensure clean state
+        Mock w32tm { return 'Sending resync command to local computer' } -ModuleName Windows
+        Mock Get-LastSyncTime { return (Get-Date).AddHours(-1) } -ModuleName Windows
+    }
+
     Context 'Basic Functionality' {
         It 'Should return a Boolean value' {
             # Mock Get-LastSyncTime to return a recent time (no sync needed)

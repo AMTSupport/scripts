@@ -1,6 +1,29 @@
-BeforeDiscovery { Import-Module "$PSScriptRoot/../../../src/common/Windows.psm1" }
+BeforeDiscovery { 
+    Import-Module "$PSScriptRoot/../../../src/common/Windows.psm1"
+}
 
 Describe 'Get-LastSyncTime Tests' {
+    BeforeAll {
+        # Always mock w32tm for consistent cross-platform testing
+        function Global:w32tm { 
+            param($Command, $SubCommand)
+            if ($Command -eq '/query' -and $SubCommand -eq '/status') {
+                return @(
+                    'Leap Indicator: 0(no warning)',
+                    'Stratum: 2 (secondary reference - syncd by (S)NTP)',
+                    'Precision: -6 (15.625ms per tick)',
+                    'Root Delay: 0.0000000s',
+                    'Root Dispersion: 10.0000000s',
+                    'ReferenceId: 0x00000000 (unspecified)',
+                    'Last Successful Sync Time: 12/25/2023 10:30:45 AM',
+                    'Source: time.windows.com',
+                    'Poll Interval: 6 (64s)'
+                )
+            }
+            return @()
+        }
+    }
+
     Context 'Basic Functionality' {
         It 'Should return a DateTime object' {
             $Result = Get-LastSyncTime
@@ -10,7 +33,9 @@ Describe 'Get-LastSyncTime Tests' {
 
         It 'Should return Unix epoch when w32tm fails or returns unparseable data' {
             # Mock w32tm to return invalid data
-            Mock w32tm { return 'Invalid output' } -ModuleName Windows
+            function Global:w32tm { 
+                return 'Invalid output'
+            }
             
             $Result = Get-LastSyncTime
             
