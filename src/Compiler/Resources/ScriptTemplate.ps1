@@ -132,7 +132,15 @@ process {
                     }
                     return '[Tuple]::Create(' + ($Elements -join ', ') + ')';
                 } elseif ($Type.IsSerializable -and -not $Type.IsPrimitive) {
-                    return "(ConvertFrom-CliXML -InputObject '$(($Value | ConvertTo-CliXml -Depth 5) -replace "'", "''")')";
+                    # For PowerShell versions without native inline ConvertTo-CliXml support,
+                    # export the argument to a temporary CLIXML file and import it at runtime.
+                    if ($PSVersionTable.PSVersion -lt [Version]'7.5') {
+                        $argFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('arg_' + ([System.Guid]::NewGuid().ToString()) + '.clixml'))
+                        $Value | ExportTo-CliXml -Path $argFile -Depth 5
+                        return "(Import-Clixml -Path '$argFile')";
+                    } else {
+                        return "(ConvertFrom-CliXML -InputObject '$(($Value | ConvertTo-CliXml -Depth 5) -replace "'", "''")')";
+                    }
                 }
 
                 return ConvertTo-Json -InputObject $Value;
@@ -240,6 +248,10 @@ try {
                     return $capturedErrors
                 }
             } finally {
+                # Always clean arguments
+                $argPattern = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'arg_*.clixml')
+                Get-ChildItem -Path $argPattern -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
                 if ($DebugPreference -ne 'Continue') {
                     if (Test-Path $wrapperPath) {
                         Remove-Item -Path $wrapperPath -Force -ErrorAction SilentlyContinue -WhatIf:$False
