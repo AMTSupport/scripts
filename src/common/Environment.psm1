@@ -47,25 +47,32 @@ function Local:Test-IsCompiled {
 #endregion
 
 function Invoke-Setup {
-    $Global:PSDefaultParameterValues['*:ErrorAction'] = $ErrorActionPreference;
-    $Global:PSDefaultParameterValues['*:WarningAction'] = $WarningPreference;
-    $Global:PSDefaultParameterValues['*:InformationAction'] = $InformationPreference;
-    $Global:PSDefaultParameterValues['*:Verbose'] = $VerbosePreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore'; ;
-    $Global:PSDefaultParameterValues['*:Debug'] = $DebugPreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore';
+    $RootWarningPreference = $PSCmdlet.GetVariableValue('WarningPreference');
+    $RootInformationPreference = $PSCmdlet.GetVariableValue('InformationPreference');
+    $RootVerbosePreference = $PSCmdlet.GetVariableValue('VerbosePreference');
+    $RootDebugPreference = $PSCmdlet.GetVariableValue('DebugPreference');
 
-    # Only log module if wanting to debug, its a bit spammy otherwise.
-    $Global:PSDefaultParameterValues['*-Module:Verbose'] = $DebugPreference -ne 'SilentlyContinue' -and $DebugPreference -ne 'Ignore';
+    if ($null -ne $RootWarningPreference) {
+        $Global:PSDefaultParameterValues['*:WarningAction'] = $RootWarningPreference;
+    }
 
-    $Global:ErrorActionPreference = 'Stop';
+    if ($null -ne $RootInformationPreference) {
+        $Global:PSDefaultParameterValues['*:InformationAction'] = $RootInformationPreference;
+    }
+
+    $Global:PSDefaultParameterValues['*:Verbose'] = $RootVerbosePreference -match '^(Continue|Break|Suspend|Stop)$';
+    $Global:PSDefaultParameterValues['*:Debug'] = $RootDebugPreference -match '^(Continue|Break|Suspend|Stop)$';
+
+    # Module verbose chatter only when actively debugging.
+    $Global:PSDefaultParameterValues['*-Module:Verbose'] = $Global:PSDefaultParameterValues['*:Debug'];
 }
 
 function Invoke-Teardown {
-    $Global:PSDefaultParameterValues.Remove('*:ErrorAction');
-    $Global:PSDefaultParameterValues.Remove('*:WarningAction');
-    $Global:PSDefaultParameterValues.Remove('*:InformationAction');
-    $Global:PSDefaultParameterValues.Remove('*:Verbose');
-    $Global:PSDefaultParameterValues.Remove('*:Debug');
-    $Global:PSDefaultParameterValues.Remove('*-Module:Verbose');
+    foreach ($key in '*:ErrorAction', '*:WarningAction', '*:InformationAction', '*:Verbose', '*:Debug', '*-Module:Verbose') {
+        if ($Global:PSDefaultParameterValues.ContainsKey($key)) {
+            $null = $Global:PSDefaultParameterValues.Remove($key);
+        }
+    }
 }
 
 <#

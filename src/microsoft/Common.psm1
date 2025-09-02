@@ -35,7 +35,6 @@ If a new mailbox was created, please ensure that the user account is correctly d
             Write-Error -ErrorRecord $_;
             return $null;
         }
-        $PSDefaultParameterValues['*:ErrorAction'] = 'Stop';
 
         [Microsoft.Graph.PowerShell.Models.MicrosoftGraphDomain]$Local:Domain = Get-PrimaryDomain;
         [String]$Local:DomainName = $Domain.Id.Split('.')[0];
