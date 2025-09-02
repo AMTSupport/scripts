@@ -136,7 +136,7 @@ process {
                     # export the argument to a temporary CLIXML file and import it at runtime.
                     if ($PSVersionTable.PSVersion -lt [Version]'7.5') {
                         $argFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('arg_' + ([System.Guid]::NewGuid().ToString()) + '.clixml'))
-                        $Value | ExportTo-CliXml -Path $argFile -Depth 5
+                        $Value | Export-Clixml -Path $argFile -Depth 5
                         return "(Import-Clixml -Path '$argFile')";
                     } else {
                         return "(ConvertFrom-CliXML -InputObject '$(($Value | ConvertTo-CliXml -Depth 5) -replace "'", "''")')";
