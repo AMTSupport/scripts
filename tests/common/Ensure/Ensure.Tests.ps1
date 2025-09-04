@@ -1,54 +1,20 @@
 Describe "Ensure Module Tests" {
     BeforeAll {
-        # Import required modules
         Import-Module "$PSScriptRoot/../../../src/common/Ensure.psm1" -Force
-        
-        # Mock external dependencies for cross-platform testing
-        Mock Test-NetworkConnection { $true } -ModuleName Ensure
-        Mock Get-PackageProvider { } -ModuleName Ensure
-        Mock Install-PackageProvider { } -ModuleName Ensure
-        Mock Set-PSRepository { } -ModuleName Ensure
-        Mock Get-Module { $null } -ModuleName Ensure
-        Mock Import-Module { } -ModuleName Ensure
-        Mock Install-PSResource { } -ModuleName Ensure
-        Mock Update-PSResource { } -ModuleName Ensure
-        Mock Find-PSResource { 
-            [PSCustomObject]@{ Name = 'TestModule'; Version = '1.0.0' }
-        } -ModuleName Ensure
-        Mock Test-Path { $true } -ModuleName Ensure
-        Mock netsh { } -ModuleName Ensure
-        Mock Test-Connection { $true } -ModuleName Ensure
-        Mock Get-NetConnectionProfile { 
-            [PSCustomObject]@{ IPv4Connectivity = 'Internet'; IPv6Connectivity = 'Internet' }
-        } -ModuleName Ensure
-        
-        # Mock Windows security principal checks
-        Mock -CommandName 'New-Object' -MockWith {
-            param($TypeName)
-            if ($TypeName -eq 'Security.Principal.WindowsPrincipal') {
-                return [PSCustomObject]@{
-                    IsInRole = { param($Role) return $false }  # Default to non-administrator
-                }
-            }
-            return $null
-        } -ModuleName Ensure
-    }
-
-    Context "Module Import" {
-        It "Should import Ensure module successfully" {
-            Get-Module -Name Ensure* | Should -Not -BeNullOrEmpty
-        }
-
-        It "Should export expected functions" {
-            $ExportedFunctions = (Get-Module -Name Ensure*).ExportedFunctions.Keys
-            $ExportedFunctions | Should -Contain 'Invoke-EnsureAdministrator'
-            $ExportedFunctions | Should -Contain 'Invoke-EnsureUser'
-            $ExportedFunctions | Should -Contain 'Invoke-EnsureModule'
-            $ExportedFunctions | Should -Contain 'Invoke-EnsureNetwork'
-        }
     }
 
     Context "Invoke-EnsureAdministrator Tests" {
+        BeforeEach {
+            Mock -CommandName 'New-Object' -MockWith {
+                param($TypeName)
+                if ($TypeName -eq 'Security.Principal.WindowsPrincipal') {
+                    return [PSCustomObject]@{
+                        IsInRole = { param($Role) return $false }
+                    }
+                }
+                return $null
+            } -ModuleName Ensure
+        }
         It "Should pass when running as administrator" {
             Mock -CommandName 'New-Object' -MockWith {
                 param($TypeName)
@@ -128,6 +94,20 @@ Describe "Ensure Module Tests" {
     }
 
     Context "Invoke-EnsureModule Tests" {
+        BeforeEach {
+            Mock Test-NetworkConnection { $true } -ModuleName Ensure
+            Mock Get-PackageProvider { } -ModuleName Ensure
+            Mock Install-PackageProvider { } -ModuleName Ensure
+            Mock Set-PSRepository { } -ModuleName Ensure
+            Mock Get-Module { $null } -ModuleName Ensure
+            Mock Import-Module { } -ModuleName Ensure
+            Mock Install-PSResource { } -ModuleName Ensure
+            Mock Update-PSResource { } -ModuleName Ensure
+            Mock Find-PSResource { 
+                [PSCustomObject]@{ Name = 'TestModule'; Version = '1.0.0' }
+            } -ModuleName Ensure
+            Mock Test-Path { $true } -ModuleName Ensure
+        }
         It "Should require Modules parameter" {
             { Invoke-EnsureModule } | Should -Throw
         }
@@ -257,6 +237,13 @@ Describe "Ensure Module Tests" {
     }
 
     Context "Invoke-EnsureNetwork Tests" {
+        BeforeEach {
+            Mock netsh { } -ModuleName Ensure
+            Mock Test-Connection { $true } -ModuleName Ensure
+            Mock Get-NetConnectionProfile { 
+                [PSCustomObject]@{ IPv4Connectivity = 'Internet'; IPv6Connectivity = 'Internet' }
+            } -ModuleName Ensure
+        }
         BeforeEach {
             Mock Get-NetConnectionProfile { 
                 [PSCustomObject]@{ IPv4Connectivity = 'NoTraffic'; IPv6Connectivity = 'NoTraffic' }

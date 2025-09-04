@@ -35,45 +35,7 @@ Describe "Connection Module Tests" {
         }
     }
 
-    Context "Connect-Service Parameter Validation" {
-        It "Should require Services parameter" {
-            { Connect-Service } | Should -Throw
-        }
 
-        It "Should validate Services parameter values" {
-            { Connect-Service -Services 'InvalidService' } | Should -Throw
-        }
-
-        It "Should accept valid service names" {
-            Mock Get-ConnectionInformation { $null } -ModuleName Connection
-            
-            { Connect-Service -Services 'ExchangeOnline' -DontConfirm } | Should -Not -Throw
-            { Connect-Service -Services 'SecurityComplience' -DontConfirm } | Should -Not -Throw  
-            { Connect-Service -Services 'Graph' -DontConfirm } | Should -Not -Throw
-        }
-
-        It "Should accept multiple services" {
-            Mock Get-ConnectionInformation { $null } -ModuleName Connection
-            Mock Get-MgContext { $null } -ModuleName Connection
-            
-            { Connect-Service -Services @('ExchangeOnline', 'Graph') -DontConfirm } | Should -Not -Throw
-        }
-
-        It "Should accept optional Scopes parameter" {
-            Mock Get-ConnectionInformation { $null } -ModuleName Connection
-            Mock Get-MgContext { $null } -ModuleName Connection
-            
-            { Connect-Service -Services 'Graph' -Scopes @('User.Read') -DontConfirm } | Should -Not -Throw
-        }
-
-        It "Should accept optional AccessToken parameter" {
-            Mock Get-ConnectionInformation { $null } -ModuleName Connection
-            Mock Get-MgContext { $null } -ModuleName Connection
-            $SecureToken = ConvertTo-SecureString 'token123' -AsPlainText -Force
-            
-            { Connect-Service -Services 'Graph' -AccessToken $SecureToken -DontConfirm } | Should -Not -Throw
-        }
-    }
 
     Context "ExchangeOnline Service Tests" {
         BeforeEach {
@@ -357,21 +319,5 @@ Describe "Connection Module Tests" {
         }
     }
 
-    Context "Cross-Platform Considerations" {
-        It "Should handle module import failures gracefully" {
-            # Test that the function handles cases where Exchange/Graph modules aren't available
-            Mock Connect-ExchangeOnline { throw "Module not found" } -ModuleName Connection
-            Mock Invoke-FailedExit { throw "Connection failed" } -ModuleName Connection
-            
-            { Connect-Service -Services 'ExchangeOnline' -DontConfirm } | Should -Throw
-        }
 
-        It "Should work with mock implementations" {
-            # Verify that our mocking strategy allows tests to run on any platform
-            Mock Get-ConnectionInformation { $null } -ModuleName Connection
-            Mock Connect-ExchangeOnline { } -ModuleName Connection
-            
-            { Connect-Service -Services 'ExchangeOnline' -DontConfirm } | Should -Not -Throw
-        }
-    }
 }

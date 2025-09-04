@@ -1,4 +1,4 @@
-Describe "Registry Module Tests" {
+Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
     BeforeAll {
         # Import required modules with force to ensure clean state
         Import-Module "$PSScriptRoot/../../../src/common/Registry.psm1" -Force

@@ -1,4 +1,4 @@
-Describe "Invoke-EnsureRegistryPath Tests" {
+Describe "Invoke-EnsureRegistryPath Tests" -Skip:(-not $IsWindows) {
     BeforeAll {
         # Import required modules
         Import-Module "$PSScriptRoot/../../../src/common/Registry.psm1" -Force
