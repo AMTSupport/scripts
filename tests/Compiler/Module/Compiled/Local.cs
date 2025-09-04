@@ -2,6 +2,7 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Management.Automation.Language;
+using System.Threading.Tasks;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -13,8 +14,8 @@ namespace Compiler.Test.Module.Compiled;
 [TestFixture]
 public class CompiledLocalModuleTests {
     [Test, Repeat(10), Parallelizable]
-    public void StringifyContent_ReturnsValidAstContent() {
-        var module = TestData.GetRandomCompiledModule();
+    public async Task StringifyContent_ReturnsValidAstContent() {
+        var module = await TestData.GetRandomCompiledModule();
         var stringifiedContent = module.StringifyContent();
         Assert.Multiple(() => {
             var ast = Parser.ParseInput(stringifiedContent, out _, out var errors);
@@ -24,10 +25,10 @@ public class CompiledLocalModuleTests {
     }
 
     [Test, Parallelizable]
-    public void HashChanges(
+    public async Task HashChanges(
         [Values("Hello, World!")] string scriptOneHello,
         [Values("Hello, World!", "Hello, Other World!")] string scriptTwoHello
-    ) => Assert.Multiple(() => {
+    ) => await Assert.MultipleAsync(async () => {
         var scriptOne = TestData.CreateModule<CompiledScript>($"Write-Host '{scriptOneHello}';");
         var scriptTwo = TestData.CreateModule<CompiledScript>($"Write-Host '{scriptTwoHello}';");
 
@@ -37,7 +38,7 @@ public class CompiledLocalModuleTests {
         if (scriptOneHello == scriptTwoHello) {
             var oldHash = scriptOne.ComputedHash;
 
-            var remoteModule = CompiledRemoteModuleTests.TestData.GetTestRemoteModule();
+            var remoteModule = await CompiledRemoteModuleTests.TestData.GetTestRemoteModule();
             CompiledUtils.AddDependency(scriptOne, remoteModule);
             Assert.That(scriptOne.ComputedHash, Is.Not.EqualTo(oldHash), "Hash should change when a dependency is added.");
             Assert.That(scriptOne.ComputedHash, Is.Not.EqualTo(scriptTwo.ComputedHash), "Hashes should differ when a dependency is added.");
@@ -87,7 +88,7 @@ public class CompiledLocalModuleTests {
             }.Object;
         }
 
-        public static RealCompiled GetRandomCompiledModule(CompiledLocalModule? parent = null, int depLevel = 0, bool createDependencies = true) {
+        public static async Task<RealCompiled> GetRandomCompiledModule(CompiledLocalModule? parent = null, int depLevel = 0, bool createDependencies = true) {
             var random = TestContext.CurrentContext.Random;
             createDependencies = !createDependencies && depLevel < 3 && random.NextBool();
             var scriptParent = parent as CompiledScript ?? parent?.GetRootParent();
@@ -100,7 +101,7 @@ public class CompiledLocalModuleTests {
 
                     if (createDependencies) {
                         for (var i = 0; i < random.Next(1, 5); i++) {
-                            var dependency = GetRandomCompiledModule(compiledScript, depLevel + 1, createDependencies);
+                            var dependency = await GetRandomCompiledModule(compiledScript, depLevel + 1, createDependencies);
                             CompiledUtils.AddDependency(compiledScript, dependency);
                         }
                     }
@@ -112,7 +113,7 @@ public class CompiledLocalModuleTests {
 
                     if (createDependencies) {
                         for (var i = 0; i < random.Next(1, 5); i++) {
-                            var dependency = GetRandomCompiledModule(module, depLevel + 1, createDependencies);
+                            var dependency = await GetRandomCompiledModule(module, depLevel + 1, createDependencies);
                             CompiledUtils.AddDependency(module, dependency);
                         }
                     }
@@ -120,7 +121,7 @@ public class CompiledLocalModuleTests {
                     return module;
                 }
             } else {
-                var remoteModule = CompiledRemoteModuleTests.TestData.GetTestRemoteModule();
+                var remoteModule = await CompiledRemoteModuleTests.TestData.GetTestRemoteModule();
                 CompiledUtils.AddDependency(scriptParent!, remoteModule);
 
                 return remoteModule;

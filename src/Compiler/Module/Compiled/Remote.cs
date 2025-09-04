@@ -211,7 +211,9 @@ public class CompiledRemoteModule : Compiled {
             Logger.Debug($"Updating archive contents for {this.ModuleSpec.Name}.");
 
             var originalArchive = this.GetZipArchive();
-            var expandedPath = Path.Join(RewritingFolder, this.ModuleSpec.Name);
+            var uniqueModuleName = $"{this.ModuleSpec.Name}_{Guid.NewGuid():N}";
+
+            var expandedPath = Path.Join(RewritingFolder, uniqueModuleName);
             if (Directory.Exists(expandedPath)) Directory.Delete(expandedPath, true);
             Directory.CreateDirectory(expandedPath);
             originalArchive.ExtractToDirectory(expandedPath, true);
@@ -219,12 +221,13 @@ public class CompiledRemoteModule : Compiled {
             this.RewriteRequiredModules(expandedPath);
             this.MoveModuleManifest(expandedPath);
 
-            var tempArchivePath = Path.Join(RewritingFolder, $"{this.ModuleSpec.Name}.nupkg");
+            var tempArchivePath = Path.Join(RewritingFolder, $"{uniqueModuleName}.nupkg");
             if (File.Exists(tempArchivePath)) File.Delete(tempArchivePath);
             ZipFile.CreateFromDirectory(expandedPath, tempArchivePath);
 
             this.UpdatedContentBytes = File.ReadAllBytes(tempArchivePath);
-            Logger.Debug($"Updated archive contents for {this.ModuleSpec.Name} and stored in {tempArchivePath}.");
+            Directory.Delete(expandedPath, true);
+            File.Delete(tempArchivePath);
         }
     }
 

@@ -17,6 +17,7 @@ public class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(moduleSp
     private byte[]? Bytes;
 
     // Only public for testing purposes.
+    // Left value is a resolved file path, Right value is a task for creating that file
     public Atom<Either<Option<string>, Task<Option<string>>>>? CachedFile;
 
     public string CachePath => Path.Join(

@@ -99,8 +99,6 @@ file static class TestData {
     }
 
     public static Mock<RealCompiled> GetMockCompiledModule(byte[]? bytes = null, CompiledScript? parent = null) {
-        parent ??= CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>();
-
         var random = TestContext.CurrentContext.Random;
         var moduleSpec = new ModuleSpec(random.GetString(6));
         var requirements = new RequirementGroup();
@@ -112,13 +110,21 @@ file static class TestData {
         var mock = new Mock<RealCompiled>(moduleSpec, requirements, new Lazy<byte[]>(bytes)) {
             CallBase = true
         };
-        CompiledUtils.AddDependency(parent, mock.Object);
+        CompiledUtils.EnsureMockHasParent(mock.Object, parent);
 
         return mock;
     }
 }
 
 public static class CompiledUtils {
+    public static CompiledScript EnsureMockHasParent(RealCompiled mock, CompiledScript? parent = null) {
+        if (mock.Parents.Count != 0) return mock.GetRootParent()!;
+
+        parent ??= CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>();
+        AddDependency(parent, mock);
+        return parent;
+    }
+
     public static void AddDependency(RealCompiled parent, RealCompiled dependency) {
         var rootParent = parent.GetRootParent()!;
 

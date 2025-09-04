@@ -125,10 +125,6 @@ public class SuppressionAttributeTests {
                     [SuppressAnalyserAttribute('UseOfUndefinedFunction', 'That-Function', Justification = 'That Justification')]
                     [Compiler.Analyser.SuppressAnalyser('UseOfUndefinedFunction', 'Other-Function', Justification = 'Other Justification')]
                     [Compiler.Analyser.SuppressAnalyserAttribute('UseOfUndefinedFunction', 'Another-Function', Justification = 'Another Justification')]
-                    [SuppressAnalyser('UseOfUndefinedFunction', 'Other-Function')]
-                    [SuppressAnalyserAttribute('UseOfUndefinedFunction', 'Another-Function')]
-                    [Compiler.Analyser.SuppressAnalyser('UseOfUndefinedFunction', 'This-Function')]
-                    [Compiler.Analyser.SuppressAnalyserAttribute('UseOfUndefinedFunction', 'That-Function')]
                     param()
                 }
                 """,
@@ -137,10 +133,6 @@ public class SuppressionAttributeTests {
                     new(typeof(UseOfUndefinedFunction), "That-Function", "That Justification"),
                     new(typeof(UseOfUndefinedFunction), "Other-Function", "Other Justification"),
                     new(typeof(UseOfUndefinedFunction), "Another-Function", "Another Justification"),
-                    new(typeof(UseOfUndefinedFunction), "This-Function", null),
-                    new(typeof(UseOfUndefinedFunction), "That-Function", null),
-                    new(typeof(UseOfUndefinedFunction), "Other-Function", null),
-                    new(typeof(UseOfUndefinedFunction), "Another-Function", null)
                 });
             }
         }

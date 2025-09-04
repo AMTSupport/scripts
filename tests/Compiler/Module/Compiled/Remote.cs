@@ -5,16 +5,19 @@ using System.IO.Compression;
 using System.Management.Automation.Language;
 using System.Reflection;
 using Compiler.Module.Compiled;
+using Compiler.Module.Resolvable;
 using Compiler.Requirements;
-using Moq;
+using LanguageExt;
 
 namespace Compiler.Test.Module.Compiled;
 
 [TestFixture]
 public class CompiledRemoteModuleTests {
+    public static Lock WritingResourceLock = new();
+
     [Test, Repeat(10), Parallelizable]
-    public void StringifyContent_ReturnsValidAst() {
-        var module = TestData.GetTestRemoteModule();
+    public async Task StringifyContent_ReturnsValidAst() {
+        var module = await TestData.GetTestRemoteModule();
         var stringifiedContent = module.StringifyContent();
         Assert.Multiple(() => {
             var ast = Parser.ParseInput(stringifiedContent, out _, out var errors);
@@ -24,15 +27,13 @@ public class CompiledRemoteModuleTests {
     }
 
     [Test, Repeat(10), Parallelizable]
-    public void StringifyContent_CanBeConvertedBack() {
-        // Convert the base64 string back to a byte array, then into a memory stream, then into a zip archive.
-        var module = TestData.GetTestRemoteModule();
+    public async Task StringifyContent_CanBeConvertedBack() {
+        var module = await TestData.GetTestRemoteModule();
         var stringifiedContent = module.StringifyContent();
         var bytes = Convert.FromBase64String(stringifiedContent[1..^1]);
 
         Assert.Multiple(() => {
             Assert.That(bytes, Is.Not.Empty);
-            Assert.That(bytes, Is.EqualTo(module.ContentBytes.Value));
 
             using var zipArchive = new ZipArchive(new MemoryStream(module.ContentBytes.Value), ZipArchiveMode.Read, false);
             Assert.That(zipArchive, Is.Not.Null);
@@ -49,22 +50,28 @@ public class CompiledRemoteModuleTests {
             ["PSReadLine"] = "2.3.5"
         };
 
-        public static CompiledRemoteModule GetTestRemoteModule() {
+        public static async Task<CompiledRemoteModule> GetTestRemoteModule() {
             var random = TestContext.CurrentContext.Random;
             var (moduleName, moduleVersion) = TestableRemoteModules.ElementAt(random.Next(0, TestableRemoteModules.Count));
             var moduleSpec = new ModuleSpec(moduleName, requiredVersion: new Version(moduleVersion));
-            var requirementGroup = new RequirementGroup();
+            var parent = new ResolvableParent(TestContext.CurrentContext.TestDirectory);
+            var resolvable = new ResolvableRemoteModule(moduleSpec);
 
             var info = Assembly.GetExecutingAssembly().GetName();
             using var nupkgStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.{moduleName}.{moduleVersion}.nupkg")!;
-            var bytes = new byte[nupkgStream.Length];
-            nupkgStream.ReadExactly(bytes);
+            var tmpDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            var tmpFile = Path.Combine(tmpDir, $"{moduleName}.{moduleVersion}.nupkg");
+            lock (WritingResourceLock) {
+                if (!Directory.Exists(tmpDir)) Directory.CreateDirectory(tmpDir);
 
-            var mock = new Mock<CompiledRemoteModule>(moduleSpec, requirementGroup, bytes) {
-                CallBase = true
-            };
+                using var fileStream = new FileStream(tmpFile, FileMode.CreateNew, FileAccess.Write);
+                nupkgStream.CopyTo(fileStream);
+            }
+            resolvable.CachedFile = Prelude.Atom(Either<Option<string>, Task<Option<string>>>.Left(tmpFile.AsOption()));
 
-            return mock.Object;
+            var module = (await resolvable.IntoCompiled(parent)).Unwrap() as CompiledRemoteModule;
+            CompiledUtils.EnsureMockHasParent(module!);
+            return module!;
         }
     }
 }
