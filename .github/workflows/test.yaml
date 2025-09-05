@@ -44,7 +44,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            desktop: true
+          - os: ubuntu-latest
+          - os: macos-latest
     runs-on: ${{ matrix.os }}
     name: Run Pester Tests on ${{ matrix.os }}
     steps:
@@ -55,7 +59,7 @@ jobs:
         shell: pwsh
         run: Install-Module -Name Pester -Scope CurrentUser -Force
 
-      - name: Run Pester Tests
+      - name: Run Pester Tests for Powershell Core
         shell: pwsh
         run: |
           $Config = Import-PowerShellDataFile -Path "tests/PesterConfiguration.psd1";
@@ -75,3 +79,25 @@ jobs:
           coverage_gist: true
           gist_name: "Pester Test Results on ${{ matrix.os }}"
           report_name: "TEST_RESULTS_${{ github.run_id }}_${{ github.run_number }}_${{ matrix.os }}"
+
+      - name: Run Pester Tests for Windows Desktop
+        if: ${{ matrix.desktop }}
+        shell: powershell
+        run: |
+          $Config = Import-PowerShellDataFile -Path "tests/PesterConfiguration.psd1";
+          Invoke-Pester -Configuration $Config
+
+      - name: Upload test results for Windows Desktop
+        if: ${{ always() && matrix.desktop }}
+        id: test-results-desktop
+        uses: natescherer/pester-tests-report@combined
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          gist_token: ${{ secrets.PESTER_GIST_GH_TOKEN }}
+          test_results_path: "tests/TestResults/PesterTestResults.xml"
+          coverage_paths: "tests/Coverage/PesterCodeCoverage.xml"
+          tests_fail_step: true
+          skip_check_run: true
+          coverage_gist: true
+          gist_name: "Pester Test Results on Windows Desktop"
+          report_name: "TEST_RESULTS_${{ github.run_id }}_${{ github.run_number }}_Windows_Desktop"
