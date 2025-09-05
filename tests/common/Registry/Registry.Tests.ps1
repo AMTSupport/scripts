@@ -24,7 +24,7 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
         BeforeEach {
             # Mock dependencies for cross-platform testing
             Mock Test-Path { $true } -ModuleName Registry
-            Mock Get-ItemProperty { 
+            Mock Get-ItemProperty {
                 [PSCustomObject]@{ TestKey = 'TestValue' }
             } -ModuleName Registry
         }
@@ -33,14 +33,14 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
             # Skip on non-Windows platforms as this requires actual registry access
             Mock Test-Path { $true } -ModuleName Registry
             Mock Get-ItemProperty { [PSCustomObject]@{ TestKey = 'TestValue' } } -ModuleName Registry
-            
+
             $Result = Test-RegistryKey -Path 'HKLM:\Software\Test' -Key 'TestKey'
             $Result | Should -Be $true
         }
 
         It "Should return False when registry path does not exist" -Skip:($IsLinux -or $IsMacOS) {
             Mock Test-Path { $false } -ModuleName Registry
-            
+
             $Result = Test-RegistryKey -Path 'HKLM:\Software\NonExistent' -Key 'TestKey'
             $Result | Should -Be $false
         }
@@ -57,13 +57,13 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
 
         It "Should accept valid parameters without throwing" {
             Mock Test-RegistryKey { $false } -ModuleName Registry
-            
+
             { Get-RegistryKey -Path 'HKLM:\Software\Test' -Key 'TestKey' } | Should -Not -Throw
         }
 
         It "Should return null when Test-RegistryKey returns false" {
             Mock Test-RegistryKey { $false } -ModuleName Registry
-            
+
             $Result = Get-RegistryKey -Path 'HKLM:\Software\Test' -Key 'TestKey'
             $Result | Should -Be $null
         }
@@ -80,7 +80,7 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
         It "Should accept all required parameters" {
             Mock Invoke-EnsureRegistryPath { } -ModuleName Registry
             Mock Set-ItemProperty { } -ModuleName Registry
-            
+
             { Set-RegistryKey -Path 'HKLM:\Software\Test' -Key 'TestKey' -Value 'TestValue' -Kind 'String' } | Should -Not -Throw
         }
     }
@@ -93,7 +93,7 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
 
         It "Should accept required parameters" {
             Mock Test-RegistryKey { $false } -ModuleName Registry
-            
+
             { Remove-RegistryKey -Path 'HKLM:\Software\Test' -Key 'TestKey' } | Should -Not -Throw
         }
     }
@@ -106,7 +106,7 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
 
         It "Should accept valid Root values" {
             Mock Test-Path { $true } -ModuleName Registry
-            
+
             { Invoke-EnsureRegistryPath -Root 'HKLM' -Path 'Software\Test' } | Should -Not -Throw
             { Invoke-EnsureRegistryPath -Root 'HKCU' -Path 'Software\Test' } | Should -Not -Throw
         }
@@ -126,7 +126,7 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
             Mock Get-AllSIDs { @() } -ModuleName Registry
             Mock Get-LoadedUserHives { @() } -ModuleName Registry
             Mock Get-UnloadedUserHives { @() } -ModuleName Registry
-            
+
             $ScriptBlock = { param($Hive) }
             { Invoke-OnEachUserHive -ScriptBlock $ScriptBlock } | Should -Not -Throw
         }
@@ -137,7 +137,7 @@ Describe "Registry Module Tests" -Skip:(-not $IsWindows) {
             if ($IsLinux -or $IsMacOS) {
                 # On non-Windows platforms, registry operations should be mockable
                 Mock Test-Path { $false } -ModuleName Registry
-                
+
                 { Test-RegistryKey -Path 'HKLM:\Software\Test' -Key 'TestKey' } | Should -Not -Throw
             }
         }
