@@ -99,6 +99,8 @@ function Get-CurrentData {
     process {
         $LicensedUsers = Get-MgUser -Filter '(assignedLicenses/$count ne 0) and (AccountEnabled eq true)' -ConsistencyLevel eventual -CountVariable LicensedUserCount -All;
 
+        # The following common parameters are not currently supported in the Parallel parameter set: ErrorAction, WarningAction, InformationAction, PipelineVariable
+        $Global:PSDefaultParameterValues['Disabled'] = $True;
         $ExpandedUsers = $LicensedUsers | ForEach-Object -Parallel {
             $User = $_;
             $AuthMethods = Get-MgUserAuthenticationMethod -UserId $User.Id | ForEach-Object {
@@ -173,6 +175,7 @@ function Get-CurrentData {
             return $UserData;
         }
 
+        $Global:PSDefaultParameterValues.Remove('Disabled');
         return $ExpandedUsers;
     }
 }
@@ -304,7 +307,7 @@ function Update-History([OfficeOpenXml.ExcelWorksheet]$ActiveWorkSheet, [OfficeO
                     [String]$Local:Email = $ActiveWorkSheet.Cells[$RowIndex, 2].Value;
                     [Int]$Local:HistoryIndex = $HistoryEmails[$Email];
 
-                    if ($null -eq $Local:HistoryIndex) {
+                    if ($null -eq $Local:HistoryIndex -or $HistoryIndex -eq 0) {
                         [Int]$Local:HistoryIndex = $HistoryWorkSheet.Dimension.Rows + 1;
                         $HistoryWorkSheet.InsertRow($Local:HistoryIndex, 1);
                         $HistoryWorkSheet.Cells[$Local:HistoryIndex, 2].Value = $Local:Email;
