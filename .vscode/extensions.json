@@ -1,15 +1,14 @@
 {
-    "recommendations": [
-        "editorconfig.editorconfig",
-        "formulahendry.code-runner",
-        "ironmansoftware.powershellprotools",
-        "markis.code-coverage",
-        "ms-dotnettools.csdevkit",
-        "ms-dotnettools.csharp",
-        "ms-vscode.powershell",
-        "pspester.pester-test",
-        "ruschaaf.extended-embedded-languages",
-        "tylerleonhardt.vscode-inline-values-powershell",
-        "vadimcn.vscode-lldb",
-    ]
+  "recommendations": [
+    "editorconfig.editorconfig",
+    "formulahendry.code-runner",
+    "markis.code-coverage",
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.csharp",
+    "ms-vscode.powershell",
+    "pspester.pester-test",
+    "ruschaaf.extended-embedded-languages",
+    "tylerleonhardt.vscode-inline-values-powershell",
+    "vadimcn.vscode-lldb",
+  ]
 }

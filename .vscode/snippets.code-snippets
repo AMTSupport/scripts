@@ -4,8 +4,8 @@
         "prefix": "function",
         "body": [
             "function ${1:FunctionName} {",
-            "    begin { Enter-Scope -Invocation \\$MyInvocation; }",
-            "    end { Exit-Scope -Invocation \\$MyInvocation; }",
+            "    begin { Enter-Scope; }",
+            "    end { Exit-Scope; }",
             "",
             "    process { }",
             "}"
@@ -17,8 +17,8 @@
         "prefix": "functionr",
         "body": [
             "function ${1:FunctionName} {",
-            "    begin { Enter-Scope -Invocation \\$MyInvocation; }",
-            "    end { Exit-Scope -Invocation \\$MyInvocation -ReturnValue \\$Local:${2:ReturnValue}; }",
+            "    begin { Enter-Scope; }",
+            "    end { Exit-Scope -ReturnValue \\$Local:${2:ReturnValue}; }",
             "",
             "    process {",
             "        \\$Local:${2:ReturnValue} = $3;",
@@ -29,20 +29,6 @@
         ],
         "description": "Create a new function with scope management, and a return value"
     },
-
-    "Advanced Script Init": {
-        "scope": "powershell",
-        "prefix": "run",
-        "body": [
-            "Import-Module \\$PSScriptRoot/${1:Path/To/src}/common/Environment.psm1;",
-            "",
-            "Invoke-RunMain \\$MyInvocation {",
-            "",
-            "};"
-        ],
-        "description": "Create a new script using the run framework"
-    },
-
     "Parameter": {
         "scope": "powershell",
         "prefix": "param",
