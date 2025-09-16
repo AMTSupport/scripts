@@ -10,9 +10,7 @@ namespace Compiler.Test.Requirements;
 public class PSEditionTests {
 
     [Test, TestCaseSource(typeof(TestData), nameof(TestData.CaseForEachEdition))]
-    public string GetInsertableStringFromEdition(PSEdition edition) {
-        return new PSEditionRequirement(edition).GetInsertableLine([]);
-    }
+    public string GetInsertableStringFromEdition(PSEdition edition) => new PSEditionRequirement(edition).GetInsertableLine([]);
 
     [Test]
     public void AreIncompatableWithEachOther() {

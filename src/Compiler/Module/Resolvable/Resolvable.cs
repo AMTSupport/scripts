@@ -347,8 +347,20 @@ public class ResolvableParent {
             Logger.Debug($"Found existing resolvable for {moduleToResolve.Name} with match: {match}");
 
             switch (match) {
-                case ModuleMatch.PreferOurs or ModuleMatch.Same:
+                case ModuleMatch.PreferOurs or ModuleMatch.Same or ModuleMatch.Contained:
                     resultingResolvable = foundResolvable;
+                    break;
+                case ModuleMatch.PreferTheirs or ModuleMatch.None or ModuleMatch.OtherContained:
+                    var fin = await Resolvable.TryCreate(parentResolvable.AsOption(), moduleToResolve);
+
+                    if (fin.IsErr(out var err, out var resolvable)) {
+                        Logger.Error($"⚠️ Error creating resolvable for {moduleToResolve.Name}: {err}");
+                        return FinFail<Option<Resolvable>>(err);
+                    } else {
+                        resultingResolvable = resolvable;
+                        Logger.Debug($"Successfully created merged resolvable for {moduleToResolve.Name}");
+                    }
+
                     break;
                 case ModuleMatch.Incompatible:
                     Logger.Error($"⚠️ Incompatible module versions found for {moduleToResolve.Name}");
@@ -362,15 +374,13 @@ public class ResolvableParent {
 
                     Logger.Debug($"Merging modules: {mergeFrom.Name} with {string.Join(", ", mergeWith.Select(m => m.Name))}");
 
-                    var fin = await Resolvable.TryCreate(
+                    fin = await Resolvable.TryCreate(
                         parentResolvable.AsOption(),
                         mergeFrom,
                         [.. mergeWith]
                     );
 
-                    if (fin.IsErr(out var err, out var resolvable) && err is InvalidModulePathError) {
-                        Logger.Debug($"Failed to find local module {moduleToResolve.Name}, trying remote.");
-                    } else if (err is not null) {
+                    if (fin.IsErr(out err, out resolvable)) {
                         Logger.Error($"⚠️ Error creating resolvable for {moduleToResolve.Name}: {err}");
                         return FinFail<Option<Resolvable>>(err);
                     } else {
@@ -379,8 +389,6 @@ public class ResolvableParent {
                     }
 
                     break;
-                case ModuleMatch.None or ModuleMatch.PreferTheirs or ModuleMatch.Looser:
-                    goto default;
                 default:
                     break;
             }

@@ -89,12 +89,20 @@ public class ModuleSpec : Requirement {
     public Version? MaximumVersion { get; }
     public Version? RequiredVersion { get; }
 
+    /// <summary>
+    /// A set of all module specs that have existed and contributed to this final merged spec.
+    ///
+    /// If this is empty, this has not been merged with anything.
+    /// </summary>
+    public System.Collections.Generic.HashSet<ModuleSpec> Consumed { get; private set; } = [];
+
     public ModuleSpec(
         string name,
         Guid? id = null,
         Version? minimumVersion = null,
         Version? maximumVersion = null,
-        Version? requiredVersion = null
+        Version? requiredVersion = null,
+        ModuleSpec[]? consumed = default
     ) : base() {
         this.SupportsMultiple = true;
         this.Weight = 70;
@@ -104,6 +112,10 @@ public class ModuleSpec : Requirement {
         this.MinimumVersion = minimumVersion;
         this.MaximumVersion = maximumVersion;
         this.RequiredVersion = requiredVersion;
+
+        if (consumed != null && consumed.Length > 0) {
+            this.Consumed = [.. consumed, .. consumed.SelectMany(m => m.Consumed)];
+        }
 
         this.Hash = SHA256.HashData(Encoding.UTF8.GetBytes(string.Concat(this.Name, this.Id, this.MinimumVersion, this.MaximumVersion, this.RequiredVersion)));
     }
@@ -137,7 +149,14 @@ public class ModuleSpec : Requirement {
             }
         }
 
-        return new ModuleSpec(this.Name, guid, minVersion, maxVersion, reqVersion);
+        var union = merge.Union([this]);
+        var existing = union.FirstOrDefault(m => m.Id == guid && m.MinimumVersion == minVersion && m.MaximumVersion == maxVersion && m.RequiredVersion == reqVersion);
+        if (existing != null) {
+            existing.Consumed.UnionWith(union.Where(m => m != existing));
+            return existing;
+        }
+
+        return new ModuleSpec(this.Name, guid, minVersion, maxVersion, reqVersion, [.. union]);
     }
 
     public override string GetInsertableLine(Hashtable data) {
@@ -168,6 +187,8 @@ public class ModuleSpec : Requirement {
         if (ReferenceEquals(this, other)) return ModuleMatch.Same;
         if (this.Name != other.Name) return ModuleMatch.None;
         if (this.Id != null && other.Id != null && this.Id != other.Id) return ModuleMatch.None;
+        if (this.Consumed.Contains(other)) return ModuleMatch.Contained;
+        if (other.Consumed.Contains(this)) return ModuleMatch.OtherContained;
 
         var isStricter = false;
         var isLooser = false;

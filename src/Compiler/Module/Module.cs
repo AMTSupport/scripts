@@ -57,4 +57,14 @@ public enum ModuleMatch : short {
     /// This module fulfills the requirements, but has a stricter scope.
     /// </summary>
     Stricter = 5,
+
+    /// <summary>
+    /// This module has consumed the other <see cref="ModuleSpec"/> instance, we should use this instance.
+    /// </summary>
+    Contained = 6,
+
+    /// <summary>
+    /// This module has been consumed by the other <see cref="ModuleSpec"/> instance, we should use the other instance.
+    /// </summary>
+    OtherContained = 7
 }

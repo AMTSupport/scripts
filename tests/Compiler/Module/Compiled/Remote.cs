@@ -13,7 +13,7 @@ namespace Compiler.Test.Module.Compiled;
 
 [TestFixture]
 public class CompiledRemoteModuleTests {
-    public static Lock WritingResourceLock = new();
+    private static readonly Lock WritingResourceLock = new();
 
     [Test, Repeat(10), Parallelizable]
     public async Task StringifyContent_ReturnsValidAst() {
