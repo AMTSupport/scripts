@@ -213,4 +213,4 @@ function Invoke-OnEachUserHive {
     }
 }
 
-Export-ModuleMember -Function New-RegistryKey, Remove-RegistryKey, Test-RegistryKey, Get-RegistryKey, Set-RegistryKey, Invoke-OnEachUserHive;
+Export-ModuleMember -Function Invoke-EnsureRegistryPath, Remove-RegistryKey, Test-RegistryKey, Get-RegistryKey, Set-RegistryKey, Invoke-OnEachUserHive;
