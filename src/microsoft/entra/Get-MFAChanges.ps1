@@ -707,7 +707,7 @@ function Update-Data([PSCustomObject[]]$NewData, [OfficeOpenXml.ExcelWorksheet]$
             If ($AddNewData) {
                 $Local:Cell = $WorkSheet.Cells[$Local:Row, $Local:NewColumnIndex];
 
-                $Cell.Value = $Local:User.MFA.Phone;
+                $Cell.Value = $Local:User.MFA.Phone | Select-Object -First 1;
                 # $Local:Cell.Value = $Local:User | Select-Object -ExcludeProperty Email, DisplayName | ConvertTo-FormattedToml;
                 # $Cell.Style.WrapText = $true
                 # $Local:Cell.Style.Numberformat.Format = '@';
@@ -814,11 +814,11 @@ function Set-Check(
                 [String]$Local:PrevNumber = $WorkSheet.Cells[$Local:Row, $Local:PrevColumn].Value;
                 [String]$Local:CurrNumber = $WorkSheet.Cells[$Local:Row, $Local:CurrColumn].Value;
                 ($Message, $MessageColour) = if ([String]::IsNullOrWhitespace($Local:PrevNumber) -and [String]::IsNullOrWhitespace($Local:CurrNumber)) {
-                    'Missing',[System.Drawing.Color]::Turquoise;
+                    'Missing', [System.Drawing.Color]::Turquoise;
                 } elseif ([String]::IsNullOrWhitespace($Local:PrevNumber)) {
-                    'No Previous',[System.Drawing.Color]::Yellow;
+                    'No Previous', [System.Drawing.Color]::Yellow;
                 } elseif ($Local:PrevNumber -eq $Local:CurrNumber) {
-                    'Match',[System.Drawing.Color]::Green;
+                    'Match', [System.Drawing.Color]::Green;
                 } else {
                     'Mismatch',[System.Drawing.Color]::Red;
                 }
