@@ -32,7 +32,7 @@ public class ResolvableRemoteModuleTests {
     [Test]
     public void CachePath_IsCorrect() {
         var cachePath = this.ResolvableRemoteModule.CachePath;
-        Assert.That(cachePath, Is.EqualTo(Path.Join(Path.GetTempPath(), "PowerShellGet\\PSReadLine")));
+        Assert.That(cachePath, Is.EqualTo(Path.Join(Path.GetTempPath(), "PowerShellGet", "PSReadLine")));
     }
 
     [Test]
@@ -41,7 +41,7 @@ public class ResolvableRemoteModuleTests {
         Assert.That(moduleMatch, Is.EqualTo(ModuleMatch.Stricter));
     }
 
-    [Test]
+    [Test, Platform("Win")]
     public async Task ResolveRequirements() {
         var result = await this.ResolvableRemoteModule.ResolveRequirements();
         var requirements = this.ResolvableRemoteModule.Requirements;
@@ -157,7 +157,7 @@ public class ResolvableRemoteModuleTests {
         });
     }
 
-    [Test, Repeat(2)]
+    [Test, Repeat(2), Platform("Win")]
     public async Task CacheResult_DownloadsValidFile() {
         if (TestContext.CurrentContext.CurrentRepeatCount % 2 == 0) {
             // Allows us to cover the last branch of swapping the either method

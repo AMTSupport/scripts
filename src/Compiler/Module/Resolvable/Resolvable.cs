@@ -260,7 +260,7 @@ public class ResolvableParent {
     /// Creates all the links between the modules and their dependencies.
     /// </summary>
     private async Task ResolveDepedencyGraph() {
-        Queue<(Resolvable?, ModuleSpec)> iterating;
+        ConcurrentQueue<(Resolvable?, ModuleSpec)> iterating;
         lock (this.Graph) {
             iterating = new(this.Graph.Vertices.Select(res => ((Resolvable?)null, res.ModuleSpec)));
         }
@@ -304,7 +304,7 @@ public class ResolvableParent {
                 Logger.Debug($"Waiting for tasks to complete, {runningTasks.Count} running with {iterating.Count} left to process.");
                 await Task.WhenAny(runningTasks.Select(task => task.Task));
             }
-        } while (iterating.Count != 0 || runningTasks.Count != 0);
+        } while (!iterating.IsEmpty || runningTasks.Count != 0);
 
         Logger.Debug("Finished resolving all modules.");
     }

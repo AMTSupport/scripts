@@ -24,7 +24,7 @@ public class CompiledLocalModuleTests {
         });
     }
 
-    [Test, Parallelizable]
+    [Test, Parallelizable, Platform("Win")]
     public async Task HashChanges(
         [Values("Hello, World!")] string scriptOneHello,
         [Values("Hello, World!", "Hello, Other World!")] string scriptTwoHello

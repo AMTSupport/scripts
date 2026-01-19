@@ -88,7 +88,7 @@ public class Program {
                 var superParent = new ResolvableParent(opts.Input!);
 
                 var sourceRoot = File.Exists(opts.Input) ? Path.GetDirectoryName(opts.Input)! : opts.Input;
-                filesToCompile.ToList().ForEach(async scriptPath => {
+                var scriptCreationTasks = filesToCompile.Select(async scriptPath => {
                     var pathedModuleSpec = new PathedModuleSpec(sourceRoot, Path.GetFullPath(scriptPath));
                     var maybeScript = await Resolvable.TryCreateScript(pathedModuleSpec, superParent);
                     if (maybeScript.IsErr(out var error, out var resolvableScript)) {
@@ -104,7 +104,9 @@ public class Program {
                             compiled.GetPowerShellObject(),
                             opts.Force);
                     });
-                });
+                }).ToArray();
+
+                await Task.WhenAll(scriptCreationTasks);
 
                 try {
                     await superParent.Compile();
@@ -317,7 +319,8 @@ public class Program {
         bool forceOverwrite
     ) {
         // All files should use CRLF so we should convert before writing
-        content = content.Replace("\n", "\r\n");
+        // First normalize to LF to avoid double-converting existing CRLF to \r\r\n
+        content = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "\r\n");
 
         if (string.IsNullOrWhiteSpace(outputDirectory)) {
             // Output to console to allow for piping

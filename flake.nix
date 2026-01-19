@@ -28,6 +28,7 @@
       flake-parts,
       devenv,
       treefmt,
+      nixpkgs,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } (
@@ -92,8 +93,9 @@
 
               packages = with pkgs; [
                 powershell
-                nixfmt-rfc-style
+                powershell-editor-services
                 nuget-to-json
+                roslyn-ls
               ];
 
               languages = {

@@ -17,3 +17,4 @@ result
 
 # We also ignore the compiled files to not pollute the repository while developing
 compiled/**
+.workspaces/
