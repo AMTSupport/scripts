@@ -902,26 +902,6 @@ function Compare-FileHashToS3ETag {
     }
 }
 
-function Get-BlobCompatableHash {
-    param(
-        [Parameter(Mandatory)]
-        [String]$Path
-    )
-
-    begin {
-        Enter-Scope;
-        $Private:Algorithm = [System.Security.Cryptography.HashAlgorithm]::Create('MD5');
-    }
-    end { Exit-Scope; }
-
-    process {
-        [Byte[]]$Private:ByteStream = [System.IO.File]::ReadAllBytes($Path);
-        [Byte[]]$Private:HashBytes = $Private:Algorithm.ComputeHash($Private:ByteStream);
-
-        return [System.Convert]::ToBase64String($Private:HashBytes);
-    }
-}
-
 function Get-FactorOf1MB {
     param(
         [Parameter(Mandatory)]
@@ -1194,5 +1174,5 @@ function ConvertTo-InvokableValue {
 }
 
 Export-ModuleMember `
-    -Function ConvertTo-InvokableValue, Test-IsWindows11, Get-ContentEncoding, Remove-EncodingBom, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Get-BlobCompatableHash, Compare-FileHashToS3ETag, Get-ETag `
+    -Function ConvertTo-InvokableValue, Test-IsWindows11, Get-ContentEncoding, Remove-EncodingBom, Get-VarOrSave, Get-Ast, Get-ReturnType, Test-ReturnType, Test-Parameters, Install-ModuleFromGitHub, Test-NetworkConnection, Wait-Task, Start-AsyncTask, Add-LazyProperty, Set-LazyVariable, Test-IsRunningAsSystem, Compare-FileHashToS3ETag, Get-ETag `
     -Alias await, async, lazy;

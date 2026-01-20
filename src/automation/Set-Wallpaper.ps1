@@ -6,6 +6,7 @@ Using module ..\common\Registry.psm1
 Using module ..\common\Assert.psm1
 Using module ..\common\Ensure.psm1
 Using module ..\common\Exit.psm1
+Using module ..\common\Blob.psm1
 
 Using module RunAsUser
 
@@ -51,35 +52,6 @@ function Invoke-EncodeFromFile {
     }
 }
 
-function Find-FileByHash {
-    param(
-        [Parameter(Mandatory)]
-        [String]$Hash,
-
-        [Parameter(Mandatory)]
-        [Object]$Path,
-
-        [String]$Filter = '*'
-    )
-
-    begin { Enter-Scope; }
-    end { Exit-Scope -ReturnValue $Local:File.FullName; }
-
-    process {
-        Invoke-Info "Looking for file with hash $Hash in $Path...";
-
-        foreach ($Local:File in Get-ChildItem -Path $Path -File -Filter:$Filter) {
-            [String]$Local:FileHash = Get-BlobCompatableHash -Path:$Local:File.FullName;
-            Invoke-Debug "Checking file $($Local:File.FullName) with hash $Local:FileHash...";
-            if ($Local:FileHash -eq $Hash) {
-                return $Local:File.FullName;
-            }
-        }
-
-        return $null;
-    }
-}
-
 function Export-ToFile {
     [CmdletBinding()]
     param(
@@ -100,67 +72,6 @@ function Export-ToFile {
         [System.IO.File]::WriteAllBytes($TmpFile, [System.Convert]::FromBase64String($Base64Content));
 
         return $Local:TmpFile;
-    }
-}
-
-function Get-FromBlob {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [String]$Url,
-
-        [Parameter(Mandatory)]
-        [String]$SasToken
-    )
-
-    begin { Enter-Scope; }
-    end { Exit-Scope -ReturnValue $Local:OutPath; }
-
-    process {
-        [Regex]$Private:Regex = [Regex]::new('(?<key>[A-z]+)=(?<value>[A-z\d-:/+=]+)&?');
-        $Private:Matches = $Private:Regex.Matches($SasToken);
-
-        $Private:Query = [ordered]@{};
-        foreach ($Private:Match in $Private:Matches) {
-            $Private:Key = $Private:Match.Groups['key'].Value;
-            $Private:RawValue = $Private:Match.Groups['value'].Value;
-            $Private:Value = if ($Private:Key -eq 'sig') {
-                Invoke-Info "Applying URI encoding to $Private:RawValue...";
-                [URI]::EscapeDataString($Private:RawValue);
-            } else {
-                Invoke-Info "Decoding $Private:RawValue...";
-                $Private:RawValue;
-            }
-
-            Invoke-Info "Setting $Private:Key to $Private:Value...";
-            $Private:Query[$Private:Match.Groups['key'].Value] = $Private:Value;
-        }
-        $Private:UrlParams = ($Private:Query.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value -Replace '\\','')" }) -join '&';
-
-        [String]$Local:Uri = "${Url}?${Private:UrlParams}";
-
-        Invoke-Debug "Calling HEAD on $Local:Uri to get MD5 hash...";
-        try {
-            $Local:ResponseHeaders = Invoke-WebRequest -UseBasicParsing -Uri:$Local:Uri -Method:HEAD | Select-Object -ExpandProperty Headers;
-            Invoke-Debug "Response Headers: $Local:ResponseHeaders";
-            [String]$Local:MD5 = $Local:ResponseHeaders['Content-MD5'];
-            Assert-NotNull -Object:$Local:MD5 -Message:"Failed to get MD5 hash from $Local:Uri";
-        } catch {
-            Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:ERROR_INVALID_HEADERS -FormatArgs @($Local:Uri);
-        }
-
-        [System.IO.FileInfo]$Local:ExistingFile = Find-FileByHash -Hash:$Local:MD5 -Path:$Script:WallpaperFolder -Filter:'*.png';
-
-        if ($Local:ExistingFile) {
-            Invoke-Info "Using existing file {$Local:ExistingFile}...";
-            return $Local:ExistingFile;
-        }
-
-        [String]$Local:OutPath = $Script:WallpaperFolder | Join-Path -ChildPath ([System.IO.Path]::GetRandomFileName() + '.png');
-        Invoke-RestMethod -Uri:$Local:Uri -Method:GET -OutFile:$Local:OutPath;
-
-        Unblock-File -Path $Local:OutPath;
-        return $Local:OutPath;
     }
 }
 
@@ -277,8 +188,6 @@ function Get-ReusableFile {
 Invoke-RunMain $PSCmdlet {
     Invoke-EnsureAdministrator;
 
-    $Script:ERROR_INVALID_HEADERS = Register-ExitCode -Description 'Failed to get headers from {0}';
-
     if (-not (Test-Path -Path $Script:WallpaperFolder)) {
         $null = New-Item -Path $Script:WallpaperFolder -ItemType Directory -Force;
     }
@@ -294,7 +203,7 @@ Invoke-RunMain $PSCmdlet {
         'Set_StorageBlob' {
             Invoke-Info 'Setting wallpaper...';
 
-            [String]$Local:ImagePath = Get-FromBlob -Url $StorageBlobUrl -SasToken $StorageBlobSasToken;
+            [String]$Local:ImagePath = Get-FromBlob -Url $StorageBlobUrl -SasToken $StorageBlobSasToken -CachePath $Script:WallpaperFolder;
 
             Invoke-Info "Using image from $Local:ImagePath...";
 
