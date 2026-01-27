@@ -1,4 +1,4 @@
-#!ignore
+﻿#!ignore
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSAvoidGlobalVars',
     'Global:CompiledScript',
@@ -136,7 +136,7 @@ process {
                     # export the argument to a temporary CLIXML file and import it at runtime.
                     if ($PSVersionTable.PSVersion -lt [Version]'7.5') {
                         $argFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ('arg_' + ([System.Guid]::NewGuid().ToString()) + '.clixml'))
-                        $Value | Export-Clixml -Path $argFile -Depth 5
+                        $Value | Export-Clixml -Path $argFile -Depth 5 -WhatIf:$false
                         return "(Import-Clixml -Path '$argFile')";
                     } else {
                         return "(ConvertFrom-CliXML -InputObject '$(($Value | ConvertTo-CliXml -Depth 5) -replace "'", "''")')";
@@ -198,7 +198,6 @@ process {
 `$Error.Clear()
 
 `$Script:DisplayedErrorLog = [System.Collections.Generic.List[pscustomobject]]::new()
-`$Script:__ErrorComingFromStream = `$False
 
 `$ArgSplat = $(ConvertTo-InvokableValue $ArgumentTable)
 try {
@@ -211,6 +210,9 @@ try {
             `$Script:DisplayedErrorLog.Add(`$_)
         }
     }
+} catch {
+    Write-Output "Caught terminating error"
+    `$Script:DisplayedErrorLog.Add(`$_)
 } finally {
     if (`$Script:DisplayedErrorLog.Count -gt 0) {
         `$Script:DisplayedErrorLog | Export-Clixml -Path "$ErrorOutputPath" -Depth 4
@@ -228,6 +230,9 @@ try {
                     $fileContent = Get-Content -Path $ErrorOutputPath -Raw -ErrorAction SilentlyContinue
                     if ($fileContent.Trim() -ne 'NO_ERRORS') {
                         $capturedErrors = Import-Clixml -Path $ErrorOutputPath
+                        if (-not $capturedErrors.GetType().IsArray) {
+                            $capturedErrors = @($capturedErrors)
+                        }
 
                         Write-Debug "Captured $($capturedErrors.Count) errors from script execution:"
                         foreach ($err in $capturedErrors) {
@@ -250,9 +255,9 @@ try {
             } finally {
                 # Always clean arguments
                 $argPattern = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'arg_*.clixml')
-                Get-ChildItem -Path $argPattern -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+                Get-ChildItem -Path $argPattern -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue -WhatIf:$False
 
-                if ($DebugPreference -ne 'Continue') {
+                if ($DebugPreference -eq 'Ignore') {
                     if (Test-Path $wrapperPath) {
                         Remove-Item -Path $wrapperPath -Force -ErrorAction SilentlyContinue -WhatIf:$False
                     }
