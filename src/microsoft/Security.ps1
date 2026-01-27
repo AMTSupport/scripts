@@ -1,4 +1,4 @@
-Using module ..\common\Environment.psm1
+﻿Using module ..\common\Environment.psm1
 Using module ..\common\Connection.psm1
 Using module .\Common.psm1
 
@@ -144,7 +144,6 @@ Invoke-RunMain $PSCmdlet {
             New-ConditionalAccessPrivilegedIdentityManagementPolicy;
         }
         'Sharepoint' {
-            # Invoke-EnsureModule Microsoft.Online.Sharepoint.Powershell;
         }
     }
 };

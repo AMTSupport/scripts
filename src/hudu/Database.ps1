@@ -1,4 +1,4 @@
-Using module ..\common\Environment.psm1
+﻿Using module ..\common\Environment.psm1
 Using module ..\common\Logging.psm1
 Using module ..\common\Input.psm1
 Using module ..\common\Utils.psm1
@@ -76,8 +76,5 @@ Invoke-RunMain $PSCmdlet {
         New-HuduDatabase -Database "$Database/matched-companies.json" -Endpoint $Endpoint;
     } else {
         Invoke-Info 'Invoking existing companies';
-
-        # Invoke-EnsureModule -Modules "$PSScriptRoot/Existing.psm1";
-        # Invoke-Existing-Company -Database $Database;
     }
 };
