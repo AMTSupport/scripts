@@ -26,7 +26,7 @@ Using module ..\common\Blob.psm1
     .\Install-FontsFromBlob.ps1 -StorageBlobUrl 'https://myaccount.blob.core.windows.net/fonts' -StorageBlobSasToken 'sv=2021-06-08&ss=b&srt=co&sp=rl&se=...'
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
@@ -207,18 +207,25 @@ function Get-FontDisplayName {
 }
 
 function Install-Font {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([Boolean])]
     param(
         [Parameter(Mandatory)]
         [System.IO.FileInfo]$FontFile
     )
 
     begin { Enter-Scope; }
-    end { Exit-Scope; }
+    end { Exit-Scope -ReturnValue $Local:Installed; }
 
     process {
         [String]$Local:FileName = $FontFile.Name;
         [String]$Local:DestinationPath = $Script:FontsFolder | Join-Path -ChildPath $Local:FileName;
+        [String]$Local:DisplayName = Get-FontDisplayName -FontFile:$FontFile;
+        [Boolean]$Local:Installed = $false;
+
+        if (-not $PSCmdlet.ShouldProcess($Local:DisplayName, 'Install font')) {
+            return $false;
+        }
 
         Invoke-Info "Installing font: $Local:FileName";
 
@@ -228,9 +235,6 @@ function Install-Font {
         } catch {
             Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:ERROR_FONT_COPY_FAILED -FormatArgs @($Local:FileName);
         }
-
-        # Get display name for registry
-        [String]$Local:DisplayName = Get-FontDisplayName -FontFile:$FontFile;
 
         # Register in registry
         try {
@@ -247,6 +251,8 @@ function Install-Font {
         }
 
         Invoke-Info "Installed font: $Local:DisplayName";
+        $Local:Installed = $true;
+        return $true;
     }
 }
 
@@ -269,7 +275,10 @@ function Send-FontChangeNotification {
 }
 
 Invoke-RunMain $PSCmdlet {
-    Invoke-EnsureAdministrator;
+    # Only require admin when actually installing (not in WhatIf mode)
+    if (-not $WhatIfPreference) {
+        Invoke-EnsureAdministrator;
+    }
 
     # Register exit codes
     $Script:ERROR_BLOB_DOWNLOAD_FAILED = Register-ExitCode -Description 'Failed to download blob {0}';
@@ -320,13 +329,14 @@ Invoke-RunMain $PSCmdlet {
         # Get font file (from cache or download)
         [System.IO.FileInfo]$Local:FontFile = Get-FontFile -BlobName:$Local:BlobName -ContainerUrl:$StorageBlobUrl -SasQueryString:$Local:SasQueryString;
 
-        # Install the font
-        Install-Font -FontFile:$Local:FontFile;
-        $Local:InstalledCount++;
+        # Install the font (returns $false if WhatIf)
+        if (Install-Font -FontFile:$Local:FontFile) {
+            $Local:InstalledCount++;
+        }
     }
 
-    # Broadcast font change if any fonts were installed
-    if ($Local:InstalledCount -gt 0) {
+    # Broadcast font change if any fonts were installed (skip in WhatIf mode)
+    if ($Local:InstalledCount -gt 0 -and -not $WhatIfPreference) {
         Send-FontChangeNotification;
     }
 
