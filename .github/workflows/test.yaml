@@ -84,6 +84,7 @@ jobs:
         if: ${{ matrix.desktop }}
         shell: powershell
         run: |
+          Install-Module -Name PSReadLine -MinimumVersion 2.3.2
           $Config = Import-PowerShellDataFile -Path "tests/PesterConfiguration.psd1";
           Invoke-Pester -Configuration $Config
 
