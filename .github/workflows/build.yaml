@@ -27,7 +27,7 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet publish ./src/Compiler/Compiler.csproj -c Release -r win-x64
+        run: dotnet publish ./src/Compiler/Compiler.csproj -c Release -r win-x64 -f net10.0-windows
 
       - uses: actions/upload-artifact@v4
         with:

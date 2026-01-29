@@ -1,5 +1,6 @@
-Using module .\Logging.psm1
+﻿Using module .\Logging.psm1
 Using module .\Exit.psm1
+Using module .\Scope.psm1
 
 $Script:ERROR_INVALID_HEADERS = Register-ExitCode -Description 'Failed to get headers from {0}';
 $Script:ERROR_BLOB_HEAD_FAILED = Register-ExitCode -Description 'Failed to get headers from blob {0}';
@@ -122,22 +123,17 @@ function Get-BlobList {
             Invoke-Debug "Listing blobs from $Local:Uri...";
 
             try {
-                [xml]$Local:Response = Invoke-RestMethod -Uri:$Local:Uri -Method:GET;
+                $TempOutFile = New-TemporaryFile;
+                Invoke-RestMethod -UseBasicParsing -Uri:$Local:Uri -Method:GET -OutFile $TempOutFile;
+                [xml]$Local:Response = Get-Content -Path $TempOutFile;
+                Remove-Item -Path $TempOutFile -Force -ErrorAction SilentlyContinue;
             } catch {
                 Invoke-FailedExit -ErrorRecord $_ -ExitCode $Script:ERROR_BLOB_LIST_FAILED -FormatArgs @($ContainerUrl);
             }
 
             $Local:Blobs = $Local:Response.EnumerationResults.Blobs.Blob;
-            if ($Local:Blobs) {
-                foreach ($Local:Blob in $Local:Blobs) {
-                    [String]$Local:BlobName = $Local:Blob.Name;
-                    [String]$Local:Extension = [System.IO.Path]::GetExtension($Local:BlobName).ToLowerInvariant();
-
-                    if ($Script:SupportedExtensions -contains $Local:Extension) {
-                        Invoke-Debug "Found font blob: $Local:BlobName";
-                        $Local:AllBlobs.Add($Local:BlobName);
-                    }
-                }
+            foreach ($Local:Blob in $Local:Blobs) {
+                $Local:AllBlobs.Add($Local:Blob.Name);
             }
 
             $Local:Marker = $Local:Response.EnumerationResults.NextMarker;

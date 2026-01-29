@@ -1,4 +1,4 @@
-Using module ..\common\Environment.psm1
+﻿Using module ..\common\Environment.psm1
 Using module ..\common\Logging.psm1
 Using module ..\common\Utils.psm1
 Using module ..\common\Scope.psm1
@@ -40,15 +40,11 @@ param(
 [String]$Script:FontCacheFolder = $env:ProgramData | Join-Path -ChildPath 'AMT' | Join-Path -ChildPath 'Fonts' | Join-Path -ChildPath 'Cache';
 [String]$Script:FontsFolder = $env:windir | Join-Path -ChildPath 'Fonts';
 [String]$Script:FontsRegistryPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts';
-[String[]]$Script:SupportedExtensions = @('.ttf', '.otf', '.ttc');
+[String[]]$Script:SupportedExtensions = @('ttf', 'otf', 'ttc');
 
-# P/Invoke for font registration
 $Script:FontApiDefinition = @'
 [DllImport("gdi32.dll", CharSet = CharSet.Auto)]
 public static extern int AddFontResource(string lpszFilename);
-
-[DllImport("user32.dll", CharSet = CharSet.Auto)]
-public static extern int SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 '@;
 
 function Get-FontFile {
@@ -256,58 +252,30 @@ function Install-Font {
     }
 }
 
-function Send-FontChangeNotification {
-    begin { Enter-Scope; }
-    end { Exit-Scope; }
-
-    process {
-        # WM_FONTCHANGE = 0x001D, HWND_BROADCAST = 0xFFFF
-        [IntPtr]$Local:HWND_BROADCAST = [IntPtr]::new(0xFFFF);
-        [UInt32]$Local:WM_FONTCHANGE = 0x001D;
-
-        try {
-            $null = $Script:FontApi::SendMessage($Local:HWND_BROADCAST, $Local:WM_FONTCHANGE, [IntPtr]::Zero, [IntPtr]::Zero);
-            Invoke-Debug 'Sent WM_FONTCHANGE broadcast.';
-        } catch {
-            Invoke-Warn "Failed to broadcast font change notification: $_";
-        }
-    }
-}
-
 Invoke-RunMain $PSCmdlet {
-    # Only require admin when actually installing (not in WhatIf mode)
     if (-not $WhatIfPreference) {
         Invoke-EnsureAdministrator;
     }
 
-    # Register exit codes
     $Script:ERROR_BLOB_DOWNLOAD_FAILED = Register-ExitCode -Description 'Failed to download blob {0}';
     $Script:ERROR_FONT_COPY_FAILED = Register-ExitCode -Description 'Failed to copy font {0} to Fonts folder';
     $Script:ERROR_FONT_REGISTRY_FAILED = Register-ExitCode -Description 'Failed to register font {0} in registry';
 
-    # Add P/Invoke type
     try {
         $Script:FontApi = Add-Type -MemberDefinition $Script:FontApiDefinition -Name 'FontApi' -Namespace 'AMT' -PassThru;
     } catch {
-        # Type may already exist from previous run
         $Script:FontApi = [AMT.FontApi];
     }
 
-    # Ensure cache folder exists
     if (-not (Test-Path -Path $Script:FontCacheFolder)) {
-        $null = New-Item -Path $Script:FontCacheFolder -ItemType Directory -Force;
+        $null = New-Item -Path $Script:FontCacheFolder -ItemType Directory -Force -WhatIf:$False;
         Invoke-Debug "Created font cache folder: $Script:FontCacheFolder";
     }
 
-    # Normalize container URL (remove trailing slash)
     $StorageBlobUrl = $StorageBlobUrl.TrimEnd('/');
-
-    # Parse SAS token
     [String]$Local:SasQueryString = ConvertTo-SasQueryString -SasToken:$StorageBlobSasToken;
 
-    # List all font blobs
     [String[]]$Local:FontBlobs = Get-BlobList -ContainerUrl:$StorageBlobUrl -SasQueryString:$Local:SasQueryString;
-
     if ($Local:FontBlobs.Count -eq 0) {
         Invoke-Info 'No font files found in container.';
         return;
@@ -319,25 +287,16 @@ Invoke-RunMain $PSCmdlet {
     foreach ($Local:BlobName in $Local:FontBlobs) {
         [String]$Local:FileName = [System.IO.Path]::GetFileName($Local:BlobName);
 
-        # Check if already installed
         if (Test-FontInstalled -FontFileName:$Local:FileName) {
             Invoke-Debug "Font $Local:FileName is already installed, skipping.";
             $Local:SkippedCount++;
             continue;
         }
 
-        # Get font file (from cache or download)
         [System.IO.FileInfo]$Local:FontFile = Get-FontFile -BlobName:$Local:BlobName -ContainerUrl:$StorageBlobUrl -SasQueryString:$Local:SasQueryString;
-
-        # Install the font (returns $false if WhatIf)
         if (Install-Font -FontFile:$Local:FontFile) {
             $Local:InstalledCount++;
         }
-    }
-
-    # Broadcast font change if any fonts were installed (skip in WhatIf mode)
-    if ($Local:InstalledCount -gt 0 -and -not $WhatIfPreference) {
-        Send-FontChangeNotification;
     }
 
     Invoke-Info "Font installation complete. Installed: $Local:InstalledCount, Skipped (already installed): $Local:SkippedCount";

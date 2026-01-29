@@ -1,8 +1,7 @@
-Using module ../src/common/Environment.psm1
+﻿Using module ../src/common/Environment.psm1
+using module PSScriptAnalyzer
 
 Invoke-RunMain $PSCmdlet {
-    Invoke-EnsureModule -Modules 'PSScriptAnalyzer';
-
     $Local:Results = Invoke-ScriptAnalyzer `
         -Path $PSSCriptRoot/../src `
         -Recurse `
