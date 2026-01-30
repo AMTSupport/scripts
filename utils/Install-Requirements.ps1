@@ -30,7 +30,6 @@ Invoke-RunMain $PSCmdlet {
 
         foreach ($UsingStatement in $UsingStatements) {
             $ModuleName = $UsingStatement.Name.Value;
-            write-output "looking at using statement ($UsingStatement)"
 
             if ($null -ne $UsingStatement.ModuleSpecification) {
                 $SafeHashtable = $UsingStatement.ModuleSpecification.SafeGetValue();
@@ -45,7 +44,7 @@ Invoke-RunMain $PSCmdlet {
                     MaximumVersion = $MaximumVersion;
                 }
             } else {
-               $ModulesToInstall += @{
+                $ModulesToInstall += @{
                     Name = $ModuleName;
                 };
             }
@@ -54,14 +53,18 @@ Invoke-RunMain $PSCmdlet {
 
     $MergedModules = @{}
     foreach ($Module in $ModulesToInstall) {
-        if ($MergedModules[$Module.Name] -ne $null) {
+        if ($MergedModules.ContainsKey($Module.Name)) {
+            Invoke-Verbose "Found pre existing instance of $($Module.Name)"
             $Other = $Module[$Module.Name];
-            if (-not ($Other.RequiredVersion -eq $null -and $Other.MinimumVersion -eq $null -and $Other.MaximumVersion -eq $null)) {
+            if (-not (($Other.RequiredVersion -eq $null) -and ($Other.MinimumVersion -eq $null) -and ($Other.MaximumVersion -eq $null))) {
+                Invoke-Info "skipping because merging inst supported yet"
                 Write-Error "module version merging not yet supported"
             } else {
+                Invoke-Info "Overriding empty value with current $($Module.Name)"
                 $MergedModules[$Module.Name] = $Module
             }
         } else {
+            Invoke-Verbose "Adding previously unseen $($Module.Name)"
             $MergedModules.add($Module.Name, $Module);
         }
     }
@@ -89,14 +92,13 @@ Invoke-RunMain $PSCmdlet {
                 Invoke-Verbose "Installed version(s) range valid for declared range."
                 continue;
             }
-
-            Invoke-Verbose "Need to install $($Module | convertto-json)"
-            $NeededModules.add($Module.Name, $Module)
         }
+
+        Invoke-Verbose "Need to install $($Module | convertto-json)"
+        $NeededModules.add($Module.Name, $Module)
     }
 
     foreach ($Module in $NeededModules.values) {
-        Invoke-Info "Installing $($Module.Name)"
         $Name = $Module.Name;
         $MinimumVersion = $Module.MinimumVersion;
         $MaximumVersion = $Module.MaximumVersion;
