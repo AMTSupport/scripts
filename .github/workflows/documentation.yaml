@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Dependencies
-        uses: pwsh
+        shell: pwsh
         run: |
           Install-Module Alt3.Docusaurus.Powershell -Scope CurrentUser -Force
           Install-Module platyPS -Scope CurrentUser -Force
