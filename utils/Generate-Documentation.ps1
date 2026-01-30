@@ -45,7 +45,18 @@ foreach ($Module in $Modules) {
 
     Write-Output "Generating new MDX files for module: $($Module.BaseName) in $Parents";
     try {
-        Import-Module -Name $Module.FullName -Force -ErrorAction Stop;
+        $Error.clear()
+
+        try {
+            Import-Module -Name $Module.FullName -Force -ErrorAction Stop;
+        } catch {
+            $Errs = $Error.clone();
+            Write-Error "Unable to import $($Module.FullName)"
+            Write-Error "Possible errors:"
+            Write-Output $Errs
+            continue
+        }
+
         New-DocusaurusHelp @ModuleDocusaurusOptions;
     } catch {
         Write-Error "Failed to generate MDX files for module: $($Module.BaseName) in $Parents";
