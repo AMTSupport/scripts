@@ -59,7 +59,8 @@ foreach ($Module in $Modules) {
 
         New-DocusaurusHelp @ModuleDocusaurusOptions;
     } catch {
-        Write-Error "Failed to generate MDX files for module: $($Module.BaseName) in $Parents";
+        Write-Error "Failed to generate MDX files for module: $($Module.BaseName) in $Parents" -ErrorAction Continue;
+        Write-Error $_ -ErrorAction Continue;
     } finally {
         Remove-Module -Name $Module.BaseName -Force -ErrorAction SilentlyContinue;
     }
@@ -81,4 +82,3 @@ const sidebars = {
 export default sidebars;
 
 '@ | Set-Content -Path $Sidebar -Force;
-
