@@ -15,7 +15,7 @@ jobs:
     name: Update Documentation
     runs-on: ubuntu-latest
     outputs:
-      docs: ${{ steps.changes.outputs.changes.docs }}
+      changed: ${{ steps.changes.outputs.commit.changes_detected }}
     permissions:
       contents: write
       pull-requests: write
@@ -35,17 +35,9 @@ jobs:
         shell: pwsh
         run: .\utils\Generate-Documentation.ps1
 
-      - name: Check for changes
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            docs:
-              - 'docs/docs/**'
-
       - name: Commit changes
-        if: ${{ steps.changes.outputs.changes.docs == 'true' }}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        id: commit
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(docs): Update documentation"
 
@@ -53,7 +45,7 @@ jobs:
     name: Deploy Documentation
     runs-on: ubuntu-latest
     needs: update_docs
-    if: ${{ github.event_name == 'push' && needs.update_docs.outputs.docs == 'true' }}
+    if: ${{ needs.update_docs.outputs.changed == 'true' }}
     permissions:
       contents: read
       pull-requests: read
