@@ -1,0 +1,74 @@
+---
+id: Sync-Time
+title: Sync-Time
+description: Help page for the "Sync-Time" command
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+
+Syncs the system time with the default time server if the time is out of the supplied threshold.
+
+## SYNTAX
+
+```powershell
+Sync-Time [[-Threshold] <TimeSpan>]
+```
+
+## DESCRIPTION
+
+\{\{ Fill in the Description \}\}
+
+## EXAMPLES
+
+### EXAMPLE 1
+
+```powershell
+Sync-Time -Threshold (New-TimeSpan -Days 1)
+```
+
+Syncs the system time if the time is out of sync by more than 1 day.
+
+### EXAMPLE 2
+
+```powershell
+Sync-Time
+```
+
+Syncs the system time if the time is out of sync by more than the default 7 days.
+
+## PARAMETERS
+
+### -Threshold
+
+The time threshold to check against.
+Default is 7 days.
+
+```yaml
+Type: TimeSpan
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 1
+Default value: (New-TimeSpan -Days 7)
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+### Returns $True if the system time was out of sync and was successfully synced, otherwise $False.
+## NOTES
+
+## RELATED LINKS

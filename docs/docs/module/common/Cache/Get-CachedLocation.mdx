@@ -1,0 +1,181 @@
+---
+id: Get-CachedLocation
+title: Get-CachedLocation
+description: Help page for the "Get-CachedLocation" command
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+
+Get the location of a cached file, creating it if needed.
+
+## SYNTAX
+
+```powershell
+Get-CachedLocation [-Name] <String> [[-MaxAge] <TimeSpan>] [[-IsValidBlock] <ScriptBlock>]
+ [-CreateBlock] <ScriptBlock> [[-WriteBlock] <ScriptBlock>] [-NoCache] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
+```
+
+## DESCRIPTION
+
+This function checks if the cache file exists and is valid.
+If it doesn't exist, it calls the CreateBlock to generate the file.
+The cache file is considered valid if it exists, is not older than MaxAge, and if provided, the IsValidBlock returns true.
+
+## EXAMPLES
+
+### Example 1
+
+```powershell
+PS C:\> {{ Add example code here }}
+```
+
+\{\{ Add example description here \}\}
+
+## PARAMETERS
+
+### -Name
+
+The unique name of the cache file, used to generate the file path.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: True
+Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -MaxAge
+
+The maximum age of the cache file.
+If left empty, the cache file will always be considered valid by age.
+
+```yaml
+Type: TimeSpan
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 2
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -IsValidBlock
+
+A script block that determines if the cached content is still valid.
+This should have one parameter: Path and return a boolean value.
+
+```yaml
+Type: ScriptBlock
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 3
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -CreateBlock
+
+A script block that creates the content to be cached;
+If WriteBlock not customised this will write verbatim into the cache file.
+
+```yaml
+Type: ScriptBlock
+Parameter Sets: (All)
+Aliases:
+
+Required: True
+Position: 4
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -WriteBlock
+
+A script block that writes the content to the cache file;
+This should have two parameters: Path and Content.
+
+```yaml
+Type: ScriptBlock
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 5
+      Default value: {
+            param(
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [String]$Path,
+
+                [Parameter(Mandatory)]
+                [Object]$Content
+            )
+
+            $Content | Set-Content -Path $Path -Encoding UTF8;
+        }
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -NoCache
+
+Indicates that the cache should be ignored and to recreate the content.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ProgressAction
+
+\{\{ Fill ProgressAction Description \}\}
+
+```yaml
+Type: ActionPreference
+Parameter Sets: (All)
+Aliases: proga
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable, -InformationAction, -InformationVariable, -OutVariable, -OutBuffer, -PipelineVariable, -Verbose, -WarningAction, and -WarningVariable. For more information, see [about_CommonParameters](http://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

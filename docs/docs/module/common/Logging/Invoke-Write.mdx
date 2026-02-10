@@ -1,0 +1,193 @@
+---
+id: Invoke-Write
+title: Invoke-Write
+description: Help page for the "Invoke-Write" command
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+
+Writes a message to the console or returns it, based on provided parameters.
+
+## SYNTAX
+
+### Splat (Default)
+
+```powershell
+Invoke-Write -PSMessage <String> [-PSPrefix <String>] -PSColour <String> [-MultiLineIndent <Int32>]
+ [-ShouldWrite <Boolean>] [-PassThru] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+```
+
+### InputObject
+
+```powershell
+Invoke-Write [[-InputObject] <Hashtable>] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+
+This function processes a message with optional colour, prefix, and pass-through behavior.
+If PassThru is specified, the function returns the message instead of writing it to the console.
+
+## EXAMPLES
+
+### EXAMPLE 1
+
+```powershell
+Invoke-Write -PSMessage "Hello World" -PSColour "Cyan" -ShouldWrite $True
+```
+
+### EXAMPLE 2
+
+```powershell
+Invoke-Write @{ PSMessage = "Hello World"; PSColour = "Green"; PassThru = $true; ShouldWrite = $True }
+```
+
+## PARAMETERS
+
+### -InputObject
+
+A hashtable of parameters to be splatted into Invoke-Write.
+When passed, all other parameters are ignored.
+
+```yaml
+Type: Hashtable
+Parameter Sets: InputObject
+Aliases:
+
+Required: False
+Position: 1
+Default value: None
+Accept pipeline input: True (ByValue)
+Accept wildcard characters: False
+```
+
+### -PSMessage
+
+Specifies the message to be logged.
+
+```yaml
+Type: String
+Parameter Sets: Splat
+Aliases:
+
+Required: True
+Position: Named
+Default value: None
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -PSPrefix
+
+An optional Unicode prefix (e.g., emoji) to prepend to the output if Unicode is supported.
+
+```yaml
+Type: String
+Parameter Sets: Splat
+Aliases:
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -PSColour
+
+Specifies the color of the message text if colour output is supported.
+
+```yaml
+Type: String
+Parameter Sets: Splat
+Aliases:
+
+Required: True
+Position: Named
+Default value: None
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -MultiLineIndent
+
+Sets the number of characters to indent multiline message lines.
+
+```yaml
+Type: Int32
+Parameter Sets: Splat
+Aliases:
+
+Required: False
+Position: Named
+Default value: 0
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -ShouldWrite
+
+Indicates whether the function should write the message to the console.
+
+```yaml
+Type: Boolean
+Parameter Sets: Splat
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -PassThru
+
+When set, returns the formatted message instead of writing it to the console.
+
+```yaml
+Type: SwitchParameter
+Parameter Sets: Splat
+Aliases:
+
+Required: False
+Position: Named
+Default value: False
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -ProgressAction
+
+\{\{ Fill ProgressAction Description \}\}
+
+```yaml
+Type: ActionPreference
+Parameter Sets: (All)
+Aliases: proga
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable, -InformationAction, -InformationVariable, -OutVariable, -OutBuffer, -PipelineVariable, -Verbose, -WarningAction, and -WarningVariable. For more information, see [about_CommonParameters](http://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS
