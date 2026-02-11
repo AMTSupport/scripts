@@ -1,9 +1,11 @@
+# TODO - Nested Module Usage
 BeforeDiscovery {
     Import-Module -Name "$PSScriptRoot/../../../src/common/Logging.psm1"
     Import-Module -Name "$PSScriptRoot/Helpers.psm1"
 }
 
 BeforeAll {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', $null)]
     $Params = @{
         Message   = 'Test message'
     };
