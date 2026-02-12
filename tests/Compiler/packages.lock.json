@@ -54,9 +54,9 @@
       },
       "Moq": {
         "type": "Direct",
-        "requested": "[4.20.70, )",
-        "resolved": "4.20.70",
-        "contentHash": "4rNnAwdpXJBuxqrOCzCyICXHSImOTRktCgCWXWykuF1qwoIsVvEnR7PjbMk/eLOxWvhmj5Kwt+kDV3RGUYcNwg==",
+        "requested": "[4.20.72, )",
+        "resolved": "4.20.72",
+        "contentHash": "EA55cjyNn8eTNWrgrdZJH5QLFp2L43oxl1tlkoYUKIE9pRwL784OWiTXeCV5ApS+AMYEAlt7Fo03A2XfouvHmQ==",
         "dependencies": {
           "Castle.Core": "5.1.1"
         }
@@ -273,8 +273,7 @@
           "Microsoft.CodeAnalysis.CSharp": "4.12.0",
           "Microsoft.PowerShell.MarkdownRender": "7.2.1",
           "System.Drawing.Common": "9.0.2",
-          "System.Management.Automation": "7.6.0-preview.3",
-          "System.Threading.AccessControl": "9.0.2"
+          "System.Management.Automation": "7.6.0-preview.3"
         }
       },
       "Microsoft.PowerShell.ConsoleHost": {
@@ -383,7 +382,6 @@
           "System.ServiceModel.Syndication": "9.0.2",
           "System.ServiceProcess.ServiceController": "9.0.2",
           "System.Speech": "9.0.2",
-          "System.Threading.AccessControl": "9.0.2",
           "System.Web.Services.Description": "4.10.0"
         }
       },
@@ -878,11 +876,6 @@
         "resolved": "9.0.2",
         "contentHash": "arQPudYrkW+cZfF7qyKcv9ukR7lM54AKyQDPX/2RPrC1EFlkYWHeOI6ST6VeI8hefW4zH9f/FnThuC70LFNd9A=="
       },
-      "System.Threading.AccessControl": {
-        "type": "Transitive",
-        "resolved": "9.0.2",
-        "contentHash": "4bqapQyY6OPux4sQSorJC2d/shmVVAfuYl75b8mg7KQMj4tAzLn2fhLbpf2Sx2ReHFBJ3qgFeY3gFRisLkCP/g=="
-      },
       "System.Web.Services.Description": {
         "type": "Transitive",
         "resolved": "4.10.0",
@@ -1010,8 +1003,7 @@
           "Microsoft.CodeAnalysis.CSharp": "4.12.0",
           "Microsoft.PowerShell.MarkdownRender": "7.2.1",
           "System.Drawing.Common": "9.0.2",
-          "System.Management.Automation": "7.6.0-preview.3",
-          "System.Threading.AccessControl": "9.0.2"
+          "System.Management.Automation": "7.6.0-preview.3"
         }
       },
       "Microsoft.PowerShell.ConsoleHost": {
@@ -1269,11 +1261,6 @@
         "type": "Transitive",
         "resolved": "9.0.2",
         "contentHash": "arQPudYrkW+cZfF7qyKcv9ukR7lM54AKyQDPX/2RPrC1EFlkYWHeOI6ST6VeI8hefW4zH9f/FnThuC70LFNd9A=="
-      },
-      "System.Threading.AccessControl": {
-        "type": "Transitive",
-        "resolved": "9.0.2",
-        "contentHash": "4bqapQyY6OPux4sQSorJC2d/shmVVAfuYl75b8mg7KQMj4tAzLn2fhLbpf2Sx2ReHFBJ3qgFeY3gFRisLkCP/g=="
       },
       "System.Windows.Extensions": {
         "type": "Transitive",
