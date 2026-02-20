@@ -1,11 +1,22 @@
 #Requires -RunAsAdministrator
 #Requires -Version 5.1
 
+[CmdletBinding(DefaultParameterSetName = 'ByDownload')]
 Param(
-    [String]$Account = "localadmin", # TODO: Should this be the current user?
-    [String]$SentinelEndpoint = "apne1-swprd3.sentinelone.net",
+    [Parameter()]
+    [String]$Account = "localadmin",
 
+    [Parameter(Mandatory)]
     [String]$Password,
+
+    [Parameter(ParameterSetName = "ByLocation", Mandatory)]
+    [String]$InstallerLocation,
+
+    [Parameter(ParameterSetName = "ByDownload", Mandatory)]
+    [String]$InstallerUrl,
+
+    [Parameter(DontShow)]
+    [String]$SentinelEndpoint = "apne1-swprd3.sentinelone.net",
 
     [switch]$Repair,
     [switch]$DryRun
@@ -125,6 +136,10 @@ function Get-SentinelInstaller {
     begin { Enter-Scope $MyInvocation }
 
     process {
+        if ($InstallerLocation) {
+            return Get-Item -Path $InstallerLocation
+        }
+
         $Installer = "$env:TEMP\sentinelone.exe"
 
         if (Test-Path -Path $Installer) {
@@ -132,11 +147,9 @@ function Get-SentinelInstaller {
             return Get-Item -Path $Installer
         }
 
-        # TODO: Get the latest installer from the API instead of hardcoding
         try {
             Write-Host "Downloading SentinelOne installer..."
-            $Url = "https://nextcloud.racci.dev/s/nd7TsNG4FzTen9d/download/SentinelOneInstaller_windows_64bit_v23_1_4_650.exe"
-            Invoke-WebRequest -Uri $Url -OutFile $Installer -UseBasicParsing -ErrorAction Stop
+            Invoke-WebRequest -Uri $InstallerUrl -OutFile $Installer -UseBasicParsing -ErrorAction Stop
         } catch {
             Write-Host "Failed to download SentinelOne installer!" -ForegroundColor Red
             switch ($_.Exception.GetType()) {
@@ -185,6 +198,11 @@ function Invoke-Repair {
 #endregion - Steps
 
 function Main {
+    if ($PSCmdlet.ParameterSetName -eq "ByLocation" -and (-not ($InstallerLocation | Test-Path))) {
+        Write-Error "InstallerLocation does not point to a valid file."
+        exit 1
+    }
+
     if ($Repair) {
         Invoke-Repair
         Exit-Safemode
