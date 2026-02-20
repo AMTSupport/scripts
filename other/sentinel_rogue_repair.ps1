@@ -82,7 +82,15 @@ function Add-DesktopRunner {
         $wsh = New-Object -ComObject WScript.Shell
         $shortcut = $wsh.CreateShortcut($shortcut)
         $shortcut.TargetPath = "pwsh"
-        $shortcut.Arguments = "-NoExit -NonInteractive -ExecutionPolicy Bypass -File `"$($MyInvocation.PSCommandPath)`" -Repair -DryRun:$DryRun"
+
+        $InstallerArg = ""
+        if ($null -ne $InstallerLocation) {
+            $InstallerArg = "-InstallerLocation `"$InstallerLocation`""
+        } elseif ($null -ne $InstallerUrl) {
+            $InstallerArg = "-InstallerUrl `"$InstallerUrl`""
+        }
+
+        $shortcut.Arguments = "-NoExit -NonInteractive -ExecutionPolicy Bypass -File `"$($MyInvocation.PSCommandPath)`" -Repair $InstallerArg -DryRun:$DryRun"
         $shortcut.Save()
 
         # Ensure shortcut is run as administrator
