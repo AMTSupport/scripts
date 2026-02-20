@@ -213,7 +213,7 @@ function Local:Test-IsMatchable {
         [String]$ServiceB
     )
 
-    $Script:Services[$Service].Matchable -and (-not $ServiceB -or $Script:Services[$ServiceB].Matchable);
+    $Script:Services[$ServiceA].Matchable -and (-not $ServiceB -or $Script:Services[$ServiceB].Matchable);
 }
 
 function Local:Test-SameContext {
@@ -233,7 +233,7 @@ function Local:Test-SameContext {
     $Private:ContextA -and $Private:ContextB -and ($Private:ContextA -eq $Private:ContextB);
 }
 
-function Local:Test-NotMatchableOrSameContext {
+function Local:Test-CanShareContext {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -245,7 +245,7 @@ function Local:Test-NotMatchableOrSameContext {
         [String]$ServiceB
     )
 
-    (Test-IsMatchable -ServiceA $ServiceA -ServiceB $ServiceB) -or (Test-SameContext -ServiceA $ServiceA -ServiceB $ServiceB);
+    (-not (Test-IsMatchable -ServiceA $ServiceA -ServiceB $ServiceB)) -or (Test-SameContext -ServiceA $ServiceA -ServiceB $ServiceB);
 }
 #endregion
 
@@ -295,7 +295,7 @@ function Connect-Service(
             # }
 
 
-            if ($Local:LastService -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
+            if ($Local:LastService -and -not (Test-CanShareContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
                 Invoke-Info 'Not all services are connected with the same account, forcing disconnect...';
                 Disconnect-ServiceInternal -Service:$Local:Service;
             } elseif ($Local:Context) {
@@ -303,6 +303,10 @@ function Connect-Service(
                 if ($Local:ValidCheck -and -not (& $Local:ValidCheck -Scopes:$Scopes)) {
                     Invoke-Info "Connected to $Local:Service, but missing required scopes. Disconnecting...";
                     Disconnect-ServiceInternal -Service $Local:Service;
+                    if ($CheckOnly) {
+                        Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service) -ErrorRecord $_;
+                        continue;
+                    }
                 } elseif (!$DontConfirm) {
                     $Local:Continue = Get-UserConfirmation -Title "Already connected to $Local:Service as [$Local:Context]" -Question 'Do you want to continue?' -DefaultChoice $true;
                     if ($Local:Continue) {
@@ -313,6 +317,10 @@ function Connect-Service(
                     }
 
                     Disconnect-ServiceInternal -Service $Local:Service;
+                    if ($CheckOnly) {
+                        Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service) -ErrorRecord $_;
+                        continue;
+                    }
                 } else {
                     Invoke-Verbose "Already connected to $Local:Service. Skipping...";
                     $Local:Account = $Local:Context;
@@ -321,6 +329,11 @@ function Connect-Service(
                 }
             } elseif ($CheckOnly) {
                 Invoke-FailedExit -ExitCode:$Script:ERROR_NOT_CONNECTED -FormatArgs @($Local:Service) -ErrorRecord $_;
+                continue;
+            }
+
+            if ($CheckOnly) {
+                continue;
             }
 
             while ($True) {
@@ -339,7 +352,7 @@ function Connect-Service(
                     Invoke-Info "Service A: $Local:Service";
                     Invoke-Info "Service B: $Local:LastService";
 
-                    if ($Local:Account -and (Test-NotMatchableOrSameContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
+                    if ($Local:Account -and -not (Test-CanShareContext -ServiceA:$Local:Service -ServiceB:$Local:LastService)) {
                         Invoke-Warn 'Not all services are connected with the same account, please reconnect with the same account.';
                         Disconnect-ServiceInternal -Service $Local:Service;
                         continue;

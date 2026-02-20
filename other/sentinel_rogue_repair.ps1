@@ -6,7 +6,6 @@ Param(
     [Parameter()]
     [String]$Account = "localadmin",
 
-    [Parameter(Mandatory)]
     [String]$Password,
 
     [Parameter(ParameterSetName = "ByLocation", Mandatory)]
@@ -46,7 +45,7 @@ function Enter-Safemode {
         $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
         Set-ItemProperty $RegPath "AutoAdminLogon" -Value "1" -WhatIf:$DryRun
         Set-ItemProperty $RegPath "DefaultUsername" -Value "$Account" -WhatIf:$DryRun
-        Set-ItemProperty $RegPath "DefaultPassword" -Value "$Password" -WhatIf:$DryRun
+        if ($Password) { Set-ItemProperty $RegPath "DefaultPassword" -Value "$Password" -WhatIf:$DryRun }
 
         Write-Host "Please reboot the computer into safemode to continue."
     }
@@ -81,7 +80,7 @@ function Add-DesktopRunner {
         $shortcut = "$desktop\Please click me.lnk"
         $wsh = New-Object -ComObject WScript.Shell
         $shortcut = $wsh.CreateShortcut($shortcut)
-        $shortcut.TargetPath = "pwsh"
+        $shortcut.TargetPath = (Get-Command pwsh).Source
 
         $InstallerArg = ""
         if ($null -ne $InstallerLocation) {
@@ -194,7 +193,6 @@ function Invoke-Repair {
             Write-Host "Waiting for SentinelOne Uninstaller to finish..."
             Start-Sleep -Seconds 5
         }
-        # Start-Process -FilePath $Installer -ArgumentList "-c -k 1 -t 1" -Wait -NoNewWindow -WhatIf:$DryRun
 
         Remove-Item -Path $Installer -WhatIf:$DryRun
         Remove-Item -Path "$([Environment]::GetFolderPath("CommonDesktopDirectory"))\Please Click Me.lnk" -WhatIf:$DryRun
@@ -215,11 +213,6 @@ function Main {
         Invoke-Repair
         Exit-Safemode
     } else {
-        if (!$Password) {
-            Write-Host "Password not provided, exiting."
-            exit 1000
-        }
-
         Install-Requirements
         Get-SentinelInstaller
         Add-DesktopRunner
