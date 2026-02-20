@@ -104,7 +104,7 @@
     <PackageReference Include="NLog" Version="5.3.2" />
 
     <!-- PowerShell Deps -->
-    <PackageReference Include="System.Management.Automation" Version="7.6.0-preview.3" />
+    <PackageReference Include="System.Management.Automation" Version="7.6.0-rc.1" />
     <PackageReference Include="Microsoft.PowerShell.ConsoleHost" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.Commands.Utility" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.Commands.Diagnostics" Version="7.6.0-preview.3" />
