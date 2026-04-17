@@ -114,7 +114,8 @@ public partial class ResolvableLocalModule : Resolvable {
 
             ModuleSpec spec;
             var parentPath = Directory.GetParent(this.ModuleSpec.FullPath)!.FullName;
-            var possibleKeyFullPath = Path.GetFullPath(Path.Join(parentPath, module.Key));
+            var normalisedModuleKey = module.Key.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+            var possibleKeyFullPath = Path.GetFullPath(Path.Join(parentPath, normalisedModuleKey));
             spec = File.Exists(possibleKeyFullPath)
                 ? new PathedModuleSpec(this.ModuleSpec.SourceRoot, possibleKeyFullPath)
                 : new ModuleSpec(
