@@ -22,9 +22,9 @@
       },
       "LanguageExt.Core": {
         "type": "Direct",
-        "requested": "[5.0.0-beta-48, )",
-        "resolved": "5.0.0-beta-48",
-        "contentHash": "y1Ej5JSH36WjS5t65qyNgNvPeuR67igLL924YqrRPU/sV7gWqNCYFUOJ8JZhM+v8ZGniq0vtfMlmym0/jD4uWA=="
+        "requested": "[5.0.0-beta-77, )",
+        "resolved": "5.0.0-beta-77",
+        "contentHash": "zVBqn2alHIDTOSjgWDUo31irEg59ZfM6T8e24UcUn6o/F+5Qr0jRjGPp2LzME7PHyKh+crK+boBmdCAFguwqjw=="
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
