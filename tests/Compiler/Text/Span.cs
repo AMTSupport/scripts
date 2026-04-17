@@ -56,6 +56,13 @@ public class TextSpanTests {
     }
 
     [Test]
+    public void Contains_ReturnsFalse_WhenOutsideSpan() {
+        var span = TextSpan.New(1, 0, 1, 2).Unwrap();
+        var result = span.Contains(2, 0);
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
     public void GetContent_SingleLineFromBeginingAndEndLines() {
         var spanFirst = TextSpan.New(0, 0, 0, this.Lines[0].Length).Unwrap();
         var contentFirst = spanFirst.GetContent(this.Document);
@@ -67,6 +74,12 @@ public class TextSpanTests {
             Assert.That(contentFirst, Is.EqualTo(this.Lines[0]));
             Assert.That(contentLast, Is.EqualTo(this.Lines[^1]));
         });
+    }
+
+    [Test]
+    public void GetContent_ThrowsWhenStartingIndexOutOfRange() {
+        var span = TextSpan.New(10, 0, 10, 1).Unwrap();
+        Assert.That(() => span.GetContent(this.Document), Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 
     [Test]

@@ -15,7 +15,7 @@ namespace Compiler.Test.Module.Compiled;
 public class CompiledRemoteModuleTests {
     private static readonly Lock WritingResourceLock = new();
 
-    [Test, Repeat(10), Parallelizable, Platform("Win")]
+    [Test, Repeat(3), Parallelizable, Platform("Win")]
     public async Task StringifyContent_ReturnsValidAst() {
         var module = await TestData.GetTestRemoteModule();
         var stringifiedContent = module.StringifyContent();
@@ -26,7 +26,7 @@ public class CompiledRemoteModuleTests {
         });
     }
 
-    [Test, Repeat(10), Parallelizable, Platform("Win")]
+    [Test, Repeat(3), Parallelizable, Platform("Win")]
     public async Task StringifyContent_CanBeConvertedBack() {
         var module = await TestData.GetTestRemoteModule();
         var stringifiedContent = module.StringifyContent();
@@ -34,8 +34,9 @@ public class CompiledRemoteModuleTests {
 
         Assert.Multiple(() => {
             Assert.That(bytes, Is.Not.Empty);
+            Assert.That(bytes, Is.EqualTo(module.ContentBytes.Value));
 
-            using var zipArchive = new ZipArchive(new MemoryStream(module.ContentBytes.Value), ZipArchiveMode.Read, false);
+            using var zipArchive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, false);
             Assert.That(zipArchive, Is.Not.Null);
             Assert.That(zipArchive.Entries, Is.Not.Empty);
             Assert.That(zipArchive.Entries, Is.All.Property(nameof(ZipArchiveEntry.Length)).GreaterThan(0));

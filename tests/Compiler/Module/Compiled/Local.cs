@@ -24,7 +24,7 @@ public class CompiledLocalModuleTests {
         });
     }
 
-    [Test, Parallelizable, Platform("Win")]
+    [Test, Parallelizable]
     public async Task HashChanges(
         [Values("Hello, World!")] string scriptOneHello,
         [Values("Hello, World!", "Hello, Other World!")] string scriptTwoHello
@@ -38,17 +38,17 @@ public class CompiledLocalModuleTests {
         if (scriptOneHello == scriptTwoHello) {
             var oldHash = scriptOne.ComputedHash;
 
-            var remoteModule = await CompiledRemoteModuleTests.TestData.GetTestRemoteModule();
-            CompiledUtils.AddDependency(scriptOne, remoteModule);
+            var moduleContent = "Write-Host 'Hello, World!';";
+            var randomName = TestContext.CurrentContext.Random.GetString(6);
+            var localDependency = TestData.CreateModule<CompiledLocalModule>(moduleContent, randomName);
+            CompiledUtils.AddDependency(scriptOne, localDependency);
             Assert.That(scriptOne.ComputedHash, Is.Not.EqualTo(oldHash), "Hash should change when a dependency is added.");
             Assert.That(scriptOne.ComputedHash, Is.Not.EqualTo(scriptTwo.ComputedHash), "Hashes should differ when a dependency is added.");
 
-            CompiledUtils.AddDependency(scriptTwo, remoteModule);
+            CompiledUtils.AddDependency(scriptTwo, localDependency);
             Assert.That(scriptOne.ComputedHash, Is.EqualTo(scriptTwo.ComputedHash), "Hashes should not differ when the dependencies are the same.");
 
             // Check that a nested dependency changes the hash of the top module
-            var moduleContent = "Write-Host 'Hello, World!';";
-            var randomName = TestContext.CurrentContext.Random.GetString(6);
             var moduleDependencyOne = TestData.CreateModule<CompiledLocalModule>(moduleContent, randomName);
             var moduleDependencyTwo = TestData.CreateModule<CompiledLocalModule>(moduleContent, randomName);
             var nestedDependencyOne = TestData.CreateModule<CompiledLocalModule>("Write-Host 'Hello, Nested World!';");
