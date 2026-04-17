@@ -1,0 +1,102 @@
+---
+id: Invoke-ForEachCustomer
+title: Invoke-ForEachCustomer
+description: Help page for the "Invoke-ForEachCustomer" command
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+
+Iterate through every customers tenant and invoke a script block
+
+## SYNTAX
+
+```powershell
+Invoke-ForEachCustomer [-ScriptBlock] <ScriptBlock> [[-VaultName] <String>]
+ [-ProgressAction <ActionPreference>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+
+This function will iterate through every customer tenant and invoke a script block with the tenant as the current scope.
+This is useful for running scripts that need to be run for every customer.
+
+## EXAMPLES
+
+### EXAMPLE 1
+
+```powershell
+Invoke-ForEachCustomer {
+    Get-AlertsUser;
+}
+```
+
+## PARAMETERS
+
+### -ScriptBlock
+
+The script block to invoke for each customer tenant.
+
+```yaml
+Type: ScriptBlock
+Parameter Sets: (All)
+Aliases:
+
+Required: True
+Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -VaultName
+
+\{\{ Fill VaultName Description \}\}
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 2
+Default value: DelegatedAccessTokens
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -ProgressAction
+
+\{\{ Fill ProgressAction Description \}\}
+
+```yaml
+Type: ActionPreference
+Parameter Sets: (All)
+Aliases: proga
+
+Required: False
+Position: Named
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable, -InformationAction, -InformationVariable, -OutVariable, -OutBuffer, -PipelineVariable, -Verbose, -WarningAction, and -WarningVariable. For more information, see [about_CommonParameters](http://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+This is a very powerful function and should be used with caution.
+
+## RELATED LINKS
