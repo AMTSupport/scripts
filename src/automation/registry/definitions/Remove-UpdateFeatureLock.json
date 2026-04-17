@@ -1,0 +1,22 @@
+{
+  "$schema": "../../../../resources/schemas/RegistryDefinition.schema.jsonc",
+  "details": {
+    "synopsis": "Deletes the registry entries that disable automatic upgrades to newer versions of Windows.",
+    "description": "This action will remove the registry entries that prevent Windows from automatically upgrading to newer OS versions, allowing the system to receive and install feature updates as intended.",
+    "functionality": ["System", "Windows", "Updates"]
+  },
+  "entries": [
+    {
+      "Key": "TargetReleaseVersion",
+      "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+      "Value": null,
+      "Type": "DWord"
+    },
+    {
+      "Key": "TargetReleaseVersionInfo",
+      "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+      "Value": null,
+      "Type": "String"
+    }
+  ]
+}
