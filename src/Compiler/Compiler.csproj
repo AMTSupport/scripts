@@ -1,21 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <?xml-model href="https://github.com/dotnet/msbuild/blob/main/src/MSBuild/Microsoft.Build.xsd"?>
 <Project Sdk="Microsoft.NET.Sdk" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <MainEntryPoint>Program</MainEntryPoint>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0-windows</TargetFrameworks>
-    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('Windows'))">net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
 
-    <RuntimeIdentifiers Condition="$(TargetFramework.Contains('windows'))">win-x64</RuntimeIdentifiers>
-    <RuntimeIdentifiers Condition="!$(TargetFramework.Contains('windows'))">linux-x64</RuntimeIdentifiers>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <UseWindowsForms Condition="$(TargetFramework.Contains('windows'))">true</UseWindowsForms>
-    <UseWPF Condition="$(TargetFramework.Contains('windows'))">true</UseWPF>
-    <ImportWindowsDesktopTargets Condition="$(TargetFramework.Contains('windows'))">true</ImportWindowsDesktopTargets>
-    <DefineConstants Condition="$(TargetFramework.Contains('windows'))">$(DefineConstants);WINDOWS</DefineConstants>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
 
     <LangVersion>latest</LangVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -61,7 +54,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>3</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
-    <!-- Required by WinForms, should be fixed in .NET 10 (https://github.com/dotnet/winforms/issues/4649) -->
     <PublishTrimmed>false</PublishTrimmed>
     <PublishTrimmedMode>link</PublishTrimmedMode>
     <PublishReadyToRun>false</PublishReadyToRun>
@@ -107,9 +99,7 @@
     <PackageReference Include="System.Management.Automation" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.ConsoleHost" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.Commands.Utility" Version="7.6.0-preview.3" />
-    <PackageReference Include="Microsoft.PowerShell.Commands.Diagnostics" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.Commands.Management" Version="7.6.0-preview.3" />
-    <PackageReference Include="Microsoft.WSMan.Management" Version="7.6.0-preview.3" />
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.0-preview.3" />
     <PackageReference Include="NuGet.Commands" Version="6.9.1" />
     <PackageReference Include="NuGet.Common" Version="6.9.1" />

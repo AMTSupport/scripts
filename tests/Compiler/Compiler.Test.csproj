@@ -2,13 +2,9 @@
 <?xml-model href="https://github.com/dotnet/msbuild/blob/main/src/MSBuild/Microsoft.Build.xsd"?>
 <Project Sdk="Microsoft.NET.Sdk" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0-windows</TargetFrameworks>
-    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('Windows'))">net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
 
-    <RuntimeIdentifiers Condition="$(TargetFramework.Contains('windows'))">win-x64</RuntimeIdentifiers>
-    <RuntimeIdentifiers Condition="!$(TargetFramework.Contains('windows'))">linux-x64</RuntimeIdentifiers>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <DefineConstants Condition="$(TargetFramework.Contains('windows'))">$(DefineConstants);WINDOWS</DefineConstants>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
 
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

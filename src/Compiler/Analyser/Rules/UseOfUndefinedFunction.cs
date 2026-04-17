@@ -83,8 +83,8 @@ public class UseOfUndefinedFunction : Rule {
     /// This will collect the following:
     /// <list type="bullet">
     /// - Builtin functions of powershell
-    /// - Functions from modules in the compiling hosts C:\Windows\system32\WindowsPowerShell\v1.0\Modules path.
-    /// - Executables in the system32 directory.
+    /// - Functions from modules in the default PSModulePath.
+    /// - On Windows: executables in the system32 directory and WindowsPowerShell modules.
     /// - A few manual inclusions to cover some edge cases.
     /// </list>
     /// </summary>
@@ -97,15 +97,19 @@ public class UseOfUndefinedFunction : Rule {
             .GetCommands("*", CommandTypes.All, true)
             .Select(command => command.Name));
 
-        var modulesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules");
-        var moduleDirectories = Directory.GetDirectories(modulesPath);
-        var ps = PowerShell.Create().AddScript(/*ps1*/ $$"""
-            $env:PSModulePath = '{{modulesPath}}';
-            $env:Path = "${env:SystemRoot}\system32;${env:SystemRoot};${env:SystemRoot}\System32\Wbem;${env:SystemRoot}\System32\WindowsPowerShell\v1.0\;";
-            $PSModuleAutoLoadingPreference = 'All';
-            Get-Command * | Select-Object -ExpandProperty Name
-        """).Invoke();
-        defaultFunctions.AddRange(ps.Select(commandName => ((string)commandName.BaseObject).Replace(".exe", "")));
+        if (OperatingSystem.IsWindows()) {
+            var modulesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules");
+            if (Directory.Exists(modulesPath)) {
+                var ps = PowerShell.Create().AddScript(/*ps1*/ $$"""
+                    $env:PSModulePath = '{{modulesPath}}';
+                    $env:Path = "${env:SystemRoot}\system32;${env:SystemRoot};${env:SystemRoot}\System32\Wbem;${env:SystemRoot}\System32\WindowsPowerShell\v1.0\;";
+                    $PSModuleAutoLoadingPreference = 'All';
+                    Get-Command * | Select-Object -ExpandProperty Name
+                """).Invoke();
+                defaultFunctions.AddRange(ps.Select(commandName => ((string)commandName.BaseObject).Replace(".exe", "")));
+            }
+        }
+
         return defaultFunctions.Distinct().Select(SanatiseName);
     }
 

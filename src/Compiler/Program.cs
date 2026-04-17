@@ -40,7 +40,9 @@ public class Program {
 
     public static readonly Lazy<RunspacePool> RunspacePool = new(() => {
         var sessionState = InitialSessionState.CreateDefault();
-        sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
+        if (OperatingSystem.IsWindows()) {
+            sessionState.ExecutionPolicy = Microsoft.PowerShell.ExecutionPolicy.Bypass;
+        }
 
         var rsPool = RunspaceFactory.CreateRunspacePool(sessionState);
         rsPool.SetMinRunspaces(1);
@@ -375,19 +377,20 @@ public class Program {
         Option<string> outputDirectory
     ) {
         // Wait for all threads to finish before outputting errors, ensures all errors are captured.
-        var runspacePool = RunspacePool.Value!;
-        var maxRunspaces = runspacePool.GetMaxRunspaces();
-        do {
-            Logger.Debug($$"""
-            Waiting for all threads to finish {
-                Pending: {{ThreadPool.PendingWorkItemCount}}
-                Threads: {{ThreadPool.ThreadCount}}
-                Runspaces: {{Math.Abs(runspacePool.GetAvailableRunspaces() - maxRunspaces)}} of {{maxRunspaces}}
-            }
-            """);
-            await Task.Delay(25);
-        } while (ThreadPool.PendingWorkItemCount != 0 && ThreadPool.ThreadCount > maxRunspaces);
-
+        if (RunspacePool.IsValueCreated) {
+            var runspacePool = RunspacePool.Value!;
+            var maxRunspaces = runspacePool.GetMaxRunspaces();
+            do {
+                Logger.Debug($$"""
+                Waiting for all threads to finish {
+                    Pending: {{ThreadPool.PendingWorkItemCount}}
+                    Threads: {{ThreadPool.ThreadCount}}
+                    Runspaces: {{Math.Abs(runspacePool.GetAvailableRunspaces() - maxRunspaces)}} of {{maxRunspaces}}
+                }
+                """);
+                await Task.Delay(25);
+            } while (ThreadPool.PendingWorkItemCount != 0 && ThreadPool.ThreadCount > maxRunspaces);
+        }
 
         if (Errors.IsEmpty) return 0;
 
