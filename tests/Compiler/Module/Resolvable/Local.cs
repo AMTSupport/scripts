@@ -81,6 +81,31 @@ public class LocalModuleTests {
 
         Assert.That(module.GetHashCode(), Is.EqualTo(module.ModuleSpec.GetHashCode()));
     }
+
+    [Test]
+    public async Task ResolveRequirements_NormalisesWindowsSeparators() {
+        var root = Path.Combine(TestContext.CurrentContext.WorkDirectory, "LocalModulePathSep");
+        var commonDir = Path.Combine(root, "common");
+        Directory.CreateDirectory(commonDir);
+
+        var parentPath = Path.Combine(commonDir, "Parent.psm1");
+        var childPath = Path.Combine(commonDir, "Child.psm1");
+
+        await File.WriteAllTextAsync(parentPath, "Using module .\\Child.psm1");
+        await File.WriteAllTextAsync(childPath, "function Invoke-Child {}");
+
+        var module = new ResolvableLocalModule(new PathedModuleSpec(root, parentPath));
+        var result = await module.ResolveRequirements();
+
+        Assert.Multiple(() => {
+            Assert.That(result, Is.EqualTo(LanguageExt.Option<Error>.None));
+            var requirement = module.Requirements.GetRequirements<ModuleSpec>()
+                .OfType<PathedModuleSpec>()
+                .FirstOrDefault(r => r.FullPath == Path.GetFullPath(childPath));
+            Assert.That(requirement, Is.Not.Null);
+            Assert.That(requirement!.Name, Is.EqualTo("Child"));
+        });
+    }
 }
 
 file static class TestData {
