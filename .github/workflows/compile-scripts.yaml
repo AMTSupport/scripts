@@ -22,7 +22,7 @@ jobs:
         # Checks for changes in the 'compiled' and 'src' directories
         # We also check for deleted files so we can cleanup the compiled directory
       - name: Collect Changes for Upcoming Jobs
-        uses: dorny/paths-filter@v3.0.2
+        uses: dorny/paths-filter@v3.0.3
         id: changes
         with:
           list-files: shell
