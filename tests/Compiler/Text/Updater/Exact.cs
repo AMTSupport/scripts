@@ -52,7 +52,7 @@ public sealed class ExactTests {
                 """).SetName("Replace all content with empty except first and last line");
 
             yield return new TestCaseData(1, 0, 4, 9, UpdateOptions.None, (Func<string[], string[]>)(content => {
-                return content.Select(line => line + " Updated content!").ToArray();
+                return [.. content.Select(line => line + " Updated content!")];
             })).Returns("""
             $string = @"
             Hello, Updated content!
@@ -63,7 +63,7 @@ public sealed class ExactTests {
             """).SetName("Append 'Updated content!' to middle lines");
 
             yield return new TestCaseData(0, 0, 0, 8, UpdateOptions.InsertInline, (Func<string[], string[]>)(content => {
-                return content.Select(line => line.Replace("string", "epicString")).ToArray();
+                return [.. content.Select(line => line.Replace("string", "epicString"))];
             })).Returns("""
             $epicString = @"
             Hello,

@@ -1,9 +1,9 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
+using System.Collections;
 using Compiler.Module;
 using Compiler.Requirements;
-using System.Collections;
 
 namespace Compiler.Test.Requirements;
 

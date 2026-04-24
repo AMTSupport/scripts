@@ -10,9 +10,7 @@ public partial class DocumentTests {
     private TextEditor Editor;
 
     [SetUp]
-    public void SetUp() {
-        this.Editor = new TextEditor(new TextDocument([]));
-    }
+    public void SetUp() => this.Editor = new TextEditor(new TextDocument([]));
 
     [Test]
     public void GetLines_ReturnsSnapshot() {

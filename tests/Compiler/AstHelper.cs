@@ -1,13 +1,13 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
-using Compiler.Analyser;
-using LanguageExt;
-using LanguageExt.Common;
 using System.Collections;
 using System.Globalization;
 using System.Management.Automation.Language;
 using System.Text;
+using Compiler.Analyser;
+using LanguageExt;
+using LanguageExt.Common;
 
 namespace Compiler.Test;
 

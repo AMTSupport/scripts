@@ -74,49 +74,49 @@ public static partial class SuppressAnalyserAttributeExt {
         }
 
         if (namedArguments != null && namedArguments.Count != 0) foreach (var name in namedArguments) {
-                if (name.Extent.StartOffset < lastPositionalArgumentsOffset) return Issue.Error(
-                        "Named arguments must come after positional arguments",
+            if (name.Extent.StartOffset < lastPositionalArgumentsOffset) return Issue.Error(
+                    "Named arguments must come after positional arguments",
+                    name.Extent,
+                    attrAst.GetRootParent()
+                );
+
+            var argumentName = name.ArgumentName;
+            if (argumentName.Equals("checkType", StringComparison.OrdinalIgnoreCase)) {
+                if (!string.IsNullOrWhiteSpace(checkType)) return Issue.Error(
+                        "Named and positional arguments conflict for checkType",
                         name.Extent,
                         attrAst.GetRootParent()
                     );
 
-                var argumentName = name.ArgumentName;
-                if (argumentName.Equals("checkType", StringComparison.OrdinalIgnoreCase)) {
-                    if (!string.IsNullOrWhiteSpace(checkType)) return Issue.Error(
-                            "Named and positional arguments conflict for checkType",
-                            name.Extent,
-                            attrAst.GetRootParent()
-                        );
+                if (name.Argument is not StringConstantExpressionAst checkTypeAst) return Issue.Error(
+                        "CheckType must be a string constant",
+                        name.Extent,
+                        attrAst.GetRootParent()
+                    );
+                checkType = checkTypeAst.Value;
+            } else if (argumentName.Equals("data", StringComparison.OrdinalIgnoreCase)) {
+                if (data is not null) return Issue.Error(
+                        "Named and positional arguments conflict for data",
+                        name.Extent,
+                        attrAst.GetRootParent()
+                    );
 
-                    if (name.Argument is not StringConstantExpressionAst checkTypeAst) return Issue.Error(
-                            "CheckType must be a string constant",
-                            name.Extent,
-                            attrAst.GetRootParent()
-                        );
-                    checkType = checkTypeAst.Value;
-                } else if (argumentName.Equals("data", StringComparison.OrdinalIgnoreCase)) {
-                    if (data is not null) return Issue.Error(
-                            "Named and positional arguments conflict for data",
-                            name.Extent,
-                            attrAst.GetRootParent()
-                        );
+                data = name.Argument.SafeGetValue();
+            } else if (argumentName.Equals("justification", StringComparison.OrdinalIgnoreCase)) {
+                if (!string.IsNullOrWhiteSpace(justification)) return Issue.Error(
+                        "Named and positional arguments conflict for justification",
+                        name.Extent,
+                        attrAst.GetRootParent()
+                    );
 
-                    data = name.Argument.SafeGetValue();
-                } else if (argumentName.Equals("justification", StringComparison.OrdinalIgnoreCase)) {
-                    if (!string.IsNullOrWhiteSpace(justification)) return Issue.Error(
-                            "Named and positional arguments conflict for justification",
-                            name.Extent,
-                            attrAst.GetRootParent()
-                        );
-
-                    if (name.Argument is not StringConstantExpressionAst justificationAst) return Issue.Error(
-                            "Justification must be a string constant",
-                            name.Extent,
-                            attrAst.GetRootParent()
-                        );
-                    justification = justificationAst.Value;
-                }
+                if (name.Argument is not StringConstantExpressionAst justificationAst) return Issue.Error(
+                        "Justification must be a string constant",
+                        name.Extent,
+                        attrAst.GetRootParent()
+                    );
+                justification = justificationAst.Value;
             }
+        }
 
         Issue IsRequired(string name) => Issue.Error(
             $"{name} is required",

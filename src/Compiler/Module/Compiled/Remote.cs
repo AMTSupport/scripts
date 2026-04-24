@@ -2,7 +2,6 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
-using System.IO;
 using System.IO.Compression;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
@@ -121,6 +120,12 @@ public class CompiledRemoteModule : Compiled {
             CommandTypes.Function => this.ThisExtraModuleInfo.Value.FunctionsToExport,
             CommandTypes.Cmdlet => this.ThisExtraModuleInfo.Value.CmdletsToExport,
             CommandTypes.Alias => this.ThisExtraModuleInfo.Value.AliasesToExport,
+            CommandTypes.Filter => throw new NotImplementedException(),
+            CommandTypes.ExternalScript => throw new NotImplementedException(),
+            CommandTypes.Application => throw new NotImplementedException(),
+            CommandTypes.Script => throw new NotImplementedException(),
+            CommandTypes.Configuration => throw new NotImplementedException(),
+            CommandTypes.All => throw new NotImplementedException(),
             _ => throw new ArgumentOutOfRangeException(nameof(commandTypes), commandTypes, null)
         };
         if (extraExports != null) exported.AddRange(extraExports);

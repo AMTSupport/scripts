@@ -2,9 +2,9 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -173,10 +173,12 @@ public class ModuleSpec : Requirement {
 
         switch (this.RequiredVersion, this.MinimumVersion, this.MaximumVersion) {
             case (null, null, null): break;
-            case (null, var min, var max) when min != null && max != null: sb.Append(CultureInfo.InvariantCulture, $"ModuleVersion = '{min}';MaximumVersion = '{max}';"); break;
-            case (null, var min, _) when min != null: sb.Append(CultureInfo.InvariantCulture, $"ModuleVersion = '{min}';"); break;
-            case (null, _, var max) when max != null: sb.Append(CultureInfo.InvariantCulture, $"MaximumVersion = '{max}';"); break;
-            case (var req, _, _): sb.Append(CultureInfo.InvariantCulture, $"RequiredVersion = '{req}';"); break;
+            case (var req, _, _) when req != null: sb.Append(CultureInfo.InvariantCulture, $"RequiredVersion = '{req}';"); break;
+            case (null, not null, not null): sb.Append(CultureInfo.InvariantCulture, $"ModuleVersion = '{this.MinimumVersion}';MaximumVersion = '{this.MaximumVersion}';"); break;
+            case (null, not null, _): sb.Append(CultureInfo.InvariantCulture, $"ModuleVersion = '{this.MinimumVersion}';"); break;
+            case (null, _, not null): sb.Append(CultureInfo.InvariantCulture, $"MaximumVersion = '{this.MaximumVersion}';"); break;
+            default:
+                throw new UnreachableException($"Unexpected version combination: Required={this.RequiredVersion}, Min={this.MinimumVersion}, Max={this.MaximumVersion}");
         }
 
         sb.Append('}');
@@ -207,6 +209,8 @@ public class ModuleSpec : Requirement {
             case (var a, var b) when a < b:
                 isLooser = true;
                 break;
+            default:
+                break;
         }
 
         switch ((this.MaximumVersion, other.MaximumVersion)) {
@@ -223,6 +227,8 @@ public class ModuleSpec : Requirement {
                 break;
             case (var a, var b) when a > b:
                 isLooser = true;
+                break;
+            default:
                 break;
         }
 
@@ -246,6 +252,8 @@ public class ModuleSpec : Requirement {
                 break;
             case (var a, var b) when a != b:
                 return ModuleMatch.Incompatible;
+            default:
+                break;
         }
 
         // We can't really determine if its higher or lower so we just call it the same.

@@ -51,9 +51,9 @@ public sealed class WhitespaceUpdater() : TextSpanUpdater(90) {
             }
 
             spanUpdates.Add(new SpanUpdateInfo(this, span, contentChange));
-            stringConstants = stringConstants
+            stringConstants = [.. stringConstants
                 .Where(x => x.EndingIndex >= span.EndingIndex) // Remove any contants that are before the current span as they are no longer relevant
-                .Select(x => x.WithUpdate(spanUpdates)).ToList();
+                .Select(x => x.WithUpdate(spanUpdates))];
         }
 
         return spanUpdates;

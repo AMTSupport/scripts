@@ -1,7 +1,6 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
-using C = System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
@@ -11,8 +10,8 @@ using LanguageExt;
 using NLog;
 using QuikGraph;
 using QuikGraph.Graphviz;
-using System.IO;
 using QuikGraph.Graphviz.Dot;
+using C = System.Collections.Generic;
 namespace Compiler.Module.Resolvable;
 
 public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleSpec) {
@@ -369,6 +368,13 @@ public class ResolvableParent {
                     var (mergeFrom, mergeWith) = match switch {
                         ModuleMatch.MergeRequired => (moduleToResolve, new List<ModuleSpec> { foundResolvable.ModuleSpec }),
                         ModuleMatch.Stricter or ModuleMatch.Looser => (foundResolvable.ModuleSpec, [moduleToResolve]),
+                        ModuleMatch.Incompatible => throw new NotImplementedException(),
+                        ModuleMatch.None => throw new NotImplementedException(),
+                        ModuleMatch.Same => throw new NotImplementedException(),
+                        ModuleMatch.PreferOurs => throw new NotImplementedException(),
+                        ModuleMatch.PreferTheirs => throw new NotImplementedException(),
+                        ModuleMatch.Contained => throw new NotImplementedException(),
+                        ModuleMatch.OtherContained => throw new NotImplementedException(),
                         _ => (moduleToResolve, []),
                     };
 

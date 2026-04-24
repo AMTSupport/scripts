@@ -1,8 +1,8 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
-using Compiler.Module.Resolvable;
 using Compiler.Module;
+using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 
 namespace Compiler.Test.EdgeCases;
@@ -66,7 +66,7 @@ public class DependencyResolutionTests {
         parent.Resolvables.TryAdd(specA, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<Action<Compiler.Module.Compiled.CompiledScript>>.None));
         parent.Resolvables.TryAdd(specB, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<Action<Compiler.Module.Compiled.CompiledScript>>.None));
 
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await parent.Compile());
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(parent.Compile);
         Assert.That(ex!.Message, Does.Contain("cycle"));
     }
 
@@ -96,7 +96,7 @@ public class DependencyResolutionTests {
         parent.Resolvables.TryAdd(specB, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<Action<Compiler.Module.Compiled.CompiledScript>>.None));
         parent.Resolvables.TryAdd(specC, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<Action<Compiler.Module.Compiled.CompiledScript>>.None));
 
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await parent.Compile());
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(parent.Compile);
         Assert.That(ex!.Message, Does.Contain("cycle"));
     }
 
@@ -137,9 +137,7 @@ public class DependencyResolutionTests {
     }
 }
 
-file sealed class MockResolvable : Resolvable {
-    public MockResolvable(ModuleSpec spec) : base(spec) { }
-
+file sealed class MockResolvable(ModuleSpec spec) : Resolvable(spec) {
     public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) =>
         this.ModuleSpec.CompareTo(requirement);
 

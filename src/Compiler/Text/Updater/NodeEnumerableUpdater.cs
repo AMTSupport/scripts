@@ -29,7 +29,7 @@ public abstract class NodeEnumerableUpdater<TItem>(
             var isMultiLine = span.StartingIndex != span.EndingIndex;
             var newContent = itemUpdater(node);
 
-            thisChange = span.SetContent(lines, options, newContent!);
+            thisChange = span.SetContent(lines, options, newContent);
             if (thisChange.IsErr(out err, out var change)) return err;
 
             updateSpans.Add(new SpanUpdateInfo(this, span, change));

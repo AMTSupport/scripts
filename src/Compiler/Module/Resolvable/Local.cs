@@ -2,7 +2,6 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Collections.Concurrent;
-using System.IO;
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;

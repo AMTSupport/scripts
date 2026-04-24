@@ -50,7 +50,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
         // So we need to tell the compiler to not optimize this method.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
         get {
-            var byteList = new List<byte>((byte[])this.ContentBytes!.Value.Clone());
+            var byteList = new List<byte>((byte[])this.ContentBytes.Value.Clone());
             this.AddRequirementHashBytes(byteList, this.Requirements);
             return Convert.ToHexString(SHA256.HashData([.. byteList]));
         }

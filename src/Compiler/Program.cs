@@ -3,28 +3,26 @@
 
 global using LanguageExt.Common;
 global using static LanguageExt.Prelude;
-
-using C = System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Contracts;
+using System.Globalization;
 using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Management.Automation.Runspaces;
+using System.Reflection;
 using System.Text;
 using CommandLine;
 using Compiler.Analyser;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
+using Extended.Collections.Generic;
+using LanguageExt;
 using NLog;
 using NLog.Targets;
-using System.Globalization;
-using Extended.Collections.Generic;
 using NuGet.Packaging;
-using LanguageExt;
-using System.Reflection;
-using System.Diagnostics.Contracts;
-using System.Diagnostics.CodeAnalysis;
-using System.IO;
+using C = System.Collections.Generic;
 
 namespace Compiler;
 
@@ -142,7 +140,7 @@ public class Program {
     public static void CleanInput(Options opts) {
         ArgumentException.ThrowIfNullOrWhiteSpace(opts.Input, nameof(opts.Input));
 
-        opts.Input = Path.GetFullPath(opts.Input!.Trim());
+        opts.Input = Path.GetFullPath(opts.Input.Trim());
         if (opts.Output != null) {
             opts.Output = Path.GetFullPath(opts.Output.Trim());
             if (File.Exists(opts.Output)) {

@@ -3,7 +3,6 @@
 
 using System.Collections;
 using System.Diagnostics.Contracts;
-using System.IO;
 using System.IO.Compression;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;

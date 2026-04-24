@@ -17,7 +17,7 @@
   };
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     devenv.url = "github:cachix/devenv";
     treefmt.url = "github:numtide/treefmt-nix";
@@ -87,47 +87,54 @@
               ];
             };
 
-            devenv.shells.default = {
-              # Fixes https://github.com/cachix/devenv/issues/528
-              containers = lib.mkForce { };
+            devenv.shells.default =
+              let
+                dotnetPkg = pkgs.dotnet-sdk_10.overrideAttrs (oldAttrs: {
+                  postBuild =
+                    (oldAttrs.postBuild or '''')
+                    + ''
+                      for i in $out/sdk/*; do
+                          i=$(basename $i)
+                          mkdir -p $out/metadata/workloads/''${i/-*}
+                          touch $out/metadata/workloads/''${i/-*}/userlocal
+                      done
+                    '';
+                });
+              in
+              {
+                # Fixes https://github.com/cachix/devenv/issues/528
+                containers = lib.mkForce { };
 
-              packages = with pkgs; [
-                powershell
-                powershell-editor-services
-                nuget-to-json
-                roslyn-ls
-              ];
+                packages = with pkgs; [
+                  powershell
+                  powershell-editor-services
+                  nuget-to-json
+                  roslyn-ls
+                  csharp-ls
+                ];
 
-              languages = {
-                nix.enable = true;
-                dotnet = {
-                  enable = true;
-                  package = pkgs.dotnet-sdk_10.overrideAttrs (oldAttrs: {
-                    postBuild =
-                      (oldAttrs.postBuild or '''')
-                      + ''
-                        for i in $out/sdk/*; do
-                            i=$(basename $i)
-                            mkdir -p $out/metadata/workloads/''${i/-*}
-                            touch $out/metadata/workloads/''${i/-*}/userlocal
-                        done
-                      '';
-                  });
+                languages = {
+                  nix.enable = true;
+                  dotnet = {
+                    enable = true;
+                    package = dotnetPkg;
+                  };
+                };
+
+                env.DOTNET_ROOT = lib.mkForce "${dotnetPkg.unwrapped}/share/dotnet";
+
+                git-hooks = {
+                  hooks = {
+                    nil.enable = true;
+                    actionlint.enable = true;
+                    deadnix.enable = true;
+                    statix.enable = true;
+                    nixfmt.enable = true;
+                    flake-checker.enable = true;
+                    editorconfig-checker.enable = true;
+                  };
                 };
               };
-
-              git-hooks = {
-                hooks = {
-                  nil.enable = true;
-                  actionlint.enable = true;
-                  deadnix.enable = true;
-                  statix.enable = true;
-                  nixfmt-rfc-style.enable = true;
-                  flake-checker.enable = true;
-                  editorconfig-checker.enable = true;
-                };
-              };
-            };
           };
       }
     );

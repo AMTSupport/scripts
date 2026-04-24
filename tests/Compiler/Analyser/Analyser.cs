@@ -1,4 +1,3 @@
-using Compiler.Analyser;
 using Compiler.Module.Compiled;
 using Compiler.Test.Module.Compiled;
 

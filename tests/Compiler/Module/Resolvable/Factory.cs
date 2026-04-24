@@ -2,7 +2,6 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Reflection;
-using Compiler.Module;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using LanguageExt;
@@ -45,8 +44,10 @@ public class ResolvableFactoryTests {
 
         var result = await ResolvableBase.TryCreate(Option<ResolvableBase>.None, spec);
 
-        Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should succeed");
-        Assert.That(resolvable, Is.InstanceOf<ResolvableRemoteModule>());
+        Assert.Multiple(() => {
+            Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should succeed");
+            Assert.That(resolvable, Is.InstanceOf<ResolvableRemoteModule>());
+        });
     }
 
     [Test]
@@ -62,8 +63,10 @@ public class ResolvableFactoryTests {
 
         var result = await ResolvableBase.TryCreate(Option<ResolvableBase>.Some(parent), childSpec);
 
-        Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should succeed for local child");
-        Assert.That(resolvable, Is.InstanceOf<ResolvableLocalModule>());
+        Assert.Multiple(() => {
+            Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should succeed for local child");
+            Assert.That(resolvable, Is.InstanceOf<ResolvableLocalModule>());
+        });
     }
 
     [Test]
@@ -78,8 +81,10 @@ public class ResolvableFactoryTests {
 
         var result = await ResolvableBase.TryCreate(Option<ResolvableBase>.Some(parent), childSpec);
 
-        Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should fall back to remote");
-        Assert.That(resolvable, Is.InstanceOf<ResolvableRemoteModule>());
+        Assert.Multiple(() => {
+            Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should fall back to remote");
+            Assert.That(resolvable, Is.InstanceOf<ResolvableRemoteModule>());
+        });
     }
 
     [Test]
@@ -90,8 +95,11 @@ public class ResolvableFactoryTests {
 
         var result = await ResolvableBase.TryCreate(Option<ResolvableBase>.Some(remoteParent), spec);
 
-        Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should create remote when parent is not local");
-        Assert.That(resolvable, Is.InstanceOf<ResolvableRemoteModule>());
+        Assert.Multiple(() => {
+            Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should create remote when parent is not local");
+            Assert.That(resolvable, Is.InstanceOf<ResolvableRemoteModule>());
+        });
+
     }
 
     [Test]
@@ -103,12 +111,14 @@ public class ResolvableFactoryTests {
         var result = await ResolvableBase.TryCreate(
             Option<ResolvableBase>.None,
             baseSpec,
-            new System.Collections.ObjectModel.Collection<ModuleSpec> { mergeSpec }
+            [mergeSpec]
         );
 
-        Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate with merge should succeed");
-        Assert.That(resolvable, Is.Not.Null);
-        Assert.That(resolvable!.ModuleSpec.RequiredVersion, Is.EqualTo(new Version(2, 3, 5)));
+        Assert.Multiple(() => {
+            Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate with merge should succeed");
+            Assert.That(resolvable, Is.Not.Null);
+            Assert.That(resolvable!.ModuleSpec.RequiredVersion, Is.EqualTo(new Version(2, 3, 5)));
+        });
     }
 
     #endregion
@@ -126,8 +136,10 @@ public class ResolvableFactoryTests {
 
         var result = await ResolvableBase.TryCreateScript(moduleSpec, parent);
 
-        Assert.That(result.IsOk(out var script, out _), Is.True, "TryCreateScript should succeed");
-        Assert.That(script, Is.InstanceOf<ResolvableScript>());
+        Assert.Multiple(() => {
+            Assert.That(result.IsOk(out var script, out _), Is.True, "TryCreateScript should succeed");
+            Assert.That(script, Is.InstanceOf<ResolvableScript>());
+        });
     }
 
     [Test]
@@ -179,9 +191,11 @@ public class ResolvableParentMergeTests {
         var spec = new ModuleSpec("PSReadLine", requiredVersion: new Version(2, 3, 5));
         var result = await parent.LinkFindingPossibleResolved(null, spec);
 
-        Assert.That(result.IsOk(out var optResolvable, out _), Is.True, "LinkFindingPossibleResolved should succeed");
-        Assert.That(optResolvable.IsSome, Is.True, "Should return Some resolvable");
-        Assert.That(parent.Graph.VertexCount, Is.EqualTo(1));
+        Assert.Multiple(() => {
+            Assert.That(result.IsOk(out var optResolvable, out _), Is.True, "LinkFindingPossibleResolved should succeed");
+            Assert.That(optResolvable.IsSome, Is.True, "Should return Some resolvable");
+            Assert.That(parent.Graph.VertexCount, Is.EqualTo(1));
+        });
     }
 
     [Test]
@@ -204,10 +218,12 @@ public class ResolvableParentMergeTests {
 
         // Link same spec from the script → should reuse existing vertex
         var secondResult = await parent.LinkFindingPossibleResolved(scriptResolvable, spec);
-        Assert.That(secondResult.IsOk(out _, out _), Is.True);
+        Assert.Multiple(() => {
+            Assert.That(secondResult.IsOk(out _, out _), Is.True);
 
-        Assert.That(parent.Graph.VertexCount, Is.EqualTo(2));
-        Assert.That(parent.Graph.EdgeCount, Is.EqualTo(1));
+            Assert.That(parent.Graph.VertexCount, Is.EqualTo(2));
+            Assert.That(parent.Graph.EdgeCount, Is.EqualTo(1));
+        });
     }
 
 

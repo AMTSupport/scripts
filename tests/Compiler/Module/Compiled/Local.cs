@@ -2,7 +2,6 @@
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
 using System.Management.Automation.Language;
-using System.Threading.Tasks;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using Compiler.Text;

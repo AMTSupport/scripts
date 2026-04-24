@@ -39,7 +39,7 @@ public class PatternUpdater(
             var thisUpdateInfo = new SpanUpdateInfo(this, span, change);
             // Include self for updating because we want its new span location.
             skipSpans.Add(span);
-            skipSpans = new List<TextSpan>(skipSpans.Select(s => s.WithUpdate(thisUpdateInfo)));
+            skipSpans = [.. skipSpans.Select(s => s.WithUpdate(thisUpdateInfo))];
             spanUpdateInfo.Add(thisUpdateInfo);
         }
 
@@ -58,7 +58,7 @@ public class PatternUpdater(
         var openLevel = 0;
 
         for (var i = 0; i < lines.Count; i++) {
-            var clonedLine = lines[i].Clone().Cast<string>()!;
+            var clonedLine = lines[i].Clone().Cast<string>();
             // TODO - Actually account for columns instead of just entire rows.
             if (skipSpans.Any(span => span.Contains(i, 0) || span.Contains(i, clonedLine.Length))) continue;
 

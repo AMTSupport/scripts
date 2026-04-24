@@ -21,6 +21,9 @@ public sealed class HereStringUpdater() : AstUpdater(
         var linesAfterMaybeUpdate = stringConstant.StringConstantType switch {
             StringConstantType.SingleQuotedHereString => UpdateTerminators(stringConstant),
             StringConstantType.DoubleQuotedHereString => stringConstant.Extent.Text.Split('\n'),
+            StringConstantType.SingleQuoted => throw new NotImplementedException(),
+            StringConstantType.DoubleQuoted => throw new NotImplementedException(),
+            StringConstantType.BareWord => throw new NotImplementedException(),
             // This should never happen, but if it does, throw an exception.
             _ => throw new NotImplementedException($"Unsupported string constant type: {stringConstant.StringConstantType}")
         };
@@ -53,7 +56,7 @@ public sealed class HereStringUpdater() : AstUpdater(
             return line[indentLevel..];
         });
 
-        return updatedLines.ToArray();
+        return [.. updatedLines];
     }
 
     /// <summary>

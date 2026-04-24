@@ -1,4 +1,3 @@
-using Compiler;
 using Compiler.Analyser;
 using Compiler.Requirements;
 using LanguageExt;
@@ -24,7 +23,7 @@ public class ErrorsTests {
     [Test]
     public void EnrichableError_AppendsModuleName() {
         var module = new ModuleSpec("ModuleA");
-        var error = (Error)Error.New("Base error");
+        var error = Error.New("Base error");
         var wrapped = new WrappedErrorWithDebuggableContent("Wrapped", "content", error);
 
         var enriched = wrapped.Enrich(module);

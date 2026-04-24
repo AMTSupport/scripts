@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.IO;
 using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Text;
@@ -107,7 +106,7 @@ public static class AstHelper {
             .FindAll(testAst => testAst is FunctionDefinitionAst, true)
             .Cast<FunctionDefinitionAst>()
             .Where(function => function.Body.ParamBlock != null)
-            .Where(functionDefinition => functionDefinition.Body.ParamBlock!.Attributes.Any(attribute => attribute.TypeName.GetReflectionType() == typeof(AliasAttribute)));
+            .Where(functionDefinition => functionDefinition.Body.ParamBlock.Attributes.Any(attribute => attribute.TypeName.GetReflectionType() == typeof(AliasAttribute)));
 
         var availableAliases = new List<string>();
         var attributeType = typeof(AliasAttribute);

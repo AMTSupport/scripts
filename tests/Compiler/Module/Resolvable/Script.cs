@@ -15,7 +15,7 @@ public partial class CompiledScriptTest {
         TextSpanUpdater updater,
         string content
     ) {
-        var document = new TextEditor(new TextDocument(content.Split('\n')))!;
+        var document = new TextEditor(new TextDocument(content.Split('\n')));
         document.AddEdit(() => updater);
 
         var compiled = CompiledDocument.FromBuilder(document).ThrowIfFail();

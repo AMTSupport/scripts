@@ -387,9 +387,8 @@ public sealed record TextSpan : IComparable<TextSpan> {
     public override string ToString() {
         var caller = new StackFrame(2).GetMethod();
         var sb = new StringBuilder().Append(CultureInfo.InvariantCulture, $"({this.StartingIndex}[{this.StartingColumn}])..({this.EndingIndex}[{this.EndingColumn}])");
-
-        var originalStartingIndex = this.StartingIndex;
-        var originalEndingIndex = this.EndingIndex;
+        _ = this.StartingIndex;
+        _ = this.EndingIndex;
 
         // If the caller is this ToString method, return a simple string representation, otherwise include the applied updates.
         var skipListingUpdates = caller?.DeclaringType != typeof(SpanUpdateInfo);

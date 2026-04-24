@@ -3,7 +3,6 @@
 
 using System.Collections.Concurrent;
 using Compiler;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 [SetUpFixture]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(

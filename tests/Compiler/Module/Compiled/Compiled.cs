@@ -1,12 +1,12 @@
 // Copyright (c) James Draycott. All Rights Reserved.
 // Licensed under the GPL3 License, See LICENSE in the project root for license information.
 
-using Compiler.Requirements;
 using System.Collections;
-using Moq;
-using RealCompiled = Compiler.Module.Compiled.Compiled;
 using Compiler.Module.Compiled;
+using Compiler.Requirements;
+using Moq;
 using QuikGraph;
+using RealCompiled = Compiler.Module.Compiled.Compiled;
 
 namespace Compiler.Test.Module.Compiled;
 
@@ -22,7 +22,7 @@ public class CompiledTests {
         List<byte> bytesList;
         var hashResults = new List<byte[]>();
         do {
-            bytesList = new List<byte>(hashableBytes);
+            bytesList = [.. hashableBytes];
             module.Object.AddRequirementHashBytes(bytesList, requirementGroup);
             hashResults.Add([.. hashableBytes]);
         } while (hashResults.Count < random.Next(2, 5));
