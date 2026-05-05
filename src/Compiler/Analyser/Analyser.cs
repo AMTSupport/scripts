@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
+using System.Security.Cryptography;
 using Compiler.Analyser.Rules;
 using Compiler.Module.Compiled;
 using NLog;
@@ -24,12 +25,11 @@ public static class Analyser {
     [return: NotNull]
     public static async Task<List<Issue>> Analyse(CompiledLocalModule module, IEnumerable<Compiled> availableImports) {
         var key = module.ComputedHash[0..8];
-        // FIXME - Key orders are not consistent between instances.
-        // if (availableImports.Any()) {
-        //     var rawBytes = new List<byte>();
-        //     availableImports.OrderBy(i => i.ModuleSpec.Name).ToList().ForEach(x => rawBytes.AddRange(Convert.FromHexString(x.ComputedHash)));
-        //     key += Convert.ToHexString(SHA256.HashData(rawBytes.ToArray()))[0..8];
-        // }
+        if (availableImports.Any()) {
+            var rawBytes = new List<byte>();
+            availableImports.OrderBy(i => i.ModuleSpec.Name).ToList().ForEach(x => rawBytes.AddRange(Convert.FromHexString(x.ComputedHash)));
+            key += Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(rawBytes.ToArray()))[0..8];
+        }
 
         return await Cache.GetOrAdd(key, _ => Task.Run(() => {
             Logger.Trace($"Analyzing module {module.ModuleSpec.Name}");

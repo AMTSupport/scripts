@@ -91,4 +91,19 @@ public class UseOfUnknownFunctionTests {
             Assert.That(rule.ShouldProcess(command!, suppressions), Is.False);
         });
     }
+
+    [Test]
+    public void GetDefaultSessionFunctions_DoesNotThrow() {
+        // This test ensures the function doesn't throw due to undisposed resources
+        var functions = UseOfUndefinedFunction.GetDefaultSessionFunctions();
+        
+        Assert.That(functions, Is.Not.Null);
+        Assert.That(functions, Is.Not.Empty);
+    }
+
+    [Test]
+    public void SanatiseName_NormalizesFunctionNames() {
+        Assert.That(UseOfUndefinedFunction.SanatiseName("Test-Function"), Is.EqualTo("test-function"));
+        Assert.That(UseOfUndefinedFunction.SanatiseName("Module:Function"), Is.EqualTo("function"));
+    }
 }

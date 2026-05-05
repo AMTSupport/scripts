@@ -91,21 +91,24 @@ public class UseOfUndefinedFunction : Rule {
         var defaultFunctions = new List<string>();
 
         var sessionState = InitialSessionState.CreateDefault();
-        var pwsh = PowerShell.Create(sessionState);
-        defaultFunctions.AddRange(pwsh.Runspace.SessionStateProxy.InvokeCommand
+        using (var pwsh = PowerShell.Create(sessionState)) {
+            defaultFunctions.AddRange(pwsh.Runspace.SessionStateProxy.InvokeCommand
             .GetCommands("*", CommandTypes.All, true)
             .Select(command => command.Name));
+        }
 
         if (OperatingSystem.IsWindows()) {
             var modulesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "Modules");
             if (Directory.Exists(modulesPath)) {
-                var ps = PowerShell.Create().AddScript(/*ps1*/ $$"""
+                using (var ps = PowerShell.Create().AddScript(/*ps1*/ $$"""
                     $env:PSModulePath = '{{modulesPath}}';
                     $env:Path = "${env:SystemRoot}\system32;${env:SystemRoot};${env:SystemRoot}\System32\Wbem;${env:SystemRoot}\System32\WindowsPowerShell\v1.0\;";
                     $PSModuleAutoLoadingPreference = 'All';
                     Get-Command * | Select-Object -ExpandProperty Name
-                """).Invoke();
-                defaultFunctions.AddRange(ps.Select(commandName => ((string)commandName.BaseObject).Replace(".exe", "")));
+                """)) {
+                    var psResult = ps.Invoke();
+                    defaultFunctions.AddRange(psResult.Select(commandName => ((string)commandName.BaseObject).Replace(".exe", "")));
+                }
             }
         }
 

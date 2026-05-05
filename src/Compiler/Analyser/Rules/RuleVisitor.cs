@@ -19,12 +19,15 @@ public sealed class RuleVisitor(
 
     public void VisitModule([NotNull] CompiledLocalModule compiledModule) {
         this.ThreadLocalCache.Add(Environment.CurrentManagedThreadId, []);
-        foreach (var rule in this.Rules) {
-            this.ThreadLocalCache[Environment.CurrentManagedThreadId].Add(rule, rule.SupportsModule(compiledModule));
-        }
+        try {
+            foreach (var rule in this.Rules) {
+                this.ThreadLocalCache[Environment.CurrentManagedThreadId].Add(rule, rule.SupportsModule(compiledModule));
+            }
 
-        compiledModule.Document.Ast.Visit(this);
-        this.ThreadLocalCache.Remove(Environment.CurrentManagedThreadId);
+            compiledModule.Document.Ast.Visit(this);
+        } finally {
+            this.ThreadLocalCache.Remove(Environment.CurrentManagedThreadId);
+        }
     }
 
     public override AstVisitAction DefaultVisit(Ast ast) {
@@ -56,9 +59,19 @@ public sealed class RuleVisitor(
 
     public static Fin<IEnumerable<Suppression>> GetSupressions(Ast ast) {
         var paramBlock = AstHelper.FindClosestParamBlock(ast);
-        return paramBlock == null
-            ? FinSucc(Enumerable.Empty<Suppression>())
-            : SuppressAnalyserAttributeExt.FromAttributes(paramBlock.Attributes)
-                .Map(suppressions => suppressions.Select(suppression => suppression.GetSuppression()));
+        IEnumerable<AttributeAst> attributes;
+        if (paramBlock != null) {
+            attributes = paramBlock.Attributes;
+        } else {
+            // Check script-level attributes if no param block found
+            var root = AstHelper.FindRoot(ast);
+            if (root is ScriptBlockAst scriptBlock && scriptBlock.ParamBlock == null) {
+                attributes = scriptBlock.Attributes;
+            } else {
+                return FinSucc(Enumerable.Empty<Suppression>());
+            }
+        }
+        return SuppressAnalyserAttributeExt.FromAttributes(attributes)
+            .Map(suppressions => suppressions.Select(suppression => suppression.GetSuppression()));
     }
 }

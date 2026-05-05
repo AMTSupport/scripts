@@ -96,8 +96,8 @@ public class Program {
                         return;
                     }
 
-                    superParent.QueueResolve(resolvableScript, compiled => {
-                        Output(
+                    superParent.QueueResolve(resolvableScript, async compiled => {
+                        await Output(
                             sourceRoot,
                             opts.Output,
                             scriptPath,
@@ -311,7 +311,7 @@ public class Program {
         }
     }
 
-    public static async void Output(
+    public static async Task Output(
         string sourceDirectory,
         string? outputDirectory,
         string fileName,
@@ -420,7 +420,7 @@ public class Program {
                 var outputParent = Directory.GetParent(GetOutputLocation(sourceDir, outDir, pathedModuleSpec.FullPath))!;
                 if (!outputParent.Exists) outputParent.Create();
 
-                Output(
+                await Output(
                     sourceDir,
                     outDir,
                     pathedModuleSpec.FullPath,

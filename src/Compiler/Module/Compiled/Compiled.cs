@@ -152,6 +152,20 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
         [NotNull] List<byte> hashableBytes,
         [NotNull] RequirementGroup requirementGroup
     ) {
+        AddRequirementHashBytes(hashableBytes, requirementGroup, new System.Collections.Generic.HashSet<Compiled>());
+    }
+
+    private void AddRequirementHashBytes(
+        [NotNull] List<byte> hashableBytes,
+        [NotNull] RequirementGroup requirementGroup,
+        [NotNull] System.Collections.Generic.HashSet<Compiled> visited
+    ) {
+        // Prevent infinite recursion on cyclic dependencies
+        if (visited.Contains(this)) {
+            return;
+        }
+        visited.Add(this);
+
         hashableBytes.AddRange(requirementGroup.GetRequirements()
             .Select(req => req.Hash)
             .Flatten());

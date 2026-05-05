@@ -92,12 +92,6 @@ public partial class CompiledScript : CompiledLocalModule {
             }
         }
 
-        foreach (var edge in script.Graph.Vertices) {
-            if (edge is not CompiledLocalModule compiled) { continue; }
-            (await Analyser.Analyser.Analyse(compiled, script.Graph.OutEdges(compiled).Select(edge => edge.Target)))
-                .ForEach(issue => Program.Errors.Add(issue.Enrich(compiled.ModuleSpec)));
-        }
-
         await Task.WhenAll(script.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).Select(async compiled => {
             var imports = script.Graph.OutEdges(compiled).Select(edge => edge.Target);
             var issues = await Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports]);

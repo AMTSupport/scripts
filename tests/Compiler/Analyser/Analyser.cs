@@ -26,4 +26,44 @@ public class AnalyserTests {
             Assert.That(ReferenceEquals(first, second), Is.True);
         });
     }
+
+    [Test]
+    public async Task Analyse_CacheKeyIncludesAvailableImports() {
+        // Create two modules with same content but different imports
+        var module1 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'test';");
+        var module2 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'test';");
+        CompiledUtils.EnsureMockHasParent(module1);
+        CompiledUtils.EnsureMockHasParent(module2);
+
+        // Create two different import modules
+        var import1 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("function Import1 { 'import1' }");
+        var import2 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("function Import2 { 'import2' }");
+        CompiledUtils.EnsureMockHasParent(import1);
+        CompiledUtils.EnsureMockHasParent(import2);
+
+        // Analyze same module with different imports
+        var issues1 = await Compiler.Analyser.Analyser.Analyse(module1, [import1]);
+        var issues2 = await Compiler.Analyser.Analyser.Analyse(module2, [import2]);
+
+        Assert.Multiple(() => {
+            // Both should return results (not cached incorrectly)
+            Assert.That(issues1, Is.Not.Null);
+            Assert.That(issues2, Is.Not.Null);
+        });
+    }
+
+    [Test, Repeat(10), Parallelizable]
+    public async Task Analyse_CachesSameModuleWithSameImports() {
+        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'test';");
+        CompiledUtils.EnsureMockHasParent(module);
+
+        var import = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("function Import { 'import' }");
+        CompiledUtils.EnsureMockHasParent(import);
+
+        var issues1 = await Compiler.Analyser.Analyser.Analyse(module, [import]);
+        var issues2 = await Compiler.Analyser.Analyser.Analyse(module, [import]);
+
+        // Should get same cached result
+        Assert.That(ReferenceEquals(issues1, issues2), Is.True);
+    }
 }

@@ -21,7 +21,7 @@ public class PipelineTests {
         var script = new ResolvableScript(scriptSpec, parent);
 
         CompiledScript? compiled = null;
-        parent.QueueResolve(script, compiledScript => compiled = compiledScript);
+        parent.QueueResolve(script, compiledScript => { compiled = compiledScript; return Task.CompletedTask; });
         await parent.Compile();
 
         Assert.That(compiled, Is.Not.Null);
@@ -40,7 +40,7 @@ public class PipelineTests {
         var filePath = Path.Combine(root, "Root.ps1");
         File.WriteAllText(filePath, "Write-Host 'Hello'\nWrite-Host 'World'");
 
-        Program.Output(root, outputRoot, filePath, "Line1\nLine2", true);
+        await Program.Output(root, outputRoot, filePath, "Line1\nLine2", true);
         await Task.Delay(50);
 
         var outputPath = Program.GetOutputLocation(root, outputRoot, filePath);

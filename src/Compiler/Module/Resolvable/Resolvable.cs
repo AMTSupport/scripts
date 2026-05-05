@@ -107,7 +107,7 @@ public class ResolvableParent {
 
     public record ResolvableInfo(
         [NotNull] Option<Fin<Compiled.Compiled>> Compiled,
-        [NotNull] Option<Action<CompiledScript>> OnCompletion
+        [NotNull] Option<Func<CompiledScript, Task>> OnCompletion
     );
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
@@ -164,7 +164,7 @@ public class ResolvableParent {
         return graph;
     }
 
-    public void QueueResolve([NotNull] Resolvable rootModule, Action<CompiledScript>? onCompletion = null) {
+    public void QueueResolve([NotNull] Resolvable rootModule, Func<CompiledScript, Task>? onCompletion = null) {
         lock (this.Graph) {
             this.Graph.AddVertex(rootModule);
         }
@@ -226,11 +226,11 @@ public class ResolvableParent {
         var completionTasks = from resolvable in this.Resolvables.Values
                               where resolvable.Compiled.IsSome
                               let compiled = resolvable.Compiled.Unwrap().Unwrap()
-                              select Task.Run(() => {
+                              select Task.Run(async () => {
                                   compiled.CompleteCompileAfterResolution();
-                                  resolvable.OnCompletion.IfSome(onComplete => {
+                                  resolvable.OnCompletion.IfSome(async onComplete => {
                                       if (compiled is CompiledScript script) {
-                                          onComplete(script);
+                                          await onComplete(script);
                                       }
                                   });
                               });
