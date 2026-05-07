@@ -137,13 +137,19 @@ public partial class CompiledScript : CompiledLocalModule {
             paramBlock.AppendLine("[CmdletBinding()]\nparam()");
         }
 
-        var importOrder = this.Graph.VertexCount > 1
-            ? this.Graph.TopologicalSort()
-                .Skip(1) // Skip the root node.
-                .Reverse()
-                .Select(module => $"'{module.GetNameHash()}'")
-                .Aggregate((a, b) => $"{a}, {b}")
-            : string.Empty;
+        var importOrder = string.Empty;
+        if (this.Graph.VertexCount > 1) {
+            var importNames = new List<string>();
+            foreach (var module in this.Graph.TopologicalSort().Skip(1).Reverse()) {
+                if (module.GetNameHash().IsErr(out var nameHashError, out var nameHash)) {
+                    return nameHashError;
+                }
+
+                importNames.Add($"'{nameHash}'");
+            }
+
+            importOrder = importNames.Aggregate((a, b) => $"{a}, {b}");
+        }
 
         var replacements = new Dictionary<string, string> {
             { "EMBEDDED_MODULES", embeddedModules.ToString() },

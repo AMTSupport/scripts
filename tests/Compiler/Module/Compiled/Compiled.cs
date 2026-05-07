@@ -4,6 +4,7 @@
 using System.Collections;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
+using LanguageExt;
 using Moq;
 using QuikGraph;
 using RealCompiled = Compiler.Module.Compiled.Compiled;
@@ -69,15 +70,15 @@ file static class TestData {
                 hashableBytes,
                 new RequirementGroup() {
                     StoredRequirements = {
-                        { typeof(ModuleSpec), new HashSet<Requirement> {
+                        { typeof(ModuleSpec), new System.Collections.Generic.HashSet<Requirement> {
                             new ModuleSpec("PSWindowsUpdate"),
                             new ModuleSpec("PSReadLine", requiredVersion: new (2, 3, 5)),
                             new PathedModuleSpec(sourceRoot, environmentPath)
                         } },
-                        { typeof(PSEditionRequirement), new HashSet<Requirement> {
+                        { typeof(PSEditionRequirement), new System.Collections.Generic.HashSet<Requirement> {
                             new PSEditionRequirement(PSEdition.Core)
                         } },
-                        { typeof(UsingNamespace), new HashSet<Requirement> {
+                        { typeof(UsingNamespace), new System.Collections.Generic.HashSet<Requirement> {
                             new UsingNamespace("System.Collections"),
                             new UsingNamespace("System.Diagnostics")
                         } },
@@ -89,7 +90,7 @@ file static class TestData {
                 hashableBytes,
                 new RequirementGroup() {
                     StoredRequirements = {
-                        { typeof(ModuleSpec), new HashSet<Requirement> {
+                        { typeof(ModuleSpec), new System.Collections.Generic.HashSet<Requirement> {
                             new PathedModuleSpec(sourceRoot, environmentPath)
                         } },
                     }
@@ -107,7 +108,7 @@ file static class TestData {
             random.NextBytes(bytes);
         }
 
-        var mock = new Mock<RealCompiled>(moduleSpec, requirements, new Lazy<byte[]>(bytes)) {
+        var mock = new Mock<RealCompiled>(moduleSpec, requirements, new Lazy<LanguageExt.Fin<byte[]>>(() => bytes)) {
             CallBase = true
         };
         CompiledUtils.EnsureMockHasParent(mock.Object, parent);

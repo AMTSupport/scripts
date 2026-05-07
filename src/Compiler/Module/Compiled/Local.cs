@@ -27,7 +27,7 @@ public class CompiledLocalModule : Compiled {
         RequirementGroup requirements
     ) : base(moduleSpec, requirements) {
         this.Document = document;
-        this.ContentBytes = new(() => Encoding.UTF8.GetBytes(this.StringifyContent().ThrowIfFail()));
+        this.SetContentBytes(new(() => this.StringifyContent().Map(Encoding.UTF8.GetBytes)));
     }
 
     public override Fin<string> StringifyContent() {
@@ -37,9 +37,9 @@ public class CompiledLocalModule : Compiled {
         foreach (var requirement in this.Requirements.GetRequirements()) {
             var hashResult = requirement switch {
                 ModuleSpec req => this.FindSibling(req) is { } sibling
-                    ? sibling.ComputedHash[..6]
+                    ? sibling.ComputedHash().Map(hash => hash[..6])
                     : Fin<string>.Fail(Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.")),
-                _ => requirement.HashString[..6]
+                _ => Fin<string>.Succ(requirement.HashString[..6])
             };
 
             if (hashResult.IsErr(out var err, out var hash)) {

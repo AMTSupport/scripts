@@ -46,7 +46,7 @@ public class CompiledRemoteModule : Compiled {
         ModuleSpec moduleSpec,
         RequirementGroup requirements,
         byte[] bytes
-    ) : base(moduleSpec, requirements, new Lazy<byte[]>(bytes)) {
+    ) : base(moduleSpec, requirements, new Lazy<Fin<byte[]>>(() => bytes)) {
         var manifest = this.GetPowerShellManifest();
         this.Version = manifest["ModuleVersion"] switch {
             string version => Version.Parse(version),
@@ -85,11 +85,18 @@ public class CompiledRemoteModule : Compiled {
                 break;
             case string starString when starString == "*":
                 var sessionState = InitialSessionState.CreateDefault();
-                sessionState.ImportPSModulesFromPath(GetExportedModule(this));
+                if (GetExportedModule(this).IsErr(out var exportError, out var exportPath)) {
+                    Logger.Error($"Unable to export module {this.ModuleSpec.Name}: {exportError.Message}");
+                    return exported;
+                }
+                sessionState.ImportPSModulesFromPath(exportPath);
 
                 // Also ensure all dependencies are loaded
                 foreach (var dependency in this.GetDownstreamModules()) {
-                    var dependencyExportPath = GetExportedModule(dependency);
+                    if (GetExportedModule(dependency).IsErr(out exportError, out var dependencyExportPath)) {
+                        Logger.Error($"Unable to export dependency {dependency.ModuleSpec.Name}: {exportError.Message}");
+                        return exported;
+                    }
                     sessionState.ImportPSModulesFromPath(dependencyExportPath);
                 }
 
@@ -148,12 +155,24 @@ public class CompiledRemoteModule : Compiled {
         return exportedFunctions;
     }
 
-    private ZipArchive GetZipArchive() => this.ZipArchive ??= new ZipArchive(new MemoryStream((byte[])this.ContentBytes.Value.Clone()), ZipArchiveMode.Read, false);
+    private Fin<ZipArchive> GetZipArchive() {
+        if (this.ZipArchive != null) return this.ZipArchive;
+        if (this.GetContentBytes().IsErr(out var error, out var bytes)) return error;
+
+        try {
+            return this.ZipArchive = new ZipArchive(new MemoryStream((byte[])bytes.Clone()), ZipArchiveMode.Read, false);
+        } catch (Exception err) {
+            return LanguageExt.Common.Error.New(err.Message);
+        }
+    }
 
     private Hashtable GetPowerShellManifest() {
         if (this.PowerShellManifest != null) return this.PowerShellManifest;
 
-        var archive = this.GetZipArchive();
+        if (this.GetZipArchive().IsErr(out var archiveError, out var archive)) {
+            Logger.Error($"Unable to open archive for {this.ModuleSpec.Name}: {archiveError.Message}");
+            return this.PowerShellManifest = [];
+        }
         ZipArchiveEntry? psd1Entry;
         try {
             psd1Entry = archive.GetEntry($"{this.ModuleSpec.Name}.psd1");
@@ -182,16 +201,25 @@ public class CompiledRemoteModule : Compiled {
             );
     }
 
-    private static string GetExportedModule(Compiled module) {
+    private static Fin<string> GetExportedModule(Compiled module) {
+        if (module.GetNameHash().IsErr(out var nameHashError, out var nameHash)) {
+            return nameHashError;
+        }
+
         var version = module.Version.ToString();
-        var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{module.GetNameHash()}");
+        var tempModuleRootPath = Path.Combine(Path.GetTempPath(), $"PowerShellGet\\_Export_{nameHash}");
         var tempOutput = Path.Combine(tempModuleRootPath, module.ModuleSpec.Name, version);
         if (!Directory.Exists(tempOutput)) {
             Directory.CreateDirectory(tempOutput);
 
             if (module is CompiledRemoteModule remoteModule) {
-                using var archive = remoteModule.GetZipArchive();
-                archive.ExtractToDirectory(tempOutput);
+                if (remoteModule.GetZipArchive().IsErr(out var archiveError, out var archive)) {
+                    return archiveError;
+                }
+
+                using (archive) {
+                    archive.ExtractToDirectory(tempOutput);
+                }
             } else if (module is CompiledLocalModule localModule) {
                 var lines = localModule.Document.GetLines();
                 using var stream = new FileStream(Path.Combine(tempOutput, $"{module.ModuleSpec.Name}.psm1"), FileMode.Create);
@@ -201,7 +229,6 @@ public class CompiledRemoteModule : Compiled {
                 }
             }
         }
-
 
         Logger.Debug($"Exported module path: {tempOutput}");
         return tempOutput;
@@ -215,7 +242,11 @@ public class CompiledRemoteModule : Compiled {
 
             Logger.Debug($"Updating archive contents for {this.ModuleSpec.Name}.");
 
-            var originalArchive = this.GetZipArchive();
+            if (this.GetZipArchive().IsErr(out var archiveError, out var originalArchive)) {
+                Logger.Error($"Failed to open archive for {this.ModuleSpec.Name}: {archiveError.Message}");
+                return;
+            }
+
             var uniqueModuleName = $"{this.ModuleSpec.Name}_{Guid.NewGuid():N}";
 
             var expandedPath = Path.Join(RewritingFolder, uniqueModuleName);
@@ -272,8 +303,13 @@ public class CompiledRemoteModule : Compiled {
                     var compiledModule = this.GetCompiledFromResolvable(module).Unwrap();
 
 
+                    if (compiledModule.GetNameHash().IsErr(out var nameHashError, out var compiledNameHash)) {
+                        Logger.Error($"Failed to get name hash for {compiledModule.ModuleSpec.Name}: {nameHashError.Message}");
+                        continue;
+                    }
+
                     var newModuleTable = new Hashtable {
-                        ["ModuleName"] = compiledModule.GetNameHash(),
+                        ["ModuleName"] = compiledNameHash,
                         ["GUID"] = compiledModule.ModuleSpec.Id?.ToString(),
                         ["ModuleVersion"] = module.ModuleSpec.MinimumVersion?.ToString(),
                         ["RequiredVersion"] = module.ModuleSpec.RequiredVersion?.ToString(),
@@ -321,7 +357,12 @@ public class CompiledRemoteModule : Compiled {
     private void MoveModuleManifest(string expandedRoot) {
         var manifestPath = Path.Join(expandedRoot, $"{this.ModuleSpec.Name}.psd1");
         if (File.Exists(manifestPath)) {
-            var newManifestPath = Path.Join(expandedRoot, $"{this.GetNameHash()}.psd1");
+            if (this.GetNameHash().IsErr(out var nameHashError, out var nameHash)) {
+                Logger.Error($"Failed to get name hash for {this.ModuleSpec.Name}: {nameHashError.Message}");
+                return;
+            }
+
+            var newManifestPath = Path.Join(expandedRoot, $"{nameHash}.psd1");
             File.Move(manifestPath, newManifestPath);
         } else {
             Logger.Trace($"Module manifest {manifestPath} does not exist, skipping move.");

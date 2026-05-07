@@ -31,21 +31,23 @@ public class CompiledLocalModuleTests {
         var scriptOne = TestData.CreateModule<CompiledScript>($"Write-Host '{scriptOneHello}';");
         var scriptTwo = TestData.CreateModule<CompiledScript>($"Write-Host '{scriptTwoHello}';");
 
-        var expression = scriptOneHello == scriptTwoHello ? Is.EqualTo(scriptTwo.ComputedHash) : Is.Not.EqualTo(scriptTwo.ComputedHash);
-        Assert.That(scriptOne.ComputedHash, expression, "Hashes should be the same if the content is the same.");
+        var scriptOneHash = scriptOne.ComputedHash().Unwrap();
+        var scriptTwoHash = scriptTwo.ComputedHash().Unwrap();
+        var expression = scriptOneHello == scriptTwoHello ? Is.EqualTo(scriptTwoHash) : Is.Not.EqualTo(scriptTwoHash);
+        Assert.That(scriptOneHash, expression, "Hashes should be the same if the content is the same.");
 
         if (scriptOneHello == scriptTwoHello) {
-            var oldHash = scriptOne.ComputedHash;
+            var oldHash = scriptOneHash;
 
             var moduleContent = "Write-Host 'Hello, World!';";
             var randomName = TestContext.CurrentContext.Random.GetString(6);
             var localDependency = TestData.CreateModule<CompiledLocalModule>(moduleContent, randomName);
             CompiledUtils.AddDependency(scriptOne, localDependency);
-            Assert.That(scriptOne.ComputedHash, Is.Not.EqualTo(oldHash), "Hash should change when a dependency is added.");
-            Assert.That(scriptOne.ComputedHash, Is.Not.EqualTo(scriptTwo.ComputedHash), "Hashes should differ when a dependency is added.");
+            Assert.That(scriptOne.ComputedHash().Unwrap(), Is.Not.EqualTo(oldHash), "Hash should change when a dependency is added.");
+            Assert.That(scriptOne.ComputedHash().Unwrap(), Is.Not.EqualTo(scriptTwoHash), "Hashes should differ when a dependency is added.");
 
             CompiledUtils.AddDependency(scriptTwo, localDependency);
-            Assert.That(scriptOne.ComputedHash, Is.EqualTo(scriptTwo.ComputedHash), "Hashes should not differ when the dependencies are the same.");
+            Assert.That(scriptOne.ComputedHash().Unwrap(), Is.EqualTo(scriptTwo.ComputedHash().Unwrap()), "Hashes should not differ when the dependencies are the same.");
 
             // Check that a nested dependency changes the hash of the top module
             var moduleDependencyOne = TestData.CreateModule<CompiledLocalModule>(moduleContent, randomName);
@@ -56,14 +58,14 @@ public class CompiledLocalModuleTests {
             CompiledUtils.AddDependency(scriptTwo, moduleDependencyTwo);
             CompiledUtils.AddDependency(moduleDependencyOne, nestedDependencyOne);
             CompiledUtils.AddDependency(moduleDependencyTwo, nestedDependencyOne);
-            Assert.That(moduleDependencyOne.ComputedHash, Is.EqualTo(moduleDependencyTwo.ComputedHash), "Hashes should be the same if the dependencies are the same.");
-            Assert.That(scriptOne.ComputedHash, Is.EqualTo(scriptTwo.ComputedHash), "Hashes should not differ when a nested dependency matches.");
+            Assert.That(moduleDependencyOne.ComputedHash().Unwrap(), Is.EqualTo(moduleDependencyTwo.ComputedHash().Unwrap()), "Hashes should be the same if the dependencies are the same.");
+            Assert.That(scriptOne.ComputedHash().Unwrap(), Is.EqualTo(scriptTwo.ComputedHash().Unwrap()), "Hashes should not differ when a nested dependency matches.");
 
             var nestedDependencyTwo = TestData.CreateModule<CompiledLocalModule>("Write-Host 'Hello, Other Nested World!';");
             CompiledUtils.RemoveDependency(moduleDependencyTwo, nestedDependencyOne);
             CompiledUtils.AddDependency(moduleDependencyTwo, nestedDependencyTwo);
-            Assert.That(moduleDependencyOne.ComputedHash, Is.Not.EqualTo(moduleDependencyTwo.ComputedHash), "Hashes should differ when the dependency changes.");
-            Assert.That(scriptOne.ComputedHash, Is.Not.EqualTo(scriptTwo.ComputedHash), "Hashes should differ when a nested dependency changes.");
+            Assert.That(moduleDependencyOne.ComputedHash().Unwrap(), Is.Not.EqualTo(moduleDependencyTwo.ComputedHash().Unwrap()), "Hashes should differ when the dependency changes.");
+            Assert.That(scriptOne.ComputedHash().Unwrap(), Is.Not.EqualTo(scriptTwo.ComputedHash().Unwrap()), "Hashes should differ when a nested dependency changes.");
         }
     });
 

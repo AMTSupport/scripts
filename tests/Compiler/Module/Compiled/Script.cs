@@ -6,6 +6,7 @@ using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Compiler.Text;
+using LanguageExt;
 
 namespace Compiler.Test.Module.Compiled;
 
@@ -28,7 +29,7 @@ public sealed class CompiledScriptTests {
         Assert.Multiple(() => {
             Assert.That(output, Does.Contain("$Script:EMBEDDED_MODULES"));
             Assert.That(output, Does.Contain("$Script:REMOVE_ORDER"));
-            Assert.That(output, Does.Contain(dependency.GetNameHash()));
+            Assert.That(output, Does.Contain(dependency.GetNameHash().Unwrap()));
         });
     }
 
@@ -102,16 +103,16 @@ public sealed class CompiledScriptTests {
         Assert.Multiple(() => {
             Assert.That(output, Does.Contain("$Script:EMBEDDED_MODULES"));
             Assert.That(output, Does.Contain("$Script:REMOVE_ORDER"));
-            Assert.That(output, Does.Contain(dep1.GetNameHash()),
+            Assert.That(output, Does.Contain(dep1.GetNameHash().Unwrap()),
                 "dep1 hash should appear in the output");
-            Assert.That(output, Does.Contain(dep2.GetNameHash()),
+            Assert.That(output, Does.Contain(dep2.GetNameHash().Unwrap()),
                 "dep2 hash should appear in the output");
             var removeOrderLine = output
                 .Split('\n')
                 .FirstOrDefault(line => line.Contains("$Script:REMOVE_ORDER"));
             Assert.That(removeOrderLine, Is.Not.Null);
-            Assert.That(removeOrderLine, Does.Contain(dep1.GetNameHash()));
-            Assert.That(removeOrderLine, Does.Contain(dep2.GetNameHash()));
+            Assert.That(removeOrderLine, Does.Contain(dep1.GetNameHash().Unwrap()));
+            Assert.That(removeOrderLine, Does.Contain(dep2.GetNameHash().Unwrap()));
         });
     }
 

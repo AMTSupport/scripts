@@ -24,10 +24,20 @@ public static class Analyser {
     [Pure]
     [return: NotNull]
     public static async Task<List<Issue>> Analyse(CompiledLocalModule module, IEnumerable<Compiled> availableImports) {
-        var key = module.ComputedHash[0..8];
+        if (module.ComputedHash().IsErr(out var moduleHashError, out var moduleHash)) {
+            return [Issue.Error(moduleHashError.Message, module.Document.Ast.Extent, module.Document.Ast)];
+        }
+
+        var key = moduleHash[0..8];
         if (availableImports.Any()) {
             var rawBytes = new List<byte>();
-            availableImports.OrderBy(i => i.ModuleSpec.Name).ToList().ForEach(x => rawBytes.AddRange(Convert.FromHexString(x.ComputedHash)));
+            foreach (var import in availableImports.OrderBy(i => i.ModuleSpec.Name)) {
+                if (import.ComputedHash().IsErr(out var importHashError, out var importHash)) {
+                    return [Issue.Error(importHashError.Message, module.Document.Ast.Extent, module.Document.Ast)];
+                }
+
+                rawBytes.AddRange(Convert.FromHexString(importHash));
+            }
             key += Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(rawBytes.ToArray()))[0..8];
         }
 

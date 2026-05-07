@@ -127,10 +127,14 @@ public class UseOfUndefinedFunction : Rule {
     }
 
     private static HashSet<string> GetAvailableFunctionsAndAliasesForRemote(Compiled module) {
-        if (!AvailableFunctionsAndAliasesForRemote.Value!.TryGetValue(module.ComputedHash, out var set)) {
+        if (module.ComputedHash().IsErr(out _, out var hash)) {
+            return [];
+        }
+
+        if (!AvailableFunctionsAndAliasesForRemote.Value!.TryGetValue(hash, out var set)) {
             set = [];
             set.UnionWith(module.GetExportedFunctions().Select(SanatiseName));
-            AvailableFunctionsAndAliasesForRemote.Value.TryAdd(module.ComputedHash, set);
+            AvailableFunctionsAndAliasesForRemote.Value.TryAdd(hash, set);
         }
 
         return set;

@@ -18,8 +18,8 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     public Compiled(
         ModuleSpec moduleSpec,
         RequirementGroup requirements,
-        Lazy<byte[]> contentBytes
-    ) : this(moduleSpec, requirements) => this.ContentBytes = contentBytes;
+        Lazy<Fin<byte[]>> contentBytes
+    ) : this(moduleSpec, requirements) => this.ContentBytesBacking = contentBytes;
 
     private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -40,21 +40,37 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     public required ResolvableParent ResolvableParent { get; set; }
 
     [NotNull]
-    public Lazy<byte[]>? ContentBytes { get; protected set; }
+    private Lazy<Fin<byte[]>>? ContentBytesBacking { get; set; }
+
+    protected void SetContentBytes(Lazy<Fin<byte[]>> contentBytes) => this.ContentBytesBacking = contentBytes;
+
+    public Fin<byte[]> GetContentBytes() => this.ContentBytesBacking?.Value
+        ?? FinFail<byte[]>(Error.New($"Content bytes were not initialised for {this.ModuleSpec.Name}."));
 
     /// <summary>
     /// Gets combined the hash of the content and requirements of the module.
     /// </summary>
-    public string ComputedHash {
+    public Fin<string> ComputedHash() {
         // For some reason these values are not always gotten at their latest after an update, its like its doing some bullshit premature optimization.
         // So we need to tell the compiler to not optimize this method.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
-        get {
-            var byteList = new List<byte>((byte[])this.ContentBytes.Value.Clone());
-            this.AddRequirementHashBytes(byteList, this.Requirements);
+        Fin<string> ComputeHash() {
+            if (this.GetContentBytes().IsErr(out var error, out var bytes)) {
+                return error;
+            }
+
+            var byteList = new List<byte>((byte[])bytes.Clone());
+            if (this.AddRequirementHashBytes(byteList, this.Requirements).IsErr(out error, out _)) {
+                return error;
+            }
+
             return Convert.ToHexString(SHA256.HashData([.. byteList]));
         }
+
+        return ComputeHash();
     }
+
+
 
     /// <summary>
     /// The version of the module, not necessarily the same as the version of the module spec.
@@ -66,7 +82,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     /// </summary>
     public abstract ContentType Type { get; }
 
-    public string GetNameHash() => $"{this.ModuleSpec.Name}-{this.ComputedHash[..6]}";
+    public Fin<string> GetNameHash() => this.ComputedHash().Map(hash => $"{this.ModuleSpec.Name}-{hash[..6]}");
 
     public abstract Fin<string> StringifyContent();
 
@@ -78,15 +94,18 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     /// <returns>
     /// A Stringified PowerShell Hashtable.
     /// </returns>
-    public virtual Fin<string> GetPowerShellObject() => this.StringifyContent().Map(content => $$"""
-    @{
-        Name = '{{this.ModuleSpec.Name}}';
-        Version = '{{this.Version}}';
-        Hash = '{{this.ComputedHash[..6]}}';
-        Type = '{{this.Type}}';
-        Content = {{content}}
-    }
-    """);
+    public virtual Fin<string> GetPowerShellObject() =>
+        from content in this.StringifyContent()
+        from hash in this.ComputedHash()
+        select $$"""
+        @{
+            Name = '{{this.ModuleSpec.Name}}';
+            Version = '{{this.Version}}';
+            Hash = '{{hash[..6]}}';
+            Type = '{{this.Type}}';
+            Content = {{content}}
+        }
+        """;
 
     /// <summary>
     /// Gets the absolute parent of the module, which should always be the executing script.
@@ -148,21 +167,19 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     }
 
     [Pure]
-    public void AddRequirementHashBytes(
+    public Fin<Unit> AddRequirementHashBytes(
         [NotNull] List<byte> hashableBytes,
         [NotNull] RequirementGroup requirementGroup
-    ) {
-        AddRequirementHashBytes(hashableBytes, requirementGroup, new System.Collections.Generic.HashSet<Compiled>());
-    }
+    ) => this.AddRequirementHashBytes(hashableBytes, requirementGroup, new System.Collections.Generic.HashSet<Compiled>());
 
-    private void AddRequirementHashBytes(
+    private Fin<Unit> AddRequirementHashBytes(
         [NotNull] List<byte> hashableBytes,
         [NotNull] RequirementGroup requirementGroup,
         [NotNull] System.Collections.Generic.HashSet<Compiled> visited
     ) {
         // Prevent infinite recursion on cyclic dependencies
         if (visited.Contains(this)) {
-            return;
+            return Unit.Default;
         }
         visited.Add(this);
 
@@ -170,16 +187,25 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
             .Select(req => req.Hash)
             .Flatten());
 
-        var rootGraph = this.GetRootParent()!.Graph;
+        var rootParent = this.GetRootParent();
+        if (rootParent is not CompiledScript rootGraphParent) {
+            return Error.New($"Module {this.ModuleSpec.Name} has no root parent while computing requirement hash bytes.");
+        }
+
+        var rootGraph = rootGraphParent.Graph;
         if (!rootGraph.ContainsVertex(this)) {
-            // How tf did this happen?
             Logger.Error($"Module {this.ModuleSpec.Name} is not in the graph of its root parent.");
         }
 
-        hashableBytes.AddRange(rootGraph.OutEdges(this).ToList()
-            .Select(edge => edge.Target.ComputedHash)
-            .Select(Encoding.UTF8.GetBytes)
-            .Flatten());
+        foreach (var edge in rootGraph.OutEdges(this).ToList()) {
+            if (edge.Target.ComputedHash().IsErr(out var error, out var hash)) {
+                return error;
+            }
+
+            hashableBytes.AddRange(Encoding.UTF8.GetBytes(hash));
+        }
+
+        return Unit.Default;
     }
 
     /// <summary>
