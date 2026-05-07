@@ -1,4 +1,4 @@
-﻿Using module .\PSStyle.psm1;
+﻿Using module .\PSStyle.psm1
 
 Using module @{
     ModuleName    = 'PSReadLine';

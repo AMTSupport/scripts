@@ -29,21 +29,34 @@ public class CompiledLocalModule : Compiled {
         this.ContentBytes = new(() => Encoding.UTF8.GetBytes(this.StringifyContent()));
     }
 
-    public override string StringifyContent() => new StringBuilder()
-        .AppendLine("<#ps1#> @'")
-        .AppendJoin('\n', this.Requirements.GetRequirements().Select(requirement => {
-            var hash = (requirement switch {
-                ModuleSpec req => this.FindSibling(req)!.ComputedHash,
-                _ => requirement.HashString
-            })[..6];
+    public override string StringifyContent() => this.BuildStringifyContent().ThrowIfFail();
+
+    public Fin<string> BuildStringifyContent() {
+        var content = new StringBuilder()
+            .AppendLine("<#ps1#> @'");
+
+        foreach (var requirement in this.Requirements.GetRequirements()) {
+            var hashResult = requirement switch {
+                ModuleSpec req => this.FindSibling(req) is { } sibling
+                    ? sibling.ComputedHash[..6]
+                    : Fin<string>.Fail(Error.New($"Missing compiled sibling for module requirement {req} in {this.ModuleSpec.Name}.")),
+                _ => requirement.HashString[..6]
+            };
+
+            if (hashResult.IsErr(out var err, out var hash)) {
+                return err;
+            }
 
             var data = new Hashtable() { { "NameSuffix", hash } };
-            return requirement.GetInsertableLine(data);
-        }))
-        .AppendLine()
-        .AppendLine(this.Document.GetContent())
-        .Append("'@;")
-        .ToString();
+            content.AppendLine(requirement.GetInsertableLine(data));
+        }
+
+        content.AppendLine()
+            .AppendLine(this.Document.GetContent())
+            .Append("'@;");
+
+        return content.ToString();
+    }
 
     [ExcludeFromCodeCoverage(Justification = "We don't need to test this, as it's just a wrapper.")]
     public override IEnumerable<string> GetExportedFunctions() {
