@@ -32,15 +32,10 @@ public class CompiledLocalModule : Compiled {
     public override string StringifyContent() => new StringBuilder()
         .AppendLine("<#ps1#> @'")
         .AppendJoin('\n', this.Requirements.GetRequirements().Select(requirement => {
-            string hash;
-            try {
-                hash = (requirement switch {
-                    ModuleSpec req => this.FindSibling(req)!.ComputedHash,
-                    _ => requirement.HashString
-                })[..6];
-            } catch {
-                hash = "000000";
-            }
+            var hash = (requirement switch {
+                ModuleSpec req => this.FindSibling(req)!.ComputedHash,
+                _ => requirement.HashString
+            })[..6];
 
             var data = new Hashtable() { { "NameSuffix", hash } };
             return requirement.GetInsertableLine(data);

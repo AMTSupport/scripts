@@ -144,7 +144,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
         var siblings = this.GetSiblings();
         if (siblings.Length == 0) return null;
 
-        return siblings.FirstOrDefault(compiled => compiled.ModuleSpec == moduleSpec);
+        return siblings.FirstOrDefault(compiled => compiled.ModuleSpec.Name == moduleSpec.Name);
     }
 
     [Pure]

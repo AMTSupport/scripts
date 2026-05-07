@@ -114,4 +114,17 @@ public sealed class CompiledScriptTests {
             Assert.That(removeOrderLine, Does.Contain(dep2.GetNameHash()));
         });
     }
+
+    [Test]
+    public void GetPowerShellObject_NoModuleHasMissingHash() {
+        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
+        var dep1 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep1';");
+        var dep2 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep2';");
+        CompiledUtils.AddDependency(module, dep1);
+        CompiledUtils.AddDependency(module, dep2);
+
+        var output = module.GetPowerShellObject();
+
+        Assert.That(output, Does.Not.Contain("-000000"), "No module should have a 000000 hash; all dependencies must be resolved and embedded.");
+    }
 }
