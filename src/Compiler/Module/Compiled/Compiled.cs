@@ -68,7 +68,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
 
     public string GetNameHash() => $"{this.ModuleSpec.Name}-{this.ComputedHash[..6]}";
 
-    public abstract string StringifyContent();
+    public abstract Fin<string> StringifyContent();
 
     public abstract IEnumerable<string> GetExportedFunctions();
 
@@ -78,15 +78,15 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     /// <returns>
     /// A Stringified PowerShell Hashtable.
     /// </returns>
-    public virtual string GetPowerShellObject() => $$"""
+    public virtual Fin<string> GetPowerShellObject() => this.StringifyContent().Map(content => $$"""
     @{
         Name = '{{this.ModuleSpec.Name}}';
         Version = '{{this.Version}}';
         Hash = '{{this.ComputedHash[..6]}}';
         Type = '{{this.Type}}';
-        Content = {{this.StringifyContent()}}
+        Content = {{content}}
     }
-    """;
+    """);
 
     /// <summary>
     /// Gets the absolute parent of the module, which should always be the executing script.

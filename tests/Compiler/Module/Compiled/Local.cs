@@ -15,7 +15,7 @@ public class CompiledLocalModuleTests {
     [Test, Repeat(10), Parallelizable]
     public async Task StringifyContent_ReturnsValidAstContent() {
         var module = await TestData.GetRandomCompiledModule();
-        var stringifiedContent = module.StringifyContent();
+        var stringifiedContent = module.StringifyContent().Unwrap();
         Assert.Multiple(() => {
             var ast = Parser.ParseInput(stringifiedContent, out _, out var errors);
             Assert.That(errors, Is.Empty);

@@ -69,7 +69,7 @@ public class CompiledRemoteModule : Compiled {
 
     public override void CompleteCompileAfterResolution() => this.UpdateArchiveContents();
 
-    public override string StringifyContent() {
+    public override Fin<string> StringifyContent() {
         this.UpdateArchiveContents();
         var base64 = Convert.ToBase64String(this.UpdatedContentBytes.Unwrap());
         return $"'{base64}'";

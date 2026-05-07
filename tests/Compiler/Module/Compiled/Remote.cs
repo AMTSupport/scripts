@@ -18,7 +18,7 @@ public class CompiledRemoteModuleTests {
     [Test, Repeat(3), Parallelizable, Platform("Win")]
     public async Task StringifyContent_ReturnsValidAst() {
         var module = await TestData.GetTestRemoteModule();
-        var stringifiedContent = module.StringifyContent();
+        var stringifiedContent = module.StringifyContent().Unwrap();
         Assert.Multiple(() => {
             var ast = Parser.ParseInput(stringifiedContent, out _, out var errors);
             Assert.That(errors, Is.Empty);
@@ -29,7 +29,7 @@ public class CompiledRemoteModuleTests {
     [Test, Repeat(3), Parallelizable, Platform("Win")]
     public async Task StringifyContent_CanBeConvertedBack() {
         var module = await TestData.GetTestRemoteModule();
-        var stringifiedContent = module.StringifyContent();
+        var stringifiedContent = module.StringifyContent().Unwrap();
         var bytes = Convert.FromBase64String(stringifiedContent[1..^1]);
 
         Assert.Multiple(() => {

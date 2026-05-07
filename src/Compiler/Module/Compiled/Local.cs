@@ -8,6 +8,7 @@ using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
 using LanguageExt;
+using LanguageExt.Common;
 
 namespace Compiler.Module.Compiled;
 
@@ -26,12 +27,10 @@ public class CompiledLocalModule : Compiled {
         RequirementGroup requirements
     ) : base(moduleSpec, requirements) {
         this.Document = document;
-        this.ContentBytes = new(() => Encoding.UTF8.GetBytes(this.StringifyContent()));
+        this.ContentBytes = new(() => Encoding.UTF8.GetBytes(this.StringifyContent().ThrowIfFail()));
     }
 
-    public override string StringifyContent() => this.BuildStringifyContent().ThrowIfFail();
-
-    public Fin<string> BuildStringifyContent() {
+    public override Fin<string> StringifyContent() {
         var content = new StringBuilder()
             .AppendLine("<#ps1#> @'");
 
@@ -39,7 +38,7 @@ public class CompiledLocalModule : Compiled {
             var hashResult = requirement switch {
                 ModuleSpec req => this.FindSibling(req) is { } sibling
                     ? sibling.ComputedHash[..6]
-                    : Fin<string>.Fail(Error.New($"Missing compiled sibling for module requirement {req} in {this.ModuleSpec.Name}.")),
+                    : Fin<string>.Fail(Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.")),
                 _ => requirement.HashString[..6]
             };
 
@@ -57,6 +56,19 @@ public class CompiledLocalModule : Compiled {
 
         return content.ToString();
     }
+
+
+    public Fin<Unit> ValidateRequirementsResolved() {
+        foreach (var requirement in this.Requirements.GetRequirements<ModuleSpec>()) {
+            if (this.FindSibling(requirement) is null) {
+                return Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.");
+            }
+        }
+
+        return Unit.Default;
+    }
+
+
 
     [ExcludeFromCodeCoverage(Justification = "We don't need to test this, as it's just a wrapper.")]
     public override IEnumerable<string> GetExportedFunctions() {

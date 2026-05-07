@@ -92,6 +92,12 @@ public partial class CompiledScript : CompiledLocalModule {
             }
         }
 
+        foreach (var compiled in script.Graph.Vertices.OfType<CompiledLocalModule>()) {
+            if (compiled.ValidateRequirementsResolved().IsErr(out var error, out _)) {
+                return error.Enrich(compiled.ModuleSpec);
+            }
+        }
+
         await Task.WhenAll(script.Graph.Vertices.Where(compiled => compiled is CompiledLocalModule).Select(async compiled => {
             var imports = script.Graph.OutEdges(compiled).Select(edge => edge.Target);
             var issues = await Analyser.Analyser.Analyse((CompiledLocalModule)compiled, [.. imports]);
@@ -101,21 +107,25 @@ public partial class CompiledScript : CompiledLocalModule {
         return script;
     }
 
-    public override string GetPowerShellObject() {
+    public override Fin<string> GetPowerShellObject() {
         var template = Template.Value;
         var embeddedModules = new StringBuilder();
         embeddedModules.AppendLine("$Script:EMBEDDED_MODULES = @(");
-        this.Graph.Vertices.ToList().ForEach(module => {
-            var moduleObject = module switch {
+        foreach (var module in this.Graph.Vertices) {
+            var moduleObjectResult = module switch {
                 CompiledScript script when script == this => base.GetPowerShellObject(),
                 _ => module.GetPowerShellObject()
             };
+
+            if (moduleObjectResult.IsErr(out var moduleError, out var moduleObject)) {
+                return moduleError;
+            }
 
             var lineCount = moduleObject.Count(character => character == '\n');
             // Only skip the lines of the content of the module object.
             var skipLines = Enumerable.Range(6, lineCount - 6);
             embeddedModules.AppendLine(IndentString(moduleObject, 8, skipLines));
-        });
+        }
         embeddedModules.AppendLine(IndentString(");", 4));
 
         var paramBlock = new StringBuilder();
@@ -143,7 +153,7 @@ public partial class CompiledScript : CompiledLocalModule {
 
         if (FillTemplate(template, replacements).IsErr(out var error, out var filledTemplate)) {
             Program.Errors.Add(error);
-            return string.Empty;
+            return error;
         }
 
         return filledTemplate;

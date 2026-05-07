@@ -23,7 +23,7 @@ public sealed class CompiledScriptTests {
         var dependency = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep';");
         CompiledUtils.AddDependency(module, dependency);
 
-        var output = module.GetPowerShellObject();
+        var output = module.GetPowerShellObject().Unwrap();
 
         Assert.Multiple(() => {
             Assert.That(output, Does.Contain("$Script:EMBEDDED_MODULES"));
@@ -35,7 +35,7 @@ public sealed class CompiledScriptTests {
     [Test]
     public void GetPowerShellObject_IncludesDefaultParamBlock() {
         var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var output = module.GetPowerShellObject();
+        var output = module.GetPowerShellObject().Unwrap();
 
         Assert.That(output, Does.Contain("[CmdletBinding()]"));
     }
@@ -50,7 +50,7 @@ public sealed class CompiledScriptTests {
             ResolvableParent = new ResolvableParent(root)
         };
 
-        var output = module.GetPowerShellObject();
+        var output = module.GetPowerShellObject().Unwrap();
 
         Assert.That(output, Does.Contain("!DEFINE UNKNOWN_TOKEN"));
     }
@@ -80,7 +80,7 @@ public sealed class CompiledScriptTests {
             var dependency = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep';");
             CompiledUtils.AddDependency(module, dependency);
 
-            var output = module.GetPowerShellObject();
+            var output = module.GetPowerShellObject().Unwrap();
 
             Assert.That(output, Does.Contain("        @{"),
                 "Embedded module objects should be indented by 8 spaces when Program.IsDebugging is true");
@@ -97,7 +97,7 @@ public sealed class CompiledScriptTests {
         CompiledUtils.AddDependency(module, dep1);
         CompiledUtils.AddDependency(module, dep2);
 
-        var output = module.GetPowerShellObject();
+        var output = module.GetPowerShellObject().Unwrap();
 
         Assert.Multiple(() => {
             Assert.That(output, Does.Contain("$Script:EMBEDDED_MODULES"));
@@ -123,7 +123,7 @@ public sealed class CompiledScriptTests {
         CompiledUtils.AddDependency(module, dep1);
         CompiledUtils.AddDependency(module, dep2);
 
-        var output = module.GetPowerShellObject();
+        var output = module.GetPowerShellObject().Unwrap();
 
         Assert.That(output, Does.Not.Contain("-000000"), "No module should have a 000000 hash; all dependencies must be resolved and embedded.");
     }

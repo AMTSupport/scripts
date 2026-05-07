@@ -97,11 +97,16 @@ public class Program {
                     }
 
                     superParent.QueueResolve(resolvableScript, async compiled => {
+                        if (compiled.GetPowerShellObject().IsErr(out var outputError, out var output)) {
+                            Errors.Add(outputError.Enrich(pathedModuleSpec));
+                            return;
+                        }
+
                         await Output(
                             sourceRoot,
                             opts.Output,
                             scriptPath,
-                            compiled.GetPowerShellObject(),
+                            output,
                             opts.Force);
                     });
                 }).ToArray();
