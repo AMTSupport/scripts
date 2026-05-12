@@ -44,6 +44,7 @@ Param(
     [String]$PrinterIP,
 
     [Parameter(Mandatory, Position = 2, ParameterSetName = 'ByDriverName')]
+    [Parameter(Position = 3, ParameterSetName = 'ByManufacturer')]
     [String]$PrinterDriver,
 
     [Parameter(Position = 3, ParameterSetName = 'ByDriverName')]
@@ -54,7 +55,7 @@ Param(
     [String]$Manufacturer,
 
     [Parameter(Position = 4, ParameterSetName = 'ByDriverName')]
-    [Parameter(Position = 3, ParameterSetName = 'ByManufacturer')]
+    [Parameter(Position = 4, ParameterSetName = 'ByManufacturer')]
     [Switch]$Force
 )
 
@@ -113,7 +114,7 @@ function Install-Driver_Kyocera() {
     }
 
     Invoke-WithinEphemeral {
-        [String]$URL = 'https://www.kyoceradocumentsolutions.us/content/download-center-americas/us/drivers/drivers/KX_DRIVER_zip.download.zip';
+        [String]$URL = 'https://www.kyoceradocumentsolutions.eu/content/dam/download-center-cf/eu/drivers/all/KX_Universal_Printer_Driver_zip.download.zip'
         [String]$FileName = $URL.Split('/')[-1];
         [String]$ExpandedPath = $FileName.Split('.')[0];
 
@@ -127,8 +128,8 @@ function Install-Driver_Kyocera() {
         Invoke-Info 'Finding Kyocera driver inf file...';
         $Arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture;
         $Folder = switch -Wildcard ($Arch) {
-            'X64' { '32bit' }
-            'X86' { '64bit' }
+            'X64' { '64bit' }
+            'X86' { '32bit' }
             'Arm*' { 'arm64' }
             default { throw "Unsupported architecture: $Arch" }
         }
@@ -226,20 +227,40 @@ function Install-Driver_ByDriverName(
 function Install-Driver_ByManufacturer {
     [OutputType([String])]
     param(
-        [String]$DriverName
+        [Parameter(Mandatory)]
+        [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera')]
+        [String]$Manufacturer,
+
+        [String]$PrinterDriver
     )
 
     begin { Enter-Scope; }
     end { Exit-Scope; }
 
     process {
-        switch ($Manufacturer) {
-            'Ricoh' { return Install-Driver_Ricoh; }
-            'HP' { return Install-Driver_HP; }
-            'Konica Minolta' { return Install-Driver_KonciaMinolta; }
-            'Kyocera' { return Install-Driver_Kyocera; }
+        $UniversalDriver = switch ($Manufacturer) {
+            'Ricoh' { Install-Driver_Ricoh; }
+            'HP' { Install-Driver_HP; }
+            'Konica Minolta' { Install-Driver_KonciaMinolta; }
+            'Kyocera' { Install-Driver_Kyocera; }
             default { throw "Unknown manufacturer $Manufacturer"; }
         }
+
+        if ($PrinterDriver) {
+            Invoke-Info "Attempting to install driver by name [$PrinterDriver] for manufacturer $Manufacturer...";
+            try {
+                Add-PrinterDriver -Name $PrinterDriver;
+            } catch {
+                Invoke-Error "Failed to install driver by name [$PrinterDriver], falling back to universal driver for manufacturer $Manufacturer.";
+                Write-Error $_;
+                return $UniversalDriver;
+            }
+
+            return $PrinterDriver;
+        }
+
+        Invoke-Info "No driver name specified, using universal driver [$UniversalDriver] for manufacturer $Manufacturer.";
+        return $UniversalDriver;
     }
 }
 
@@ -304,19 +325,20 @@ Invoke-RunMain $PSCmdlet {
         return;
     }
 
-    [String]$Local:PrinterDriver = $null;
+    [String]$Local:InstallPrinterDriver = $PrinterDriver;
     if ($PSCmdlet.ParameterSetName -eq 'ByDriverName') {
         [String]$Local:TrimmedPrinterDriver = $PrinterDriver.Trim();
         [String]$Local:TrimmedChocoDriver = $ChocoDriver.Trim();
-        $Local:PrinterDriver = Install-Driver_ByDriverName -DriverName $Local:TrimmedPrinterDriver -ChocolateyPackage $Local:TrimmedChocoDriver;
+        $Local:InstallPrinterDriver = Install-Driver_ByDriverName -DriverName $Local:TrimmedPrinterDriver -ChocolateyPackage $Local:TrimmedChocoDriver;
     } elseif ($PSCmdlet.ParameterSetName -eq 'ByManufacturer') {
-        $Local:PrinterDriver = Install-Driver_ByManufacturer -Manufacturer $Local:TrimmedPrinterManufacturer;
+        [String]$TrimmedPrinterManufacturer = $Manufacturer.Trim();
+        $Local:InstallPrinterDriver = Install-Driver_ByManufacturer -Manufacturer $TrimmedPrinterManufacturer -PrinterDriver $PrinterDriver;
     }
 
-    if (-not $Local:PrinterDriver) {
+    if (-not $Local:InstallPrinterDriver) {
         Invoke-Error 'Unable to find or install printer driver, exiting.';
         Invoke-FailedExit -ExitCode 1000;
     }
 
-    Install-PrinterImpl -PrinterName $Local:TrimmedPrinterName -PrinterIP $Local:TrimmedPrinterIP -PrinterDriver $Local:PrinterDriver;
+    Install-PrinterImpl -PrinterName $Local:TrimmedPrinterName -PrinterIP $Local:TrimmedPrinterIP -PrinterDriver $Local:InstallPrinterDriver;
 }
