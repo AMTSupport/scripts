@@ -4,6 +4,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
+
 using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -60,6 +61,8 @@ public class CompiledLocalModule : Compiled {
 
     public Fin<Unit> ValidateRequirementsResolved() {
         foreach (var requirement in this.Requirements.GetRequirements<ModuleSpec>()) {
+
+
             if (this.FindSibling(requirement) is null) {
                 return Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.");
             }

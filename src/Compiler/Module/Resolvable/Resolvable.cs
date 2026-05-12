@@ -189,44 +189,41 @@ public class ResolvableParent {
 
         var graph = this.Graph.Clone();
         while (graph.Vertices.Any()) {
-            var nextBatch = from r in graph.Vertices
-                            where !graph.TryGetOutEdges(r, out var outEdges) || !outEdges.Any()
-                            select r;
+            var nextBatch = graph.Vertices
+                .Where(r => !graph.TryGetOutEdges(r, out var outEdges) || outEdges.All(edge =>
+                    this.Resolvables.TryGetValue(edge.Target.ModuleSpec, out var info)
+                    && info.Compiled.IsSome
+                ))
+                .ToArray();
 
-            Logger.Debug($"Compiling batch of {nextBatch.Count()} modules: {string.Join(", ", nextBatch.Select(r => r.ModuleSpec.Name))}");
+            Logger.Debug($"Compiling batch of {nextBatch.Length} modules: {string.Join(", ", nextBatch.Select(r => r.ModuleSpec.Name))}");
 
-            if (!nextBatch.Any()) {
-                // No progress can be made, but we haven't compiled everything
-                // This means we have a cycle in the dependency graph
-                var remaining = from r in graph.Vertices
-                                select r.ModuleSpec.ToString();
-
+            if (nextBatch.Length == 0) {
+                var remaining = graph.Vertices.Select(r => r.ModuleSpec.ToString());
                 Logger.Error($"Dependency cycle detected! Cannot compile: {string.Join(", ", remaining)}");
                 throw new InvalidOperationException("Dependency cycle detected in the compilation graph");
             }
 
-            var compileTasks = from mod in nextBatch
-                               select Task.Run(async () => {
-                                   try {
-                                       var result = await mod.IntoCompiled(this);
-                                       if (result.IsOk(out var compiled, out var _)) {
-                                           this.OnCompiledModule(mod.ModuleSpec, compiled);
-                                       } else if (result.IsErr(out var error, out _)) {
-                                           Logger.Error($"Failed compiling {mod.ModuleSpec}: {error}");
-                                           Program.Errors.Add(error.Enrich(mod.ModuleSpec));
-                                       }
-                                       return result;
-
-
-                                   } catch (Exception ex) {
-                                       Logger.Error(ex, $"Error compiling {mod.ModuleSpec}");
-                                       throw;
-                                   }
-                               });
+            var compileTasks = nextBatch.Select(mod => Task.Run(async () => {
+                try {
+                    var result = await mod.IntoCompiled(this);
+                    if (result.IsOk(out var compiled, out var _)) {
+                        this.OnCompiledModule(mod.ModuleSpec, compiled);
+                    } else if (result.IsErr(out var error, out _)) {
+                        Logger.Error($"Failed compiling {mod.ModuleSpec}: {error}");
+                        Program.Errors.Add(error.Enrich(mod.ModuleSpec));
+                    }
+                    return result;
+                } catch (Exception ex) {
+                    Logger.Error(ex, $"Error compiling {mod.ModuleSpec}");
+                    throw;
+                }
+            }));
 
             await Task.WhenAll(compileTasks);
             nextBatch.ToList().ForEach(mod => graph.RemoveVertex(mod));
         }
+
 
         var completionTasks = this.Resolvables.Values
             .Where(resolvable => resolvable.Compiled.IsSome)
@@ -278,49 +275,39 @@ public class ResolvableParent {
             iterating = new(this.Graph.Vertices.Select(res => ((Resolvable?)null, res.ModuleSpec)));
         }
 
-        var runningTasks = new List<(ModuleSpec Key, Task Task)>();
-        do {
-            if (iterating.TryDequeue(out var item)) {
-                var (parentResolvable, workingModuleSpec) = item;
-                runningTasks.Add((workingModuleSpec, Task.Run(async () => {
-                    // If the parent module has already been resolved this will be an orphan.
-                    if (parentResolvable != null && !this.Graph.ContainsVertex(parentResolvable)) {
-                        Logger.Debug("Parent module had already been resolved, skipping orphan.");
-                        return;
-                    }
+        while (iterating.TryDequeue(out var item)) {
+            var (parentResolvable, workingModuleSpec) = item;
 
-                    var resolvableResult = await this.LinkFindingPossibleResolved(parentResolvable, workingModuleSpec);
-
-                    Option<Resolvable> workingResolvable = None;
-                    if (resolvableResult.IsErr(out var err, out workingResolvable)) {
-                        Logger.Error($"Failed to link {workingModuleSpec} to {parentResolvable?.ModuleSpec}.");
-                        Program.Errors.Add(err);
-                        return;
-                    }
-
-                    // If it was null or there are out edges it means this module has already been resolved.
-                    if (!workingResolvable.IsSome(out var safeWorkingResolvable)
-                        || (this.Graph.TryGetOutEdges(safeWorkingResolvable, out var outEdges) && outEdges.Any())) {
-                        return;
-                    }
-
-                    lock (safeWorkingResolvable.Requirements) {
-                        safeWorkingResolvable.Requirements.GetRequirements<ModuleSpec>().ToList()
-                            .ForEach(requirement => iterating.Enqueue((safeWorkingResolvable, requirement)));
-                    }
-                })));
+            if (parentResolvable != null && !this.Graph.ContainsVertex(parentResolvable)) {
+                Logger.Debug("Parent module had already been resolved, skipping orphan.");
+                continue;
             }
 
-            runningTasks.RemoveAll(task => task.Task.IsCompleted);
+            var resolvableResult = await this.LinkFindingPossibleResolved(parentResolvable, workingModuleSpec);
 
-            if (runningTasks.Count != 0) {
-                Logger.Debug($"Waiting for tasks to complete, {runningTasks.Count} running with {iterating.Count} left to process.");
-                await Task.WhenAny(runningTasks.Select(task => task.Task));
+            Option<Resolvable> workingResolvable = None;
+            if (resolvableResult.IsErr(out var err, out workingResolvable)) {
+                Logger.Error($"Failed to link {workingModuleSpec} to {parentResolvable?.ModuleSpec}.");
+                Program.Errors.Add(err);
+                continue;
             }
-        } while (!iterating.IsEmpty || runningTasks.Count != 0);
+
+            if (!workingResolvable.IsSome(out var safeWorkingResolvable)
+                || (this.Graph.TryGetOutEdges(safeWorkingResolvable, out var outEdges) && outEdges.Any())) {
+                continue;
+            }
+
+            lock (safeWorkingResolvable.Requirements) {
+                safeWorkingResolvable.Requirements.GetRequirements<ModuleSpec>().ToList()
+                    .ForEach(requirement => iterating.Enqueue((safeWorkingResolvable, requirement)));
+            }
+
+            Logger.Debug($"Resolved {workingModuleSpec.Name}, {iterating.Count} left to process.");
+        }
 
         Logger.Debug("Finished resolving all modules.");
     }
+
 
     /// <summary>
     /// Links a module to a new ModuleSpec, if the module has already been resolved it will return the resolved module.
@@ -360,11 +347,13 @@ public class ResolvableParent {
             Logger.Debug($"Found existing resolvable for {moduleToResolve.Name} with match: {match}");
 
             switch (match) {
-                case ModuleMatch.PreferOurs or ModuleMatch.Same or ModuleMatch.Contained:
+                case ModuleMatch.PreferOurs or ModuleMatch.Same:
                     resultingResolvable = foundResolvable;
                     break;
-                case ModuleMatch.PreferTheirs or ModuleMatch.None or ModuleMatch.OtherContained:
+
+                case ModuleMatch.PreferTheirs or ModuleMatch.None:
                     var fin = await Resolvable.TryCreate(parentResolvable.AsOption(), moduleToResolve);
+
 
                     if (fin.IsErr(out var err, out var resolvable)) {
                         Logger.Error($"⚠️ Error creating resolvable for {moduleToResolve.Name}: {err}");
@@ -376,21 +365,23 @@ public class ResolvableParent {
 
                     break;
                 case ModuleMatch.Incompatible:
+
                     Logger.Error($"⚠️ Incompatible module versions found for {moduleToResolve.Name}");
                     return FinFail<Option<Resolvable>>(Error.New($"Incompatible module versions found for {moduleToResolve.Name}."));
-                case ModuleMatch.MergeRequired or ModuleMatch.Stricter or ModuleMatch.Looser:
+                case ModuleMatch.MergeRequired or ModuleMatch.Stricter or ModuleMatch.Looser or ModuleMatch.Contained or ModuleMatch.OtherContained:
+
                     var (mergeFrom, mergeWith) = match switch {
                         ModuleMatch.MergeRequired => (moduleToResolve, new List<ModuleSpec> { foundResolvable.ModuleSpec }),
-                        ModuleMatch.Stricter or ModuleMatch.Looser => (foundResolvable.ModuleSpec, [moduleToResolve]),
+                        ModuleMatch.Stricter or ModuleMatch.Looser or ModuleMatch.Contained => (foundResolvable.ModuleSpec, [moduleToResolve]),
+                        ModuleMatch.OtherContained => (moduleToResolve, [foundResolvable.ModuleSpec]),
                         ModuleMatch.Incompatible => throw new NotImplementedException(),
                         ModuleMatch.None => throw new NotImplementedException(),
                         ModuleMatch.Same => throw new NotImplementedException(),
                         ModuleMatch.PreferOurs => throw new NotImplementedException(),
                         ModuleMatch.PreferTheirs => throw new NotImplementedException(),
-                        ModuleMatch.Contained => throw new NotImplementedException(),
-                        ModuleMatch.OtherContained => throw new NotImplementedException(),
                         _ => (moduleToResolve, []),
                     };
+
 
                     Logger.Debug($"Merging modules: {mergeFrom.Name} with {string.Join(", ", mergeWith.Select(m => m.Name))}");
 

@@ -183,7 +183,33 @@ public class ResolvableRemoteModuleTests {
         string? minimumVersion,
         string? maximumVersion
     ) => ResolvableRemoteModule.ConvertVersionParameters(requiredVersion, minimumVersion, maximumVersion);
+
+    [TestCase(null, null, null, new[] { "2.3.2", "2.3.5", "2.4.0" }, ExpectedResult = "2.4.0")]
+    [TestCase("2.3.5", null, null, new[] { "2.3.2", "2.3.5", "2.4.0" }, ExpectedResult = "2.3.5")]
+    [TestCase(null, "2.3.5", null, new[] { "2.3.2", "2.3.5", "2.4.0" }, ExpectedResult = "2.4.0")]
+    [TestCase(null, null, "2.3.5", new[] { "2.3.2", "2.3.5", "2.4.0" }, ExpectedResult = "2.3.5")]
+    [TestCase(null, "2.3.3", "2.3.9", new[] { "2.3.2", "2.3.5", "2.4.0" }, ExpectedResult = "2.3.5")]
+    public string? SelectBestVersion(
+        string? requiredVersion,
+        string? minimumVersion,
+        string? maximumVersion,
+        string[] availableVersions
+    ) {
+
+        var moduleSpec = (requiredVersion, minimumVersion, maximumVersion) switch {
+            (null, null, null) => new ModuleSpec("PSReadLine"),
+            (string req, _, _) => new ModuleSpec("PSReadLine", requiredVersion: new Version(req)),
+            (_, string minimum, null) => new ModuleSpec("PSReadLine", minimumVersion: new Version(minimum)),
+            (_, null, string maximum) => new ModuleSpec("PSReadLine", maximumVersion: new Version(maximum)),
+            (_, string minimum, string maximum) => new ModuleSpec("PSReadLine", minimumVersion: new Version(minimum), maximumVersion: new Version(maximum))
+        };
+
+        var module = new ResolvableRemoteModule(moduleSpec);
+        var versions = availableVersions.Select(static version => new Version(version));
+        return module.SelectBestVersion(versions)?.ToString();
+    }
 }
+
 
 public static class TestData {
     public static void CreateDummyCacheFiles(

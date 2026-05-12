@@ -12,13 +12,33 @@ public sealed class RequirementGroup {
 
     public bool AddRequirement<T>(T value) where T : Requirement {
         var typeName = typeof(T);
+        if (value is ModuleSpec moduleSpec) {
+            var existingModuleSpec = this.StoredRequirements.Values
+                .SelectMany(static requirements => requirements)
+                .OfType<ModuleSpec>()
+                .FirstOrDefault(existing => existing.Name == moduleSpec.Name);
+            if (existingModuleSpec is not null) {
+                var existingType = existingModuleSpec.GetType();
+                var mergedModuleSpec = existingModuleSpec.MergeSpecs([moduleSpec]);
+                this.StoredRequirements[existingType].Remove(existingModuleSpec);
+                if (!this.StoredRequirements.TryGetValue(typeName, out var mergedRequirementList)) {
+                    this.StoredRequirements.Add(typeName, [mergedModuleSpec]);
+                } else {
+                    mergedRequirementList.Add(mergedModuleSpec);
+                }
+                return true;
+            }
+        }
+
         if (!this.StoredRequirements.TryGetValue(typeName, out var requirementList)) {
             this.StoredRequirements.Add(typeName, [value]);
             return true;
-        } else {
-            return requirementList.Add(value);
         }
+
+        return requirementList.Add(value);
     }
+
+
 
     public ImmutableList<T> GetRequirements<T>() where T : Requirement {
         var typeName = typeof(T);

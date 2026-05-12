@@ -16,9 +16,8 @@ using QuikGraph.Algorithms;
 namespace Compiler.Module.Compiled;
 
 public partial class CompiledScript : CompiledLocalModule {
-    private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-
     private static readonly Lazy<string> Template = new(() => {
+
         var info = Assembly.GetExecutingAssembly().GetName();
         using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
         using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
@@ -63,15 +62,18 @@ public partial class CompiledScript : CompiledLocalModule {
         foreach (var resolvable in reversedLoadOrder) {
             var compiledRequirements = new List<Compiled>();
             foreach (var edge in thisGraph.OutEdges(resolvable)) {
-                var requirement = script.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec == edge.Target.ModuleSpec);
+                var requirement = script.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec.Name == edge.Target.ModuleSpec.Name);
+
                 if (requirement is null) {
                     if (GetCompiledFromSpec(resolvableParent, edge.Target.ModuleSpec).IsErr(out var error, out var compiled)) {
                         return error;
                     }
 
+
                     compiled.RootScript = script;
                     requirement = compiled;
                 }
+
 
                 compiledRequirements.Add(requirement);
             }
@@ -85,11 +87,14 @@ public partial class CompiledScript : CompiledLocalModule {
                 compiledModule = compiled;
             }
 
+            script.Graph.AddVertex(compiledModule);
             if (compiledRequirements.Count != 0) {
-                script.Graph.AddVerticesAndEdgeRange(compiledRequirements.Select(requirement => new Edge<Compiled>(compiledModule, requirement)));
-            } else {
-                script.Graph.AddVertex(compiledModule);
+                foreach (var requirement in compiledRequirements) {
+                    script.Graph.AddVertex(requirement);
+                    script.Graph.AddEdge(new Edge<Compiled>(compiledModule, requirement));
+                }
             }
+
         }
 
         foreach (var compiled in script.Graph.Vertices.OfType<CompiledLocalModule>()) {
@@ -106,6 +111,7 @@ public partial class CompiledScript : CompiledLocalModule {
 
         return script;
     }
+
 
     public override Fin<string> GetPowerShellObject() {
         var template = Template.Value;

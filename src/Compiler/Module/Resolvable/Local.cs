@@ -128,6 +128,8 @@ public partial class ResolvableLocalModule : Resolvable {
             lock (this.Requirements) {
                 this.Requirements.AddRequirement(spec);
             }
+
+
         });
 
         AstHelper.FindDeclaredNamespaces(this.RequirementsAst).ToList().ForEach(statement => {

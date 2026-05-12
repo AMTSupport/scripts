@@ -15,7 +15,8 @@ using NLog;
 
 namespace Compiler.Module.Compiled;
 
-public class CompiledRemoteModule : Compiled {
+public class CompiledRemoteModule : Compiled, IDisposable {
+
     private sealed record ExtraModuleInfo(
         string[]? FunctionsToExport,
         string[]? CmdletsToExport,
@@ -217,9 +218,8 @@ public class CompiledRemoteModule : Compiled {
                     return archiveError;
                 }
 
-                using (archive) {
-                    archive.ExtractToDirectory(tempOutput);
-                }
+                archive.ExtractToDirectory(tempOutput);
+
             } else if (module is CompiledLocalModule localModule) {
                 var lines = localModule.Document.GetLines();
                 using var stream = new FileStream(Path.Combine(tempOutput, $"{module.ModuleSpec.Name}.psm1"), FileMode.Create);
@@ -354,7 +354,14 @@ public class CompiledRemoteModule : Compiled {
         }
     }
 
+    public void Dispose() {
+        this.ZipArchive?.Dispose();
+        this.ZipArchive = null;
+        GC.SuppressFinalize(this);
+    }
+
     private void MoveModuleManifest(string expandedRoot) {
+
         var manifestPath = Path.Join(expandedRoot, $"{this.ModuleSpec.Name}.psd1");
         if (File.Exists(manifestPath)) {
             if (this.GetNameHash().IsErr(out var nameHashError, out var nameHash)) {
