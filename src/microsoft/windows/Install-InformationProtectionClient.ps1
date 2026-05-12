@@ -1,3 +1,6 @@
+[CmdletBinding()]
+Param()
+
 $url = "https://download.microsoft.com/download/5e62f7f5-d616-49f8-b506-f1c6b4f79ba7/PurviewInfoProtection.msi"
 $output = "C:\temp\PurviewInfoProtection.msi"
 
