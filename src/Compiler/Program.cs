@@ -334,7 +334,9 @@ public class Program {
         }
 
         var outputPath = GetOutputLocation(sourceDirectory, outputDirectory, fileName);
+        Logger.Debug($"Preparing output for {fileName} -> {outputPath}");
         if (File.Exists(outputPath)) {
+
             var hashEngine = System.Security.Cryptography.SHA256.Create();
             var existingFileStream = File.OpenRead(outputPath);
             var hash = hashEngine.ComputeHash(existingFileStream);
@@ -379,23 +381,8 @@ public class Program {
         Option<string> sourceDirectory,
         Option<string> outputDirectory
     ) {
-        // Wait for all threads to finish before outputting errors, ensures all errors are captured.
-        if (RunspacePool.IsValueCreated) {
-            var runspacePool = RunspacePool.Value!;
-            var maxRunspaces = runspacePool.GetMaxRunspaces();
-            do {
-                Logger.Debug($$"""
-                Waiting for all threads to finish {
-                    Pending: {{ThreadPool.PendingWorkItemCount}}
-                    Threads: {{ThreadPool.ThreadCount}}
-                    Runspaces: {{Math.Abs(runspacePool.GetAvailableRunspaces() - maxRunspaces)}} of {{maxRunspaces}}
-                }
-                """);
-                await Task.Delay(25);
-            } while (ThreadPool.PendingWorkItemCount != 0 && ThreadPool.ThreadCount > maxRunspaces);
-        }
-
         if (Errors.IsEmpty) return 0;
+
 
         // Deduplicate errors.
         var errorSet = new C.HashSet<LanguageExt.Common.Error>();
@@ -494,7 +481,7 @@ public class Program {
     }
 
     internal static Fin<Collection<PSObject>> RunPowerShell(string script, params object[] args) {
-        var pwsh = GetPowerShellSession();
+        using var pwsh = GetPowerShellSession();
         pwsh.AddScript(script);
         args.ToList().ForEach(arg => {
             if (arg is KeyValuePair<string, object> keyValuePair) {
@@ -550,6 +537,7 @@ public class Program {
 
         return FinSucc(result);
     }
+
 
     /// <summary>
     /// Gets the embedded resource from the assembly inside the Resource folder.

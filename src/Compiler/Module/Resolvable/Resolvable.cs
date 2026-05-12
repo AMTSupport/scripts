@@ -211,8 +211,13 @@ public class ResolvableParent {
                                        var result = await mod.IntoCompiled(this);
                                        if (result.IsOk(out var compiled, out var _)) {
                                            this.OnCompiledModule(mod.ModuleSpec, compiled);
+                                       } else if (result.IsErr(out var error, out _)) {
+                                           Logger.Error($"Failed compiling {mod.ModuleSpec}: {error}");
+                                           Program.Errors.Add(error.Enrich(mod.ModuleSpec));
                                        }
                                        return result;
+
+
                                    } catch (Exception ex) {
                                        Logger.Error(ex, $"Error compiling {mod.ModuleSpec}");
                                        throw;
@@ -223,18 +228,27 @@ public class ResolvableParent {
             nextBatch.ToList().ForEach(mod => graph.RemoveVertex(mod));
         }
 
-        var completionTasks = from resolvable in this.Resolvables.Values
-                              where resolvable.Compiled.IsSome
-                              let compiled = resolvable.Compiled.Unwrap().Unwrap()
-                              select Task.Run(async () => {
-                                  compiled.CompleteCompileAfterResolution();
-                                  resolvable.OnCompletion.IfSome(async onComplete => {
-                                      if (compiled is CompiledScript script) {
-                                          await onComplete(script);
-                                      }
-                                  });
-                              });
+        var completionTasks = this.Resolvables.Values
+            .Where(resolvable => resolvable.Compiled.IsSome)
+            .Select(async resolvable => {
+                var compiled = resolvable.Compiled.Unwrap().Unwrap();
+                compiled.CompleteCompileAfterResolution();
+
+                if (compiled is not CompiledScript script) {
+                    return;
+                }
+
+                Logger.Debug($"Running completion callback for {script.ModuleSpec.Name}");
+                if (resolvable.OnCompletion.IsSome(out var onComplete)) {
+                    await onComplete(script);
+                    Logger.Debug($"Completed completion callback for {script.ModuleSpec.Name}");
+                } else {
+                    Logger.Debug($"No completion callback registered for {script.ModuleSpec.Name}");
+                }
+
+            });
         await Task.WhenAll(completionTasks);
+
     }
 
     private void OnCompiledModule(ModuleSpec moduleSpec, Compiled.Compiled compiled) {
