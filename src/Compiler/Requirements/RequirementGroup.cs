@@ -11,16 +11,15 @@ public sealed class RequirementGroup {
     public RequirementGroup() => this.StoredRequirements ??= [];
 
     public bool AddRequirement<T>(T value) where T : Requirement {
-        var typeName = typeof(T);
+        var typeName = value is ModuleSpec ? typeof(ModuleSpec) : typeof(T);
         if (value is ModuleSpec moduleSpec) {
             var existingModuleSpec = this.StoredRequirements.Values
                 .SelectMany(static requirements => requirements)
                 .OfType<ModuleSpec>()
                 .FirstOrDefault(existing => existing.Name == moduleSpec.Name);
             if (existingModuleSpec is not null) {
-                var existingType = existingModuleSpec.GetType();
                 var mergedModuleSpec = existingModuleSpec.MergeSpecs([moduleSpec]);
-                this.StoredRequirements[existingType].Remove(existingModuleSpec);
+                this.StoredRequirements[typeName].Remove(existingModuleSpec);
                 if (!this.StoredRequirements.TryGetValue(typeName, out var mergedRequirementList)) {
                     this.StoredRequirements.Add(typeName, [mergedModuleSpec]);
                 } else {
