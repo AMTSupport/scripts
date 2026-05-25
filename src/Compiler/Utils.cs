@@ -17,7 +17,7 @@ namespace Compiler;
 public static class Utils {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Option<T> AsOption<T>(this T? value) where T : class =>
-        value == null ? Option<T>.None : Option<T>.Some(value);
+        Optional(value);
 
     #region AndThen & AndThenTry
     [return: NotNull]
@@ -66,7 +66,7 @@ public static class Utils {
         [NotNull] this Option<TIn> option,
         [NotNull] Func<TIn, Fin<TOut>> func,
         [NotNull] Func<Error> error
-    ) => option.Map(func).UnwrapOrElse(() => Fin<TOut>.Fail(error()));
+    ) => option.Map(func).UnwrapOrElse(() => Fail(error()));
 
     [return: NotNull]
     [Pure, MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -84,7 +84,7 @@ public static class Utils {
         try {
             return func(value);
         } catch {
-            return FinFail<TOut>(error(value));
+            return Fail(error(value));
         }
     });
 
@@ -111,7 +111,7 @@ public static class Utils {
         try {
             return func(value);
         } catch (Exception err) {
-            return FinFail<TOut>(err);
+            return Fin.Fail<TOut>(err);
         }
     });
 
@@ -125,7 +125,7 @@ public static class Utils {
         try {
             return func(value);
         } catch (Exception err) {
-            return FinFail<TOut>(error(value, err));
+            return Fin.Fail<TOut>(error(value, err));
         }
     });
 
@@ -145,7 +145,7 @@ public static class Utils {
         try {
             return func(value);
         } catch (Exception err) {
-            return FinFail<TOut>(err);
+            return Fin.Fail<TOut>(err);
         }
     });
 
@@ -159,7 +159,7 @@ public static class Utils {
         try {
             return func(value);
         } catch (Exception err) {
-            return FinFail<TOut>(error(value, err));
+            return Fin.Fail<TOut>(error(value, err));
         }
     });
     #endregion
@@ -192,43 +192,44 @@ public static class Utils {
     }
     #endregion
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Fin<Option<T>> FailIf<T>(this Option<T> option, Predicate<T> predicate, Func<T, Error> error) => option.Match(
-        Some: value => predicate(value) ? error(value) : Some(value),
-        None: Fin<Option<T>>.Succ(None)
-    );
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Fin<Option<T>> FailIf<T>(this Option<T> option, Predicate<T> predicate, Error error) => option.Match(
-        Some: value => predicate(value) ? error : Some(value),
-        None: Fin<Option<T>>.Succ(None)
-    );
+    public static Fin<Option<T>> FailIf<T>(this Option<T> option, Predicate<T> predicate, Func<T, Error> error) where T : notnull =>
+        option.IsSome(out var value)
+            ? predicate(value) ? Fail(error(value)) : Pure(Some(value))
+            : Pure(Option<T>.None);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Fin<Option<T>> FailIf<T>(this Option<T> option, Predicate<T> predicate, Error error) where T : notnull =>
+        option.IsSome(out var value)
+            ? predicate(value) ? Fail(error) : Pure(Some(value))
+            : Pure(Option<T>.None);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Fin<T> FailIf<T>(this Fin<T> fin, Predicate<T> predicate, Func<T, Error> error) =>
-        fin.Bind(value => predicate(value) ? Fin<T>.Fail(error(value)) : Fin<T>.Succ(value));
+        fin.Bind(value => predicate(value) ? Fin.Fail<T>(error(value)) : Pure(value));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Fin<T> FailIf<T>(this Fin<T> fin, Predicate<T> predicate, Error error) =>
-        fin.Bind(value => predicate(value) ? Fin<T>.Fail(error) : Fin<T>.Succ(value));
+        fin.Bind(value => predicate(value) ? Fin.Fail<T>(error) : Pure(value));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Fin<Option<T>> FailIfOpt<T>(this Fin<Option<T>> fin, Predicate<T> predicate, Func<T, Error> error) => fin.Bind(option => option.Match(
-        Some: value => predicate(value) ? error(value) : Some(value),
-        None: Fin<Option<T>>.Succ(None)
-    ));
+    public static Fin<Option<T>> FailIfOpt<T>(this Fin<Option<T>> fin, Predicate<T> predicate, Func<T, Error> error) where T : notnull => fin.Bind(option =>
+        option.IsSome(out var value)
+            ? predicate(value) ? Fin.Fail<Option<T>>(error(value)) : Pure(Some(value))
+            : Pure(Option<T>.None));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Fin<Option<T>> FailIfOpt<T>(this Fin<Option<T>> fin, Predicate<T> predicate, Error error) => fin.Bind(option => option.Match(
-        Some: value => predicate(value) ? Fin<Option<T>>.Fail(error) : Fin<Option<T>>.Succ(Some(value)),
-        None: Fin<Option<T>>.Succ(None)
-    ));
+    public static Fin<Option<T>> FailIfOpt<T>(this Fin<Option<T>> fin, Predicate<T> predicate, Error error) where T : notnull => fin.Bind(option =>
+        option.IsSome(out var value)
+            ? predicate(value) ? Fin.Fail<Option<T>>(error) : Pure(Some(value))
+            : Pure(Option<T>.None));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Fin<Option<TOut>> BindOption<TIn, TOut>(this Fin<Option<TIn>> fin, Func<TIn, Fin<Option<TOut>>> func) => fin.Bind(option => option.Match(
-        Some: func,
-        None: Fin<Option<TOut>>.Succ(None)
-    ));
+    public static Fin<Option<TOut>> BindOption<TIn, TOut>(this Fin<Option<TIn>> fin, Func<TIn, Fin<Option<TOut>>> func) where TIn : notnull => fin.Bind(option =>
+        option.IsSome(out var value)
+            ? func(value)
+            : Pure(Option<TOut>.None));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Option<T> OrElse<T>(this Option<T> option, Func<Option<T>> other) => option.BiBind(
@@ -291,7 +292,7 @@ public static class Utils {
         this Fin<T> fin,
         [NotNullWhen(true)] out T? value,
         [NotNullWhen(false)] out Error? error
-) {
+    ) {
         if (fin.IsSucc) {
             value = (T)fin!; // This is safe because we know it's a success
             error = default;

@@ -22,8 +22,8 @@ public static partial class SuppressAnalyserAttributeExt {
         }
 
         return issues.Count == 0
-            ? FinSucc<IEnumerable<SuppressAnalyserAttribute>>(suppressions)
-            : FinFail<IEnumerable<SuppressAnalyserAttribute>>(issues);
+            ? Fin.Succ<IEnumerable<SuppressAnalyserAttribute>>(suppressions)
+            : Fin.Fail<IEnumerable<SuppressAnalyserAttribute>>(issues);
     }
 
     [return: NotNull]
@@ -37,7 +37,7 @@ public static partial class SuppressAnalyserAttributeExt {
         if (!(typeName.GetReflectionAttributeType() == typeof(SuppressAnalyserAttribute)
             || (hasNamespace && attributeSuffixed == typeof(SuppressAnalyserAttribute).FullName)
             || (!hasNamespace && attributeSuffixed == nameof(SuppressAnalyserAttribute))
-        )) return FinSucc<Option<SuppressAnalyserAttribute>>(None);
+        )) return Fin.Succ<Option<SuppressAnalyserAttribute>>(None);
 
         string? checkType = null;
         object? data = null;

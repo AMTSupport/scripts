@@ -14,7 +14,7 @@ public class TokenUpdater(
 ) : NodeEnumerableUpdater<Token>(priority, predicate, updater, options) {
     public override Fin<IEnumerable<Token>> GetUpdatableNodes(List<string> lines, Func<Token, bool> predicate, UpdateOptions options) {
         AstHelper.GetAstReportingErrors(string.Join('\n', lines), Some("TokenUpdater"), ["ModuleNotFoundDuringParse"], out var tokens);
-        return FinSucc(tokens.Where(predicate));
+        return Fin.Succ(tokens.Where(predicate));
     }
 
     public override Fin<TextSpan> GetSpan(Token token) => TextSpan.New(

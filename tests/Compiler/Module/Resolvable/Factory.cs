@@ -61,7 +61,8 @@ public class ResolvableFactoryTests {
         var parent = new ResolvableLocalModule(parentSpec);
         var childSpec = new PathedModuleSpec(sourceRoot, childFile);
 
-        var result = await ResolvableBase.TryCreate(Option<ResolvableBase>.Some(parent), childSpec);
+        var result = await ResolvableBase.TryCreate(Prelude.Some<ResolvableBase>(parent), childSpec);
+
 
         Assert.Multiple(() => {
             Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should succeed for local child");
@@ -79,7 +80,8 @@ public class ResolvableFactoryTests {
         var parent = new ResolvableLocalModule(parentSpec);
         var childSpec = new ModuleSpec("PSReadLine", requiredVersion: new Version(2, 3, 5));
 
-        var result = await ResolvableBase.TryCreate(Option<ResolvableBase>.Some(parent), childSpec);
+        var result = await ResolvableBase.TryCreate(Prelude.Some<ResolvableBase>(parent), childSpec);
+
 
         Assert.Multiple(() => {
             Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should fall back to remote");
@@ -93,7 +95,8 @@ public class ResolvableFactoryTests {
         var spec = new ModuleSpec("PSReadLine", requiredVersion: new Version(2, 3, 5));
         var remoteParent = new ResolvableRemoteModule(new ModuleSpec("SomeOtherModule"));
 
-        var result = await ResolvableBase.TryCreate(Option<ResolvableBase>.Some(remoteParent), spec);
+        var result = await ResolvableBase.TryCreate(Prelude.Some<ResolvableBase>(remoteParent), spec);
+
 
         Assert.Multiple(() => {
             Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should create remote when parent is not local");
@@ -229,7 +232,7 @@ public class ResolvableParentMergeTests {
 
 
     [Test]
-    public async Task FindResolvable_ReturnsNone_WhenEmpty() {
+    public void FindResolvable_ReturnsNone_WhenEmpty() {
         var sourceRoot = TestUtils.GenerateUniqueDirectory();
         var parent = new ResolvableParent(sourceRoot);
         var spec = new ModuleSpec("NonExistent");

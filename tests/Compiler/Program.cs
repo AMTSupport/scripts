@@ -72,7 +72,7 @@ public class ProgramTests {
     }
 
     [Test]
-    public void Output_ToFile(
+    public async Task Output_ToFile(
         [Values(false, true)] bool overwrite,
         [Values("FooBar", null)] string? expectedContent = default
     ) {
@@ -92,8 +92,8 @@ public class ProgramTests {
         Console.SetIn(inputStream.Object);
 
         Program.EnsureDirectoryStructure(sourceDirectory, outputDirectory, [sourceFile]);
-        Program.Output(sourceDirectory, outputDirectory, sourceFile, content, overwrite);
-        Program.Output(sourceDirectory, outputDirectory, sourceFile, expectedContent, overwrite);
+        await Program.Output(sourceDirectory, outputDirectory, sourceFile, content, overwrite);
+        await Program.Output(sourceDirectory, outputDirectory, sourceFile, expectedContent, overwrite);
 
         Assert.Multiple(() => {
             Assert.That(File.Exists(outputPath), Is.True);
@@ -102,7 +102,7 @@ public class ProgramTests {
     }
 
     [Test]
-    public void Output_ToFileOverwrites() {
+    public async Task Output_ToFileOverwrites() {
         const string content = "Hello World";
         var sourceDirectory = TestUtils.GenerateUniqueDirectory();
         var outputDirectory = TestUtils.GenerateUniqueDirectory();
@@ -117,8 +117,8 @@ public class ProgramTests {
         Console.SetIn(inputStream.Object);
 
         Program.EnsureDirectoryStructure(sourceDirectory, outputDirectory, [sourceFile]);
-        Program.Output(sourceDirectory, outputDirectory, sourceFile, "FooBar", true);
-        Program.Output(sourceDirectory, outputDirectory, sourceFile, content, false);
+        await Program.Output(sourceDirectory, outputDirectory, sourceFile, "FooBar", true);
+        await Program.Output(sourceDirectory, outputDirectory, sourceFile, content, false);
 
         Assert.Multiple(() => {
             Assert.That(File.Exists(outputPath), Is.True);
@@ -127,7 +127,7 @@ public class ProgramTests {
     }
 
     [Test]
-    public void Output_ToConsole() {
+    public async Task Output_ToConsole() {
         const string content = "Hello World";
         var sourceDirectory = TestUtils.GenerateUniqueDirectory();
         var sourceFile = TestUtils.GenerateUniqueFile(sourceDirectory, ".ps1", true);
@@ -135,7 +135,7 @@ public class ProgramTests {
         var writer = new StringWriter();
         Console.SetOut(writer);
 
-        Program.Output(sourceDirectory, null, sourceFile, content, false);
+        await Program.Output(sourceDirectory, null, sourceFile, content, false);
         Assert.That(writer.ToString(), Is.EqualTo(content));
     }
 }

@@ -31,7 +31,7 @@ public sealed class RuleVisitor(
     }
 
     public override AstVisitAction DefaultVisit(Ast ast) {
-        if (GetSupressions(ast).IsErr(out var err, out var suppressions)) {
+        if (GetSuppressions(ast).IsErr(out var err, out var suppressions)) {
             if (err is Issue issue) {
                 this.Issues.Add(issue);
             } else if (err is ManyErrors errors) {
@@ -57,7 +57,7 @@ public sealed class RuleVisitor(
         return AstVisitAction.Continue;
     }
 
-    public static Fin<IEnumerable<Suppression>> GetSupressions(Ast ast) {
+    public static Fin<IEnumerable<Suppression>> GetSuppressions(Ast ast) {
         var paramBlock = AstHelper.FindClosestParamBlock(ast);
         IEnumerable<AttributeAst> attributes;
         if (paramBlock != null) {
@@ -68,7 +68,7 @@ public sealed class RuleVisitor(
             if (root is ScriptBlockAst scriptBlock && scriptBlock.ParamBlock == null) {
                 attributes = scriptBlock.Attributes;
             } else {
-                return FinSucc(Enumerable.Empty<Suppression>());
+                return Fin.Succ(Enumerable.Empty<Suppression>());
             }
         }
         return SuppressAnalyserAttributeExt.FromAttributes(attributes)

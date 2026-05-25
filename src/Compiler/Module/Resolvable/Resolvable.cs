@@ -73,14 +73,14 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
             try {
                 resolvable = new ResolvableRemoteModule(moduleSpec);
             } catch (Exception err) {
-                return FinFail<Resolvable>(err);
+                return Fin.Fail<Resolvable>(err);
             }
         }
 
         var requirements = await resolvable.ResolveRequirements();
         return requirements.Match(
-            exception => FinFail<Resolvable>(exception.Enrich(moduleSpec)),
-            () => FinSucc(resolvable)
+            exception => Fin.Fail<Resolvable>(exception.Enrich(moduleSpec)),
+            () => Fin.Succ(resolvable)
         );
     }
 
@@ -88,11 +88,11 @@ public abstract partial class Resolvable(ModuleSpec moduleSpec) : Module(moduleS
         try {
             var script = new ResolvableScript(moduleSpec, parent);
             return (await script.ResolveRequirements()).Match(
-                exception => FinFail<ResolvableScript>(exception.Enrich(moduleSpec)),
-                () => FinSucc(script)
+                exception => Fin.Fail<ResolvableScript>(exception.Enrich(moduleSpec)),
+                () => Fin.Succ(script)
             );
         } catch (Exception err) {
-            return FinFail<ResolvableScript>(err);
+            return Fin.Fail<ResolvableScript>(err);
         }
     }
 }
@@ -253,14 +253,14 @@ public class ResolvableParent {
             this.Resolvables.TryUpdate(
                 moduleSpec,
                 info with {
-                    Compiled = FinSucc(compiled),
+                    Compiled = Fin.Succ(compiled),
                 },
                 info
             );
         } else {
             Logger.Warn($"Compiled module {moduleSpec.Name} but no resolvable info was found");
             this.Resolvables[moduleSpec] = new ResolvableInfo(
-                FinSucc(compiled),
+                Fin.Succ(compiled),
                 None
             );
         }
@@ -357,7 +357,7 @@ public class ResolvableParent {
 
                     if (fin.IsErr(out var err, out var resolvable)) {
                         Logger.Error($"⚠️ Error creating resolvable for {moduleToResolve.Name}: {err}");
-                        return FinFail<Option<Resolvable>>(err);
+                        return Fin.Fail<Option<Resolvable>>(err);
                     } else {
                         resultingResolvable = resolvable;
                         Logger.Debug($"Successfully created merged resolvable for {moduleToResolve.Name}");
@@ -367,7 +367,7 @@ public class ResolvableParent {
                 case ModuleMatch.Incompatible:
 
                     Logger.Error($"⚠️ Incompatible module versions found for {moduleToResolve.Name}");
-                    return FinFail<Option<Resolvable>>(Error.New($"Incompatible module versions found for {moduleToResolve.Name}."));
+                    return Fin.Fail<Option<Resolvable>>(Error.New($"Incompatible module versions found for {moduleToResolve.Name}."));
                 case ModuleMatch.MergeRequired or ModuleMatch.Stricter or ModuleMatch.Looser or ModuleMatch.Contained or ModuleMatch.OtherContained:
 
                     var (mergeFrom, mergeWith) = match switch {
@@ -393,7 +393,7 @@ public class ResolvableParent {
 
                     if (fin.IsErr(out err, out resolvable)) {
                         Logger.Error($"⚠️ Error creating resolvable for {moduleToResolve.Name}: {err}");
-                        return FinFail<Option<Resolvable>>(err);
+                        return Fin.Fail<Option<Resolvable>>(err);
                     } else {
                         resultingResolvable = resolvable;
                         Logger.Debug($"Successfully created merged resolvable for {moduleToResolve.Name}");
@@ -405,7 +405,7 @@ public class ResolvableParent {
             }
 
             if (resultingResolvable is null) {
-                return FinFail<Option<Resolvable>>(Error.New($"Failed to resolve {moduleToResolve.Name}."));
+                return Fin.Fail<Option<Resolvable>>(Error.New($"Failed to resolve {moduleToResolve.Name}."));
             }
 
             // Propogate the merge if the module isn't the same.
@@ -435,7 +435,7 @@ public class ResolvableParent {
             var newResolvable = await Resolvable.TryCreate(parentResolvable.AsOption(), moduleToResolve);
             if (newResolvable.IsErr(out var err, out resultingResolvable)) {
                 Logger.Error($"⚠️ Failed to create resolvable for {moduleToResolve.Name}: {err}");
-                return FinFail<Option<Resolvable>>(err);
+                return Fin.Fail<Option<Resolvable>>(err);
             }
             Logger.Debug($"Successfully created new resolvable for {moduleToResolve.Name}");
         }
@@ -444,7 +444,7 @@ public class ResolvableParent {
             if (parentResolvable != null) {
                 if (this.Graph.Edges.Any(edge => edge.Source == parentResolvable && edge.Target == resultingResolvable)) {
                     Logger.Debug("Edge already exists, skipping.");
-                    return FinSucc<Option<Resolvable>>(None);
+                    return Fin.Succ<Option<Resolvable>>(None);
                 }
 
                 lock (parentResolvable.Requirements) {
@@ -460,7 +460,7 @@ public class ResolvableParent {
 
         this.Resolvables.TryAdd(resultingResolvable.ModuleSpec, new(None, None));
 
-        return FinSucc(Some(resultingResolvable));
+        return Fin.Succ(Some(resultingResolvable));
     }
 
     public static void DebugVisualizeLinkAttempt(

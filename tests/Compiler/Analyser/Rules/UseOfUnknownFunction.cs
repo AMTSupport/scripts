@@ -96,14 +96,14 @@ public class UseOfUnknownFunctionTests {
     public void GetDefaultSessionFunctions_DoesNotThrow() {
         // This test ensures the function doesn't throw due to undisposed resources
         var functions = UseOfUndefinedFunction.GetDefaultSessionFunctions();
-        
+
         Assert.That(functions, Is.Not.Null);
         Assert.That(functions, Is.Not.Empty);
     }
 
     [Test]
-    public void SanatiseName_NormalizesFunctionNames() {
+    public void SanatiseName_NormalizesFunctionNames() => Assert.Multiple(() => {
         Assert.That(UseOfUndefinedFunction.SanatiseName("Test-Function"), Is.EqualTo("test-function"));
         Assert.That(UseOfUndefinedFunction.SanatiseName("Module:Function"), Is.EqualTo("function"));
-    }
+    });
 }

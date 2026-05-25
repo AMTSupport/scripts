@@ -63,8 +63,8 @@ public class DependencyResolutionTests {
             graph.AddEdge(new QuikGraph.Edge<Resolvable>(mockB, mockA));
         }
 
-        parent.Resolvables.TryAdd(specA, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<System.Func<Compiler.Module.Compiled.CompiledScript, System.Threading.Tasks.Task>>.None));
-        parent.Resolvables.TryAdd(specB, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<System.Func<Compiler.Module.Compiled.CompiledScript, System.Threading.Tasks.Task>>.None));
+        parent.Resolvables.TryAdd(specA, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, OnCompletion: LanguageExt.Option<Func<Compiler.Module.Compiled.CompiledScript, Task>>.None));
+        parent.Resolvables.TryAdd(specB, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<Func<Compiler.Module.Compiled.CompiledScript, Task>>.None));
 
         var ex = Assert.ThrowsAsync<InvalidOperationException>(parent.Compile);
         Assert.That(ex!.Message, Does.Contain("cycle"));
@@ -92,9 +92,9 @@ public class DependencyResolutionTests {
             graph.AddEdge(new QuikGraph.Edge<Resolvable>(mockC, mockA));
         }
 
-        parent.Resolvables.TryAdd(specA, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<System.Func<Compiler.Module.Compiled.CompiledScript, System.Threading.Tasks.Task>>.None));
-        parent.Resolvables.TryAdd(specB, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<System.Func<Compiler.Module.Compiled.CompiledScript, System.Threading.Tasks.Task>>.None));
-        parent.Resolvables.TryAdd(specC, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<System.Func<Compiler.Module.Compiled.CompiledScript, System.Threading.Tasks.Task>>.None));
+        parent.Resolvables.TryAdd(specA, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<Func<Compiler.Module.Compiled.CompiledScript, Task>>.None));
+        parent.Resolvables.TryAdd(specB, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, LanguageExt.Option<Func<Compiler.Module.Compiled.CompiledScript, Task>>.None));
+        parent.Resolvables.TryAdd(specC, new ResolvableParent.ResolvableInfo(LanguageExt.Option<LanguageExt.Fin<Compiler.Module.Compiled.Compiled>>.None, OnCompletion: LanguageExt.Option<Func<Compiler.Module.Compiled.CompiledScript, Task>>.None));
 
         var ex = Assert.ThrowsAsync<InvalidOperationException>(parent.Compile);
         Assert.That(ex!.Message, Does.Contain("cycle"));

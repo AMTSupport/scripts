@@ -6,7 +6,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CommandLine;
 using LanguageExt;
-using NLog;
 
 namespace Compiler.Text.Updater;
 
@@ -17,8 +16,6 @@ public class PatternUpdater(
     UpdateOptions options,
     Func<string[], string[]> updater
 ) : TextSpanUpdater(priority) {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
     public Func<string[], string[]> Updater { get; } = updater;
     public Regex StartingPattern { get; } = startingPattern;
     public Regex EndingPattern { get; } = endingPattern;

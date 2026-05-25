@@ -6,7 +6,6 @@ using System.Diagnostics.Contracts;
 using System.IO.Compression;
 
 using System.Net;
-using System.Net.Http;
 using System.Text.RegularExpressions;
 using Compiler.Module.Compiled;
 
@@ -27,8 +26,9 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
 
 
     // Only public for testing purposes.
-    // Left value is a resolved file path, Right value is a task for creating that file
-    public Atom<Either<Option<string>, Task<Option<string>>>>? CachedFile;
+    // Cached value or running task for resolving cached file path.
+    public Option<string>? CachedFile;
+    public Task<Option<string>>? CachedFileTask;
 
     public string CachePath => Path.Join(
         Path.GetTempPath(),
@@ -116,11 +116,11 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
     }
 
     public async Task<Option<string>> FindCachedResult() {
-        if (this.CachedFile is not null) {
-            var either = this.CachedFile.Value;
-            if (either.IsLeft) return (Option<string>)either;
+        if (this.CachedFile is { } cachedFile) {
+            return cachedFile;
+        }
 
-            var runningTask = (Task<Option<string>>)either;
+        if (this.CachedFileTask is { } runningTask) {
             return await runningTask;
         }
 
@@ -133,16 +133,16 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
             var versions = files.Where(file => {
                 var fileName = Path.GetFileName(file);
                 return fileName.StartsWith(this.ModuleSpec.Name, StringComparison.OrdinalIgnoreCase);
-            }).Bind(file => {
+            }).Select(file => {
                 var fileName = Path.GetFileName(file);
-                var version = fileName.Substring(this.ModuleSpec.Name.Length + 1, fileName.Length - this.ModuleSpec.Name.Length - 1 - ".nupkg".Length);
+                var version = fileName[(this.ModuleSpec.Name.Length + 1)..^".nupkg".Length];
 
                 try {
-                    return Some(new Version(version));
+                    return new Version(version);
                 } catch {
-                    return Option<Version>.None; // Ignore invalid versions.
+                    return null;
                 }
-            });
+            }).Where(version => version != null).Cast<Version>();
 
             Func<Version, bool> findBestVersionFunc = (this.ModuleSpec.RequiredVersion, this.ModuleSpec.MinimumVersion, this.ModuleSpec.MaximumVersion) switch {
                 (Version requiredVersion, _, _) => version => version == requiredVersion,
@@ -152,8 +152,8 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
                 (null, null, null) => (_) => true
             };
 
-            var posibleVersions = versions.Where(version => findBestVersionFunc(version)).ToArray();
-            var selectedVersion = posibleVersions.OrderByDescending(version => version).FirstOrDefault();
+            var possibleVersions = versions.Where(version => findBestVersionFunc(version)).ToArray();
+            var selectedVersion = possibleVersions.OrderByDescending(version => version).FirstOrDefault();
             if (selectedVersion == null) return None;
 
             var selectedFile = Path.Join(this.CachePath, $"{this.ModuleSpec.Name}.{selectedVersion}.nupkg");
@@ -161,22 +161,22 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
             return selectedFile;
         });
 
-        this.CachedFile = Atom(Either<Option<string>, Task<Option<string>>>.Right(task));
+        this.CachedFileTask = task;
         var result = await task;
-        this.CachedFile.Swap(_ => Left(result));
+        this.CachedFileTask = null;
+        this.CachedFile = result;
         return result;
     }
 
     public async Task<Fin<string>> CacheResult() {
-        if (this.CachedFile is not null) {
-            var either = this.CachedFile.Value;
-            if (either.IsLeft && ((Option<string>)either).IsSome(out var path)) {
+        if (this.CachedFile is { } cachedFile && cachedFile.IsSome(out var path)) {
+            return path;
+        }
+
+        if (this.CachedFileTask is { } runningTask) {
+            var runningResult = await runningTask;
+            if (runningResult.IsSome(out path)) {
                 return path;
-            } else if (either.IsRight) {
-                var runningTask = (Task<Option<string>>)either;
-                if ((await runningTask).IsSome(out path)) {
-                    return path;
-                }
             }
         }
 
@@ -316,11 +316,8 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
     }
 
     private void UpdateCachedFile(string path) {
-        if (this.CachedFile is null) {
-            this.CachedFile = Atom<Either<Option<string>, Task<Option<string>>>>(Left(Some(path)));
-        } else {
-            this.CachedFile.Swap(_ => Left(Some(path)));
-        }
+        this.CachedFileTask = null;
+        this.CachedFile = Some(path);
     }
 
 

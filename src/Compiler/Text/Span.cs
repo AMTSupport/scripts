@@ -93,7 +93,7 @@ public sealed record TextSpan : IComparable<TextSpan> {
         try {
             return new TextSpan(startingIndex, startingColumn, endingIndex, endingColumn);
         } catch (Exception err) when (err is ArgumentNullException or ArgumentOutOfRangeException) {
-            return FinFail<TextSpan>(err);
+            return Fin.Fail<TextSpan>(err);
         }
     }
 

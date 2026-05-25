@@ -532,10 +532,10 @@ public class Program {
                 return Issue.Error(errorMessage, extent, ast);
             });
 
-            return FinFail<Collection<PSObject>>(LanguageExt.Common.Error.Many(errors.ToArray()));
+            return Fin.Fail<Collection<PSObject>>(LanguageExt.Common.Error.Many(errors.ToArray()));
         }
 
-        return FinSucc(result);
+        return Fin.Succ(result);
     }
 
 

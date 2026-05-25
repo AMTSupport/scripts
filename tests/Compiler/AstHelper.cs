@@ -100,7 +100,7 @@ public class AstHelperTests {
         bool onlyExported
     ) {
         Console.WriteLine(astContent);
-        var ast = AstHelper.GetAstReportingErrors(astContent, [], [], out _).ThrowIfFail();
+        var ast = AstHelper.GetAstReportingErrors(astContent, Option<string>.None, [], out _).ThrowIfFail();
         var result = AstHelper.FindAvailableAliases(ast, onlyExported);
 
         Assert.Multiple(() => {
@@ -413,7 +413,7 @@ file static class TestData {
             get {
                 yield return new TestCaseData(
                     VALID_AST,
-                    Option<string>.Some("test.ps1"),
+                    Prelude.Some("test.ps1"),
                     Array.Empty<string>(),
                     false
                 ).SetName("No Error with file name");

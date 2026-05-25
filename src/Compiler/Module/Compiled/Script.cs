@@ -254,5 +254,5 @@ public partial class CompiledScript : CompiledLocalModule {
         ModuleSpec moduleSpec
     ) => resolvableParent.Resolvables.GetValueOrDefault(moduleSpec).AsOption()
         .Bind(resolvableInfo => resolvableInfo.Compiled)
-        .IfNone(() => FinFail<Compiled>(Error.New($"No resolvable found for {moduleSpec}.")));
+        .IfNone(() => Fin.Fail<Compiled>(Error.New($"No resolvable found for {moduleSpec}.")));
 }

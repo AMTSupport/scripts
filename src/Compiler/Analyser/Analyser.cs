@@ -38,7 +38,7 @@ public static class Analyser {
 
                 rawBytes.AddRange(Convert.FromHexString(importHash));
             }
-            key += Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(rawBytes.ToArray()))[0..8];
+            key += Convert.ToHexString(SHA256.HashData([.. rawBytes]))[0..8];
         }
 
         return await Cache.GetOrAdd(key, _ => Task.Run(() => {

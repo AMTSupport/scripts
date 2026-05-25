@@ -7,7 +7,6 @@ using System.Reflection;
 using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
-using LanguageExt;
 
 namespace Compiler.Test.Module.Compiled;
 
@@ -68,7 +67,7 @@ public class CompiledRemoteModuleTests {
                 using var fileStream = new FileStream(tmpFile, FileMode.CreateNew, FileAccess.Write);
                 nupkgStream.CopyTo(fileStream);
             }
-            resolvable.CachedFile = Prelude.Atom(Either<Option<string>, Task<Option<string>>>.Left(tmpFile.AsOption()));
+            resolvable.CachedFile = tmpFile.AsOption();
 
             var module = (await resolvable.IntoCompiled(parent)).Unwrap() as CompiledRemoteModule;
             CompiledUtils.EnsureMockHasParent(module!);

@@ -9,7 +9,6 @@ using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
 using LanguageExt;
-using LanguageExt.Common;
 
 namespace Compiler.Module.Compiled;
 
@@ -39,8 +38,8 @@ public class CompiledLocalModule : Compiled {
             var hashResult = requirement switch {
                 ModuleSpec req => this.FindSibling(req) is { } sibling
                     ? sibling.ComputedHash().Map(hash => hash[..6])
-                    : Fin<string>.Fail(Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.")),
-                _ => Fin<string>.Succ(requirement.HashString[..6])
+                    : Fin.Fail<string>(Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.")),
+                _ => Pure(requirement.HashString[..6])
             };
 
             if (hashResult.IsErr(out var err, out var hash)) {

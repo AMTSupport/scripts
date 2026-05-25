@@ -45,7 +45,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     protected void SetContentBytes(Lazy<Fin<byte[]>> contentBytes) => this.ContentBytesBacking = contentBytes;
 
     public Fin<byte[]> GetContentBytes() => this.ContentBytesBacking?.Value
-        ?? FinFail<byte[]>(Error.New($"Content bytes were not initialised for {this.ModuleSpec.Name}."));
+        ?? Fin.Fail<byte[]>(Error.New($"Content bytes were not initialised for {this.ModuleSpec.Name}."));
 
     /// <summary>
     /// Gets combined the hash of the content and requirements of the module.
@@ -170,7 +170,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     public Fin<Unit> AddRequirementHashBytes(
         [NotNull] List<byte> hashableBytes,
         [NotNull] RequirementGroup requirementGroup
-    ) => this.AddRequirementHashBytes(hashableBytes, requirementGroup, new System.Collections.Generic.HashSet<Compiled>());
+    ) => this.AddRequirementHashBytes(hashableBytes, requirementGroup, []);
 
     private Fin<Unit> AddRequirementHashBytes(
         [NotNull] List<byte> hashableBytes,

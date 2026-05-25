@@ -7,11 +7,6 @@ namespace Compiler.Test.Text;
 
 [TestFixture]
 public partial class DocumentTests {
-    private TextEditor Editor;
-
-    [SetUp]
-    public void SetUp() => this.Editor = new TextEditor(new TextDocument([]));
-
     [Test]
     public void GetLines_ReturnsSnapshot() {
         var document = new TextDocument(["Line1", "Line2"]);

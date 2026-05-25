@@ -4,7 +4,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using LanguageExt;
-using NLog;
 
 namespace Compiler.Text.Updater;
 
@@ -14,8 +13,6 @@ public class RegexUpdater(
     UpdateOptions options,
     Func<Match, string?> updater
 ) : TextSpanUpdater(priority) {
-    private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-
     public readonly Func<Match, string?> Updater = updater;
     public Regex Pattern {
         get {

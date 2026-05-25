@@ -24,10 +24,10 @@ public class CompiledLocalModuleTests {
     }
 
     [Test, Parallelizable]
-    public async Task HashChanges(
+    public void HashChanges(
         [Values("Hello, World!")] string scriptOneHello,
         [Values("Hello, World!", "Hello, Other World!")] string scriptTwoHello
-    ) => await Assert.MultipleAsync(async () => {
+    ) => Assert.Multiple(() => {
         var scriptOne = TestData.CreateModule<CompiledScript>($"Write-Host '{scriptOneHello}';");
         var scriptTwo = TestData.CreateModule<CompiledScript>($"Write-Host '{scriptTwoHello}';");
 

@@ -6,7 +6,6 @@ using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Compiler.Text;
-using LanguageExt;
 
 namespace Compiler.Test.Module.Compiled;
 

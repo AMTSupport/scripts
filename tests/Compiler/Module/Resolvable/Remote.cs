@@ -42,7 +42,7 @@ public class ResolvableRemoteModuleTests {
 
     [Test]
     public async Task ResolveRequirements() {
-        this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<Option<string>, Task<Option<string>>>.Left(TestData.WriteEmbeddedNupkg(this.ResolvableRemoteModule, "PSReadLine", "2.3.5").AsOption()));
+        this.ResolvableRemoteModule.CachedFile = TestData.WriteEmbeddedNupkg(this.ResolvableRemoteModule, "PSReadLine", "2.3.5").AsOption();
         var result = await this.ResolvableRemoteModule.ResolveRequirements();
         var requirements = this.ResolvableRemoteModule.Requirements;
 
@@ -125,7 +125,7 @@ public class ResolvableRemoteModuleTests {
             return Prelude.Some("testfile");
         });
 
-        this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<Option<string>, Task<Option<string>>>.Right(task));
+        this.ResolvableRemoteModule.CachedFileTask = task;
         var resultTask = this.ResolvableRemoteModule.FindCachedResult();
 
         await Task.Delay(250);
@@ -133,11 +133,11 @@ public class ResolvableRemoteModuleTests {
         await Assert.MultipleAsync(async () => {
             Assert.That(task.IsCompleted, Is.False);
             Assert.That(resultTask.IsCompleted, Is.False);
-            Assert.That(this.ResolvableRemoteModule.CachedFile.Value, Is.EqualTo(task));
+            Assert.That(this.ResolvableRemoteModule.CachedFileTask, Is.EqualTo(task));
 
             manualEvent.Set();
             await task;
-            this.ResolvableRemoteModule.CachedFile.Swap(_ => task);
+            this.ResolvableRemoteModule.CachedFileTask = task;
 
             Assert.That(resultTask.IsCompleted, Is.True);
             Assert.That(resultTask.Result, Is.EqualTo(Prelude.Some("testfile")));
@@ -152,15 +152,18 @@ public class ResolvableRemoteModuleTests {
         Assert.Multiple(() => {
             Assert.That(async () => (await resultTask).Unwrap(), Is.EqualTo(Path.Join(this.ResolvableRemoteModule.CachePath, "PSReadLine.2.3.5.nupkg")));
 
-            Assert.That(this.ResolvableRemoteModule.CachedFile!.Value.IsLeft, Is.True);
-            Assert.That(((Option<string>)this.ResolvableRemoteModule.CachedFile!.Value).Unwrap(), Is.EqualTo(Path.Join(this.ResolvableRemoteModule.CachePath, "PSReadLine.2.3.5.nupkg")));
+            Assert.That(this.ResolvableRemoteModule.CachedFile, Is.Not.Null);
+            Assert.That(this.ResolvableRemoteModule.CachedFile!.Value.IsSome, Is.True);
+            Assert.That(this.ResolvableRemoteModule.CachedFile!.Value.ValueUnsafe(), Is.EqualTo(Path.Join(this.ResolvableRemoteModule.CachePath, "PSReadLine.2.3.5.nupkg")));
+
         });
+
     }
 
     [Test]
     public async Task CacheResult_UsesCachedFile() {
         var cachedPath = TestData.WriteEmbeddedNupkg(this.ResolvableRemoteModule, "PSReadLine", "2.3.5");
-        this.ResolvableRemoteModule.CachedFile = Prelude.Atom(Either<Option<string>, Task<Option<string>>>.Left(cachedPath.AsOption()));
+        this.ResolvableRemoteModule.CachedFile = cachedPath.AsOption();
 
         var result = (await this.ResolvableRemoteModule.CacheResult()).ThrowIfFail();
 
@@ -237,7 +240,7 @@ public static class TestData {
         using (var fileStream = new FileStream(tmpFile, FileMode.CreateNew, FileAccess.Write)) {
             nupkgStream.CopyTo(fileStream);
         }
-        resolvableRemoteModule.CachedFile = Prelude.Atom(Either<Option<string>, Task<Option<string>>>.Left(tmpFile.AsOption()));
+        resolvableRemoteModule.CachedFile = tmpFile.AsOption();
         return tmpFile;
     }
 }

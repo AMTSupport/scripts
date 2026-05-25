@@ -95,9 +95,7 @@ public class ExactUpdater : TextSpanUpdater {
                 change = this.Span.SetContent(lines, this.UpdateOptions, this.Updater(updatingLines));
             }
 
-            return change.AndThen(c => {
-                return new SpanUpdateInfo(this, this.Span, c);
-            });
+            return change.Map(c => (IEnumerable<SpanUpdateInfo>)[new SpanUpdateInfo(this, this.Span, c)]);
         });
 
     public override void PushByUpdate(SpanUpdateInfo updateInfo) => this.Span = this.Span.WithUpdate(updateInfo);

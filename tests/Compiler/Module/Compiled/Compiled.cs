@@ -4,7 +4,6 @@
 using System.Collections;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
-using LanguageExt;
 using Moq;
 using QuikGraph;
 using RealCompiled = Compiler.Module.Compiled.Compiled;
@@ -22,11 +21,14 @@ public class CompiledTests {
         var random = TestContext.CurrentContext.Random;
         List<byte> bytesList;
         var hashResults = new List<byte[]>();
-        do {
-            bytesList = [.. hashableBytes];
-            module.Object.AddRequirementHashBytes(bytesList, requirementGroup);
-            hashResults.Add([.. hashableBytes]);
-        } while (hashResults.Count < random.Next(2, 5));
+        Assert.Multiple(() => {
+            do {
+                bytesList = [.. hashableBytes];
+                var res = module.Object.AddRequirementHashBytes(bytesList, requirementGroup);
+                Assert.That(res.IsSucc, Is.True);
+                hashResults.Add([.. hashableBytes]);
+            } while (hashResults.Count < random.Next(2, 5));
+        });
 
         var firstResult = hashResults.First();
         Assert.Multiple(() => {
@@ -70,15 +72,15 @@ file static class TestData {
                 hashableBytes,
                 new RequirementGroup() {
                     StoredRequirements = {
-                        { typeof(ModuleSpec), new System.Collections.Generic.HashSet<Requirement> {
+                        { typeof(ModuleSpec), new HashSet<Requirement> {
                             new ModuleSpec("PSWindowsUpdate"),
                             new ModuleSpec("PSReadLine", requiredVersion: new (2, 3, 5)),
                             new PathedModuleSpec(sourceRoot, environmentPath)
                         } },
-                        { typeof(PSEditionRequirement), new System.Collections.Generic.HashSet<Requirement> {
+                        { typeof(PSEditionRequirement), new HashSet<Requirement> {
                             new PSEditionRequirement(PSEdition.Core)
                         } },
-                        { typeof(UsingNamespace), new System.Collections.Generic.HashSet<Requirement> {
+                        { typeof(UsingNamespace), new HashSet<Requirement> {
                             new UsingNamespace("System.Collections"),
                             new UsingNamespace("System.Diagnostics")
                         } },
@@ -90,7 +92,7 @@ file static class TestData {
                 hashableBytes,
                 new RequirementGroup() {
                     StoredRequirements = {
-                        { typeof(ModuleSpec), new System.Collections.Generic.HashSet<Requirement> {
+                        { typeof(ModuleSpec), new HashSet<Requirement> {
                             new PathedModuleSpec(sourceRoot, environmentPath)
                         } },
                     }
