@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
@@ -69,8 +70,6 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
 
         return ComputeHash();
     }
-
-
 
     /// <summary>
     /// The version of the module, not necessarily the same as the version of the module spec.

@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
@@ -57,10 +58,8 @@ public class CompiledLocalModule : Compiled {
         return content.ToString();
     }
 
-
     public Fin<Unit> ValidateRequirementsResolved() {
         foreach (var requirement in this.Requirements.GetRequirements<ModuleSpec>()) {
-
 
             if (this.FindSibling(requirement) is null) {
                 return Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.");
@@ -69,8 +68,6 @@ public class CompiledLocalModule : Compiled {
 
         return Unit.Default;
     }
-
-
 
     [ExcludeFromCodeCoverage(Justification = "We don't need to test this, as it's just a wrapper.")]
     public override IEnumerable<string> GetExportedFunctions() {

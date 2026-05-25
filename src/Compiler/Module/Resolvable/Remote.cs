@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Collections;
 using System.Diagnostics.Contracts;
@@ -23,7 +24,6 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
         Timeout = TimeSpan.FromMinutes(2)
     };
     private byte[]? Bytes;
-
 
     // Only public for testing purposes.
     // Cached value or running task for resolving cached file path.
@@ -196,7 +196,6 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
         return this.TryCacheResultWithPowerShell().BindFail(err => err.Enrich(this.ModuleSpec));
     }
 
-
     private Fin<string> TryCacheResultWithPowerShell() {
         var versionString = ConvertVersionParameters(this.ModuleSpec.RequiredVersion?.ToString(), this.ModuleSpec.MinimumVersion?.ToString(), this.ModuleSpec.MaximumVersion?.ToString());
         var powerShellCode = /*ps1*/ $$"""
@@ -300,7 +299,6 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
 
     internal Version? SelectBestVersion(IEnumerable<Version> versions) {
 
-
         Func<Version, bool> findBestVersionFunc = (this.ModuleSpec.RequiredVersion, this.ModuleSpec.MinimumVersion, this.ModuleSpec.MaximumVersion) switch {
             (Version requiredVersion, _, _) => version => version == requiredVersion,
             (_, Version minimumVersion, Version maximumVersion) => version => version >= minimumVersion && version <= maximumVersion,
@@ -319,7 +317,6 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
         this.CachedFileTask = null;
         this.CachedFile = Some(path);
     }
-
 
     // Based on https://github.com/PowerShell/PowerShellGet/blob/c6aea39ea05491c648efd7aebdefab1ae7c5b213/src/PowerShellGet.psm1#L111-L144
     [Pure]

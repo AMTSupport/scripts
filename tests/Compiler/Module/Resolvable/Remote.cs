@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.IO.Compression;
 using Compiler.Module;
@@ -212,7 +213,6 @@ public class ResolvableRemoteModuleTests {
         return module.SelectBestVersion(versions)?.ToString();
     }
 }
-
 
 public static class TestData {
     public static void CreateDummyCacheFiles(

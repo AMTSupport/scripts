@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
@@ -224,7 +225,6 @@ public class ResolvableParent {
             nextBatch.ToList().ForEach(mod => graph.RemoveVertex(mod));
         }
 
-
         var completionTasks = this.Resolvables.Values
             .Where(resolvable => resolvable.Compiled.IsSome)
             .Select(async resolvable => {
@@ -308,7 +308,6 @@ public class ResolvableParent {
         Logger.Debug("Finished resolving all modules.");
     }
 
-
     /// <summary>
     /// Links a module to a new ModuleSpec, if the module has already been resolved it will return the resolved module.
     ///
@@ -354,7 +353,6 @@ public class ResolvableParent {
                 case ModuleMatch.PreferTheirs or ModuleMatch.None:
                     var fin = await Resolvable.TryCreate(parentResolvable.AsOption(), moduleToResolve);
 
-
                     if (fin.IsErr(out var err, out var resolvable)) {
                         Logger.Error($"⚠️ Error creating resolvable for {moduleToResolve.Name}: {err}");
                         return Fin.Fail<Option<Resolvable>>(err);
@@ -381,7 +379,6 @@ public class ResolvableParent {
                         ModuleMatch.PreferTheirs => throw new NotImplementedException(),
                         _ => (moduleToResolve, []),
                     };
-
 
                     Logger.Debug($"Merging modules: {mergeFrom.Name} with {string.Join(", ", mergeWith.Select(m => m.Name))}");
 

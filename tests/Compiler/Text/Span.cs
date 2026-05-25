@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Collections;
 using Compiler.Text;
@@ -387,7 +388,6 @@ public class TextSpanTests {
                     TextSpan.New(0, 0, 9, 6).Unwrap()
                 ).SetCategory("Ten lines").Returns("Line1\nLine2\nLine3\nLine4\nLine5\nLine6\nLine7\nLine8\nLine9\nLine10");
 
-
                 yield return new TestCaseData(
                     SingleLine.ToArray(),
                     TextSpan.New(0, 0, 0, 32).Unwrap()
@@ -408,7 +408,6 @@ public class TextSpanTests {
                     TextSpan.New(0, 2, 0, 10).Unwrap()
                 ).SetCategory("Single line").Returns("llo, Wor").SetDescription("Partial span start and end");
 
-
                 yield return new TestCaseData(
                     TwoLines.ToArray(),
                     TextSpan.New(0, 0, 1, 17).Unwrap()
@@ -428,7 +427,6 @@ public class TextSpanTests {
                     TwoLines.ToArray(),
                     TextSpan.New(1, 0, 1, 7).Unwrap()
                 ).SetCategory("Two lines").Returns("I'm the").SetDescription("Take last line");
-
 
                 yield return new TestCaseData(
                     FourLines.ToArray(),

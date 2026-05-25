@@ -80,7 +80,8 @@ ______________________________________________________________________
 
 1. Add or update descriptions in the [definitions](./definitions/) folder.
 
-2. Run the script generation tool to create the registry change scripts based on the templates and descriptions.
-    - This will be run automatically by the CI/CD pipeline if pushed to the master branch.
+1. Run the script generation tool to create the registry change scripts based on the templates and descriptions.
 
-3. The generated scripts will be available in the [generated](./generated/) folder.
+   - This will be run automatically by the CI/CD pipeline if pushed to the master branch.
+
+1. The generated scripts will be available in the [generated](./generated/) folder.

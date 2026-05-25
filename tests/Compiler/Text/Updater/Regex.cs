@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Collections;
 using System.Text.RegularExpressions;
@@ -47,7 +48,6 @@ file static class TestData {
                 UpdateOptions.None,
                 (Func<Match, string>)(_ => string.Empty)
             ).Returns(new string('\n', 5)).SetName("Replace each line with empty string");
-
 
             yield return new TestCaseData(
                 ".+",

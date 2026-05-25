@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 global using LanguageExt.Common;
 global using static LanguageExt.Prelude;
@@ -120,7 +121,6 @@ public class Program {
                 }
             }
         );
-
 
         Option<string> sourceDirectory = None;
         Option<string> outputDirectory = None;
@@ -383,7 +383,6 @@ public class Program {
     ) {
         if (Errors.IsEmpty) return 0;
 
-
         // Deduplicate errors.
         var errorSet = new C.HashSet<LanguageExt.Common.Error>();
         foreach (var error in errors) {
@@ -537,7 +536,6 @@ public class Program {
 
         return Fin.Succ(result);
     }
-
 
     /// <summary>
     /// Gets the embedded resource from the assembly inside the Resource folder.

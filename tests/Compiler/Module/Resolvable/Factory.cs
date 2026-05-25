@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Reflection;
 using Compiler.Module.Resolvable;
@@ -63,7 +64,6 @@ public class ResolvableFactoryTests {
 
         var result = await ResolvableBase.TryCreate(Prelude.Some<ResolvableBase>(parent), childSpec);
 
-
         Assert.Multiple(() => {
             Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should succeed for local child");
             Assert.That(resolvable, Is.InstanceOf<ResolvableLocalModule>());
@@ -82,7 +82,6 @@ public class ResolvableFactoryTests {
 
         var result = await ResolvableBase.TryCreate(Prelude.Some<ResolvableBase>(parent), childSpec);
 
-
         Assert.Multiple(() => {
             Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should fall back to remote");
             Assert.That(resolvable, Is.InstanceOf<ResolvableRemoteModule>());
@@ -96,7 +95,6 @@ public class ResolvableFactoryTests {
         var remoteParent = new ResolvableRemoteModule(new ModuleSpec("SomeOtherModule"));
 
         var result = await ResolvableBase.TryCreate(Prelude.Some<ResolvableBase>(remoteParent), spec);
-
 
         Assert.Multiple(() => {
             Assert.That(result.IsOk(out var resolvable, out _), Is.True, "TryCreate should create remote when parent is not local");
@@ -228,8 +226,6 @@ public class ResolvableParentMergeTests {
             Assert.That(parent.Graph.EdgeCount, Is.EqualTo(1));
         });
     }
-
-
 
     [Test]
     public void FindResolvable_ReturnsNone_WhenEmpty() {

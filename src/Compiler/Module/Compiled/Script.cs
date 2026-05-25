@@ -1,5 +1,6 @@
-// Copyright (c) James Draycott. All Rights Reserved.
-// Licensed under the GPL3 License, See LICENSE in the project root for license information.
+// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
+// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
+// for license information.
 
 using System.Management.Automation.Language;
 using System.Reflection;
@@ -69,11 +70,9 @@ public partial class CompiledScript : CompiledLocalModule {
                         return error;
                     }
 
-
                     compiled.RootScript = script;
                     requirement = compiled;
                 }
-
 
                 compiledRequirements.Add(requirement);
             }
@@ -111,7 +110,6 @@ public partial class CompiledScript : CompiledLocalModule {
 
         return script;
     }
-
 
     public override Fin<string> GetPowerShellObject() {
         var template = Template.Value;
