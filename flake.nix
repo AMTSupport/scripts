@@ -90,15 +90,13 @@
             devenv.shells.default =
               let
                 dotnetPkg = pkgs.dotnet-sdk_10.overrideAttrs (oldAttrs: {
-                  postBuild =
-                    (oldAttrs.postBuild or '''')
-                    + ''
-                      for i in $out/sdk/*; do
-                          i=$(basename $i)
-                          mkdir -p $out/metadata/workloads/''${i/-*}
-                          touch $out/metadata/workloads/''${i/-*}/userlocal
-                      done
-                    '';
+                  postBuild = (oldAttrs.postBuild or "") + ''
+                    for i in $out/sdk/*; do
+                        i=$(basename $i)
+                        mkdir -p $out/metadata/workloads/''${i/-*}
+                        touch $out/metadata/workloads/''${i/-*}/userlocal
+                    done
+                  '';
                 });
               in
               {
@@ -111,6 +109,7 @@
                   nuget-to-json
                   roslyn-ls
                   csharp-ls
+                  licensure
                 ];
 
                 languages = {

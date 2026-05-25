@@ -122,9 +122,6 @@ dotnet_style_qualification_for_event = true
 # https://learn.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/language-rules
 ##########################################
 [*.{cs,csx,cake}]
-# File header preferences
-file_header_template = Copyright (c) James Draycott. All Rights Reserved.\nLicensed under the GPL3 License, See LICENSE in the project root for license information.
-
 # 'using' directive preferences
 csharp_using_directive_placement = outside_namespace
 
@@ -222,6 +219,8 @@ csharp_new_line_before_finally = false
 csharp_new_line_before_members_in_object_initializers = true
 csharp_new_line_before_members_in_anonymous_types = true
 csharp_new_line_between_query_expression_clauses = true
+dotnet_style_allow_multiple_blank_lines_experimental = false
+dotnet_diagnostic.IDE2000.severity = warning
 
 # Indentation options
 # https://docs.microsoft.com/dotnet/fundamentals/code-analysis/style-rules/formatting-rules#indentation-options

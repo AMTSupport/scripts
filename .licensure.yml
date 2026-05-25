@@ -1,0 +1,42 @@
+change_in_place: true
+excludes:
+  - \.gitignore
+  - .*lock
+  - \.git/.*
+  - \.licensure\.yml
+  - README
+  - LICENSE
+  - CONTRIBUTING
+  - .*\.(md|rst|txt)
+  - docs/.*
+  - .*nupkg
+  - .\.github/.*
+  - .\.vscode/.*
+  - .\.compiled/.*
+licenses:
+  - files: any
+    ident: AGPL-3.0-or-later
+    use_dynamic_year_ranges: true
+    authors:
+      - name: James Draycott
+        email: me@racci.dev
+    template: |
+      Copyright (c) [year] [name of author]. All Rights Reserved.
+      Licensed under the [ident] License, See LICENSE in the project root for license information.
+    replaces:
+      - //\s*Copyright \(c\) ([0-9]{4}(?:-[0-9]{4})?\s+)?[\w\s]+\. All Rights Reserved\.\n//\s*Licensed under the [\w-]+ License, See LICENSE in the project root for license information\.
+
+comments:
+  - extensions:
+      - cs
+    columns: 80
+    commenter:
+      type: line
+      comment_char: "//"
+  - extensions:
+      - nix
+    columns: 80
+    commenter:
+      type: block
+      start_block_char: "/*\n"
+      end_block_char: "\n*/\n"
