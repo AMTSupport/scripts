@@ -175,8 +175,15 @@ public partial class ResolvableLocalModule : Resolvable {
         var dontAddAnalyser = dontAddTo.Contains(this.ModuleSpec.Name) ||
             this.Requirements.GetRequirements<ModuleSpec>().Any(spec => dontAddTo.Contains(spec.Name, StringComparer.OrdinalIgnoreCase));
 
+        var skipCompilerInjectedModules = string.Equals(
+            Environment.GetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES"),
+            bool.TrueString,
+            StringComparison.OrdinalIgnoreCase
+        );
+
         // Add a reference to the Analyser.psm1 file to ensure all files have access to the SuppressAnalyserAttribute
-        if (!dontAddAnalyser) {
+        if (!dontAddAnalyser && !skipCompilerInjectedModules) {
+
             lock (this.Requirements) {
                 var analyserPath = GetExportedResource("Analyser.psm1").Unwrap();
                 var moduleUtilsPath = GetExportedResource("ModuleUtils.psm1").Unwrap();

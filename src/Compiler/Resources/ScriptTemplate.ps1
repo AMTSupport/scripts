@@ -13,19 +13,221 @@ begin {
     [String]$Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath "AMT/PowerShell/Modules/PS$($PSVersionTable.PSVersion.Major)";
     if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
         Write-Verbose "Creating module root folder: $Local:PrivatePSModulePath";
-        New-Item -Path $Local:PrivatePSModulePath -ItemType Directory -WhatIf:$False | Out-Null;
+        New-Item -Path $Local:PrivatePSModulePath -ItemType Directory -Force -WhatIf:$False | Out-Null;
     }
 
+    $Script:OriginalPSModulePath = $Env:PSModulePath;
+    $Local:PSModulePathSeparator = [System.IO.Path]::PathSeparator;
     if (-not ($Env:PSModulePath -like "*$Local:PrivatePSModulePath*")) {
-        $Env:PSModulePath = "$Local:PrivatePSModulePath;" + $Env:PSModulePath;
+        $Env:PSModulePath = "$Local:PrivatePSModulePath$Local:PSModulePathSeparator" + $Env:PSModulePath;
     }
 
     # Must use UTF-8 Bom for PS < 6 to properly handle Unicode characters.
     $Local:PSBelow6 = $PSVersionTable.PSVersion.Major -lt 6;
     $Local:Bom = [Byte[]](0xEF, 0xBB, 0xBF);
     $Local:Encoding = 'UTF8';
+    [Int]$Script:ModuleLockTimeoutSeconds = 180;
+    [Int]$Script:ModuleLockRetryMilliseconds = 200;
+
+    function Test-UTF8ModuleReady {
+        [CmdletBinding()]
+        [OutputType([Boolean])]
+        param(
+            [Parameter(Mandatory)]
+            [String]$ModulePath,
+
+            [Parameter(Mandatory)]
+            [String]$ReadyPath,
+
+            [Parameter(Mandatory)]
+            [Byte[]]$Bom,
+
+            [Parameter(Mandatory)]
+            [Boolean]$PSBelow6
+        )
+
+        if (-not (Test-Path -Path $ReadyPath -PathType Leaf)) {
+            return $false;
+        }
+
+        $Local:Params = @{ Path = $ModulePath; TotalCount = $Bom.Length; };
+        if ($PSBelow6) { $Local:Params.Add('Encoding', 'Byte'); } else { $Local:Params.Add('AsByteStream', $True); }
+
+        $Local:WantBom = $PSBelow6;
+        $Local:IsBomEncoded = [Collections.Generic.SortedSet[String]]::CreateSetComparer().Equals((Get-Content @Local:Params), $Bom);
+        return $Local:WantBom -eq $Local:IsBomEncoded;
+    }
+
+    function Test-ZipModuleReady {
+        [CmdletBinding()]
+        [OutputType([Boolean])]
+        param(
+            [Parameter(Mandatory)]
+            [String]$ReadyPath,
+
+            [Parameter(Mandatory)]
+            [String]$ModuleFolderPath
+        )
+
+        if (-not (Test-Path -Path $ReadyPath -PathType Leaf)) {
+            return $false;
+        }
+
+        $Local:ModuleFiles = Get-ChildItem -Path $ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' };
+        return $null -ne $Local:ModuleFiles -and $Local:ModuleFiles.Count -gt 0;
+    }
+
+    function Wait-ModuleLock {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [String]$LockPath,
+
+            [Parameter(Mandatory)]
+            [String]$ModuleName,
+
+            [Parameter(Mandatory)]
+            [String]$ModuleHash,
+
+            [Parameter(Mandatory)]
+            [ValidateSet('UTF8String', 'Zip')]
+            [String]$ModuleType,
+
+            [String]$ModulePath,
+
+            [String]$ReadyPath,
+
+            [String]$ModuleFolderPath,
+
+            [Byte[]]$Bom,
+
+            [Boolean]$PSBelow6,
+
+            [Nullable[Int]]$TimeoutSeconds = $null,
+
+            [Nullable[Int]]$RetryMilliseconds = $null
+        )
+
+        if ($null -eq $TimeoutSeconds -or $TimeoutSeconds.Value -le 0) {
+            $TimeoutSeconds = $Script:ModuleLockTimeoutSeconds;
+        }
+
+        if ($null -eq $RetryMilliseconds -or $RetryMilliseconds.Value -le 0) {
+            $RetryMilliseconds = $Script:ModuleLockRetryMilliseconds;
+        }
+
+        $Local:Stopwatch = [System.Diagnostics.Stopwatch]::StartNew();
+        $Local:LockDirectory = Split-Path -Path $LockPath -Parent;
+        if (-not (Test-Path -Path $Local:LockDirectory)) {
+            New-Item -Path $Local:LockDirectory -ItemType Directory -Force -WhatIf:$False | Out-Null;
+        }
+
+        while ($true) {
+            try {
+                $Local:LockHandle = [System.IO.File]::Open($LockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None);
+                $Local:LockHandle.SetLength(0);
+                $Local:LockBytes = [System.Text.Encoding]::UTF8.GetBytes("PID=$PID`nModule=$ModuleName`nHash=$ModuleHash`nStarted=$([DateTime]::UtcNow.ToString('o'))");
+                $Local:LockHandle.Write($Local:LockBytes, 0, $Local:LockBytes.Length);
+                $Local:LockHandle.Flush();
+                return $Local:LockHandle;
+            } catch [System.IO.IOException] {
+                $Local:IsReady = switch ($ModuleType) {
+                    'UTF8String' { Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6; break; }
+                    'Zip' { Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath; break; }
+                }
+
+                if ($Local:IsReady) {
+                    return $null;
+                }
+
+                if ($Local:Stopwatch.Elapsed.TotalSeconds -ge $TimeoutSeconds) {
+                    throw "Timed out waiting for module lock '$LockPath' for module '$ModuleName' ($ModuleHash)."
+                }
+
+                Start-Sleep -Milliseconds $RetryMilliseconds;
+            }
+        }
+    }
+
+    function Complete-ModuleLock {
+        [CmdletBinding()]
+        param(
+            [AllowNull()]
+            [System.IDisposable]$LockHandle,
+
+            [Parameter(Mandatory)]
+            [String]$LockPath,
+
+            [Parameter(Mandatory)]
+            [ValidateSet('UTF8String', 'Zip')]
+            [String]$ModuleType,
+
+            [String]$ModulePath,
+
+            [String]$ReadyPath,
+
+            [String]$ModuleFolderPath,
+
+            [Byte[]]$Bom,
+
+            [Boolean]$PSBelow6
+        )
+
+        try {
+            $Local:IsReady = switch ($ModuleType) {
+                'UTF8String' {
+                    # Check module content BOM independently of .ready marker
+                    $Local:HasValidContent = $false;
+                    if (Test-Path -Path $ModulePath -PathType Leaf) {
+                        $Local:BomParams = @{ Path = $ModulePath; TotalCount = $Bom.Length };
+                        if ($PSBelow6) { $Local:BomParams.Add('Encoding', 'Byte') } else { $Local:BomParams.Add('AsByteStream', $True) }
+                        $Local:IsBomEncoded = [Collections.Generic.SortedSet[String]]::CreateSetComparer().Equals((Get-Content @Local:BomParams), $Bom);
+                        $Local:HasValidContent = $PSBelow6 -eq $Local:IsBomEncoded;
+                    }
+
+                    # Create .ready if content valid and marker missing
+                    if ($Local:HasValidContent -and $ReadyPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
+                        Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
+                    }
+
+                    $Local:HasValidContent -and (Test-Path -Path $ReadyPath -PathType Leaf);
+                    break;
+                }
+                'Zip' {
+                    $Local:HasExtractedFiles = Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath;
+                    if (-not $Local:HasExtractedFiles -and $ReadyPath -and $ModuleFolderPath) {
+                        $Local:ModuleFiles = Get-ChildItem -Path $ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' };
+                        if ($null -ne $Local:ModuleFiles -and $Local:ModuleFiles.Count -gt 0) {
+                            Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
+                            $Local:HasExtractedFiles = $true;
+                        }
+                    }
+
+                    $Local:HasExtractedFiles;
+                    break;
+                }
+            }
+
+            # Capture ownership before dispose so owner can clean up lock in finally
+            $owned = $null -ne $LockHandle;
+            if ($null -ne $LockHandle) {
+                $LockHandle.Dispose();
+                $LockHandle = $null;
+            }
+        } finally {
+            if ($null -ne $LockHandle) {
+                $LockHandle.Dispose();
+            }
+
+            if ($owned -and (Test-Path -Path $LockPath -PathType Leaf)) {
+                Remove-Item -Path $LockPath -Force -ErrorAction SilentlyContinue -WhatIf:$False;
+            }
+        }
+    }
 
     $Script:ScriptPath;
+    $Script:TransientScriptPath;
+
     $Script:EMBEDDED_MODULES | ForEach-Object {
         $Local:Name = $_.Name;
         $Local:Type = $_.Type;
@@ -40,46 +242,71 @@ begin {
         $Local:ModuleFolderPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath $Local:NameHash;
         if (-not (Test-Path -Path $Local:ModuleFolderPath)) {
             Write-Verbose "Creating module folder: $Local:ModuleFolderPath";
-            New-Item -Path $Local:ModuleFolderPath -ItemType Directory -WhatIf:$False | Out-Null;
+            New-Item -Path $Local:ModuleFolderPath -ItemType Directory -Force -WhatIf:$False | Out-Null;
         }
+
+        $Local:ModuleLockPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath "$Local:NameHash.lock";
+        $Local:ModuleReadyPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath '.ready';
 
         switch ($_.Type) {
             'UTF8String' {
-                $Local:FileSuffix = if ($null -eq $Script:ScriptPath) { 'ps1' } else { 'psm1' };
+                $Local:IsRootScript = $null -eq $Script:ScriptPath;
+                $Local:FileSuffix = if ($Local:IsRootScript) { 'ps1' } else { 'psm1' };
                 $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.$Local:FileSuffix";
 
-                if (-not (Test-Path -Path $Local:InnerModulePath)) {
-                    Write-Verbose "Writing content to module file: $Local:InnerModulePath"
-                    Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -WhatIf:$False;
-                } else {
-                    $Local:Params = @{ Path = $Local:InnerModulePath; TotalCount = $Local:Bom.Length; };
-                    if ($Local:PSBelow6) { $Local:Params.Add('Encoding', 'Byte'); } else { $Local:Params.Add('AsByteStream', $True); }
-
-                    $Local:WantBom = $Local:PSBelow6
-                    $Local:IsBomEncoded = [Collections.Generic.SortedSet[String]]::CreateSetComparer().Equals((Get-Content @Local:Params), $Local:Bom);
-
-                    if ($Local:WantBom -ne $Local:IsBomEncoded) {
-                        Write-Debug "Replacing module to ensure correct UTF-8 encoding: $Local:InnerModulePath"
-
-                        Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -Force -WhatIf:$False;
-                    }
-                }
-
-                if ($null -eq $Script:ScriptPath) {
-                    $Script:ScriptPath = $Local:InnerModulePath;
-                }
-            }
-            'Zip' {
-                if ((Get-ChildItem -Path $Local:ModuleFolderPath).Count -ne 0) {
+                if ($Local:IsRootScript) {
+                    $Local:RootScriptPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1');
+                    Write-Verbose "Writing root script content to temp file: $Local:RootScriptPath"
+                    Set-Content -Path $Local:RootScriptPath -Value $Content -Encoding $Local:Encoding -Force -WhatIf:$False;
+                    $Script:ScriptPath = $Local:RootScriptPath;
+                    $Script:TransientScriptPath = $Local:RootScriptPath;
                     return;
                 }
-                [String]$Local:TempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
-                [Byte[]]$Local:Bytes = [System.Convert]::FromBase64String($Content);
-                [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
 
-                Write-Verbose "Expanding module file: $Local:TempFile"
-                Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force -WhatIf:$False;
+                if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
+                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
+                    try {
+                        if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
+                            Write-Verbose "Writing content to module file: $Local:InnerModulePath"
+                            Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -Force -WhatIf:$False;
+                        }
+                    } finally {
+                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
+                    }
+                }
             }
+
+            'Zip' {
+                if (-not (Test-ZipModuleReady -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath)) {
+                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'Zip' -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath;
+                    [String]$Local:TempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
+                    try {
+                        if (-not (Test-ZipModuleReady -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath)) {
+                            Write-Verbose "Preparing zip module folder: $Local:ModuleFolderPath"
+                            Get-ChildItem -Path $Local:ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' } | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue -WhatIf:$False;
+
+                            [Byte[]]$Local:Bytes = [System.Convert]::FromBase64String($Content);
+                            [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
+
+                            Write-Verbose "Expanding module file: $Local:TempFile to $Local:ModuleFolderPath"
+                            try {
+                                Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force -WhatIf:$False -ErrorAction Stop;
+                                Write-Verbose "Expanded module file successfully: $Local:TempFile"
+                            } catch {
+                                Write-Error "Failed to expand module archive '$Local:TempFile' to '$Local:ModuleFolderPath': $($_.Exception.Message)"
+                                throw;
+                            }
+                        }
+                    } finally {
+                        if (Test-Path -Path $Local:TempFile) {
+                            Remove-Item -Path $Local:TempFile -Force -ErrorAction SilentlyContinue -WhatIf:$False;
+                        }
+
+                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'Zip' -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath;
+                    }
+                }
+            }
+
             Default {
                 Write-Warning "Unknown module type: $($_)";
             }
@@ -296,8 +523,11 @@ try {
             & $Script:ScriptPath @PSBoundParameters;
         }
     } finally {
-        $Env:PSModulePath = ($Env:PSModulePath -split ';' | Select-Object -Skip 1) -join ';';
+        $Env:PSModulePath = $Script:OriginalPSModulePath;
         $Script:REMOVE_ORDER | ForEach-Object { Get-Module -Name $_ | Remove-Module -Force -WhatIf:$False; }
+        if ($Script:TransientScriptPath -and (Test-Path -Path $Script:TransientScriptPath -PathType Leaf)) {
+            Remove-Item -Path $Script:TransientScriptPath -Force -ErrorAction SilentlyContinue -WhatIf:$False;
+        }
     }
 } end {
     Remove-Variable -Name CompiledScript -Scope Global -WhatIf:$False -ErrorAction SilentlyContinue;

@@ -3,7 +3,6 @@
 // for license information.
 
 using System.Collections.Concurrent;
-using Compiler;
 
 [SetUpFixture]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -13,11 +12,6 @@ using Compiler;
 )]
 public sealed class GlobalSetup {
     public static ConcurrentBag<string> RequiresCleanup { get; } = [];
-
-    [OneTimeSetUp]
-    public static void Setup() => Program.SetupLogger(new Program.Options() {
-        Verbosity = 3
-    });
 
     [OneTimeTearDown]
     public static void Teardown() {

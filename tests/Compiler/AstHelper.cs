@@ -174,10 +174,10 @@ public class AstHelperTests {
 
         var nameTemplate = "Test-Alias{0}";
         var count = 5;
-        var seperator = "\n";
+        var separator = "\n";
         var exportType = "Alias";
 
-        var (content, expected) = TestData.AstFinder.GetTemplatedData(template, nameTemplate, count, seperator, exportType, withExport);
+        var (content, expected) = TestData.AstFinder.GetTemplatedData(template, nameTemplate, count, separator, exportType, withExport);
 
         Assert.Multiple(() => {
             Assert.That(content, Is.Not.Null.Or.Empty);
@@ -389,7 +389,7 @@ file static class TestData {
     }
 
     internal static class AstParser {
-        private static readonly string[] SupressArgs = ["ModuleNotFoundDuringParse"];
+        private static readonly string[] SuppressArgs = ["ModuleNotFoundDuringParse"];
 
         private static readonly string INVALID_AST = /*ps1*/ """
         some random invalid ast {
@@ -442,7 +442,7 @@ file static class TestData {
                 yield return new TestCaseData(
                     VALID_AST_WITH_ERROR,
                     Option<string>.None,
-                    SupressArgs,
+                    SuppressArgs,
                     false
                 ).SetName("Suppressed error with valid ast and error");
             }
@@ -556,7 +556,7 @@ file static class TestData {
         /// The name template to use for the alias
         /// </param>
         /// <param name="count">The number of aliases to create</param>
-        /// <param name="seperator"></param>
+        /// <param name="separator"></param>
         /// <param name="exportType"></param>
         /// <param name="withExport"></param>
         /// <returns></returns>
@@ -564,7 +564,7 @@ file static class TestData {
             string template,
             string nameTemplate,
             int count,
-            string seperator,
+            string separator,
             string exportType,
             bool withExport
         ) {
@@ -605,7 +605,7 @@ file static class TestData {
 
                 data.Append(instancedZone);
                 if (afterZone.Length > 0) data.Append(afterZone);
-                if (i != count - 1) data.Append(seperator);
+                if (i != count - 1) data.Append(separator);
             }
 
             exportNames = [.. exportNames.Distinct()];

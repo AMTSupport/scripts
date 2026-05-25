@@ -128,4 +128,31 @@ public sealed class CompiledScriptTests {
 
         Assert.That(output, Does.Not.Contain("-000000"), "No module should have a 000000 hash; all dependencies must be resolved and embedded.");
     }
+
+    [Test]
+    public void GetPowerShellObject_IncludesModuleLockHelpers() {
+        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
+        var output = module.GetPowerShellObject().Unwrap();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Contain("function Wait-ModuleLock"));
+            Assert.That(output, Does.Contain("function Complete-ModuleLock"));
+            Assert.That(output, Does.Contain(".lock"));
+            Assert.That(output, Does.Contain(".ready"));
+            Assert.That(output, Does.Contain("ModuleLockTimeoutSeconds = 180"));
+        });
+    }
+
+    [Test]
+    public void GetPowerShellObject_IncludesErrorCaptureWrapper() {
+        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
+        var output = module.GetPowerShellObject().Unwrap();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Contain("function Invoke-ScriptWithErrorCapture"));
+            Assert.That(output, Does.Contain("NO_ERROR_WRAPPER"));
+            Assert.That(output, Does.Contain("Export-Clixml"));
+            Assert.That(output, Does.Contain("Import-Clixml"));
+        });
+    }
 }
