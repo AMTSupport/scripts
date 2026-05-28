@@ -262,6 +262,8 @@ public class CompiledRemoteModule : Compiled, IDisposable {
             ZipFile.CreateFromDirectory(expandedPath, tempArchivePath);
 
             this.UpdatedContentBytes = File.ReadAllBytes(tempArchivePath);
+            this.ZipArchive = null;
+            this.SetContentBytes(new Lazy<Fin<byte[]>>(() => this.UpdatedContentBytes.Unwrap()));
             Directory.Delete(expandedPath, true);
             File.Delete(tempArchivePath);
         }
