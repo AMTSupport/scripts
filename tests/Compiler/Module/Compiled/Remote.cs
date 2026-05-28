@@ -15,7 +15,7 @@ namespace Compiler.Test.Module.Compiled;
 public class CompiledRemoteModuleTests {
     private static readonly Lock WritingResourceLock = new();
 
-    [Test, Repeat(3), Parallelizable, Platform("Win")]
+    [Test, Repeat(3), Parallelizable]
     public async Task StringifyContent_ReturnsValidAst() {
         var module = await TestData.GetTestRemoteModule();
         var stringifiedContent = module.StringifyContent().Unwrap();
@@ -26,7 +26,7 @@ public class CompiledRemoteModuleTests {
         });
     }
 
-    [Test, Repeat(3), Parallelizable, Platform("Win")]
+    [Test, Repeat(3), Parallelizable]
     public async Task StringifyContent_CanBeConvertedBack() {
         var module = await TestData.GetTestRemoteModule();
         var stringifiedContent = module.StringifyContent().Unwrap();

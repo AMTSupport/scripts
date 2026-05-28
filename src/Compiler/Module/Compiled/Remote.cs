@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using CommandLine;
+using Compiler.Helpers;
 using Compiler.Requirements;
 using LanguageExt;
 using NLog;
@@ -31,8 +32,6 @@ public class CompiledRemoteModule : Compiled, IDisposable {
         ReadCommentHandling = JsonCommentHandling.Skip
     };
     private static readonly string RewritingFolder = Path.Join(Path.GetTempPath(), "PowerShellGet", "Rewriting");
-    private static readonly Lock RunningExportLock = new();
-
     private readonly Lazy<ExtraModuleInfo> ThisExtraModuleInfo;
     private Hashtable? PowerShellManifest;
     private ZipArchive? ZipArchive;
@@ -330,27 +329,10 @@ public class CompiledRemoteModule : Compiled, IDisposable {
 
             manifest["RequiredModules"] = mappedRequiredModules.ToArray();
 
-            // The psm1 of ObjectGraphTools runs into errors if its running multiple at the same time, so we need to lock it.
-            lock (RunningExportLock) {
-                Program.RunPowerShell("""
-                    param($Hashtable, $OutputPath)
-
-                    $ErrorActionPreference = "Stop";
-                    Set-StrictMode -Version 3;
-
-                    $HasModule = Get-Module -Name ObjectGraphTools -ListAvailable;
-                    if ($HasModule -eq $null) {
-                        Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue -Force | Out-Null;
-                        Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted;
-                        Install-Module -Name ObjectGraphTools -Force -Scope CurrentUser;
-                    }
-                    Import-Module -Name ObjectGraphTools -Force;
-
-                    $Hashtable | ConvertTo-Expression | Out-File -FilePath $OutputPath
-                """,
-                new KeyValuePair<string, object>("Hashtable", manifest),
-                new KeyValuePair<string, object>("OutputPath", Path.Join(expandedRoot, $"{this.ModuleSpec.Name}.psd1"))).TapFail(err => Logger.Error($"Failed to update the RequiredModules in the manifest for {this.ModuleSpec.Name}: {err.Message}"));
-            }
+            var outputPath = Path.Join(expandedRoot, $"{this.ModuleSpec.Name}.psd1");
+            var serialized = Psd1Serializer.Serialize(manifest);
+            File.WriteAllText(outputPath, serialized);
+            Logger.Debug($"Wrote updated manifest to {outputPath}");
         }
     }
 
