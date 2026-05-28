@@ -550,8 +550,8 @@
       },
       "Pastel": {
         "type": "Transitive",
-        "resolved": "5.1.0",
-        "contentHash": "jQ0fTkHZvgQsmbr5qU0IdCP1PWuUfmEmekIsTwysWK/iIwmT9Mbm0x5GpjYSTEwHTNVEpjYhBhyKVdzESgRCpg=="
+        "resolved": "5.2.1",
+        "contentHash": "4DpPqBGwJ3XuTY2b4KMzOhnBOHRHDGTfIsJl5Sx86749vQ0pus3EqQW6Kdki9ZOBjz+uugTo+bv6pjASE8T/4A=="
       },
       "QuikGraph": {
         "type": "Transitive",
@@ -926,7 +926,7 @@
           "NLog": "[5.3.2, )",
           "NuGet.Commands": "[6.9.1, )",
           "NuGet.Common": "[6.9.1, )",
-          "Pastel": "[5.1.0, )",
+          "Pastel": "[5.2.1, )",
           "QuikGraph": "[2.5.0, )",
           "QuikGraph.Graphviz": "[2.5.0, )",
           "System.Management.Automation": "[7.6.0, )"
