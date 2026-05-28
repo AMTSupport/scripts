@@ -15,7 +15,7 @@ jobs:
     name: Update Documentation
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.changes.outputs.commit.changes_detected }}
+      changed: ${{ steps.commit.outputs.changes_detected }}
     permissions:
       contents: write
       pull-requests: write

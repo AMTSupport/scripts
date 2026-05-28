@@ -66,6 +66,15 @@ foreach ($Module in $Modules) {
     }
 }
 
+# Normalize generated docs to LF so Git doesn't see spurious changes on Linux
+Get-ChildItem -Path $DocusaurusOptions.DocsFolder -Recurse -File | ForEach-Object {
+    $Content = [System.IO.File]::ReadAllText($_.FullName)
+    if ($Content.Contains("`r`n")) {
+        $Content = $Content -replace "`r`n", "`n"
+        [System.IO.File]::WriteAllText($_.FullName, $Content, [System.Text.UTF8Encoding]::new($false))
+    }
+}
+
 # -----------------------------------------------------------------------------
 # Generate the Sidebar file
 # -----------------------------------------------------------------------------
