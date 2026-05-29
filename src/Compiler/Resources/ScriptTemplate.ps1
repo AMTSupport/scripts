@@ -170,40 +170,47 @@ begin {
 
             [Byte[]]$Bom,
 
-            [Boolean]$PSBelow6
+            [Boolean]$PSBelow6,
+
+            [Boolean]$OperationSucceeded = $false
         )
 
         try {
-            $Local:IsReady = switch ($ModuleType) {
+            $Local:OwnerSucceeded = $OperationSucceeded;
+            $Local:IsReady = $false;
+
+            switch ($ModuleType) {
                 'UTF8String' {
-                    # Check module content BOM independently of .ready marker
-                    $Local:HasValidContent = $false;
-                    if (Test-Path -Path $ModulePath -PathType Leaf) {
-                        $Local:BomParams = @{ Path = $ModulePath; TotalCount = $Bom.Length };
-                        if ($PSBelow6) { $Local:BomParams.Add('Encoding', 'Byte') } else { $Local:BomParams.Add('AsByteStream', $True) }
-                        $Local:IsBomEncoded = [Collections.Generic.SortedSet[String]]::CreateSetComparer().Equals((Get-Content @Local:BomParams), $Bom);
-                        $Local:HasValidContent = $PSBelow6 -eq $Local:IsBomEncoded;
-                    }
+                    if ($Local:OwnerSucceeded -and $ReadyPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
+                        $Local:HasValidContent = $false;
+                        if (Test-Path -Path $ModulePath -PathType Leaf) {
+                            $Local:BomParams = @{ Path = $ModulePath; TotalCount = $Bom.Length };
+                            if ($PSBelow6) { $Local:BomParams.Add('Encoding', 'Byte') } else { $Local:BomParams.Add('AsByteStream', $True) }
+                            $Local:IsBomEncoded = [Collections.Generic.SortedSet[String]]::CreateSetComparer().Equals((Get-Content @Local:BomParams), $Bom);
+                            $Local:HasValidContent = $PSBelow6 -eq $Local:IsBomEncoded;
+                        }
 
-                    # Create .ready if content valid and marker missing
-                    if ($Local:HasValidContent -and $ReadyPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
-                        Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
-                    }
-
-                    $Local:HasValidContent -and (Test-Path -Path $ReadyPath -PathType Leaf);
-                    break;
-                }
-                'Zip' {
-                    $Local:HasExtractedFiles = Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath;
-                    if (-not $Local:HasExtractedFiles -and $ReadyPath -and $ModuleFolderPath) {
-                        $Local:ModuleFiles = Get-ChildItem -Path $ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' };
-                        if ($null -ne $Local:ModuleFiles -and $Local:ModuleFiles.Count -gt 0) {
+                        if ($Local:HasValidContent) {
                             Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
-                            $Local:HasExtractedFiles = $true;
                         }
                     }
 
-                    $Local:HasExtractedFiles;
+                    if (Test-Path -Path $ReadyPath -PathType Leaf) {
+                        $Local:IsReady = Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6;
+                    }
+                    break;
+                }
+                'Zip' {
+                    if ($Local:OwnerSucceeded -and $ReadyPath -and $ModuleFolderPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
+                        $Local:ModuleFiles = Get-ChildItem -Path $ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' };
+                        if ($null -ne $Local:ModuleFiles -and $Local:ModuleFiles.Count -gt 0) {
+                            Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
+                        }
+                    }
+
+                    if ($Local:OwnerSucceeded) {
+                        $Local:IsReady = Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath;
+                    }
                     break;
                 }
             }
@@ -264,14 +271,18 @@ begin {
                 }
 
                 if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
+                    [Boolean]$Local:Utf8Succeeded = $false;
                     $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
                     try {
                         if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
                             Write-Verbose "Writing content to module file: $Local:InnerModulePath"
                             Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -Force -WhatIf:$False;
+                            $Local:Utf8Succeeded = $true;
+                        } else {
+                            $Local:Utf8Succeeded = $true;
                         }
                     } finally {
-                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
+                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6 -OperationSucceeded $Local:Utf8Succeeded;
                     }
                 }
             }
@@ -291,18 +302,21 @@ begin {
                             Write-Verbose "Expanding module file: $Local:TempFile to $Local:ModuleFolderPath"
                             try {
                                 Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force -WhatIf:$False -ErrorAction Stop;
+                                $Local:ZipSucceeded = $true;
                                 Write-Verbose "Expanded module file successfully: $Local:TempFile"
                             } catch {
                                 Write-Error "Failed to expand module archive '$Local:TempFile' to '$Local:ModuleFolderPath': $($_.Exception.Message)"
                                 throw;
                             }
+                        } else {
+                            $Local:ZipSucceeded = $true;
                         }
                     } finally {
                         if (Test-Path -Path $Local:TempFile) {
                             Remove-Item -Path $Local:TempFile -Force -ErrorAction SilentlyContinue -WhatIf:$False;
                         }
 
-                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'Zip' -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath;
+                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'Zip' -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath -OperationSucceeded $Local:ZipSucceeded;
                     }
                 }
             }
@@ -374,6 +388,93 @@ process {
             }
         }
 
+        function Get-CompiledPowerShellPath {
+            [CmdletBinding()]
+            [OutputType([String])]
+            param()
+
+            $Local:Candidates = @();
+            $Local:Seen = [System.Collections.Generic.HashSet[String]]::new([System.StringComparer]::OrdinalIgnoreCase);
+
+            if (-not [String]::IsNullOrWhiteSpace($env:COMPILED_POWERSHELL_PATH)) {
+                $Local:FullPath = $env:COMPILED_POWERSHELL_PATH;
+                if (-not [System.IO.Path]::IsPathRooted($Local:FullPath)) {
+                    try {
+                        $Local:FullPath = [System.IO.Path]::GetFullPath($Local:FullPath);
+                    } catch {
+                        $Local:FullPath = $env:COMPILED_POWERSHELL_PATH;
+                    }
+                }
+
+                if ($Local:Seen.Add($Local:FullPath)) {
+                    $Local:Candidates += $Local:FullPath;
+                }
+            }
+
+            if ($PSVersionTable.PSEdition -eq 'Core') {
+                $Local:PowerShellExe = if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' };
+                $Local:Candidate = Join-Path -Path $PSHOME -ChildPath $Local:PowerShellExe;
+                if ($Local:Seen.Add($Local:Candidate)) {
+                    $Local:Candidates += $Local:Candidate;
+                }
+
+                $Local:Candidate = Get-Command -Name pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source;
+                if (-not [String]::IsNullOrWhiteSpace($Local:Candidate)) {
+                    if (-not [System.IO.Path]::IsPathRooted($Local:Candidate)) {
+                        try {
+                            $Local:Candidate = [System.IO.Path]::GetFullPath($Local:Candidate);
+                        } catch {
+                        }
+                    }
+
+                    if ($Local:Seen.Add($Local:Candidate)) {
+                        $Local:Candidates += $Local:Candidate;
+                    }
+                }
+            } else {
+                $Local:Candidate = Join-Path -Path $PSHOME -ChildPath 'powershell.exe';
+                if ($Local:Seen.Add($Local:Candidate)) {
+                    $Local:Candidates += $Local:Candidate;
+                }
+
+                $Local:Candidate = Get-Command -Name powershell -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source;
+                if (-not [String]::IsNullOrWhiteSpace($Local:Candidate)) {
+                    if (-not [System.IO.Path]::IsPathRooted($Local:Candidate)) {
+                        try {
+                            $Local:Candidate = [System.IO.Path]::GetFullPath($Local:Candidate);
+                        } catch {
+                        }
+                    }
+
+                    if ($Local:Seen.Add($Local:Candidate)) {
+                        $Local:Candidates += $Local:Candidate;
+                    }
+                }
+            }
+
+            $Local:Candidate = Get-Process -Id $PID | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue;
+            if (-not [String]::IsNullOrWhiteSpace($Local:Candidate)) {
+                if (-not [System.IO.Path]::IsPathRooted($Local:Candidate)) {
+                    try {
+                        $Local:Candidate = [System.IO.Path]::GetFullPath($Local:Candidate);
+                    } catch {
+                    }
+                }
+
+                if ($Local:Seen.Add($Local:Candidate)) {
+                    $Local:Candidates += $Local:Candidate;
+                }
+            }
+
+            foreach ($Candidate in $Local:Candidates) {
+                if (Test-Path -Path $Candidate -PathType Leaf) {
+                    return $Candidate;
+                }
+            }
+
+            throw "Unable to resolve PowerShell executable path. Set COMPILED_POWERSHELL_PATH to full path for powershell.exe or pwsh. PSHOME='$PSHOME', PSEdition='$($PSVersionTable.PSEdition)', PID='$PID'."
+        }
+
         function Invoke-ScriptWithErrorCapture {
             <#
             .SYNOPSIS
@@ -407,7 +508,7 @@ process {
                 throw "Script not found at path: $ScriptPath"
             }
 
-            $PowerShellPath = Get-Process -Id $PID | Select-Object -ExpandProperty Path;
+            $PowerShellPath = Get-CompiledPowerShellPath;
 
             if ($env:NO_ERROR_WRAPPER -eq $True) {
                 Write-Verbose 'Skipping error capture wrapper due to NO_ERROR_WRAPPER environment variable.';
@@ -438,8 +539,13 @@ try {
         }
     }
 } catch {
-    Write-Output "Caught terminating error"
-    `$Script:DisplayedErrorLog.Add(`$_)
+    `$TerminatingError = `$_
+    `$ExceptionMessage = if (`$TerminatingError.Exception) { `$TerminatingError.Exception.Message } else { 'Unknown exception' }
+    `$FullyQualifiedErrorId = if (`$TerminatingError.FullyQualifiedErrorId) { `$TerminatingError.FullyQualifiedErrorId } else { 'Unavailable' }
+    `$PositionMessage = if (`$TerminatingError.InvocationInfo -and `$TerminatingError.InvocationInfo.PositionMessage) { `$TerminatingError.InvocationInfo.PositionMessage.Trim() } else { 'Unavailable' }
+    `$StackTraceMessage = if (`$TerminatingError.ScriptStackTrace) { `$TerminatingError.ScriptStackTrace.Trim() } elseif (`$TerminatingError.Exception -and `$TerminatingError.Exception.StackTrace) { `$TerminatingError.Exception.StackTrace.Trim() } else { 'Unavailable' }
+    Write-Error ("Terminating error in script '$ScriptPath': `$ExceptionMessage`nFQID: `$FullyQualifiedErrorId`nPosition: `$PositionMessage`nStack: `$StackTraceMessage")
+    `$Script:DisplayedErrorLog.Add(`$TerminatingError)
 } finally {
     if (`$Script:DisplayedErrorLog.Count -gt 0) {
         `$Script:DisplayedErrorLog | Export-Clixml -Path "$ErrorOutputPath" -Depth 4

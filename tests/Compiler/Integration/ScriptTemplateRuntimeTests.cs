@@ -247,6 +247,46 @@ $(Invoke-LogInfo 'All-Exports-Work')
     });
 
     [Test]
+    public async Task GeneratedScript_CompleteModuleLock_LeavesZipFolderUnreadyOnFailedOperation() => await InvokeWithInjectedModuleOptOut(async () => {
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+        await File.WriteAllTextAsync(scriptPath, "Write-Output 'noop'");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var moduleDirectory = Path.Combine(tempRoot, "zip-lock-test-module");
+        Directory.CreateDirectory(moduleDirectory);
+
+        await File.WriteAllTextAsync(Path.Combine(moduleDirectory, "partial.txt"), "partial");
+
+        var harnessPath = Path.Combine(tempRoot, "complete-module-lock-test.ps1");
+        var harness = @"
+$ErrorActionPreference = 'Stop'
+$env:COMPILED_NO_RUN = 'true'
+. @SCRIPT_PATH@
+$moduleDir = @MODULE_DIR@
+$readyPath = Join-Path $moduleDir '.ready'
+$lockPath = Join-Path $moduleDir '.lock'
+Set-Content -Path $lockPath -Value '' -NoNewline
+Complete-ModuleLock -LockPath $lockPath -ReadyPath $readyPath -ModuleFolderPath $moduleDir -ModuleType 'Zip' -OperationSucceeded:$false | Out-Null
+if (Test-Path $readyPath) { throw '.ready created after failed operation' }
+";
+        harness = harness.Replace("@SCRIPT_PATH@", "'" + compiledScriptPath.Replace("'", "''") + "'");
+        harness = harness.Replace("@MODULE_DIR@", "'" + moduleDirectory.Replace("'", "''") + "'");
+        await File.WriteAllTextAsync(harnessPath, harness);
+
+        var processResult = await RunPwsh(harnessPath, programDataRoot, tempRoot);
+
+        Assert.Multiple(() => {
+            Assert.That(processResult.ExitCode, Is.EqualTo(0), FormatResult(processResult));
+            Assert.That(File.Exists(Path.Combine(moduleDirectory, ".ready")), Is.False);
+            Assert.That(File.Exists(Path.Combine(moduleDirectory, "partial.txt")), Is.True);
+        });
+    });
+
+    [Test]
     public async Task GeneratedScript_WhenReadyMarkerExistsButZipFolderEmpty_RebuildsModule() => await InvokeWithInjectedModuleOptOut(async () => {
         var sourceRoot = TestUtils.GenerateUniqueDirectory();
         var outputRoot = TestUtils.GenerateUniqueDirectory();
@@ -304,6 +344,26 @@ $(Invoke-LogInfo 'All-Exports-Work')
         Assert.Multiple(() => {
             Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
             Assert.That(result.StandardError, Does.Contain("captured-non-terminating"));
+        });
+    });
+
+    [Test]
+    public async Task GeneratedScript_WithWrapper_CapturesTerminatingErrorDetail() => await InvokeWithInjectedModuleOptOut(async () => {
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+        await File.WriteAllTextAsync(scriptPath, "throw 'boom-terminating'");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot, useCompiledJob: true);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardError, Does.Contain("boom-terminating"));
+            Assert.That(result.StandardError, Does.Not.Contain("Caught terminating error"));
         });
     });
 

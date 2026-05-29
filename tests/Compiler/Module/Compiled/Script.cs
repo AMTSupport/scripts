@@ -155,4 +155,17 @@ public sealed class CompiledScriptTests {
             Assert.That(output, Does.Contain("Import-Clixml"));
         });
     }
+
+    [Test]
+    public void GetPowerShellObject_IncludesExecutableResolutionHelpers() {
+        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
+        var output = module.GetPowerShellObject().Unwrap();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Contain("COMPILED_POWERSHELL_PATH"));
+            Assert.That(output, Does.Contain("powershell.exe"));
+            Assert.That(output, Does.Contain("pwsh.exe"));
+            Assert.That(output, Does.Contain("Get-Command"));
+        });
+    }
 }
