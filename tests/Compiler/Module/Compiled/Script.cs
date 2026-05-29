@@ -3,6 +3,8 @@
 // for license information.
 
 using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
@@ -52,8 +54,20 @@ public sealed class CompiledScriptTests {
         };
 
         var output = module.GetPowerShellObject().Unwrap();
+        var embeddedPayload = GetEmbeddedModulePayload(output);
+        var decodedOutput = DecodeBase64Payload(embeddedPayload);
 
-        Assert.That(output, Does.Contain("!DEFINE UNKNOWN_TOKEN"));
+        Assert.That(decodedOutput, Does.Contain("!DEFINE UNKNOWN_TOKEN"));
+    }
+
+    private static string GetEmbeddedModulePayload(string output) {
+        var match = Regex.Match(output, @"Content\s*=\s*'(?<content>[A-Za-z0-9+/=]+)'", RegexOptions.Singleline);
+        Assert.That(match.Success, Is.True, "Embedded module Content payload should be present in compiled output.");
+        return match.Groups["content"].Value;
+    }
+
+    private static string DecodeBase64Payload(string payload) {
+        return Encoding.UTF8.GetString(Convert.FromBase64String(payload));
     }
 
     [Test]

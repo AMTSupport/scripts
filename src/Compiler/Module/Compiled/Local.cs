@@ -5,7 +5,6 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
-
 using System.Text;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -14,7 +13,7 @@ using LanguageExt;
 namespace Compiler.Module.Compiled;
 
 public class CompiledLocalModule : Compiled {
-    public override ContentType Type { get; } = ContentType.UTF8String;
+    public override ContentType Type { get; } = ContentType.Base64Utf8;
 
     // Local modules are always version 0.0.1, as they are not versioned.
     public override Version Version { get; } = new Version(0, 0, 1);
@@ -28,12 +27,12 @@ public class CompiledLocalModule : Compiled {
         RequirementGroup requirements
     ) : base(moduleSpec, requirements) {
         this.Document = document;
-        this.SetContentBytes(new(() => this.StringifyContent().Map(Encoding.UTF8.GetBytes)));
+        this.SetContentBytes(new(() => this.GetRawContentText().Map(text => Encoding.UTF8.GetBytes(text))));
     }
 
-    public override Fin<string> StringifyContent() {
-        var content = new StringBuilder()
-            .AppendLine("<#ps1#> @'");
+    [Pure]
+    protected virtual Fin<string> GetRawContentText() {
+        var content = new StringBuilder();
 
         foreach (var requirement in this.Requirements.GetRequirements()) {
             var hashResult = requirement switch {
@@ -52,11 +51,13 @@ public class CompiledLocalModule : Compiled {
         }
 
         content.AppendLine()
-            .AppendLine(this.Document.GetContent())
-            .Append("'@;");
+            .Append(this.Document.GetContent());
 
         return content.ToString();
     }
+
+    public override Fin<string> StringifyContent() =>
+        this.GetRawContentText().Map(text => $"'{Convert.ToBase64String(Encoding.UTF8.GetBytes(text))}'");
 
     public Fin<Unit> ValidateRequirementsResolved() {
         foreach (var requirement in this.Requirements.GetRequirements<ModuleSpec>()) {

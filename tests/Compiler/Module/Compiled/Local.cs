@@ -3,6 +3,8 @@
 // for license information.
 
 using System.Management.Automation.Language;
+using System.Text;
+using System.Text.RegularExpressions;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
 using Compiler.Text;
@@ -80,15 +82,39 @@ public class CompiledLocalModuleTests {
         CompiledUtils.AddDependency(module, remoteDependency);
 
         var output = module.StringifyContent().Unwrap();
+        var decodedOutput = DecodeQuotedBase64Payload(output);
         var remoteHash = remoteDependency.GetNameHash().Unwrap();
 
         Assert.Multiple(() => {
-            Assert.That(output, Does.Contain($"Using module '{remoteHash}'"));
-            Assert.That(output.Contains("RequiredVersion", StringComparison.Ordinal), Is.False);
-            Assert.That(output.Contains("MaximumVersion", StringComparison.Ordinal), Is.False);
-            Assert.That(output.Contains("ModuleVersion", StringComparison.Ordinal), Is.False);
-            Assert.That(output.Contains("GUID", StringComparison.Ordinal), Is.False);
+            Assert.That(decodedOutput, Does.Contain($"Using module '{remoteHash}'"));
+            Assert.That(decodedOutput.Contains("RequiredVersion", StringComparison.Ordinal), Is.False);
+            Assert.That(decodedOutput.Contains("MaximumVersion", StringComparison.Ordinal), Is.False);
+            Assert.That(decodedOutput.Contains("ModuleVersion", StringComparison.Ordinal), Is.False);
+            Assert.That(decodedOutput.Contains("GUID", StringComparison.Ordinal), Is.False);
         });
+    }
+
+    [Test]
+    public void StringifyContent_UnicodeLocalModuleUsesAsciiSafePayloadContract() {
+        var moduleContent = "function Invoke-Unicode { '📦-🗑️-🔄-Ω' }";
+        var module = TestData.CreateModule<CompiledLocalModule>(moduleContent, "UnicodeModule");
+        var output = module.StringifyContent().Unwrap();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Not.Contain("📦"));
+            Assert.That(output, Does.Not.Contain("🗑️"));
+            Assert.That(output, Does.Not.Contain("🔄"));
+            Assert.That(output, Does.Not.Contain("Ω"));
+            Assert.That(output, Is.EqualTo(Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(output))));
+            Assert.That(output, Does.Match("^[\x00-\x7F]+$"));
+            Assert.That(output, Does.Match("['\"]?[A-Za-z0-9+/=]+['\"]?"));
+        });
+    }
+
+    private static string DecodeQuotedBase64Payload(string payload) {
+        var match = Regex.Match(payload, "^[\"'](?<content>[A-Za-z0-9+/=]+)[\"']$", RegexOptions.Singleline);
+        var encoded = match.Success ? match.Groups["content"].Value : payload;
+        return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
     }
 
     public static class TestData {

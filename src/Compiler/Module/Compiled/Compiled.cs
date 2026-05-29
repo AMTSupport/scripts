@@ -14,6 +14,12 @@ using NLog;
 
 namespace Compiler.Module.Compiled;
 
+public enum ContentType {
+    UTF8String,
+    Base64Utf8,
+    Zip
+}
+
 [method: Pure]
 public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requirements) {
     public Compiled(
@@ -260,10 +266,4 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     public virtual void CompleteCompileAfterResolution() {
 
     }
-}
-
-public enum ContentType {
-    UTF8String,
-
-    Zip
 }

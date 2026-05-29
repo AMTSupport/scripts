@@ -29,6 +29,41 @@ begin {
     [Int]$Script:ModuleLockTimeoutSeconds = 180;
     [Int]$Script:ModuleLockRetryMilliseconds = 200;
 
+    function Convert-Base64Utf8ToBytes {
+        [CmdletBinding()]
+        [OutputType([Byte[]])]
+        param(
+            [Parameter(Mandatory)]
+            [String]$Base64,
+
+            [Parameter(Mandatory)]
+            [Boolean]$PSBelow6,
+
+            [Parameter(Mandatory)]
+            [Boolean]$IncludeBom
+        )
+
+        $Local:Bytes = [System.Convert]::FromBase64String($Base64);
+        if (-not ($IncludeBom -and $PSBelow6)) {
+            return $Local:Bytes;
+        }
+
+        return [Byte[]]($Bom + $Local:Bytes);
+    }
+
+    function Write-ModuleBytes {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)]
+            [String]$Path,
+
+            [Parameter(Mandatory)]
+            [Byte[]]$Bytes
+        )
+
+        [System.IO.File]::WriteAllBytes($Path, $Bytes);
+    }
+
     function Test-UTF8ModuleReady {
         [CmdletBinding()]
         [OutputType([Boolean])]
@@ -90,7 +125,7 @@ begin {
             [String]$ModuleHash,
 
             [Parameter(Mandatory)]
-            [ValidateSet('UTF8String', 'Zip')]
+            [ValidateSet('Base64Utf8', 'Zip')]
             [String]$ModuleType,
 
             [String]$ModulePath,
@@ -132,7 +167,7 @@ begin {
                 return $Local:LockHandle;
             } catch [System.IO.IOException] {
                 $Local:IsReady = switch ($ModuleType) {
-                    'UTF8String' { Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6; break; }
+                    'Base64Utf8' { Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6; break; }
                     'Zip' { Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath; break; }
                 }
 
@@ -159,7 +194,7 @@ begin {
             [String]$LockPath,
 
             [Parameter(Mandatory)]
-            [ValidateSet('UTF8String', 'Zip')]
+            [ValidateSet('Base64Utf8', 'Zip')]
             [String]$ModuleType,
 
             [String]$ModulePath,
@@ -180,7 +215,7 @@ begin {
             $Local:IsReady = $false;
 
             switch ($ModuleType) {
-                'UTF8String' {
+                'Base64Utf8' {
                     if ($Local:OwnerSucceeded -and $ReadyPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
                         $Local:HasValidContent = $false;
                         if (Test-Path -Path $ModulePath -PathType Leaf) {
@@ -256,7 +291,7 @@ begin {
         $Local:ModuleReadyPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath '.ready';
 
         switch ($_.Type) {
-            'UTF8String' {
+            'Base64Utf8' {
                 $Local:IsRootScript = $null -eq $Script:ScriptPath;
                 $Local:FileSuffix = if ($Local:IsRootScript) { 'ps1' } else { 'psm1' };
                 $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.$Local:FileSuffix";
@@ -264,7 +299,8 @@ begin {
                 if ($Local:IsRootScript) {
                     $Local:RootScriptPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1');
                     Write-Verbose "Writing root script content to temp file: $Local:RootScriptPath"
-                    Set-Content -Path $Local:RootScriptPath -Value $Content -Encoding $Local:Encoding -Force -WhatIf:$False;
+                    $Local:RootBytes = Convert-Base64Utf8ToBytes -Base64 $Content -PSBelow6:$Local:PSBelow6 -IncludeBom:$true;
+                    Write-ModuleBytes -Path $Local:RootScriptPath -Bytes $Local:RootBytes;
                     $Script:ScriptPath = $Local:RootScriptPath;
                     $Script:TransientScriptPath = $Local:RootScriptPath;
                     return;
@@ -272,17 +308,18 @@ begin {
 
                 if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
                     [Boolean]$Local:Utf8Succeeded = $false;
-                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
+                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'Base64Utf8' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
                     try {
                         if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
                             Write-Verbose "Writing content to module file: $Local:InnerModulePath"
-                            Set-Content -Path $Local:InnerModulePath -Value $Content -Encoding $Local:Encoding -Force -WhatIf:$False;
+                            $Local:ModuleBytes = Convert-Base64Utf8ToBytes -Base64 $Content -PSBelow6:$Local:PSBelow6 -IncludeBom:$true;
+                            Write-ModuleBytes -Path $Local:InnerModulePath -Bytes $Local:ModuleBytes;
                             $Local:Utf8Succeeded = $true;
                         } else {
                             $Local:Utf8Succeeded = $true;
                         }
                     } finally {
-                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6 -OperationSucceeded $Local:Utf8Succeeded;
+                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'Base64Utf8' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6 -OperationSucceeded $Local:Utf8Succeeded;
                     }
                 }
             }
@@ -518,6 +555,7 @@ process {
 
             $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) 'PSErrorCapture'
             New-Item -Path $tempDir -ItemType Directory -Force -WhatIf:$False | Out-Null
+
             $ErrorOutputPath = Join-Path $tempDir "script_$PID_$(Get-Random)_errors.xml"
 
             try {
@@ -608,7 +646,7 @@ try {
         }
 
         if ($env:COMPILED_NO_JOB -ne $True) {
-            $ArgSplat = @{ }
+            $ArgSplat = @{ };
             $PSBoundParameters.GetEnumerator() | ForEach-Object {
                 $Value;
                 if ($_.Value -is [System.Management.Automation.SwitchParameter]) {

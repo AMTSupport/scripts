@@ -371,6 +371,51 @@ if (Test-Path $readyPath) { throw '.ready created after failed operation' }
         });
     });
 
+    [Test]
+    public async Task GeneratedScript_UnicodeLocalModulePreservesOutputAndExtractedBytes() => await InvokeWithInjectedModuleOptOut(async () => {
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+        var moduleDir = Path.Combine(sourceRoot, "Unicode");
+        Directory.CreateDirectory(moduleDir);
+        var modulePath = Path.Combine(moduleDir, "Unicode.psm1");
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+
+        var moduleContent = @"
+function Get-UnicodePayload {
+    [CmdletBinding()]
+    param()
+    '📦-🗑️-🔄-Ω'
+}
+Export-ModuleMember -Function Get-UnicodePayload
+".TrimStart();
+        await File.WriteAllTextAsync(modulePath, moduleContent);
+        await File.WriteAllTextAsync(scriptPath, "using module ./Unicode/Unicode.psm1\nGet-UnicodePayload");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var generatedScript = await File.ReadAllTextAsync(compiledScriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot);
+        var modulesRoot = GetModulesRoot(programDataRoot, [result]);
+        var moduleDirectory = FindSingleModuleDirectory(modulesRoot, "Unicode-");
+        var moduleFile = Directory.GetFiles(moduleDirectory, "Unicode-*.psm1", SearchOption.TopDirectoryOnly).Single();
+        var extractedBytes = await File.ReadAllBytesAsync(moduleFile);
+        var extractedText = Encoding.UTF8.GetString(extractedBytes);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardOutput, Does.Contain("📦-🗑️-🔄-Ω"));
+            Assert.That(generatedScript, Does.Not.Contain("📦"));
+            Assert.That(generatedScript, Does.Not.Contain("🗑️"));
+            Assert.That(generatedScript, Does.Not.Contain("🔄"));
+            Assert.That(generatedScript, Does.Not.Contain("Ω"));
+            Assert.That(generatedScript, Is.EqualTo(Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(generatedScript))));
+            Assert.That(generatedScript, Does.Match("['\"]?[A-Za-z0-9+/=]+['\"]?"));
+            Assert.That(extractedText, Does.Contain("📦-🗑️-🔄-Ω"));
+        });
+    });
+
     private static async Task InvokeWithInjectedModuleOptOut(Func<Task> action) {
         var previous = Environment.GetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES");
         Environment.SetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES", bool.TrueString);
