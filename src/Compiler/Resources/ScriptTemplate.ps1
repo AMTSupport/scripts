@@ -6,11 +6,22 @@
 )]
 <#!DEFINE PARAM_BLOCK >#> param()
 begin {
-    [Boolean]$Global:CompiledScript = $True;
+    try {
+        [Boolean]$Global:CompiledScript = $True;
+    <#!DEFINE RUNTIME_MODULE#>
+    <#!DEFINE RUNTIME_MODULE_NAME#>
     <#!DEFINE EMBEDDED_MODULES#>
     <#!DEFINE IMPORT_ORDER#>
 
-    [String]$Local:PrivatePSModulePath = $env:ProgramData | Join-Path -ChildPath "AMT/PowerShell/Modules/PS$($PSVersionTable.PSVersion.Major)";
+    if ($env:ProgramData) {
+        $Local:ProgramData = $env:ProgramData;
+    } elseif ([Environment]::GetFolderPath('CommonApplicationData')) {
+        $Local:ProgramData = [Environment]::GetFolderPath('CommonApplicationData');
+    } else {
+        $Local:ProgramData = Join-Path $HOME '.local/share';
+    }
+
+    [String]$Local:PrivatePSModulePath = $Local:ProgramData | Join-Path -ChildPath "AMT/PowerShell/Modules/PS$($PSVersionTable.PSVersion.Major)";
     if (-not (Test-Path -Path $Local:PrivatePSModulePath)) {
         Write-Verbose "Creating module root folder: $Local:PrivatePSModulePath";
         New-Item -Path $Local:PrivatePSModulePath -ItemType Directory -Force -WhatIf:$False | Out-Null;
@@ -267,102 +278,95 @@ begin {
         }
     }
 
-    $Script:ScriptPath;
-    $Script:TransientScriptPath;
+    if (-not $RUNTIME_MODULE -or -not $RUNTIME_MODULE_NAME) {
+        throw 'Missing runtime module definition in compiled template.';
+    }
 
-    $Script:EMBEDDED_MODULES | ForEach-Object {
-        $Local:Name = $_.Name;
-        $Local:Type = $_.Type;
-        $Local:Hash = $_.Hash;
-        $Local:Content = $_.Content;
-        $Local:NameHash = "$Local:Name-$Local:Hash";
-        if (-not $Local:Name -or -not $Local:Type -or -not $Local:Hash -or -not $Local:Content) {
-            Write-Warning "Invalid module definition: $($_), skipping...";
-            return;
-        }
+    $Local:RuntimeModuleName = $RUNTIME_MODULE_NAME;
+    $Local:RuntimeModuleHash = $RUNTIME_MODULE.Hash;
+    $Local:RuntimeModuleType = $RUNTIME_MODULE.Type;
+    $Local:RuntimeModuleContent = $RUNTIME_MODULE.Content;
 
-        $Local:ModuleFolderPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath $Local:NameHash;
-        if (-not (Test-Path -Path $Local:ModuleFolderPath)) {
-            Write-Verbose "Creating module folder: $Local:ModuleFolderPath";
-            New-Item -Path $Local:ModuleFolderPath -ItemType Directory -Force -WhatIf:$False | Out-Null;
-        }
+    if (-not $Local:RuntimeModuleName -or -not $Local:RuntimeModuleHash -or -not $Local:RuntimeModuleType -or -not $Local:RuntimeModuleContent) {
+        throw 'Invalid runtime module definition in compiled template.';
+    }
 
-        $Local:ModuleLockPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath "$Local:NameHash.lock";
-        $Local:ModuleReadyPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath '.ready';
+    if ($Local:RuntimeModuleType -ne 'Zip') {
+        throw "Unsupported runtime module type '$Local:RuntimeModuleType'.";
+    }
 
-        switch ($_.Type) {
-            'Base64Utf8' {
-                $Local:IsRootScript = $null -eq $Script:ScriptPath;
-                $Local:FileSuffix = if ($Local:IsRootScript) { 'ps1' } else { 'psm1' };
-                $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.$Local:FileSuffix";
+    $Local:RuntimeModuleFolderPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath "$Local:RuntimeModuleName-$Local:RuntimeModuleHash";
+    if (-not (Test-Path -Path $Local:RuntimeModuleFolderPath)) {
+        Write-Verbose "Creating runtime module folder: $Local:RuntimeModuleFolderPath";
+        New-Item -Path $Local:RuntimeModuleFolderPath -ItemType Directory -Force -WhatIf:$False | Out-Null;
+    }
 
-                if ($Local:IsRootScript) {
-                    $Local:RootScriptPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1');
-                    Write-Verbose "Writing root script content to temp file: $Local:RootScriptPath"
-                    $Local:RootBytes = Convert-Base64Utf8ToBytes -Base64 $Content -PSBelow6:$Local:PSBelow6 -IncludeBom:$true;
-                    Write-ModuleBytes -Path $Local:RootScriptPath -Bytes $Local:RootBytes;
-                    $Script:ScriptPath = $Local:RootScriptPath;
-                    $Script:TransientScriptPath = $Local:RootScriptPath;
-                    return;
+    $Local:RuntimeModuleLockPath = Join-Path -Path $Local:PrivatePSModulePath -ChildPath "$Local:RuntimeModuleName-$Local:RuntimeModuleHash.lock";
+    $Local:RuntimeModuleReadyPath = Join-Path -Path $Local:RuntimeModuleFolderPath -ChildPath '.ready';
+    $Local:RuntimeManifestPath = Join-Path -Path $Local:RuntimeModuleFolderPath -ChildPath "$Local:RuntimeModuleName.psd1";
+
+    if (-not (Test-ZipModuleReady -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath)) {
+        $Local:RuntimeLockHandle = Wait-ModuleLock -LockPath $Local:RuntimeModuleLockPath -ModuleName $Local:RuntimeModuleName -ModuleHash $Local:RuntimeModuleHash -ModuleType 'Zip' -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath;
+        [String]$Local:RuntimeTempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
+        [Boolean]$Local:RuntimeSucceeded = $false;
+        try {
+            if (-not (Test-ZipModuleReady -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath)) {
+                Write-Verbose "Preparing runtime module folder: $Local:RuntimeModuleFolderPath";
+                Get-ChildItem -Path $Local:RuntimeModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' } | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue -WhatIf:$False;
+
+                [Byte[]]$Local:RuntimeBytes = [System.Convert]::FromBase64String($Local:RuntimeModuleContent);
+                [System.IO.File]::WriteAllBytes($Local:RuntimeTempFile, $Local:RuntimeBytes);
+
+                Write-Verbose "Expanding runtime module file: $Local:RuntimeTempFile to $Local:RuntimeModuleFolderPath";
+                try {
+                    Expand-Archive -Path $Local:RuntimeTempFile -DestinationPath $Local:RuntimeModuleFolderPath -Force -WhatIf:$False -ErrorAction Stop;
+                    $Local:RuntimeSucceeded = $true;
+                    Write-Verbose "Expanded runtime module file successfully: $Local:RuntimeTempFile";
+                } catch {
+                    throw "Failed to expand runtime module archive '$Local:RuntimeTempFile' to '$Local:RuntimeModuleFolderPath': $($_.Exception.Message)";
                 }
-
-                if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
-                    [Boolean]$Local:Utf8Succeeded = $false;
-                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'Base64Utf8' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
-                    try {
-                        if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
-                            Write-Verbose "Writing content to module file: $Local:InnerModulePath"
-                            $Local:ModuleBytes = Convert-Base64Utf8ToBytes -Base64 $Content -PSBelow6:$Local:PSBelow6 -IncludeBom:$true;
-                            Write-ModuleBytes -Path $Local:InnerModulePath -Bytes $Local:ModuleBytes;
-                            $Local:Utf8Succeeded = $true;
-                        } else {
-                            $Local:Utf8Succeeded = $true;
-                        }
-                    } finally {
-                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'Base64Utf8' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6 -OperationSucceeded $Local:Utf8Succeeded;
-                    }
-                }
+            } else {
+                $Local:RuntimeSucceeded = $true;
+            }
+        } finally {
+            if (Test-Path -Path $Local:RuntimeTempFile) {
+                Remove-Item -Path $Local:RuntimeTempFile -Force -ErrorAction SilentlyContinue -WhatIf:$False;
             }
 
-            'Zip' {
-                if (-not (Test-ZipModuleReady -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath)) {
-                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'Zip' -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath;
-                    [String]$Local:TempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
-                    try {
-                        if (-not (Test-ZipModuleReady -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath)) {
-                            Write-Verbose "Preparing zip module folder: $Local:ModuleFolderPath"
-                            Get-ChildItem -Path $Local:ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' } | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue -WhatIf:$False;
-
-                            [Byte[]]$Local:Bytes = [System.Convert]::FromBase64String($Content);
-                            [System.IO.File]::WriteAllBytes($Local:TempFile, $Local:Bytes);
-
-                            Write-Verbose "Expanding module file: $Local:TempFile to $Local:ModuleFolderPath"
-                            try {
-                                Expand-Archive -Path $Local:TempFile -DestinationPath $Local:ModuleFolderPath -Force -WhatIf:$False -ErrorAction Stop;
-                                $Local:ZipSucceeded = $true;
-                                Write-Verbose "Expanded module file successfully: $Local:TempFile"
-                            } catch {
-                                Write-Error "Failed to expand module archive '$Local:TempFile' to '$Local:ModuleFolderPath': $($_.Exception.Message)"
-                                throw;
-                            }
-                        } else {
-                            $Local:ZipSucceeded = $true;
-                        }
-                    } finally {
-                        if (Test-Path -Path $Local:TempFile) {
-                            Remove-Item -Path $Local:TempFile -Force -ErrorAction SilentlyContinue -WhatIf:$False;
-                        }
-
-                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'Zip' -ReadyPath $Local:ModuleReadyPath -ModuleFolderPath $Local:ModuleFolderPath -OperationSucceeded $Local:ZipSucceeded;
-                    }
-                }
-            }
-
-            Default {
-                Write-Warning "Unknown module type: $($_)";
-            }
+            Complete-ModuleLock -LockHandle $Local:RuntimeLockHandle -LockPath $Local:RuntimeModuleLockPath -ModuleType 'Zip' -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath -OperationSucceeded $Local:RuntimeSucceeded;
         }
     }
+
+    try {
+        Import-Module -Name $Local:RuntimeManifestPath -Force -ErrorAction Stop;
+        $Local:RuntimeImportedModule = Get-Module -Name $Local:RuntimeModuleName -ErrorAction Stop;
+    } catch {
+        throw "Failed to import runtime module '$Local:RuntimeModuleName' from '$Local:RuntimeManifestPath': $($_.Exception.Message)";
+    }
+
+    if (-not (Get-Command -Name 'Initialize-AMTCompiledRuntime' -Module $Local:RuntimeModuleName -ErrorAction SilentlyContinue)) {
+        throw "Runtime module '$Local:RuntimeModuleName' does not expose cmdlet 'Initialize-AMTCompiledRuntime'.";
+    }
+
+    try {
+        $Local:RuntimeState = Initialize-AMTCompiledRuntime -EmbeddedModules $Script:EMBEDDED_MODULES -PrivateModuleRoot $Local:PrivatePSModulePath;
+    } catch {
+        throw "Failed to initialize compiled runtime: $($_.Exception.Message)";
+    }
+
+    if ($null -ne $Local:RuntimeState) {
+        if ($Local:RuntimeState.PSObject.Properties.Name -contains 'OriginalPSModulePath') { $Script:OriginalPSModulePath = $Local:RuntimeState.OriginalPSModulePath; }
+        if ($Local:RuntimeState.PSObject.Properties.Name -contains 'ScriptPath') { $Script:ScriptPath = $Local:RuntimeState.ScriptPath; }
+        if ($Local:RuntimeState.PSObject.Properties.Name -contains 'TransientScriptPath') { $Script:TransientScriptPath = $Local:RuntimeState.TransientScriptPath; }
+        if ($Local:RuntimeState.PSObject.Properties.Name -contains 'PrivatePSModulePath') { $Local:PrivatePSModulePath = $Local:RuntimeState.PrivatePSModulePath; }
+        if ($Local:RuntimeState.PSObject.Properties.Name -contains 'RuntimeModulePath') { $Local:RuntimeModulePath = $Local:RuntimeState.RuntimeModulePath; }
+        if ($Local:RuntimeState.PSObject.Properties.Name -contains 'RuntimeModuleFolderPath') { $Local:RuntimeModuleFolderPath = $Local:RuntimeState.RuntimeModuleFolderPath; }
+    }
+} finally {
+    if ($null -ne $Local:RuntimeImportedModule) {
+        Remove-Module -ModuleInfo $Local:RuntimeImportedModule -Force -ErrorAction SilentlyContinue;
+    }
+}
 }
 process {
     try {

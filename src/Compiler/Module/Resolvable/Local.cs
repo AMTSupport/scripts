@@ -3,6 +3,7 @@
 // for license information.
 
 using System.Collections.Concurrent;
+using System.IO.Compression;
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
 using Compiler.Requirements;
@@ -22,23 +23,8 @@ public partial class ResolvableLocalModule : Resolvable {
 
     public override PathedModuleSpec ModuleSpec => (PathedModuleSpec)base.ModuleSpec;
 
-    /// <summary>
-    /// Creates a new LocalModule from the moduleSpec and a path to the root to find the path.
-    /// </summary>
-    /// <param name="parentPath">
-    /// The root to resolve the path from, must be an absolute path.
-    /// </param>
-    /// <param name="moduleSpec">
-    /// The module spec to create the module from.
-    /// </param>
-    /// <exception cref="AggregateException">
-    /// Thrown when the ast cannot be generated from the file.
-    /// </exception>
-    /// <exception cref="InvalidModulePathError">
-    /// Thrown when the path is not a valid module path.
-    /// This may be because the path is not a file or
-    /// the parent path is not an absolute path.
-    /// </exception>
+    private bool IsPackagedModulePath => string.Equals(Path.GetExtension(this.ModuleSpec.FullPath), ".psd1", StringComparison.OrdinalIgnoreCase) && Directory.Exists(Path.GetDirectoryName(this.ModuleSpec.FullPath)!);
+
     public ResolvableLocalModule(
         string parentPath,
         ModuleSpec moduleSpec
@@ -46,24 +32,20 @@ public partial class ResolvableLocalModule : Resolvable {
         moduleSpec is PathedModuleSpec pathedModuleSpec
             ? pathedModuleSpec
             : new PathedModuleSpec(parentPath, moduleSpec.Name)
-        ) {
+    ) {
         if (!Path.IsPathRooted(parentPath)) throw InvalidModulePathError.NotAnAbsolutePath(parentPath);
         if (!Directory.Exists(parentPath)) throw InvalidModulePathError.ParentNotADirectory(parentPath);
     }
 
-    /// <summary>
-    /// Creates a new LocalModule from the moduleSpec.
-    /// </summary>
-    /// <param name="moduleSpec"></param>
-    /// <exception cref="InvalidModulePathException">
-    /// Thrown when the path is not a valid module path.
-    /// </exception>
-    /// <exception cref="AggregateException">
-    /// Thrown when the ast cannot be generated from the file.
-    /// </exception>
     public ResolvableLocalModule(PathedModuleSpec moduleSpec) : base(moduleSpec) {
         if (!File.Exists(moduleSpec.FullPath)) {
             throw InvalidModulePathError.NotAFile(moduleSpec.FullPath);
+        }
+
+        if (this.IsPackagedModulePath) {
+            this.Editor = new TextEditor(new TextDocument([]));
+            this.RequirementsAst = Parser.ParseInput(string.Empty, out _, out _);
+            return;
         }
 
         this.Editor = new TextEditor(new TextDocument(File.ReadAllLines(moduleSpec.FullPath)));
@@ -74,27 +56,15 @@ public partial class ResolvableLocalModule : Resolvable {
         this.Editor.AddEdit(static () => new HereStringUpdater());
     }
 
-    /// <summary>
-    /// Returns the module match for the given requirement.
-    ///
-    /// Module matches for Local files are based on only the name of the module.
-    /// </summary>
-    /// <param name="requirement">
-    /// The requirement to match against.
-    /// </param>
-    /// <returns>
-    /// The module match for the given requirement.
-    /// </returns>
-    public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) {
-        // Local files have nothing but a name.
-        if (this.ModuleSpec.Name == requirement.Name) {
-            return ModuleMatch.Same;
-        }
-
-        return ModuleMatch.None;
-    }
+    [System.Diagnostics.Contracts.Pure]
+    public override ModuleMatch GetModuleMatchFor(ModuleSpec requirement) => this.ModuleSpec.CompareTo(requirement);
 
     public override Task<Option<Error>> ResolveRequirements() {
+        if (this.IsPackagedModulePath) {
+            this.ReadPackagedManifestRequirements();
+            return Option<Error>.None.AsTask();
+        }
+
         AstHelper.FindDeclaredModules(this.RequirementsAst).ToList().ForEach(module => {
             if (module.Value.TryGetValue("AST", out var obj) && obj is Ast ast) {
                 this.Editor.AddExactEdit(
@@ -148,7 +118,6 @@ public partial class ResolvableLocalModule : Resolvable {
             }
         });
 
-        // FIXME - This gets duplicated.
         if (this.RequirementsAst.ScriptRequirements is not null) {
             if (this.RequirementsAst.ScriptRequirements.IsElevationRequired) {
                 lock (this.Requirements) {
@@ -181,29 +150,38 @@ public partial class ResolvableLocalModule : Resolvable {
             StringComparison.OrdinalIgnoreCase
         );
 
-        // Add a reference to the Analyser.psm1 file to ensure all files have access to the SuppressAnalyserAttribute
         if (!dontAddAnalyser && !skipCompilerInjectedModules) {
-
             lock (this.Requirements) {
                 var analyserPath = GetExportedResource("Analyser.psm1").Unwrap();
                 var moduleUtilsPath = GetExportedResource("ModuleUtils.psm1").Unwrap();
-                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(analyserPath)!.FullName, analyserPath)); // Safety - We know this will always be present in the resources.
-                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(moduleUtilsPath)!.FullName, moduleUtilsPath)); // Safety - We know this will always be present in the resources.
+                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(analyserPath)!.FullName, analyserPath));
+                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(moduleUtilsPath)!.FullName, moduleUtilsPath));
             }
         }
 
         return Option<Error>.None.AsTask();
     }
 
-    public override Task<Fin<Compiled.Compiled>> IntoCompiled(ResolvableParent resolvableParent) => CompiledDocument.FromBuilder(this.Editor, 0)
-        .BindFail(err => err.Enrich(this.ModuleSpec))
-        .AndThenTry(doc => new CompiledLocalModule(
-            this.ModuleSpec,
-            doc,
-            this.Requirements
-        ) {
-            ResolvableParent = resolvableParent
-        } as Compiled.Compiled).AsTask();
+    public override Task<Fin<Compiled.Compiled>> IntoCompiled(ResolvableParent resolvableParent) {
+        if (this.IsPackagedModulePath) {
+            var moduleFolder = Path.GetDirectoryName(this.ModuleSpec.FullPath)!;
+            var bytes = CreatePackagedArchiveBytes(moduleFolder, this.ModuleSpec.Name);
+            var manifest = this.GetPackagedManifest();
+            return Task.FromResult<Fin<Compiled.Compiled>>(new CompiledLocalArchiveModule(this.ModuleSpec, this.Requirements, bytes, manifest) {
+                ResolvableParent = resolvableParent
+            });
+        }
+
+        return CompiledDocument.FromBuilder(this.Editor, 0)
+            .BindFail(err => err.Enrich(this.ModuleSpec))
+            .AndThenTry(doc => new CompiledLocalModule(
+                this.ModuleSpec,
+                doc,
+                this.Requirements
+            ) {
+                ResolvableParent = resolvableParent
+            } as Compiled.Compiled).AsTask();
+    }
 
     public override bool Equals(object? obj) {
         if (obj is null) return false;
@@ -215,9 +193,27 @@ public partial class ResolvableLocalModule : Resolvable {
 
     public override int GetHashCode() => this.ModuleSpec.GetHashCode();
 
-    private static Fin<string> GetExportedResource(
-        string moduleName
-    ) => EmbeddedResources.GetOrAdd(moduleName, name => {
+    private static byte[] CreatePackagedArchiveBytes(string sourceDirectory, string moduleName) {
+        using var memoryStream = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Create, true)) {
+            var files = Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories)
+                .Where(path => !string.Equals(Path.GetExtension(path), ".psd1", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileName(path), $"{moduleName}.psd1", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            foreach (var file in files) {
+                var entryName = Path.GetRelativePath(sourceDirectory, file).Replace(Path.DirectorySeparatorChar, '/');
+                var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+                using var entryStream = entry.Open();
+                using var fileStream = File.OpenRead(file);
+                fileStream.CopyTo(entryStream);
+            }
+        }
+
+        return memoryStream.ToArray();
+    }
+
+    private static Fin<string> GetExportedResource(string moduleName) => EmbeddedResources.GetOrAdd(moduleName, name => {
         var tempModulePath = Path.Combine(TempModuleExportPath, name);
         if (!Program.GetEmbeddedResource(name).IsSome(out var embeddedStream)) {
             return (Error)new FileNotFoundException($"The embedded resource {name} was not found.");
@@ -231,16 +227,14 @@ public partial class ResolvableLocalModule : Resolvable {
             using var fileWriter = File.OpenWrite(tempModulePath);
             embeddedStream.CopyTo(fileWriter);
         } else {
-            // If the file exists, check if its contents are the same.
             using var fileStream = File.Open(tempModulePath, FileMode.Open);
-            var streamsDiffer = embeddedStream.Length != fileStream.Length; // If the lengths are different, the streams are different.
-            // If the lengths are the same, check the contents.
+            var streamsDiffer = embeddedStream.Length != fileStream.Length;
             while (!streamsDiffer && fileStream.Position < fileStream.Length) {
                 streamsDiffer = embeddedStream.ReadByte() != fileStream.ReadByte();
             }
 
             if (streamsDiffer) {
-                fileStream.SetLength(0); // Clear the file.
+                fileStream.SetLength(0);
                 embeddedStream.CopyTo(fileStream);
             }
         }

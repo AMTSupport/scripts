@@ -1,4 +1,4 @@
-BeforeDiscovery { Import-Module $PSScriptRoot/../../../src/common/Assert.psm1 }
+BeforeDiscovery { Import-Module $PSScriptRoot/../../../src/common/Assert.psm1 -ErrorAction Stop }
 
 Describe 'Assert-Equal Tests' {
     It 'Should throw an error if the object does not equal the expected value' {
@@ -7,6 +7,10 @@ Describe 'Assert-Equal Tests' {
 
     It 'Should not throw an error if the object equals the expected value' {
         Assert-Equal -Object 'foo' -Expected 'foo';
+    }
+
+    It 'Should compare strings with PowerShell semantics' {
+        { Assert-Equal -Object 'foo' -Expected 'FOO' } | Should -Not -Throw;
     }
 
     Context 'Error Message Formatting' {

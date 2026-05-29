@@ -86,6 +86,22 @@
     <EmbeddedResource Include="Resources/*.psm1" />
   </ItemGroup>
 
+  <!-- Copy runtime module assets before build, then add as embedded resources -->
+  <Target Name="PrepareRuntimeModule" BeforeTargets="AssignTargetPaths">
+    <PropertyGroup>
+      <_RuntimeDll>$(MSBuildThisFileDirectory)../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.dll</_RuntimeDll>
+      <_RuntimePsd1>$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/Module/AMT.PowerShell.Common.psd1</_RuntimePsd1>
+      <_RuntimeDest>$(MSBuildThisFileDirectory)Resources/RuntimeModule/</_RuntimeDest>
+    </PropertyGroup>
+    <MakeDir Directories="$(_RuntimeDest)" />
+    <Copy SourceFiles="$(_RuntimeDll)" DestinationFolder="$(_RuntimeDest)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(_RuntimePsd1)" DestinationFolder="$(_RuntimeDest)" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <EmbeddedResource Include="Resources/RuntimeModule/*.dll" />
+      <EmbeddedResource Include="Resources/RuntimeModule/*.psd1" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <!-- Misc -->
     <PackageReference Include="Extended.Collections" Version="1.1.1" />
