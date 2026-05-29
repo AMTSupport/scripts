@@ -164,6 +164,10 @@ public class ModuleSpec : Requirement {
         var nameSuffix = data.ContainsKey("NameSuffix") ? $"-{data["NameSuffix"]}" : string.Empty;
         var moduleName = $"{this.Name}{nameSuffix}";
 
+        if (data.ContainsKey("NameSuffix")) {
+            return $"Using module '{moduleName}'";
+        }
+
         if (this.Id == null && this.RequiredVersion == null && this.MinimumVersion == null && this.MaximumVersion == null) {
             return $"Using module '{moduleName}'";
         }

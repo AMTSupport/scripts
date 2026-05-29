@@ -88,6 +88,8 @@ public sealed class ScriptTemplateRuntimeTests {
             Assert.That(results, Has.Length.EqualTo(4));
             Assert.That(results.All(result => result.ExitCode == 0), Is.True, FormatResults(results));
             Assert.That(results.All(result => result.StandardOutput.Contains("Zip-Ready", StringComparison.Ordinal)), Is.True, FormatResults(results));
+            Assert.That(results.All(result => result.StandardError.Contains("PSReadLine-B8EE4D", StringComparison.Ordinal) is false), Is.True, FormatResults(results));
+            Assert.That(results.All(result => result.StandardError.Contains("PackageManagement-", StringComparison.Ordinal) is false), Is.True, FormatResults(results));
             Assert.That(File.Exists(readyPath), Is.True);
             Assert.That(extractedFiles, Is.Not.Empty);
             Assert.That(extractedFiles.Any(path => Path.GetFileName(path).StartsWith("PSReadLine-", StringComparison.OrdinalIgnoreCase) && path.EndsWith(".psd1", StringComparison.OrdinalIgnoreCase)), Is.True);
@@ -195,6 +197,8 @@ $(Invoke-LogInfo 'All-Exports-Work')
             Assert.That(results.All(result => result.ExitCode == 0), Is.True, FormatResults(results));
             Assert.That(results.All(result => result.StandardOutput.Contains("Utility-Result:B-A-Value", StringComparison.Ordinal)), Is.True, FormatResults(results));
             Assert.That(results.All(result => result.StandardOutput.Contains("Logged: All-Exports-Work", StringComparison.Ordinal)), Is.True, FormatResults(results));
+            Assert.That(results.All(result => result.StandardError.Contains("PSReadLine-B8EE4D", StringComparison.Ordinal) is false), Is.True, FormatResults(results));
+            Assert.That(results.All(result => result.StandardError.Contains("PackageManagement-", StringComparison.Ordinal) is false), Is.True, FormatResults(results));
             Assert.That(nonRootModuleCount, Is.GreaterThanOrEqualTo(4), $"Expected ≥4 embedded non-root modules, found {nonRootModuleCount}.");
             Assert.That(File.Exists(Path.Combine(moduleADirResolved, ".ready")), Is.True);
             Assert.That(File.Exists(Path.Combine(moduleBDirResolved, ".ready")), Is.True);

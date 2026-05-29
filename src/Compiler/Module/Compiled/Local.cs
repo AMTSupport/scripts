@@ -38,7 +38,7 @@ public class CompiledLocalModule : Compiled {
         foreach (var requirement in this.Requirements.GetRequirements()) {
             var hashResult = requirement switch {
                 ModuleSpec req => this.FindSibling(req) is { } sibling
-                    ? sibling.ComputedHash().Map(hash => hash[..6])
+                    ? sibling.GetIdentityHash().Map(hash => hash[..6])
                     : Fin.Fail<string>(Error.New($"Missing compiled sibling for module requirement {requirement} in {this.ModuleSpec.Name}.")),
                 _ => Pure(requirement.HashString[..6])
             };

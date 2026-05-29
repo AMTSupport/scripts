@@ -5,6 +5,7 @@
 using System.IO.Compression;
 using System.Management.Automation.Language;
 using System.Reflection;
+using System.Text;
 using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
@@ -40,6 +41,32 @@ public class CompiledRemoteModuleTests {
             Assert.That(zipArchive, Is.Not.Null);
             Assert.That(zipArchive.Entries, Is.Not.Empty);
             Assert.That(zipArchive.Entries, Is.All.Property(nameof(ZipArchiveEntry.Length)).GreaterThan(0));
+        });
+    }
+
+    [Test]
+    public async Task StringifyContent_RenamesEmbeddedArchiveManifestToHash() {
+        var module = await TestData.GetTestRemoteModule();
+        var stringifiedContent = module.StringifyContent().Unwrap();
+        var hash = module.GetNameHash().Unwrap();
+        var moduleName = module.ModuleSpec.Name;
+        var bytes = Convert.FromBase64String(stringifiedContent[1..^1]);
+
+        using var zipArchive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, false);
+        var entryNames = zipArchive.Entries.Select(entry => entry.FullName).ToArray();
+        var manifestEntry = zipArchive.Entries.FirstOrDefault(entry => entry.FullName.EndsWith(".psd1", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Multiple(() => {
+            Assert.That(entryNames, Has.Some.EqualTo($"{hash}.psd1"));
+            Assert.That(entryNames, Has.All.Not.EqualTo($"{moduleName}.psd1"));
+            Assert.That(manifestEntry, Is.Not.Null);
+            if (manifestEntry is not null) {
+                using var manifestStream = manifestEntry.Open();
+                using var reader = new StreamReader(manifestStream, Encoding.UTF8, true);
+                var manifestText = reader.ReadToEnd();
+
+                Assert.That(manifestText.Contains("RequiredVersion", StringComparison.Ordinal), Is.False);
+            }
         });
     }
 

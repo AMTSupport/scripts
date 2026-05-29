@@ -70,6 +70,27 @@ public class CompiledLocalModuleTests {
         }
     });
 
+    [Test]
+    public void StringifyContent_EmbeddedHashedImportUsesPlainModuleReference() {
+        var root = TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
+        var module = TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep';", "DepModule");
+        var remoteDependency = CompiledRemoteModuleTests.TestData.GetTestRemoteModule().GetAwaiter().GetResult();
+
+        CompiledUtils.AddDependency(root, module);
+        CompiledUtils.AddDependency(module, remoteDependency);
+
+        var output = module.StringifyContent().Unwrap();
+        var remoteHash = remoteDependency.GetNameHash().Unwrap();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Contain($"Using module '{remoteHash}'"));
+            Assert.That(output.Contains("RequiredVersion", StringComparison.Ordinal), Is.False);
+            Assert.That(output.Contains("MaximumVersion", StringComparison.Ordinal), Is.False);
+            Assert.That(output.Contains("ModuleVersion", StringComparison.Ordinal), Is.False);
+            Assert.That(output.Contains("GUID", StringComparison.Ordinal), Is.False);
+        });
+    }
+
     public static class TestData {
         private static (PathedModuleSpec, CompiledDocument, RequirementGroup) PrepareRandomModule(string? contents = null, string? fileNameNoExt = null) {
             var random = TestContext.CurrentContext.Random;
