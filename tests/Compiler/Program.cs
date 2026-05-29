@@ -73,6 +73,17 @@ public class ProgramTests {
     }
 
     [Test]
+    public void ContentCompressionMode_DefaultsToGZipAndAcceptsNone() {
+        Assert.That(CompilerSettings.EmbeddedLocalTextCompression, Is.EqualTo(EmbeddedLocalTextCompression.GZip));
+        try {
+            CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
+            Assert.That(CompilerSettings.EmbeddedLocalTextCompression, Is.EqualTo(EmbeddedLocalTextCompression.None));
+        } finally {
+            CompilerSettings.ConfigureEmbeddedLocalTextCompression("gzip");
+        }
+    }
+
+    [Test]
     public async Task Output_ToFile(
         [Values(false, true)] bool overwrite,
         [Values("FooBar", null)] string? expectedContent = default

@@ -598,6 +598,138 @@ Export-ModuleMember -Function Get-UnicodePayload
         });
     });
 
+    [Test]
+    public async Task GeneratedScript_UnicodeLocalModulePreservesOutputAndExtractedBytes() => await InvokeWithInjectedModuleOptOut(async () => {
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+        var moduleDir = Path.Combine(sourceRoot, "Unicode");
+        Directory.CreateDirectory(moduleDir);
+        var modulePath = Path.Combine(moduleDir, "Unicode.psm1");
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+
+        var moduleContent = @"
+function Get-UnicodePayload {
+    [CmdletBinding()]
+    param()
+    '📦-🗑️-🔄-Ω'
+}
+Export-ModuleMember -Function Get-UnicodePayload
+".TrimStart();
+        await File.WriteAllTextAsync(modulePath, moduleContent);
+        await File.WriteAllTextAsync(scriptPath, "using module ./Unicode/Unicode.psm1\nGet-UnicodePayload");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var generatedScript = await File.ReadAllTextAsync(compiledScriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot);
+        var modulesRoot = GetModulesRoot(programDataRoot, [result]);
+        var moduleDirectory = FindSingleModuleDirectory(modulesRoot, "Unicode-");
+        var moduleFile = Directory.GetFiles(moduleDirectory, "Unicode-*.psm1", SearchOption.TopDirectoryOnly).Single();
+        var extractedBytes = await File.ReadAllBytesAsync(moduleFile);
+        var extractedText = Encoding.UTF8.GetString(extractedBytes);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardOutput, Does.Contain("📦-🗑️-🔄-Ω"));
+            Assert.That(generatedScript, Does.Not.Contain("📦"));
+            Assert.That(generatedScript, Does.Not.Contain("🗑️"));
+            Assert.That(generatedScript, Does.Not.Contain("🔄"));
+            Assert.That(generatedScript, Does.Not.Contain("Ω"));
+            Assert.That(generatedScript, Does.Contain("Compression = 'GZip'"));
+            Assert.That(generatedScript, Does.Contain("Type = 'UTF8String'"));
+            Assert.That(generatedScript, Is.EqualTo(Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(generatedScript))));
+            Assert.That(generatedScript, Does.Match("['\"]?[A-Za-z0-9+/=]+['\"]?"));
+            Assert.That(extractedText, Does.Contain("📦-🗑️-🔄-Ω"));
+        });
+    });
+
+    [Test]
+    public async Task GeneratedScript_LocalTextPayloadUsesGzipAndRunsEndToEnd() => await InvokeWithInjectedModuleOptOut(async () => {
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+        var moduleDir = Path.Combine(sourceRoot, "Text");
+        Directory.CreateDirectory(moduleDir);
+        var modulePath = Path.Combine(moduleDir, "Text.psm1");
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+
+        var moduleContent = @"
+function Get-LocalTextPayload {
+    [CmdletBinding()]
+    param()
+    'gzip local text payload'
+}
+Export-ModuleMember -Function Get-LocalTextPayload
+".TrimStart();
+        await File.WriteAllTextAsync(modulePath, moduleContent);
+        await File.WriteAllTextAsync(scriptPath, "using module ./Text/Text.psm1\nGet-LocalTextPayload");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var generatedScript = await File.ReadAllTextAsync(compiledScriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot);
+        var modulesRoot = GetModulesRoot(programDataRoot, [result]);
+        var moduleDirectory = FindSingleModuleDirectory(modulesRoot, "Text-");
+        var moduleFile = Directory.GetFiles(moduleDirectory, "Text-*.psm1", SearchOption.TopDirectoryOnly).Single();
+        var extractedText = await File.ReadAllTextAsync(moduleFile);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardOutput, Does.Contain("gzip local text payload"));
+            Assert.That(generatedScript, Does.Contain("Compression = 'GZip'"));
+            Assert.That(generatedScript, Does.Contain("Type = 'UTF8String'"));
+            Assert.That(generatedScript, Does.Not.Contain("Compression = 'None'"));
+            Assert.That(extractedText, Does.Contain("gzip local text payload"));
+        });
+    });
+
+    [Test]
+    public async Task GeneratedScript_LocalTextPayloadUsesNoneModeEndToEnd() => await InvokeWithInjectedModuleOptOut(async () => {
+        var previousCompression = CompilerSettings.EmbeddedLocalTextCompression;
+        var previousLevel = CompilerSettings.EmbeddedLocalTextCompressionLevel;
+        CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
+        try {
+            var sourceRoot = TestUtils.GenerateUniqueDirectory();
+            var outputRoot = TestUtils.GenerateUniqueDirectory();
+            var programDataRoot = TestUtils.GenerateUniqueDirectory();
+            var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+            var moduleDir = Path.Combine(sourceRoot, "Text");
+            Directory.CreateDirectory(moduleDir);
+            var modulePath = Path.Combine(moduleDir, "Text.psm1");
+            var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+
+            var moduleContent = @"
+function Get-LocalTextPayload {
+    [CmdletBinding()]
+    param()
+    'none local text payload'
+}
+Export-ModuleMember -Function Get-LocalTextPayload
+".TrimStart();
+            await File.WriteAllTextAsync(modulePath, moduleContent);
+            await File.WriteAllTextAsync(scriptPath, "using module ./Text/Text.psm1\nGet-LocalTextPayload");
+
+            var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+            var generatedScript = await File.ReadAllTextAsync(compiledScriptPath);
+            var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot);
+
+            Assert.Multiple(() => {
+                Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+                Assert.That(result.StandardOutput, Does.Contain("none local text payload"));
+                Assert.That(generatedScript, Does.Contain("Compression = 'None'"));
+                Assert.That(generatedScript, Does.Contain("Type = 'UTF8String'"));
+                Assert.That(generatedScript, Does.Not.Contain("Compression = 'GZip'"));
+            });
+        } finally {
+            CompilerSettings.EmbeddedLocalTextCompression = previousCompression;
+            CompilerSettings.EmbeddedLocalTextCompressionLevel = previousLevel;
+        }
+    });
+
     private static async Task InvokeWithInjectedModuleOptOut(Func<Task> action) {
         var previous = Environment.GetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES");
         Environment.SetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES", bool.TrueString);

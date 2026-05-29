@@ -4,7 +4,6 @@
 
 using System.Collections;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using System.Reflection;
@@ -40,9 +39,9 @@ public class CompiledRemoteModule : Compiled, IDisposable {
     private Lock UpdatingArchiveLock { get; } = new();
     private Option<byte[]> UpdatedContentBytes;
 
-    private readonly Fin<string> IdentityHash;
-
     public override ContentType Type => ContentType.Zip;
+
+    public override ContentCompression Compression => ContentCompression.None;
 
     public override Version Version { get; }
 
@@ -51,7 +50,6 @@ public class CompiledRemoteModule : Compiled, IDisposable {
         RequirementGroup requirements,
         byte[] bytes
     ) : base(moduleSpec, requirements, new Lazy<Fin<byte[]>>(() => bytes)) {
-        this.IdentityHash = Convert.ToHexString(SHA256.HashData((byte[])bytes.Clone()));
         var manifest = this.GetPowerShellManifest();
         this.Version = manifest["ModuleVersion"] switch {
             string version => Version.Parse(version),
@@ -71,8 +69,6 @@ public class CompiledRemoteModule : Compiled, IDisposable {
                 ?? ExtraModuleInfo.Empty;
         });
     }
-
-    public override Fin<string> GetIdentityHash() => this.IdentityHash;
 
     public override void CompleteCompileAfterResolution() => this.UpdateArchiveContents();
 

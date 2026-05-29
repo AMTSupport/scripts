@@ -70,6 +70,17 @@ public class CompiledRemoteModuleTests {
         });
     }
 
+    [Test]
+    public async Task GetPowerShellObject_UsesNoneCompressionMetadata() {
+        var module = await TestData.GetTestRemoteModule();
+        var output = module.GetPowerShellObject().Unwrap().ToString();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Contain("Compression = 'None'"));
+            Assert.That(output, Does.Contain("Type = 'Zip'"));
+        });
+    }
+
     public static class TestData {
         private static readonly Dictionary<string, string> TestableRemoteModules = new() {
             ["Microsoft.PowerShell.PSResourceGet"] = "1.0.5",
