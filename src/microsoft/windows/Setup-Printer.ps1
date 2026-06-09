@@ -6,6 +6,7 @@ Using module ..\..\common\Scope.psm1
 Using module ..\..\common\PackageManager.psm1
 Using module ..\..\common\Temp.psm1
 Using module ..\..\common\Exit.psm1
+Using module ..\..\common\Lock.psm1
 
 <#
 .PARAMETER PrinterName
@@ -26,6 +27,12 @@ Using module ..\..\common\Exit.psm1
 
 .PARAMETER Manufacturer
     If specified and one of 'Ricoh', 'HP', 'Konica Minolta', or 'Kyocera', the driver will be installed based on the manufacturer.
+
+.PARAMETER DriverFile
+    Path to a pre-downloaded driver archive file.
+    If specified, the script uses this file instead of downloading it.
+    Only valid for manufacturer-based installations.
+    Must point to an existing file on disk.
 
 .PARAMETER Force
     If specified, printer will be added even if the computer cannot contact the printer.
@@ -54,12 +61,35 @@ Param(
     [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera')]
     [String]$Manufacturer,
 
+    [Parameter(ParameterSetName = 'ByManufacturer')]
+    [ValidateScript({ Test-Path $_ })]
+    [String]$DriverFile,
+
     [Parameter(Position = 4, ParameterSetName = 'ByDriverName')]
     [Parameter(Position = 4, ParameterSetName = 'ByManufacturer')]
     [Switch]$Force
 )
 
-function Install-Driver_Ricoh() {
+function Invoke-DownloadWithProgress {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Uri,
+        [Parameter(Mandatory)]
+        [String]$OutFile
+    )
+    $OriginalProgressPreference = $ProgressPreference;
+    $ProgressPreference = 'Continue';
+    try {
+        Invoke-WebRequest -Uri $Uri -OutFile $OutFile;
+    } finally {
+        $ProgressPreference = $OriginalProgressPreference;
+    }
+}
+
+function Install-Driver_Ricoh {
+    param(
+        [String]$DriverFile
+    )
     [String]$DriverName = 'PCL6 V4 Driver for Universal Print';
 
     if (Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue) {
@@ -72,8 +102,16 @@ function Install-Driver_Ricoh() {
         [String]$Local:FileName = $Local:URL.Split('/')[-1] -replace '.exe', '.zip';
         [String]$Local:ExpandedPath = $Local:FileName.Split('.')[0];
 
-        Invoke-Info "Downloading Ricoh driver from $Local:URL...";
-        Invoke-WebRequest -Uri $Local:URL -OutFile $Local:FileName;
+        if ($DriverFile) {
+            Invoke-Info "Using pre-downloaded Ricoh driver file: $DriverFile";
+            $Local:FileName = $DriverFile;
+        } else {
+            Invoke-UnderLock -ResourceId 'Ricoh' -ScriptBlock {
+                param([String]$Url, [String]$File)
+                Invoke-Info "Downloading Ricoh driver from $Url...";
+                Invoke-DownloadWithProgress -Uri $Url -OutFile $File;
+            } -ArgumentList $Local:URL, $Local:FileName
+        }
 
         Invoke-Info 'Extracting Ricoh driver...';
         Expand-Archive -Path $Local:FileName -DestinationPath $Local:ExpandedPath;
@@ -105,7 +143,10 @@ function Install-Driver_Ricoh() {
     return $DriverName;
 }
 
-function Install-Driver_Kyocera() {
+function Install-Driver_Kyocera {
+    param(
+        [String]$DriverFile
+    )
     [String]$DriverName = 'KX DRIVER for Universal Printing';
 
     if (Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue) {
@@ -118,8 +159,16 @@ function Install-Driver_Kyocera() {
         [String]$FileName = $URL.Split('/')[-1];
         [String]$ExpandedPath = $FileName.Split('.')[0];
 
-        Invoke-Info "Downloading Kyocera driver from $URL...";
-        Invoke-WebRequest -Uri $URL -OutFile $FileName;
+        if ($DriverFile) {
+            Invoke-Info "Using pre-downloaded Kyocera driver file: $DriverFile";
+            $FileName = $DriverFile;
+        } else {
+            Invoke-UnderLock -ResourceId 'Kyocera' -ScriptBlock {
+                param([String]$Url, [String]$File)
+                Invoke-Info "Downloading Kyocera driver from $Url...";
+                Invoke-DownloadWithProgress -Uri $Url -OutFile $File;
+            } -ArgumentList $URL, $FileName
+        }
         Invoke-Info 'Extracting Kyocera driver...';
         Expand-Archive -Path $FileName -DestinationPath $ExpandedPath;
         Invoke-Info 'Entering Kyocera driver directory...';
@@ -231,18 +280,33 @@ function Install-Driver_ByManufacturer {
         [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera')]
         [String]$Manufacturer,
 
-        [String]$PrinterDriver
+        [String]$PrinterDriver,
+
+        [String]$DriverFile
     )
 
     begin { Enter-Scope; }
     end { Exit-Scope; }
 
     process {
+        $PossibleDriverLocation = Get-Item -Path "C:\temp\AMT_SetupPrinter_Driver_$Manufacturer.zip"
+
+        if ($DriverFile) {
+            Invoke-Info "Using specified driver file $DriverFile for manufacturer $Manufacturer";
+            $PossibleDriverLocation = $DriverFile;
+        } elseif (Test-Path -Path $PossibleDriverLocation) {
+            Invoke-Info "Driver file found at $PossibleDriverLocation, using it for installation.";
+            $DriverFile = $PossibleDriverLocation;
+        } else {
+            Invoke-Info "No driver file found at $PossibleDriverLocation, downloading driver during installation.";
+            $DriverFile = $null;
+        }
+
         $UniversalDriver = switch ($Manufacturer) {
-            'Ricoh' { Install-Driver_Ricoh; }
+            'Ricoh' { Install-Driver_Ricoh -DriverFile $DriverFile; }
             'HP' { Install-Driver_HP; }
             'Konica Minolta' { Install-Driver_KonciaMinolta; }
-            'Kyocera' { Install-Driver_Kyocera; }
+            'Kyocera' { Install-Driver_Kyocera -DriverFile $DriverFile; }
             default { throw "Unknown manufacturer $Manufacturer"; }
         }
 
@@ -306,7 +370,6 @@ function Install-PrinterImpl(
         }
 
         Invoke-Info "Adding printer $PrinterName";
-        # TODO :: This can Fail! Need to handle that.
         try {
             Add-Printer -Name $PrinterName -DriverName $PrinterDriver -PortName $PrinterIP;
         } catch {
@@ -332,7 +395,7 @@ Invoke-RunMain $PSCmdlet {
         $Local:InstallPrinterDriver = Install-Driver_ByDriverName -DriverName $Local:TrimmedPrinterDriver -ChocolateyPackage $Local:TrimmedChocoDriver;
     } elseif ($PSCmdlet.ParameterSetName -eq 'ByManufacturer') {
         [String]$TrimmedPrinterManufacturer = $Manufacturer.Trim();
-        $Local:InstallPrinterDriver = Install-Driver_ByManufacturer -Manufacturer $TrimmedPrinterManufacturer -PrinterDriver $PrinterDriver;
+        $Local:InstallPrinterDriver = Install-Driver_ByManufacturer -Manufacturer $TrimmedPrinterManufacturer -PrinterDriver $PrinterDriver -DriverFile $DriverFile;
     }
 
     if (-not $Local:InstallPrinterDriver) {
