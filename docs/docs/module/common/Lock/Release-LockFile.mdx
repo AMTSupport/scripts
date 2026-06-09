@@ -1,0 +1,79 @@
+---
+id: Release-LockFile
+title: Release-LockFile
+description: Help page for the "Release-LockFile" command
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+
+Releases a lock file handle and removes the lock file.
+
+## SYNTAX
+
+```powershell
+Release-LockFile [[-LockHandle] <IDisposable>] [[-LockPath] <String>]
+```
+
+## DESCRIPTION
+
+Safely closes the handle and deletes the lock file.
+Handles nulls and missing files.
+
+## EXAMPLES
+
+### Example 1
+
+```powershell
+PS C:\> {{ Add example code here }}
+```
+
+\{\{ Add example description here \}\}
+
+## PARAMETERS
+
+### -LockHandle
+
+The file handle returned by Wait-LockFile.
+
+```yaml
+Type: IDisposable
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 1
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+### -LockPath
+
+Full path to the lock file.
+
+```yaml
+Type: String
+Parameter Sets: (All)
+Aliases:
+
+Required: False
+Position: 2
+Default value: None
+Accept pipeline input: False
+Accept wildcard characters: False
+```
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

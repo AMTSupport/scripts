@@ -21,7 +21,8 @@ Writes a message to the console or returns it, based on provided parameters.
 
 ```powershell
 Invoke-Write -PSMessage <String> [-PSPrefix <String>] -PSColour <String> [-MultiLineIndent <Int32>]
- [-ShouldWrite <Boolean>] [-PassThru] [-ProgressAction <ActionPreference>] [<CommonParameters>]
+ [-ShouldWrite <Boolean>] [-PassThru] [-InformationTag <String>] [-ProgressAction <ActionPreference>]
+ [<CommonParameters>]
 ```
 
 ### InputObject
@@ -160,6 +161,22 @@ Aliases:
 Required: False
 Position: Named
 Default value: False
+Accept pipeline input: True (ByPropertyName)
+Accept wildcard characters: False
+```
+
+### -InformationTag
+
+\{\{ Fill InformationTag Description \}\}
+
+```yaml
+Type: String
+Parameter Sets: Splat
+Aliases:
+
+Required: False
+Position: Named
+Default value: None
 Accept pipeline input: True (ByPropertyName)
 Accept wildcard characters: False
 ```
