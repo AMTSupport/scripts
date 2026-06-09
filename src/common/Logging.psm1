@@ -71,7 +71,11 @@ function Invoke-Write {
 
         [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
         [ValidateNotNullOrEmpty()]
-        [Switch]$PassThru
+        [Switch]$PassThru,
+
+        [Parameter(ParameterSetName = 'Splat', ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [String]$InformationTag
     )
 
     process {
@@ -107,7 +111,11 @@ function Invoke-Write {
             return $Local:FormattedMessage;
         } else {
             $InformationPreference = 'Continue';
-            Write-Information $Local:FormattedMessage;
+            if ($InformationTag) {
+                Write-Information -MessageData $Local:FormattedMessage -Tags $InformationTag;
+            } else {
+                Write-Information $Local:FormattedMessage;
+            }
         }
     }
 }
@@ -305,6 +313,7 @@ function Format-Error(
         ShouldWrite     = $True;
         PassThru        = $PassThru;
         MultiLineIndent = $Padding;
+        InformationTag  = 'AMT.ErrorDisplay';
     };
 
     if (-not $Rows.File.Value) { $Rows.File.Value = 'Unknown'; }
@@ -600,11 +609,12 @@ function Invoke-Error {
 
         if (-not $Throw) {
             $Local:Params = @{
-                PSPrefix    = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
-                PSMessage   = $Message;
-                PSColour    = 'Red';
-                ShouldWrite = $PSCmdlet.GetVariableValue('ErrorActionPreference') -notmatch 'SilentlyContinue|Ignore';
-                PassThru    = $PassThru;
+                PSPrefix        = if ($UnicodePrefix) { $UnicodePrefix } else { '❌' };
+                PSMessage       = $Message;
+                PSColour        = 'Red';
+                ShouldWrite     = $PSCmdlet.GetVariableValue('ErrorActionPreference') -notmatch 'SilentlyContinue|Ignore';
+                PassThru        = $PassThru;
+                InformationTag  = 'AMT.ErrorDisplay';
             };
 
             Invoke-Write @Local:Params;

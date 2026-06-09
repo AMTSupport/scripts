@@ -352,6 +352,188 @@ if (Test-Path $readyPath) { throw '.ready created after failed operation' }
     });
 
     [Test]
+    public async Task GeneratedScript_WithWrapper_PassesThroughMixedOutput() => await InvokeWithInjectedModuleOptOut(async () => {
+        // Regression: wrapper must correctly multiplex stdout (1), info stream (6),
+        // and captured non-terminating errors (2) in a single run.
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+        await File.WriteAllTextAsync(scriptPath, @"'stdout-msg'
+Write-Information 'info-msg' -InformationAction Continue
+Write-Error 'err-msg'"
+);
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot, useCompiledJob: true);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardOutput, Does.Contain("stdout-msg"), "stdout line must appear in stdout.");
+            Assert.That(result.StandardOutput, Does.Contain("info-msg"), "info stream goes to stdout in child process.");
+            Assert.That(result.StandardError, Does.Contain("err-msg"), "non-terminating Write-Error must appear in stderr.");
+        });
+    });
+
+    [Test]
+    public async Task GeneratedScript_WithWrapper_CapturesTaggedInfoStreamError() => await InvokeWithInjectedModuleOptOut(async () => {
+        // Regression: Invoke-Error -> Write-Information with tag 'AMT.ErrorDisplay' via info stream 6.
+        // Wrapper did only 2>&1, missing stream 6. Fix: 6>&1 + capture tagged info records.
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+        var commonDir = Path.Combine(sourceRoot, "common");
+        Directory.CreateDirectory(commonDir);
+        var loggingPath = Path.Combine(commonDir, "Logging.psm1");
+        await File.WriteAllTextAsync(loggingPath, @"
+using module @{ ModuleName = 'PSReadLine'; RequiredVersion = '2.3.5' }
+
+function Invoke-Write {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$PSMessage,
+        [string]$PSPrefix,
+        [string]$PSColour,
+        [bool]$ShouldWrite = $true,
+        [string]$InformationTag
+    )
+    if (-not $ShouldWrite) { return }
+    $msg = if ($PSPrefix) { ""$PSPrefix $PSMessage"" } else { $PSMessage }
+    $InformationPreference = 'Continue'
+    if ($InformationTag) {
+        Write-Information $msg -Tags $InformationTag
+    } else {
+        Write-Information $msg
+    }
+}
+
+function Invoke-Error {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$Message,
+        [string]$UnicodePrefix,
+        [switch]$Throw,
+        [System.Management.Automation.ErrorCategory]$ErrorCategory = [System.Management.Automation.ErrorCategory]::NotSpecified,
+        [System.Management.Automation.InvocationInfo]$Caller,
+        [System.Management.Automation.PSCmdlet]$CallerCmdlet
+    )
+    if ($Throw) {
+        $ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
+            [System.Exception]::new($Message),
+            'Error',
+            $ErrorCategory,
+            $Caller
+        )
+        $Cmdlet = if ($CallerCmdlet) { $CallerCmdlet } else { $PSCmdlet }
+        $Cmdlet.ThrowTerminatingError($ErrorRecord)
+    } else {
+        Invoke-Write -PSPrefix '\u274c' -PSMessage $Message -PSColour 'Red' -ShouldWrite $true -InformationTag 'AMT.ErrorDisplay'
+    }
+}
+
+Export-ModuleMember -Function Invoke-Write, Invoke-Error
+".TrimStart());
+
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+        await File.WriteAllTextAsync(scriptPath, @"using module ./common/Logging.psm1
+Invoke-Error 'tagged-info-stream-err'
+'done'".TrimStart());
+
+        await EnsureRemotePackageCached("PSReadLine", "2.3.5", "PSReadLine.2.3.5.nupkg");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot, useCompiledJob: true);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardError, Does.Contain("tagged-info-stream-err"),
+                "Tagged info-stream error from Invoke-Error must appear in stderr.");
+        });
+    });
+
+    [Test]
+    public async Task GeneratedScript_WithWrapper_CapturesTaggedInfoStreamTerminatingError() => await InvokeWithInjectedModuleOptOut(async () => {
+        // Regression: Invoke-Error -Throw goes to error stream 2, caught by wrapper try/catch.
+        // Wrapper must re-emit the terminating error text into stderr.
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+
+        var commonDir = Path.Combine(sourceRoot, "common");
+        Directory.CreateDirectory(commonDir);
+        var loggingPath = Path.Combine(commonDir, "Logging.psm1");
+        await File.WriteAllTextAsync(loggingPath, @"
+using module @{ ModuleName = 'PSReadLine'; RequiredVersion = '2.3.5' }
+
+function Invoke-Write {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$PSMessage,
+        [string]$PSPrefix,
+        [string]$PSColour,
+        [bool]$ShouldWrite = $true,
+        [string]$InformationTag
+    )
+    if (-not $ShouldWrite) { return }
+    $msg = if ($PSPrefix) { ""$PSPrefix $PSMessage"" } else { $PSMessage }
+    $InformationPreference = 'Continue'
+    if ($InformationTag) {
+        Write-Information $msg -Tags $InformationTag
+    } else {
+        Write-Information $msg
+    }
+}
+
+function Invoke-Error {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$Message,
+        [string]$UnicodePrefix,
+        [switch]$Throw,
+        [System.Management.Automation.ErrorCategory]$ErrorCategory = [System.Management.Automation.ErrorCategory]::NotSpecified,
+        [System.Management.Automation.InvocationInfo]$Caller,
+        [System.Management.Automation.PSCmdlet]$CallerCmdlet
+    )
+    if ($Throw) {
+        $ErrorRecord = [System.Management.Automation.ErrorRecord]::new(
+            [System.Exception]::new($Message),
+            'Error',
+            $ErrorCategory,
+            $Caller
+        )
+        $Cmdlet = if ($CallerCmdlet) { $CallerCmdlet } else { $PSCmdlet }
+        $Cmdlet.ThrowTerminatingError($ErrorRecord)
+    } else {
+        Invoke-Write -PSPrefix '\u274c' -PSMessage $Message -PSColour 'Red' -ShouldWrite $true -InformationTag 'AMT.ErrorDisplay'
+    }
+}
+
+Export-ModuleMember -Function Invoke-Write, Invoke-Error
+".TrimStart());
+
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+        await File.WriteAllTextAsync(scriptPath, @"using module ./common/Logging.psm1
+Invoke-Error 'tagged-info-stream-term-err' -Throw
+'done'".TrimStart());
+
+        await EnsureRemotePackageCached("PSReadLine", "2.3.5", "PSReadLine.2.3.5.nupkg");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot, useCompiledJob: true);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardError, Does.Contain("tagged-info-stream-term-err"),
+                "Terminating error from Invoke-Error -Throw must appear in stderr.");
+        });
+    });
+
+    [Test]
     public async Task GeneratedScript_WithWrapper_CapturesTerminatingErrorDetail() => await InvokeWithInjectedModuleOptOut(async () => {
         var sourceRoot = TestUtils.GenerateUniqueDirectory();
         var outputRoot = TestUtils.GenerateUniqueDirectory();

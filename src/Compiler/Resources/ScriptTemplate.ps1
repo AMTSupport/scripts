@@ -567,13 +567,28 @@ process {
 
 `$ArgSplat = $(ConvertTo-InvokableValue $ArgumentTable)
 try {
-    & "$ScriptPath" @ArgSplat 2>&1 | ForEach-Object {
+    & "$ScriptPath" @ArgSplat 2>&1 6>&1 | ForEach-Object {
         if (`$_ -is [System.Management.Automation.ErrorRecord]) {
             if (`$_.ErrorDetails.RecommendedAction -ne 'Silent') {
                 Write-Error -ErrorRecord `$_ -ErrorAction Continue
             }
 
             `$Script:DisplayedErrorLog.Add(`$_)
+        } elseif (`$_ -is [System.Management.Automation.InformationRecord] -and `$_.Tags -contains 'AMT.ErrorDisplay') {
+            `$CapturedErr = [System.Management.Automation.ErrorRecord]::new(
+                [System.Exception]::new(`$_.MessageData.ToString()),
+                'AMT.ErrorDisplay',
+                [System.Management.Automation.ErrorCategory]::NotSpecified,
+                `$null
+            )
+            Write-Error -ErrorRecord `$CapturedErr -ErrorAction Continue
+            `$Script:DisplayedErrorLog.Add(`$CapturedErr)
+        } elseif (`$_ -is [System.Management.Automation.InformationRecord]) {
+            # Pass through untagged info records (normal info-stream output)
+            Write-Information -MessageData `$_.MessageData -Tags `$_.Tags -InformationAction Continue
+        } else {
+            # Pass through all other output (stdout objects, etc.)
+            Write-Output `$_
         }
     }
 } catch {
