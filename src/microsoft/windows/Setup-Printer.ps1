@@ -289,16 +289,15 @@ function Install-Driver_ByManufacturer {
     end { Exit-Scope; }
 
     process {
-        $PossibleDriverLocation = Get-Item -Path "C:\temp\AMT_SetupPrinter_Driver_$Manufacturer.zip"
+        $Local:DefaultDriverPath = "C:\temp\AMT_SetupPrinter_Driver_$Manufacturer.zip";
 
         if ($DriverFile) {
             Invoke-Info "Using specified driver file $DriverFile for manufacturer $Manufacturer";
-            $PossibleDriverLocation = $DriverFile;
-        } elseif (Test-Path -Path $PossibleDriverLocation) {
-            Invoke-Info "Driver file found at $PossibleDriverLocation, using it for installation.";
-            $DriverFile = $PossibleDriverLocation;
+        } elseif (Test-Path -Path $Local:DefaultDriverPath) {
+            Invoke-Info "Driver file found at $Local:DefaultDriverPath, using it for installation.";
+            $DriverFile = $Local:DefaultDriverPath;
         } else {
-            Invoke-Info "No driver file found at $PossibleDriverLocation, downloading driver during installation.";
+            Invoke-Info "No driver file found at $Local:DefaultDriverPath, downloading driver during installation.";
             $DriverFile = $null;
         }
 
