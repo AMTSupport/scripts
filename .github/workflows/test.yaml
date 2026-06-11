@@ -15,7 +15,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup DotNet
         uses: actions/setup-dotnet@v4
@@ -53,7 +53,7 @@ jobs:
     name: Run Pester Tests on ${{ matrix.os }}
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Dependencies
         shell: pwsh

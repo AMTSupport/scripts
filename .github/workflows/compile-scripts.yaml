@@ -17,7 +17,7 @@ jobs:
       src_deleted: ${{ steps.changes.outputs.src_deleted }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
         # Checks for changes in the 'compiled' and 'src' directories
         # We also check for deleted files so we can cleanup the compiled directory
@@ -42,7 +42,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Delete Compiled versions of deleted files
         id: delete_files
@@ -66,7 +66,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download Compiler Artifact
         uses: dawidd6/action-download-artifact@v6
