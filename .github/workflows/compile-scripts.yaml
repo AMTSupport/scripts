@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Compiler Artifact
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v21
         with:
           workflow: build.yaml
           workflow_conclusion: success
