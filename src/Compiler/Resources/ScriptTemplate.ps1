@@ -569,6 +569,11 @@ process {
 try {
     & "$ScriptPath" @ArgSplat 2>&1 6>&1 | ForEach-Object {
         if (`$_ -is [System.Management.Automation.ErrorRecord]) {
+            # Skip PSReadLine module-init noise in non-interactive contexts
+            if (`$_.InvocationInfo.ScriptName -match 'PSReadLine' -and `$_.FullyQualifiedErrorId -eq 'NotSupportedException') {
+                continue
+            }
+
             if (`$_.ErrorDetails.RecommendedAction -ne 'Silent') {
                 Write-Error -ErrorRecord `$_ -ErrorAction Continue
             }
