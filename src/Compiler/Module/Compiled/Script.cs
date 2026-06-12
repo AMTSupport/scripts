@@ -139,7 +139,9 @@ public partial class CompiledScript : CompiledLocalModule {
         }
         embeddedModules.AppendLine(IndentString(");", 4));
 
-        var runtimeModuleObject = this.RuntimeModule.GetPowerShellObject().IfFail(string.Empty);
+        if (this.RuntimeModule.GetPowerShellObject().IsErr(out var runtimeModuleError, out var runtimeModuleObject)) {
+            return runtimeModuleError;
+        }
 
         var paramBlock = new StringBuilder();
         var scriptParamBlock = this.Document.Ast.ParamBlock;
@@ -279,16 +281,14 @@ public partial class CompiledScript : CompiledLocalModule {
             Fail: error => throw new InvalidOperationException($"Failed to parse runtime module manifest: {error}")
         );
 
-        // Build PathedModuleSpec with synthetic path. Hash is computed from DLL bytes
-        // and set via reflection to avoid filesystem access for embedded resources.
+        // Build PathedModuleSpec with synthetic path. Hash computed from DLL bytes
+        // and set directly to avoid filesystem access for embedded resources.
         var relativePath = $"embedded/{RuntimeModuleName}/{RuntimeModuleName}.psd1";
         var fullPath = Path.Combine(sourceRoot, relativePath);
         var spec = new PathedModuleSpec(sourceRoot, fullPath);
 
         var hash = SHA256.HashData(dllBytes);
-        var lazyHashField = typeof(PathedModuleSpec).GetField("LazyHash", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new MissingFieldException("PathedModuleSpec.LazyHash field not found.");
-        lazyHashField.SetValue(spec, Prelude.Some(hash));
+        spec.SetHash(hash);
 
         return new CompiledLocalArchiveModule(spec, requirements, archiveBytes, manifest) {
             ResolvableParent = null!
