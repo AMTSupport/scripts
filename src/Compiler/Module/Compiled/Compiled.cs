@@ -96,7 +96,9 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     /// </summary>
     public abstract ContentCompression Compression { get; }
 
-    public Fin<string> GetNameHash() => this.ComputedHash().Map(hash => $"{this.ModuleSpec.Name}-{hash[..6]}");
+    public virtual Fin<string> GetIdentityHash() => this.ComputedHash();
+
+    public Fin<string> GetNameHash() => this.GetIdentityHash().Map(hash => $"{this.ModuleSpec.Name}-{hash[..6]}");
 
     public abstract Fin<string> StringifyContent();
 
@@ -110,7 +112,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     /// </returns>
     public virtual Fin<string> GetPowerShellObject() =>
         from content in this.StringifyContent()
-        from hash in this.ComputedHash()
+        from hash in this.GetIdentityHash()
         select $$"""
         @{
             Name = '{{this.ModuleSpec.Name}}';
