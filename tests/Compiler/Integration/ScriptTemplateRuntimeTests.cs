@@ -686,12 +686,11 @@ Export-ModuleMember -Function Get-LocalTextPayload
         });
     });
 
-    [Test]
+    [Test, NonParallelizable]
     public async Task GeneratedScript_LocalTextPayloadUsesNoneModeEndToEnd() => await InvokeWithInjectedModuleOptOut(async () => {
         var previousCompression = CompilerSettings.EmbeddedLocalTextCompression;
         var previousLevel = CompilerSettings.EmbeddedLocalTextCompressionLevel;
         CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
-        try {
             var sourceRoot = TestUtils.GenerateUniqueDirectory();
             var outputRoot = TestUtils.GenerateUniqueDirectory();
             var programDataRoot = TestUtils.GenerateUniqueDirectory();

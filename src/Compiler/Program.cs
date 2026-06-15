@@ -82,8 +82,12 @@ public class Program {
             async opts => {
                 CleanInput(opts);
                 IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
-                CompilerSettings.ConfigureEmbeddedLocalTextCompression(opts.EmbeddedCompression);
-
+                try {
+                    CompilerSettings.ConfigureEmbeddedLocalTextCompression(opts.EmbeddedCompression);
+                } catch (ArgumentException ex) {
+                    Errors.Add(ex);
+                    return;
+                }
                 if (GetFilesToCompile(opts.Input!).IsErr(out var error, out var filesToCompile)) {
                     Errors.Add(error);
                     return;

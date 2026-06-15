@@ -139,7 +139,7 @@ public partial class CompiledLocalModuleTests {
         });
     }
 
-    [Test]
+    [Test, NonParallelizable]
     public void StringifyContent_LocalTextPayloadNoneModeEmitsPlainPowerShellText() {
         try {
             CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
@@ -160,7 +160,7 @@ public partial class CompiledLocalModuleTests {
         }
     }
 
-    [Test]
+    [Test, NonParallelizable]
     public void StringifyContent_BenchmarkSummaryReportsSavingsForGzipAndNone() {
         try {
             var gzipModule = TestData.CreateModule<CompiledLocalModule>("function Invoke-GzipSummary { 'gzip summary payload' }", "GzipSummaryModule");
@@ -168,7 +168,6 @@ public partial class CompiledLocalModuleTests {
             var gzipPayload = gzipModule.GetEmbeddedPayloadBytes().Unwrap();
 
             CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
-            var noneModule = TestData.CreateModule<CompiledLocalModule>("function Invoke-PlainSummary { 'plain summary payload' }", "PlainSummaryModule");
             var noneRaw = noneModule.GetContentBytes().Unwrap();
             var nonePayload = noneModule.GetEmbeddedPayloadBytes().Unwrap();
 

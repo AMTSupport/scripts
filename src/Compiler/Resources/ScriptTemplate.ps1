@@ -295,9 +295,9 @@ begin {
                     $Local:RootScriptPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1');
                     Write-Verbose "Writing root script content to temp file: $Local:RootScriptPath"
                     if ($Local:Compression -eq 'GZip') {
-                        $Local:RootContent = Convert-Base64GZipUtf8ToString -Base64 $Content;
+                        $Local:RootContent = Convert-Base64GZipUtf8ToString -Base64 $Local:Content;
                     } else {
-                        $Local:RootContent = $Content;
+                        $Local:RootContent = $Local:Content;
                     }
                     Set-Content -Path $Local:RootScriptPath -Value $Local:RootContent -Encoding $Local:Encoding -Force -WhatIf:$False;
                     $Script:ScriptPath = $Local:RootScriptPath;
@@ -312,9 +312,9 @@ begin {
                         if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
                             Write-Verbose "Writing content to module file: $Local:InnerModulePath"
                             if ($Local:Compression -eq 'GZip') {
-                                $Local:ModuleContent = Convert-Base64GZipUtf8ToString -Base64 $Content;
+                                $Local:ModuleContent = Convert-Base64GZipUtf8ToString -Base64 $Local:Content;
                             } else {
-                                $Local:ModuleContent = $Content;
+                                $Local:ModuleContent = $Local:Content;
                             }
                             Set-Content -Path $Local:InnerModulePath -Value $Local:ModuleContent -Encoding $Local:Encoding -Force -WhatIf:$False;
                             $Local:Utf8Succeeded = $true;

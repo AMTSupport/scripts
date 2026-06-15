@@ -72,7 +72,7 @@ public class ProgramTests {
         }
     }
 
-    [Test]
+    [Test, NonParallelizable]
     public void ContentCompressionMode_DefaultsToGZipAndAcceptsNone() {
         Assert.That(CompilerSettings.EmbeddedLocalTextCompression, Is.EqualTo(EmbeddedLocalTextCompression.GZip));
         try {
