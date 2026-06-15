@@ -554,7 +554,7 @@ Invoke-Error 'tagged-info-stream-term-err' -Throw
     });
 
     [Test]
-    public async Task GeneratedScript_UnicodeLocalModulePreservesOutputAndExtractedBytes() => await InvokeWithInjectedModuleOptOut(async () => {
+    public async Task GeneratedScript_UnicodeLocalModuleUsesGzipAndPreservesExtractedBytes() => await InvokeWithInjectedModuleOptOut(async () => {
         var sourceRoot = TestUtils.GenerateUniqueDirectory();
         var outputRoot = TestUtils.GenerateUniqueDirectory();
         var programDataRoot = TestUtils.GenerateUniqueDirectory();
@@ -691,6 +691,7 @@ Export-ModuleMember -Function Get-LocalTextPayload
         var previousCompression = CompilerSettings.EmbeddedLocalTextCompression;
         var previousLevel = CompilerSettings.EmbeddedLocalTextCompressionLevel;
         CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
+        try {
             var sourceRoot = TestUtils.GenerateUniqueDirectory();
             var outputRoot = TestUtils.GenerateUniqueDirectory();
             var programDataRoot = TestUtils.GenerateUniqueDirectory();

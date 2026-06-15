@@ -130,7 +130,9 @@ public partial class CompiledLocalModuleTests {
     [Test]
     public void StringifyContent_LocalTextPayloadMetadataUsesPowerShellObject() {
         var moduleContent = "function Invoke-GzipLocal { 'local gzip payload' }";
+        var root = TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
         var module = TestData.CreateModule<CompiledLocalModule>(moduleContent, "GzipLocalModule");
+        CompiledUtils.AddDependency(root, module);
         var output = module.GetPowerShellObject().Unwrap().ToString();
 
         Assert.Multiple(() => {
@@ -143,8 +145,10 @@ public partial class CompiledLocalModuleTests {
     public void StringifyContent_LocalTextPayloadNoneModeEmitsPlainPowerShellText() {
         try {
             CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
+            var root = TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
             var moduleContent = "function Invoke-PlainLocal { 'local plain payload' }";
             var module = TestData.CreateModule<CompiledLocalModule>(moduleContent, "PlainLocalModule");
+            CompiledUtils.AddDependency(root, module);
             var output = module.StringifyContent().Unwrap();
             var metadata = module.GetPowerShellObject().Unwrap().ToString();
 
@@ -163,11 +167,12 @@ public partial class CompiledLocalModuleTests {
     [Test, NonParallelizable]
     public void StringifyContent_BenchmarkSummaryReportsSavingsForGzipAndNone() {
         try {
-            var gzipModule = TestData.CreateModule<CompiledLocalModule>("function Invoke-GzipSummary { 'gzip summary payload' }", "GzipSummaryModule");
+            var gzipModule = TestData.CreateModule<CompiledLocalModule>($"function Invoke-GzipSummary {{ '{new string('a', 2048)}' }}", "GzipSummaryModule");
             var gzipRaw = gzipModule.GetContentBytes().Unwrap();
             var gzipPayload = gzipModule.GetEmbeddedPayloadBytes().Unwrap();
 
             CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
+            var noneModule = TestData.CreateModule<CompiledLocalModule>("function Invoke-NoneSummary { 'none summary payload' }", "NoneSummaryModule");
             var noneRaw = noneModule.GetContentBytes().Unwrap();
             var nonePayload = noneModule.GetEmbeddedPayloadBytes().Unwrap();
 
