@@ -4,10 +4,10 @@
 
 using System.Collections;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CommandLine;
@@ -39,10 +39,11 @@ public class CompiledRemoteModule : Compiled, IDisposable {
 
     private Lock UpdatingArchiveLock { get; } = new();
     private Option<byte[]> UpdatedContentBytes;
-
     private readonly Fin<string> IdentityHash;
 
     public override ContentType Type => ContentType.Zip;
+
+    public override ContentCompression Compression => ContentCompression.None;
 
     public override Version Version { get; }
 

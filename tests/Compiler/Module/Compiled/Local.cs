@@ -2,6 +2,7 @@
 // Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
 // for license information.
 
+using System.IO.Compression;
 using System.Management.Automation.Language;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -14,7 +15,7 @@ using RealCompiled = Compiler.Module.Compiled.Compiled;
 namespace Compiler.Test.Module.Compiled;
 
 [TestFixture]
-public class CompiledLocalModuleTests {
+public partial class CompiledLocalModuleTests {
     [Test, Repeat(10), Parallelizable]
     public async Task StringifyContent_ReturnsValidAstContent() {
         var module = await TestData.GetRandomCompiledModule();
@@ -82,7 +83,8 @@ public class CompiledLocalModuleTests {
         CompiledUtils.AddDependency(module, remoteDependency);
 
         var output = module.StringifyContent().Unwrap();
-        var decodedOutput = DecodeQuotedBase64Payload(output);
+        var bytes = Convert.FromBase64String(StripQuotedBase64(output));
+        var decodedOutput = DecompressGzip(bytes);
         var remoteHash = remoteDependency.GetNameHash().Unwrap();
 
         Assert.Multiple(() => {
@@ -111,10 +113,119 @@ public class CompiledLocalModuleTests {
         });
     }
 
-    private static string DecodeQuotedBase64Payload(string payload) {
-        var match = Regex.Match(payload, "^[\"'](?<content>[A-Za-z0-9+/=]+)[\"']$", RegexOptions.Singleline);
-        var encoded = match.Success ? match.Groups["content"].Value : payload;
-        return Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+    [Test]
+    public void StringifyContent_LocalTextPayloadUsesGzipRoundtrip() {
+        var moduleContent = "function Invoke-GzipLocal { 'local gzip payload' }";
+        var module = TestData.CreateModule<CompiledLocalModule>(moduleContent, "GzipLocalModule");
+        var output = module.StringifyContent().Unwrap();
+        var bytes = Convert.FromBase64String(StripQuotedBase64(output));
+
+        Assert.Multiple(() => {
+            Assert.That(bytes, Is.Not.Empty);
+            Assert.That(DecompressGzip(bytes), Does.Contain("Invoke-GzipLocal"));
+            Assert.That(DecompressGzip(bytes), Does.Contain("local gzip payload"));
+        });
+    }
+
+    [Test]
+    public void StringifyContent_LocalTextPayloadMetadataUsesPowerShellObject() {
+        var moduleContent = "function Invoke-GzipLocal { 'local gzip payload' }";
+        var root = TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
+        var module = TestData.CreateModule<CompiledLocalModule>(moduleContent, "GzipLocalModule");
+        CompiledUtils.AddDependency(root, module);
+        var output = module.GetPowerShellObject().Unwrap().ToString();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Contain("Compression = 'GZip'"));
+            Assert.That(output, Does.Contain("Type = 'UTF8String'"));
+        });
+    }
+
+    [Test, NonParallelizable]
+    public void StringifyContent_LocalTextPayloadNoneModeEmitsPlainPowerShellText() {
+        try {
+            CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
+            var root = TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
+            var moduleContent = "function Invoke-PlainLocal { 'local plain payload' }";
+            var module = TestData.CreateModule<CompiledLocalModule>(moduleContent, "PlainLocalModule");
+            CompiledUtils.AddDependency(root, module);
+            var output = module.StringifyContent().Unwrap();
+            var metadata = module.GetPowerShellObject().Unwrap().ToString();
+
+            Assert.Multiple(() => {
+                Assert.That(metadata, Does.Contain("Compression = 'None'"));
+                Assert.That(metadata, Does.Contain("Type = 'UTF8String'"));
+                Assert.That(output, Does.Contain("Invoke-PlainLocal"));
+                Assert.That(output, Does.Contain("local plain payload"));
+                Assert.That(output, Does.Not.Match("^[\"'][A-Za-z0-9+/=]+[\"']$"));
+            });
+        } finally {
+            CompilerSettings.ConfigureEmbeddedLocalTextCompression("gzip");
+        }
+    }
+
+    [Test, NonParallelizable]
+    public void StringifyContent_BenchmarkSummaryReportsSavingsForGzipAndNone() {
+        try {
+            var gzipModule = TestData.CreateModule<CompiledLocalModule>($"function Invoke-GzipSummary {{ '{new string('a', 2048)}' }}", "GzipSummaryModule");
+            var gzipRaw = gzipModule.GetContentBytes().Unwrap();
+            var gzipPayload = gzipModule.GetEmbeddedPayloadBytes().Unwrap();
+
+            CompilerSettings.ConfigureEmbeddedLocalTextCompression("none");
+            var noneModule = TestData.CreateModule<CompiledLocalModule>("function Invoke-NoneSummary { 'none summary payload' }", "NoneSummaryModule");
+            var noneRaw = noneModule.GetContentBytes().Unwrap();
+            var nonePayload = noneModule.GetEmbeddedPayloadBytes().Unwrap();
+
+            Assert.Multiple(() => {
+                Assert.That(gzipPayload, Has.Length.LessThan(gzipRaw.Length));
+                Assert.That(gzipRaw.Length - gzipPayload.Length, Is.GreaterThan(0));
+                Assert.That((gzipRaw.Length - gzipPayload.Length) * 100.0 / gzipRaw.Length, Is.GreaterThan(0));
+                Assert.That(nonePayload, Has.Length.EqualTo(noneRaw.Length));
+                Assert.That(noneRaw.Length - nonePayload.Length, Is.EqualTo(0));
+                Assert.That((noneRaw.Length - nonePayload.Length) * 100.0 / noneRaw.Length, Is.EqualTo(0));
+            });
+        } finally {
+            CompilerSettings.ConfigureEmbeddedLocalTextCompression("gzip");
+        }
+    }
+
+    [Test]
+    public async Task StringifyContent_RemotePayloadKeepsNoCompressionMetadata() {
+        var module = await CompiledRemoteModuleTests.TestData.GetTestRemoteModule();
+        var output = module.StringifyContent().Unwrap();
+        var bytes = Convert.FromBase64String(StripQuotedBase64(output));
+
+        Assert.Multiple(() => {
+            Assert.That(bytes, Is.Not.Empty);
+            using var zipArchive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, false);
+            Assert.That(zipArchive.Entries, Is.Not.Empty);
+        });
+    }
+
+    [Test]
+    public async Task GetPowerShellObject_RemotePayloadUsesNoneCompressionMetadata() {
+        var module = await CompiledRemoteModuleTests.TestData.GetTestRemoteModule();
+        var output = module.GetPowerShellObject().Unwrap().ToString();
+
+        Assert.Multiple(() => {
+            Assert.That(output, Does.Contain("Compression = 'None'"));
+            Assert.That(output, Does.Contain("Type = 'Zip'"));
+        });
+    }
+
+    private static string DecompressGzip(byte[] bytes) {
+        using var input = new MemoryStream(bytes);
+        using var gzip = new GZipStream(input, CompressionMode.Decompress);
+        using var reader = new StreamReader(gzip, Encoding.UTF8, true);
+        return reader.ReadToEnd();
+    }
+
+    [GeneratedRegex("^[\"'](?<content>[A-Za-z0-9+/=]+)[\"']$", RegexOptions.Singleline)]
+    private static partial Regex Base64ContentRegex();
+
+    private static string StripQuotedBase64(string payload) {
+        var match = Base64ContentRegex().Match(payload);
+        return match.Success ? match.Groups["content"].Value : payload;
     }
 
     public static class TestData {

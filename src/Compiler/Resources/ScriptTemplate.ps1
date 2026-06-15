@@ -29,39 +29,33 @@ begin {
     [Int]$Script:ModuleLockTimeoutSeconds = 180;
     [Int]$Script:ModuleLockRetryMilliseconds = 200;
 
-    function Convert-Base64Utf8ToBytes {
+    function Convert-Base64GZipUtf8ToString {
         [CmdletBinding()]
-        [OutputType([Byte[]])]
+        [OutputType([String])]
         param(
             [Parameter(Mandatory)]
-            [String]$Base64,
-
-            [Parameter(Mandatory)]
-            [Boolean]$PSBelow6,
-
-            [Parameter(Mandatory)]
-            [Boolean]$IncludeBom
+            [String]$Base64
         )
 
-        $Local:Bytes = [System.Convert]::FromBase64String($Base64);
-        if (-not ($IncludeBom -and $PSBelow6)) {
-            return $Local:Bytes;
+        $Local:CompressedBytes = [System.Convert]::FromBase64String($Base64);
+        $Local:InputStream = [System.IO.MemoryStream]::new($Local:CompressedBytes);
+        try {
+            $Local:OutputStream = [System.IO.MemoryStream]::new();
+            try {
+                $Local:GZipStream = [System.IO.Compression.GZipStream]::new($Local:InputStream, [System.IO.Compression.CompressionMode]::Decompress);
+                try {
+                    $Local:GZipStream.CopyTo($Local:OutputStream);
+                } finally {
+                    $Local:GZipStream.Dispose();
+                }
+
+                return [System.Text.Encoding]::UTF8.GetString($Local:OutputStream.ToArray());
+            } finally {
+                $Local:OutputStream.Dispose();
+            }
+        } finally {
+            $Local:InputStream.Dispose();
         }
-
-        return [Byte[]]($Bom + $Local:Bytes);
-    }
-
-    function Write-ModuleBytes {
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory)]
-            [String]$Path,
-
-            [Parameter(Mandatory)]
-            [Byte[]]$Bytes
-        )
-
-        [System.IO.File]::WriteAllBytes($Path, $Bytes);
     }
 
     function Test-UTF8ModuleReady {
@@ -125,7 +119,7 @@ begin {
             [String]$ModuleHash,
 
             [Parameter(Mandatory)]
-            [ValidateSet('Base64Utf8', 'Zip')]
+            [ValidateSet('UTF8String', 'Zip')]
             [String]$ModuleType,
 
             [String]$ModulePath,
@@ -167,7 +161,7 @@ begin {
                 return $Local:LockHandle;
             } catch [System.IO.IOException] {
                 $Local:IsReady = switch ($ModuleType) {
-                    'Base64Utf8' { Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6; break; }
+                    'UTF8String' { Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6; break; }
                     'Zip' { Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath; break; }
                 }
 
@@ -194,7 +188,7 @@ begin {
             [String]$LockPath,
 
             [Parameter(Mandatory)]
-            [ValidateSet('Base64Utf8', 'Zip')]
+            [ValidateSet('UTF8String', 'Zip')]
             [String]$ModuleType,
 
             [String]$ModulePath,
@@ -215,7 +209,7 @@ begin {
             $Local:IsReady = $false;
 
             switch ($ModuleType) {
-                'Base64Utf8' {
+                'UTF8String' {
                     if ($Local:OwnerSucceeded -and $ReadyPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
                         $Local:HasValidContent = $false;
                         if (Test-Path -Path $ModulePath -PathType Leaf) {
@@ -275,6 +269,7 @@ begin {
         $Local:Type = $_.Type;
         $Local:Hash = $_.Hash;
         $Local:Content = $_.Content;
+        $Local:Compression = if ($null -ne $_.Compression -and -not [String]::IsNullOrWhiteSpace([String]$_.Compression)) { [String]$_.Compression } else { 'None' };
         $Local:NameHash = "$Local:Name-$Local:Hash";
         if (-not $Local:Name -or -not $Local:Type -or -not $Local:Hash -or -not $Local:Content) {
             Write-Warning "Invalid module definition: $($_), skipping...";
@@ -291,7 +286,7 @@ begin {
         $Local:ModuleReadyPath = Join-Path -Path $Local:ModuleFolderPath -ChildPath '.ready';
 
         switch ($_.Type) {
-            'Base64Utf8' {
+            'UTF8String' {
                 $Local:IsRootScript = $null -eq $Script:ScriptPath;
                 $Local:FileSuffix = if ($Local:IsRootScript) { 'ps1' } else { 'psm1' };
                 $Local:InnerModulePath = Join-Path -Path $Local:ModuleFolderPath -ChildPath "$Local:NameHash.$Local:FileSuffix";
@@ -299,8 +294,12 @@ begin {
                 if ($Local:IsRootScript) {
                     $Local:RootScriptPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1');
                     Write-Verbose "Writing root script content to temp file: $Local:RootScriptPath"
-                    $Local:RootBytes = Convert-Base64Utf8ToBytes -Base64 $Content -PSBelow6:$Local:PSBelow6 -IncludeBom:$true;
-                    Write-ModuleBytes -Path $Local:RootScriptPath -Bytes $Local:RootBytes;
+                    if ($Local:Compression -eq 'GZip') {
+                        $Local:RootContent = Convert-Base64GZipUtf8ToString -Base64 $Local:Content;
+                    } else {
+                        $Local:RootContent = $Local:Content;
+                    }
+                    Set-Content -Path $Local:RootScriptPath -Value $Local:RootContent -Encoding $Local:Encoding -Force -WhatIf:$False;
                     $Script:ScriptPath = $Local:RootScriptPath;
                     $Script:TransientScriptPath = $Local:RootScriptPath;
                     return;
@@ -308,18 +307,22 @@ begin {
 
                 if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
                     [Boolean]$Local:Utf8Succeeded = $false;
-                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'Base64Utf8' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
+                    $Local:LockHandle = Wait-ModuleLock -LockPath $Local:ModuleLockPath -ModuleName $Local:Name -ModuleHash $Local:Hash -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6;
                     try {
                         if (-not (Test-UTF8ModuleReady -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6)) {
                             Write-Verbose "Writing content to module file: $Local:InnerModulePath"
-                            $Local:ModuleBytes = Convert-Base64Utf8ToBytes -Base64 $Content -PSBelow6:$Local:PSBelow6 -IncludeBom:$true;
-                            Write-ModuleBytes -Path $Local:InnerModulePath -Bytes $Local:ModuleBytes;
+                            if ($Local:Compression -eq 'GZip') {
+                                $Local:ModuleContent = Convert-Base64GZipUtf8ToString -Base64 $Local:Content;
+                            } else {
+                                $Local:ModuleContent = $Local:Content;
+                            }
+                            Set-Content -Path $Local:InnerModulePath -Value $Local:ModuleContent -Encoding $Local:Encoding -Force -WhatIf:$False;
                             $Local:Utf8Succeeded = $true;
                         } else {
                             $Local:Utf8Succeeded = $true;
                         }
                     } finally {
-                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'Base64Utf8' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6 -OperationSucceeded $Local:Utf8Succeeded;
+                        Complete-ModuleLock -LockHandle $Local:LockHandle -LockPath $Local:ModuleLockPath -ModuleType 'UTF8String' -ModulePath $Local:InnerModulePath -ReadyPath $Local:ModuleReadyPath -Bom $Local:Bom -PSBelow6:$Local:PSBelow6 -OperationSucceeded $Local:Utf8Succeeded;
                     }
                 }
             }
