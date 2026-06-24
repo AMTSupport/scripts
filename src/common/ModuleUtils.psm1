@@ -47,6 +47,10 @@ function Export-Types {
         [PSModuleInfo]$Module = (Get-PSCallStack)[0].InvocationInfo.MyCommand.ScriptBlock.Module
     )
 
+    if (-not $Types -or $Types.Count -eq 0) {
+        return
+    }
+
     if (-not $Module) {
         throw [System.InvalidOperationException]::new('This function must be called from within a module.');
     }

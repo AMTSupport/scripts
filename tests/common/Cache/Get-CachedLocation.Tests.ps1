@@ -2,7 +2,10 @@ BeforeDiscovery { Import-Module -Force -Name $PSScriptRoot/../../../src/common/C
 
 Describe 'Get-CachedLocation Tests' {
     BeforeAll {
-        $CacheName = "UNIQUE_CACHE_NAME";
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+            'UseDeclaredVarsMoreThanAssignments',
+            $null
+        )]$CacheName = 'UNIQUE_CACHE_NAME';
         InModuleScope Cache {
             $Script:Folder = "$((Get-PSDrive TestDrive).Root)\PSCache"
         }
