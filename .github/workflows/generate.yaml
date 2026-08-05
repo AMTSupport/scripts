@@ -22,7 +22,7 @@ jobs:
 
       - name: Collect Changes
         if : ${{ inputs.force != true }}
-        uses: dorny/paths-filter@v4.0.1
+        uses: dorny/paths-filter@v4.0.3
         id: changes
         with:
           list-files: shell
