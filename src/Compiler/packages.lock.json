@@ -28,9 +28,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.6, )",
-        "resolved": "10.0.6",
-        "contentHash": "IX1ZLJGbd3Cci6FzAvnA+ufiYMr7QFHWZI7lbLDx3XJPNhqHxcrjFSyxXwOLTtFWJDkcOi4vf9uJbWfl1/EqSw=="
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "IBf7lbovvjGWVWXZX5cJ/cO0WXbId0Zq4BuSeT94mGZuOAP66oMeH9PTBZ9Jpp3Jb6jtK0qm/NyUbPRo1gC/wQ=="
       },
       "Microsoft.PowerShell.Commands.Management": {
         "type": "Direct",
@@ -138,9 +138,9 @@
       },
       "NLog": {
         "type": "Direct",
-        "requested": "[5.3.2, )",
-        "resolved": "5.3.2",
-        "contentHash": "cQRQZuDMjSyMe9EQBnI9v55YAMMz8GAfFd6fFJ6tc/kXnG7Hze8p1I8MgvWSBG6E36wA8vSxRrlm8uSIG+SENg=="
+        "requested": "[5.5.1, )",
+        "resolved": "5.5.1",
+        "contentHash": "ZpLbXSi91tZJPjzNefE+3NugAkQtpWZpSLfZWJGcP1y8qMiXDKxW/nAQ+LYWo7GwH2iYsbKOdsLCK9S3BeRQxA=="
       },
       "NuGet.Commands": {
         "type": "Direct",
