@@ -453,8 +453,8 @@
       },
       "NLog": {
         "type": "Transitive",
-        "resolved": "5.3.2",
-        "contentHash": "cQRQZuDMjSyMe9EQBnI9v55YAMMz8GAfFd6fFJ6tc/kXnG7Hze8p1I8MgvWSBG6E36wA8vSxRrlm8uSIG+SENg=="
+        "resolved": "5.5.1",
+        "contentHash": "ZpLbXSi91tZJPjzNefE+3NugAkQtpWZpSLfZWJGcP1y8qMiXDKxW/nAQ+LYWo7GwH2iYsbKOdsLCK9S3BeRQxA=="
       },
       "NuGet.Commands": {
         "type": "Transitive",
@@ -923,7 +923,7 @@
           "Microsoft.PowerShell.Commands.Utility": "[7.6.0, )",
           "Microsoft.PowerShell.ConsoleHost": "[7.6.0, )",
           "Microsoft.PowerShell.SDK": "[7.6.0, )",
-          "NLog": "[5.3.2, )",
+          "NLog": "[5.5.1, )",
           "NuGet.Commands": "[6.9.1, )",
           "NuGet.Common": "[6.9.1, )",
           "Pastel": "[5.1.0, )",
