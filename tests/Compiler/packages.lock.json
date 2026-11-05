@@ -196,8 +196,8 @@
       },
       "LanguageExt.Core": {
         "type": "Transitive",
-        "resolved": "5.0.0-beta-77",
-        "contentHash": "zVBqn2alHIDTOSjgWDUo31irEg59ZfM6T8e24UcUn6o/F+5Qr0jRjGPp2LzME7PHyKh+crK+boBmdCAFguwqjw=="
+        "resolved": "5.0.0-beta-78",
+        "contentHash": "amBmQqt8sHehM1IVPZQuM1W/uFhQh3cTHkHCAk3pZzZ1nBZ48fs8nyh1URHRj5d3eIwNr8htKg3BcFD26KA9xw=="
       },
       "Markdig.Signed": {
         "type": "Transitive",
@@ -918,7 +918,7 @@
           "CommandLineParser": "[2.9.1, )",
           "Extended.Collections": "[1.1.1, )",
           "JetBrains.Annotations": "[2024.3.0, )",
-          "LanguageExt.Core": "[5.0.0-beta-77, )",
+          "LanguageExt.Core": "[5.0.0-beta-78, )",
           "Microsoft.PowerShell.Commands.Management": "[7.6.9, )",
           "Microsoft.PowerShell.Commands.Utility": "[7.6.9, )",
           "Microsoft.PowerShell.ConsoleHost": "[7.6.9, )",
