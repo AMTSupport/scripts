@@ -16,6 +16,7 @@ using System.Reflection;
 using System.Text;
 using CommandLine;
 using Compiler.Analyser;
+using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Extended.Collections.Generic;
@@ -65,6 +66,9 @@ public class Program {
 
         [Option('f', "force", Required = false, HelpText = "Force overwrite of output file.")]
         public bool Force { get; set; }
+
+        [Option("embedded-compression", Required = false, Default = "gzip", HelpText = "Embedded local text compression mode: none|gzip.")]
+        public string EmbeddedCompression { get; set; } = "gzip";
     }
 
     private static async Task<int> Main(string[] args) {
@@ -78,7 +82,12 @@ public class Program {
             async opts => {
                 CleanInput(opts);
                 IsDebugging = SetupLogger(opts) <= LogLevel.Debug;
-
+                try {
+                    CompilerSettings.ConfigureEmbeddedLocalTextCompression(opts.EmbeddedCompression);
+                } catch (ArgumentException ex) {
+                    Errors.Add(ex);
+                    return;
+                }
                 if (GetFilesToCompile(opts.Input!).IsErr(out var error, out var filesToCompile)) {
                     Errors.Add(error);
                     return;
@@ -92,8 +101,8 @@ public class Program {
                 var scriptCreationTasks = filesToCompile.Select(async scriptPath => {
                     var pathedModuleSpec = new PathedModuleSpec(sourceRoot, Path.GetFullPath(scriptPath));
                     var maybeScript = await Resolvable.TryCreateScript(pathedModuleSpec, superParent);
-                    if (maybeScript.IsErr(out var error, out var resolvableScript)) {
-                        Errors.Add(error.Enrich(pathedModuleSpec));
+                    if (maybeScript.IsErr(out var err, out var resolvableScript)) {
+                        Errors.Add(err.Enrich(pathedModuleSpec));
                         return;
                     }
 
@@ -109,6 +118,8 @@ public class Program {
                             scriptPath,
                             output,
                             opts.Force);
+
+                        LogCompressionSummary(compiled);
                     });
                 }).ToArray();
 
@@ -125,10 +136,7 @@ public class Program {
         Option<string> sourceDirectory = None;
         Option<string> outputDirectory = None;
         if (result.Value.AsOption().IsSome(out var opts)) {
-            sourceDirectory = opts.Input.AsOption().Map(input => {
-                return File.Exists(opts.Input) ? Path.GetDirectoryName(opts.Input)! : opts.Input;
-            })!;
-
+            sourceDirectory = opts.Input.AsOption().Map(_ => File.Exists(opts.Input) ? Path.GetDirectoryName(opts.Input)! : opts.Input)!;
             outputDirectory = opts.Output.AsOption().Map(Path.GetFullPath);
         }
         await OutputErrors(Errors, sourceDirectory, outputDirectory);
@@ -140,6 +148,16 @@ public class Program {
         LogManager.Shutdown();
 
         return Errors.IsEmpty ? 0 : Errors.All(e => !e.IsExceptional) ? 0 : 1;
+    }
+
+    private static void LogCompressionSummary(CompiledScript compiled) {
+        var localModules = compiled.Graph.Vertices.OfType<CompiledLocalModule>().ToArray();
+        var rawBytes = localModules.Sum(module => module.GetContentBytes().Match(bytes => bytes.Length, _ => 0));
+        var payloadBytes = localModules.Sum(module => module.GetEmbeddedPayloadBytes().Match(bytes => bytes.Length, _ => 0));
+        var serializedBytes = compiled.GetPowerShellObject().Match(Encoding.UTF8.GetByteCount, _ => 0);
+        var savings = rawBytes == 0 ? 0d : 1d - ((double)payloadBytes / rawBytes);
+
+        Logger.Info($"Compression summary: mode={CompilerSettings.EmbeddedLocalTextCompression}, local_modules={localModules.Length}, raw_bytes={rawBytes}, payload_bytes={payloadBytes}, serialized_bytes={serializedBytes}, savings={savings:P1}");
     }
 
     public static void CleanInput(Options opts) {
@@ -336,7 +354,6 @@ public class Program {
         var outputPath = GetOutputLocation(sourceDirectory, outputDirectory, fileName);
         Logger.Debug($"Preparing output for {fileName} -> {outputPath}");
         if (File.Exists(outputPath)) {
-
             var hashEngine = System.Security.Cryptography.SHA256.Create();
             var existingFileStream = File.OpenRead(outputPath);
             var hash = hashEngine.ComputeHash(existingFileStream);

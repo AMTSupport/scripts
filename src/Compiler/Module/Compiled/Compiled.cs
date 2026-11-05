@@ -16,8 +16,12 @@ namespace Compiler.Module.Compiled;
 
 public enum ContentType {
     UTF8String,
-    Base64Utf8,
     Zip
+}
+
+public enum ContentCompression {
+    None,
+    GZip
 }
 
 [method: Pure]
@@ -87,6 +91,11 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
     /// </summary>
     public abstract ContentType Type { get; }
 
+    /// <summary>
+    /// Determines how the content bytes of this module should be decompressed.
+    /// </summary>
+    public abstract ContentCompression Compression { get; }
+
     public virtual Fin<string> GetIdentityHash() => this.ComputedHash();
 
     public Fin<string> GetNameHash() => this.GetIdentityHash().Map(hash => $"{this.ModuleSpec.Name}-{hash[..6]}");
@@ -110,6 +119,7 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
             Version = '{{this.Version}}';
             Hash = '{{hash[..6]}}';
             Type = '{{this.Type}}';
+            Compression = '{{this.Compression}}';
             Content = {{content}}
         }
         """;

@@ -3,6 +3,7 @@
 // for license information.
 
 using System.Reflection;
+using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using Compiler.Module.Compiled;
@@ -55,7 +56,7 @@ public sealed class CompiledScriptTests {
 
         var output = module.GetPowerShellObject().Unwrap();
         var embeddedPayload = GetEmbeddedModulePayload(output);
-        var decodedOutput = DecodeBase64Payload(embeddedPayload);
+        var decodedOutput = DecodeBase64Payload(embeddedPayload, output.Contains("Compression = 'GZip'", StringComparison.Ordinal));
 
         Assert.That(decodedOutput, Does.Contain("!DEFINE UNKNOWN_TOKEN"));
     }
@@ -66,8 +67,16 @@ public sealed class CompiledScriptTests {
         return match.Groups["content"].Value;
     }
 
-    private static string DecodeBase64Payload(string payload) {
-        return Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+    private static string DecodeBase64Payload(string payload, bool gzip) {
+        var bytes = Convert.FromBase64String(payload);
+        if (!gzip) {
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        using var input = new MemoryStream(bytes);
+        using var gzipStream = new GZipStream(input, CompressionMode.Decompress);
+        using var reader = new StreamReader(gzipStream, Encoding.UTF8, true);
+        return reader.ReadToEnd();
     }
 
     [Test]
