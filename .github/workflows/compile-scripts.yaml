@@ -88,10 +88,6 @@ jobs:
           cache: true
           dotnet-version: 10.0.x
 
-      - name: Build Binary Module
-        shell: pwsh
-        run: dotnet build ./src/AMT.PowerShell.Common/AMT.PowerShell.Common.csproj -c Release
-
       - name: Download Compiler Artifact
         uses: actions/download-artifact@v4
         with:

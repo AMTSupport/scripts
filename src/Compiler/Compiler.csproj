@@ -94,7 +94,19 @@
     <RuntimeModuleDest>$(MSBuildThisFileDirectory)obj/RuntimeModule/</RuntimeModuleDest>
   </PropertyGroup>
 
-  <Target Name="BuildRuntimeModuleDependency" BeforeTargets="PrepareRuntimeModule">
+  <ItemGroup>
+    <RuntimeModuleBuildInputs Include="$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/AMT.PowerShell.Common.csproj" />
+    <RuntimeModuleBuildInputs
+      Include="$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/**/*.cs"
+      Exclude="$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/bin/**;$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/obj/**" />
+    <RuntimeModuleBuildInputs Include="$(RuntimeModulePsd1)" />
+  </ItemGroup>
+
+  <Target
+    Name="BuildRuntimeModuleDependency"
+    BeforeTargets="PrepareRuntimeModule"
+    Inputs="@(RuntimeModuleBuildInputs)"
+    Outputs="$(RuntimeModuleDll)">
     <MSBuild
       Projects="$(RuntimeModuleProject)"
       Targets="Build"
