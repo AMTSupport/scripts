@@ -1,0 +1,140 @@
+{
+  "Exports": {
+    "Analyser.psm1": [],
+    "Assert.psm1": [
+      "Assert-Equal",
+      "Assert-NotNull"
+    ],
+    "Blob.psm1": [
+      "ConvertTo-SasQueryString",
+      "Find-FileByHash",
+      "Get-BlobCompatableHash",
+      "Get-BlobList",
+      "Get-BlobMD5",
+      "Get-FromBlob"
+    ],
+    "Cache.psm1": [
+      "Get-CachedContent",
+      "Get-CachedLocation"
+    ],
+    "Connection.psm1": [
+      "Connect-Service"
+    ],
+    "Ensure.psm1": [
+      "Invoke-EnsureAdministrator",
+      "Invoke-EnsureNetwork",
+      "Invoke-EnsureUser"
+    ],
+    "Environment.psm1": [
+      "Invoke-RunMain",
+      "Test-IsNableRunner"
+    ],
+    "Event.psm1": [
+      "Get-CustomEvent",
+      "Register-Event",
+      "Register-EventSubscription",
+      "Submit-Event",
+      "Unregister-EventSubscription"
+    ],
+    "Exit.psm1": [
+      "Invoke-FailedExit",
+      "Invoke-Handlers",
+      "Invoke-QuickExit",
+      "Register-ExitCode",
+      "Register-ExitHandler",
+      "Restart-Script"
+    ],
+    "Flag.psm1": [
+      "Get-Flag",
+      "Get-FlagPath",
+      "Get-RebootFlag",
+      "Get-RunningFlag"
+    ],
+    "Input.psm1": [
+      "Get-PopupSelection",
+      "Get-UserConfirmation",
+      "Get-UserInput",
+      "Get-UserSelection"
+    ],
+    "Lock.psm1": [
+      "Get-LockPath",
+      "Invoke-UnderLock",
+      "Release-LockFile",
+      "Wait-LockFile"
+    ],
+    "Logging.psm1": [
+      "Format-Error",
+      "Invoke-Debug",
+      "Invoke-Error",
+      "Invoke-Info",
+      "Invoke-Progress",
+      "Invoke-Timeout",
+      "Invoke-Verbose",
+      "Invoke-Warn",
+      "Invoke-Write"
+    ],
+    "ModuleUtils.psm1": [
+      "Add-ModuleCallback",
+      "Export-Types"
+    ],
+    "PackageManager.psm1": [
+      "Install-ManagedPackage",
+      "Test-ManagedPackage",
+      "Uninstall-ManagedPackage",
+      "Update-ManagedPackage"
+    ],
+    "PSStyle.psm1": [
+      "Get-ConsoleColour"
+    ],
+    "Registry.psm1": [
+      "Get-RegistryKey",
+      "Invoke-OnEachUserHive",
+      "New-RegistryKey",
+      "Remove-RegistryKey",
+      "Set-RegistryKey",
+      "Test-RegistryKey"
+    ],
+    "Scope.psm1": [
+      "Enter-Scope",
+      "Exit-Scope"
+    ],
+    "Temp.psm1": [
+      "Get-NamedTempFolder",
+      "Get-UniqueTempFolder",
+      "Invoke-WithinEphemeral"
+    ],
+    "UsersAndAccounts.psm1": [
+      "Add-MemberToGroup",
+      "Format-ADSIUser",
+      "Get-Group",
+      "Get-GroupByInputOrName",
+      "Get-MembersOfGroup",
+      "Get-User",
+      "Get-UserByInputOrName",
+      "Get-UserGroups",
+      "Remove-MemberFromGroup",
+      "Test-MemberOfGroup"
+    ],
+    "Utils.psm1": [
+      "Add-LazyProperty",
+      "Compare-FileHashToS3ETag",
+      "ConvertTo-InvokableValue",
+      "Get-Ast",
+      "Get-ContentEncoding",
+      "Get-ETag",
+      "Get-ReturnType",
+      "Get-VarOrSave",
+      "Install-ModuleFromGitHub",
+      "Remove-EncodingBom",
+      "Set-LazyVariable",
+      "Start-AsyncTask",
+      "Test-IsRunningAsSystem",
+      "Test-IsWindows11",
+      "Test-NetworkConnection",
+      "Test-Parameters",
+      "Test-ReturnType",
+      "Wait-Task"
+    ],
+    "Windows.psm1": []
+  }
+}
