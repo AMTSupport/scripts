@@ -1,8 +1,8 @@
 ﻿#Requires -RunAsAdministrator
 
-Using module ..\..\common\Scope.psm1
-Using module ..\..\common\Logging.psm1
-Using module ..\..\common\Registry.psm1
+Using module ../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
 
 $TradeMarkUnicode = [char]0x2122;
 $RegisteredTradeMarkUnicode = [char]0x00AE;

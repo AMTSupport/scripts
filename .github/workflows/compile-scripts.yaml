@@ -94,6 +94,9 @@ jobs:
           name: Compiler
           path: /tmp/Compiler
 
+      - name: Build Common Module
+        run: dotnet build src/AMT.PowerShell.Common/AMT.PowerShell.Common.csproj -c Release
+
       - name: Run Compiler
         shell: pwsh
         run: /tmp/Compiler/Compiler.exe --input src --output compiled --force -vvv -f

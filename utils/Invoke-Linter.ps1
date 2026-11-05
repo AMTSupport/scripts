@@ -1,4 +1,4 @@
-﻿Using module ../src/common/Environment.psm1
+Using module ../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
 using module PSScriptAnalyzer
 
 Invoke-RunMain $PSCmdlet {

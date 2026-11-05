@@ -1,7 +1,7 @@
 #!ignore
 #Requires -Version 5.1
 
-Using module ..\..\common\Environment.psm1
+Using module ../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
 Using module AzureAD
 
 function New-Condition_AllCloudApps(
