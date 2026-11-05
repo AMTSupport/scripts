@@ -8,7 +8,25 @@
     Description = 'Repo-local PowerShell binary module scaffold.'
     PowerShellVersion = '5.1'
     CompatiblePSEditions = @('Desktop', 'Core')
-    CmdletsToExport = @('Get-AMTModuleInfo', 'Initialize-AMTCompiledRuntime')
+    CmdletsToExport = @(
+        'Assert-Equal',
+        'Assert-NotNull',
+        'Get-AMTModuleInfo',
+        'Get-Flag',
+        'Get-FlagPath',
+        'Get-LastSyncTime',
+        'Get-LockPath',
+        'Get-NamedTempFolder',
+        'Get-RebootFlag',
+        'Get-RunningFlag',
+        'Get-UniqueTempFolder',
+        'Initialize-AMTCompiledRuntime',
+        'Invoke-UnderLock',
+        'Invoke-WithinEphemeral',
+        'Release-LockFile',
+        'Sync-Time',
+        'Wait-LockFile'
+    )
     VariablesToExport = @()
     AliasesToExport = @()
 }
