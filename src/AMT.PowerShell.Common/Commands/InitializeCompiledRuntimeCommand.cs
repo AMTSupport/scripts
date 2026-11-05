@@ -136,8 +136,12 @@ public sealed class InitializeCompiledRuntimeCommand : Cmdlet {
     }
 
     private static int GetPowerShellMajorVersion() {
-        var automationAssemblyMajor = typeof(PSObject).Assembly.GetName().Version?.Major ?? 0;
-        return automationAssemblyMajor > 0 ? automationAssemblyMajor : 5;
+        var psVersionInfoType = Type.GetType("System.Management.Automation.PSVersionInfo, System.Management.Automation", throwOnError: false);
+        var psVersionProperty = psVersionInfoType?.GetProperty("PSVersion", BindingFlags.Public | BindingFlags.Static);
+        var psVersion = psVersionProperty?.GetValue(null) as Version;
+        var powerShellMajor = psVersion?.Major ?? 0;
+
+        return powerShellMajor > 0 ? powerShellMajor : 5;
     }
 
     private static string PrependModulePath(string original, string privateRoot) {
