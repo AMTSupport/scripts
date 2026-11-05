@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Project>
+  <PropertyGroup>
+    <!-- Shared package versions -->
+    <PowerShellPackageVersion>7.6.9</PowerShellPackageVersion>
+    <NuGetPackageVersion>6.9.1</NuGetPackageVersion>
+    <QuickGraphPackageVersion>2.5.0</QuickGraphPackageVersion>
+  </PropertyGroup>
+</Project>
