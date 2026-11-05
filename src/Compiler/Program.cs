@@ -536,25 +536,4 @@ public class Program {
 
         return Fin.Succ(result);
     }
-
-    /// <summary>
-    /// Gets the embedded resource from the assembly inside the Resource folder.
-    /// </summary>
-    /// <param name="resourceName">
-    /// The path of the resource without the assembly name or Resource folder, e.g. "ExtraModuleInfo.ModuleName.json"
-    /// Folders must separated by '.' instead of '/'.
-    /// </param>
-    /// <returns>
-    /// The stream of the embedded resource if one is found, otherwise None.
-    /// It is the caller's responsibility to dispose of the stream.
-    /// </returns>
-    [Pure]
-    [return: NotNull]
-    internal static Option<Stream> GetEmbeddedResource(string resourceName) {
-        var assemblyName = Assembly.GetExecutingAssembly().GetName();
-        var resourcePath = $"{assemblyName.Name}.Resources.{resourceName}";
-        var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourcePath);
-
-        return templateStream;
-    }
 }

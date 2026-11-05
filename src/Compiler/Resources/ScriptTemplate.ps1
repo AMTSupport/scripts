@@ -33,76 +33,8 @@ begin {
         $Env:PSModulePath = "$Local:PrivatePSModulePath$Local:PSModulePathSeparator" + $Env:PSModulePath;
     }
 
-    # Must use UTF-8 Bom for PS < 6 to properly handle Unicode characters.
-    $Local:PSBelow6 = $PSVersionTable.PSVersion.Major -lt 6;
-    $Local:Bom = [Byte[]](0xEF, 0xBB, 0xBF);
-    $Local:Encoding = 'UTF8';
     [Int]$Script:ModuleLockTimeoutSeconds = 180;
     [Int]$Script:ModuleLockRetryMilliseconds = 200;
-
-    function Convert-Base64Utf8ToBytes {
-        [CmdletBinding()]
-        [OutputType([Byte[]])]
-        param(
-            [Parameter(Mandatory)]
-            [String]$Base64,
-
-            [Parameter(Mandatory)]
-            [Boolean]$PSBelow6,
-
-            [Parameter(Mandatory)]
-            [Boolean]$IncludeBom
-        )
-
-        $Local:Bytes = [System.Convert]::FromBase64String($Base64);
-        if (-not ($IncludeBom -and $PSBelow6)) {
-            return $Local:Bytes;
-        }
-
-        return [Byte[]]($Bom + $Local:Bytes);
-    }
-
-    function Write-ModuleBytes {
-        [CmdletBinding()]
-        param(
-            [Parameter(Mandatory)]
-            [String]$Path,
-
-            [Parameter(Mandatory)]
-            [Byte[]]$Bytes
-        )
-
-        [System.IO.File]::WriteAllBytes($Path, $Bytes);
-    }
-
-    function Test-UTF8ModuleReady {
-        [CmdletBinding()]
-        [OutputType([Boolean])]
-        param(
-            [Parameter(Mandatory)]
-            [String]$ModulePath,
-
-            [Parameter(Mandatory)]
-            [String]$ReadyPath,
-
-            [Parameter(Mandatory)]
-            [Byte[]]$Bom,
-
-            [Parameter(Mandatory)]
-            [Boolean]$PSBelow6
-        )
-
-        if (-not (Test-Path -Path $ReadyPath -PathType Leaf)) {
-            return $false;
-        }
-
-        $Local:Params = @{ Path = $ModulePath; TotalCount = $Bom.Length; };
-        if ($PSBelow6) { $Local:Params.Add('Encoding', 'Byte'); } else { $Local:Params.Add('AsByteStream', $True); }
-
-        $Local:WantBom = $PSBelow6;
-        $Local:IsBomEncoded = [Collections.Generic.SortedSet[String]]::CreateSetComparer().Equals((Get-Content @Local:Params), $Bom);
-        return $Local:WantBom -eq $Local:IsBomEncoded;
-    }
 
     function Test-ZipModuleReady {
         [CmdletBinding()]
@@ -135,19 +67,9 @@ begin {
             [Parameter(Mandatory)]
             [String]$ModuleHash,
 
-            [Parameter(Mandatory)]
-            [ValidateSet('Base64Utf8', 'Zip')]
-            [String]$ModuleType,
-
-            [String]$ModulePath,
-
             [String]$ReadyPath,
 
             [String]$ModuleFolderPath,
-
-            [Byte[]]$Bom,
-
-            [Boolean]$PSBelow6,
 
             [Nullable[Int]]$TimeoutSeconds = $null,
 
@@ -177,12 +99,7 @@ begin {
                 $Local:LockHandle.Flush();
                 return $Local:LockHandle;
             } catch [System.IO.IOException] {
-                $Local:IsReady = switch ($ModuleType) {
-                    'Base64Utf8' { Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6; break; }
-                    'Zip' { Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath; break; }
-                }
-
-                if ($Local:IsReady) {
+                if (Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath) {
                     return $null;
                 }
 
@@ -204,60 +121,20 @@ begin {
             [Parameter(Mandatory)]
             [String]$LockPath,
 
-            [Parameter(Mandatory)]
-            [ValidateSet('Base64Utf8', 'Zip')]
-            [String]$ModuleType,
-
-            [String]$ModulePath,
-
             [String]$ReadyPath,
 
             [String]$ModuleFolderPath,
-
-            [Byte[]]$Bom,
-
-            [Boolean]$PSBelow6,
 
             [Boolean]$OperationSucceeded = $false
         )
 
         try {
             $Local:OwnerSucceeded = $OperationSucceeded;
-            $Local:IsReady = $false;
 
-            switch ($ModuleType) {
-                'Base64Utf8' {
-                    if ($Local:OwnerSucceeded -and $ReadyPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
-                        $Local:HasValidContent = $false;
-                        if (Test-Path -Path $ModulePath -PathType Leaf) {
-                            $Local:BomParams = @{ Path = $ModulePath; TotalCount = $Bom.Length };
-                            if ($PSBelow6) { $Local:BomParams.Add('Encoding', 'Byte') } else { $Local:BomParams.Add('AsByteStream', $True) }
-                            $Local:IsBomEncoded = [Collections.Generic.SortedSet[String]]::CreateSetComparer().Equals((Get-Content @Local:BomParams), $Bom);
-                            $Local:HasValidContent = $PSBelow6 -eq $Local:IsBomEncoded;
-                        }
-
-                        if ($Local:HasValidContent) {
-                            Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
-                        }
-                    }
-
-                    if (Test-Path -Path $ReadyPath -PathType Leaf) {
-                        $Local:IsReady = Test-UTF8ModuleReady -ModulePath $ModulePath -ReadyPath $ReadyPath -Bom $Bom -PSBelow6:$PSBelow6;
-                    }
-                    break;
-                }
-                'Zip' {
-                    if ($Local:OwnerSucceeded -and $ReadyPath -and $ModuleFolderPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
-                        $Local:ModuleFiles = Get-ChildItem -Path $ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' };
-                        if ($null -ne $Local:ModuleFiles -and $Local:ModuleFiles.Count -gt 0) {
-                            Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
-                        }
-                    }
-
-                    if ($Local:OwnerSucceeded) {
-                        $Local:IsReady = Test-ZipModuleReady -ReadyPath $ReadyPath -ModuleFolderPath $ModuleFolderPath;
-                    }
-                    break;
+            if ($Local:OwnerSucceeded -and $ReadyPath -and $ModuleFolderPath -and -not (Test-Path -Path $ReadyPath -PathType Leaf)) {
+                $Local:ModuleFiles = Get-ChildItem -Path $ModuleFolderPath -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne '.ready' };
+                if ($null -ne $Local:ModuleFiles -and $Local:ModuleFiles.Count -gt 0) {
+                    Set-Content -Path $ReadyPath -Value ([DateTime]::UtcNow.ToString('o')) -Encoding UTF8 -Force -WhatIf:$False;
                 }
             }
 
@@ -306,7 +183,7 @@ begin {
     $Local:RuntimeManifestPath = Join-Path -Path $Local:RuntimeModuleFolderPath -ChildPath "$Local:RuntimeModuleName.psd1";
 
     if (-not (Test-ZipModuleReady -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath)) {
-        $Local:RuntimeLockHandle = Wait-ModuleLock -LockPath $Local:RuntimeModuleLockPath -ModuleName $Local:RuntimeModuleName -ModuleHash $Local:RuntimeModuleHash -ModuleType 'Zip' -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath;
+        $Local:RuntimeLockHandle = Wait-ModuleLock -LockPath $Local:RuntimeModuleLockPath -ModuleName $Local:RuntimeModuleName -ModuleHash $Local:RuntimeModuleHash -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath;
         [String]$Local:RuntimeTempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
         [Boolean]$Local:RuntimeSucceeded = $false;
         try {
@@ -333,7 +210,7 @@ begin {
                 Remove-Item -Path $Local:RuntimeTempFile -Force -ErrorAction SilentlyContinue -WhatIf:$False;
             }
 
-            Complete-ModuleLock -LockHandle $Local:RuntimeLockHandle -LockPath $Local:RuntimeModuleLockPath -ModuleType 'Zip' -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath -OperationSucceeded $Local:RuntimeSucceeded;
+            Complete-ModuleLock -LockHandle $Local:RuntimeLockHandle -LockPath $Local:RuntimeModuleLockPath -ReadyPath $Local:RuntimeModuleReadyPath -ModuleFolderPath $Local:RuntimeModuleFolderPath -OperationSucceeded $Local:RuntimeSucceeded;
         }
     }
 

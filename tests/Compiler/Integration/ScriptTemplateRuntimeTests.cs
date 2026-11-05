@@ -17,6 +17,68 @@ public sealed class ScriptTemplateRuntimeTests {
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
 
     [Test]
+    public async Task GeneratedScript_ExecutesNestedCommonCalls_WithRuntimeModuleOnlyBootstrap() => await InvokeWithInjectedModuleOptOut(async () => {
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+
+        var manifestPath = Path.Combine(
+            FindRepositoryRoot(),
+            "Output",
+            "PowerShellModules",
+            "AMT.PowerShell.Common",
+            "AMT.PowerShell.Common.psd1");
+        Assert.That(File.Exists(manifestPath), Is.True, $"Missing runtime module manifest at '{manifestPath}'.");
+
+        var relativeManifest = Path.GetRelativePath(sourceRoot, manifestPath).Replace('\\', '/');
+        await File.WriteAllTextAsync(
+            scriptPath,
+            $"using module {relativeManifest}\nWrite-Output (ConvertTo-InvokableValue -Value 'nested-common')");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardOutput, Does.Contain("nested-common"), FormatResult(result));
+        });
+    });
+
+    [Test]
+    public async Task GeneratedScript_LocalModuleImportsRuntimeModule_ResolvesAtRuntime() => await InvokeWithInjectedModuleOptOut(async () => {
+        var sourceRoot = TestUtils.GenerateUniqueDirectory();
+        var outputRoot = TestUtils.GenerateUniqueDirectory();
+        var programDataRoot = TestUtils.GenerateUniqueDirectory();
+        var tempRoot = TestUtils.GenerateUniqueDirectory();
+        var childPath = Path.Combine(sourceRoot, "Child.psm1");
+        var scriptPath = Path.Combine(sourceRoot, "Root.ps1");
+
+        var manifestPath = Path.Combine(
+            FindRepositoryRoot(),
+            "Output",
+            "PowerShellModules",
+            "AMT.PowerShell.Common",
+            "AMT.PowerShell.Common.psd1");
+        Assert.That(File.Exists(manifestPath), Is.True, $"Missing runtime module manifest at '{manifestPath}'.");
+
+        var relativeManifest = Path.GetRelativePath(sourceRoot, manifestPath).Replace('\\', '/');
+        await File.WriteAllTextAsync(
+            childPath,
+            $"using module {relativeManifest}\nfunction Get-ChildValue {{ ConvertTo-InvokableValue -Value 'child-common' }}");
+        await File.WriteAllTextAsync(scriptPath, "using module ./Child.psm1\nWrite-Output (Get-ChildValue)");
+
+        var compiledScriptPath = await CompileScriptToOutput(sourceRoot, outputRoot, scriptPath);
+        var result = await RunPwsh(compiledScriptPath, programDataRoot, tempRoot);
+
+        Assert.Multiple(() => {
+            Assert.That(result.ExitCode, Is.EqualTo(0), FormatResult(result));
+            Assert.That(result.StandardOutput, Does.Contain("child-common"), FormatResult(result));
+        });
+    });
+
+    [Test]
     public async Task GeneratedScript_ConcurrentRuns_WriteUtf8ModuleOnceAndLeaveReadyMarker() => await InvokeWithInjectedModuleOptOut(async () => {
         var sourceRoot = TestUtils.GenerateUniqueDirectory();
         var outputRoot = TestUtils.GenerateUniqueDirectory();
@@ -274,7 +336,7 @@ $moduleDir = @MODULE_DIR@
 $readyPath = Join-Path $moduleDir '.ready'
 $lockPath = Join-Path $moduleDir '.lock'
 Set-Content -Path $lockPath -Value '' -NoNewline
-Complete-ModuleLock -LockPath $lockPath -ReadyPath $readyPath -ModuleFolderPath $moduleDir -ModuleType 'Zip' -OperationSucceeded:$false | Out-Null
+Complete-ModuleLock -LockPath $lockPath -ReadyPath $readyPath -ModuleFolderPath $moduleDir -OperationSucceeded:$false | Out-Null
 if (Test-Path $readyPath) { throw '.ready created after failed operation' }
 ";
         harness = harness.Replace("@SCRIPT_PATH@", "'" + compiledScriptPath.Replace("'", "''") + "'");
@@ -598,15 +660,20 @@ Export-ModuleMember -Function Get-UnicodePayload
         });
     });
 
-    private static async Task InvokeWithInjectedModuleOptOut(Func<Task> action) {
-        var previous = Environment.GetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES");
-        Environment.SetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES", bool.TrueString);
-        try {
-            await action();
-        } finally {
-            Environment.SetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES", previous);
+    private static string FindRepositoryRoot() {
+        var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        while (directory is not null) {
+            if (File.Exists(Path.Combine(directory.FullName, "scripts.sln"))) {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
         }
+
+        throw new DirectoryNotFoundException("Could not locate the repository root.");
     }
+
+    private static Task InvokeWithInjectedModuleOptOut(Func<Task> action) => action();
 
     private static async Task<string> CompileScriptToOutput(string sourceRoot, string outputRoot, string scriptPath) {
 

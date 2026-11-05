@@ -21,7 +21,7 @@ using QuikGraph.Algorithms;
 namespace Compiler.Module.Compiled;
 
 public partial class CompiledScript : CompiledLocalModule {
-    private const string RuntimeModuleName = "AMT.PowerShell.Common";
+    internal const string RuntimeModuleName = "AMT.PowerShell.Common";
     private static readonly Lazy<string> Template = new(() => {
         var info = Assembly.GetExecutingAssembly().GetName();
         using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
@@ -86,11 +86,13 @@ public partial class CompiledScript : CompiledLocalModule {
             }
 
             Compiled? compiledModule = resolvable.ModuleSpec == thisResolvable.ModuleSpec ? script : null;
+            compiledModule ??= script.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec.Name == resolvable.ModuleSpec.Name);
             if (compiledModule is null) {
                 if (GetCompiledFromSpec(resolvableParent, resolvable.ModuleSpec).IsErr(out var error, out var compiled)) {
                     return error;
                 }
 
+                compiled.RootScript = script;
                 compiledModule = compiled;
             }
 
@@ -155,7 +157,7 @@ public partial class CompiledScript : CompiledLocalModule {
         var importOrder = string.Empty;
         if (this.Graph.VertexCount > 1) {
             var importNames = new List<string>();
-            foreach (var module in this.Graph.TopologicalSort().Skip(1).Reverse()) {
+            foreach (var module in this.Graph.TopologicalSort().Skip(1).Reverse().Where(module => module != this.RuntimeModule)) {
                 if (module.GetNameHash().IsErr(out var nameHashError, out var nameHash)) {
                     return nameHashError;
                 }
@@ -163,7 +165,9 @@ public partial class CompiledScript : CompiledLocalModule {
                 importNames.Add($"'{nameHash}'");
             }
 
-            importOrder = importNames.Aggregate((a, b) => $"{a}, {b}");
+            if (importNames.Count > 0) {
+                importOrder = importNames.Aggregate((a, b) => $"{a}, {b}");
+            }
         }
 
         var replacements = new Dictionary<string, string> {
@@ -183,6 +187,7 @@ public partial class CompiledScript : CompiledLocalModule {
     }
 
     public override CompiledScript GetRootParent() => this;
+
 
     private static string IndentString(string str, int indentBy, IEnumerable<int>? skipLines = null) {
         if (!Program.IsDebugging) { return str; }

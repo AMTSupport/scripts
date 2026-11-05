@@ -83,7 +83,6 @@
     <EmbeddedResource Include="Resources/ScriptTemplate.ps1" />
     <EmbeddedResource Include="Resources/ExtraModuleInfo/*.jsonc" />
     <EmbeddedResource Include="Resources/ExtraModuleInfo/*.json" />
-    <EmbeddedResource Include="Resources/*.psm1" />
   </ItemGroup>
 
   <!-- Build runtime module first, then copy assets as embedded resources -->

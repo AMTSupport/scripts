@@ -1,12 +1,12 @@
 #Requires -Version 5.1
 
 BeforeDiscovery {
-    Import-Module -Name "$PSScriptRoot/../../../src/common/Lock.psm1" -Force -Scope Global;
+    Import-Module -Name "$PSScriptRoot/../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1" -Force -Scope Global;
 }
 
 Describe 'Driver Lock Functions' {
     BeforeAll {
-        Import-Module -Name "$PSScriptRoot/../../../src/common/Lock.psm1" -Force -Scope Global;
+        Import-Module -Name "$PSScriptRoot/../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1" -Force -Scope Global;
     }
 
     Context 'Get-LockPath' {

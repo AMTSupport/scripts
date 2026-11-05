@@ -1,12 +1,12 @@
 #Requires -Version 5.1
 
-Using module ..\common\Environment.psm1
-Using module ..\common\Logging.psm1
-Using module ..\common\Exit.psm1
-Using module ..\common\Ensure.psm1
-Using module ..\common\Assert.psm1
-Using module ..\common\Scope.psm1
-Using module ..\common\UsersAndAccounts.psm1
+Using module ../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
+
+
+
+
 
 [CmdletBinding()]
 Param(
@@ -27,7 +27,7 @@ function Get-FilteredUsers(
     [Parameter(Mandatory)]
     [ValidateScript({ $_.SchemaClassName -eq 'Group' })]
     [ValidateNotNullOrEmpty()]
-    [ADSI]$Group,
+    [Object]$Group,
 
     [Parameter()]
     [HashTable[]]$Exceptions
@@ -74,7 +74,7 @@ function Remove-Admins(
     [Parameter(Mandatory)]
     [ValidateScript({ $_.SchemaClassName -eq 'Group' })]
     [ValidateNotNullOrEmpty()]
-    [ADSI]$Group,
+    [Object]$Group,
 
     [Parameter(Mandatory)]
     [HashTable[]]$Users
@@ -236,7 +236,7 @@ Invoke-RunMain $PSCmdlet {
         Invoke-EnsureAdministrator;
     }
 
-    [ADSI]$Local:Group = Get-Group -Name 'Administrators';
+    $Local:Group = Get-Group -Name 'Administrators';
     [HashTable]$Local:UserExceptions = Get-ProcessedExceptions -UserExceptions ($BaseHiddenUsers + $UserExceptions);
     [HashTable[]]$Local:LocalAdmins = Get-FilteredUsers -Group:$Local:Group -Exceptions $Local:UserExceptions;
 

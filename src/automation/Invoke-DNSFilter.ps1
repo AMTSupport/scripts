@@ -1,9 +1,9 @@
 #Requires -RunAsAdministrator
 #Requires -Version 5.1
 
-Using module ../common/Environment.psm1
-Using module ../common/Scope.psm1
-Using module ../common/Logging.psm1
+Using module ../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
 Using module @{
     ModuleName    = 'PackageManagement';
     ModuleVersion = '1.4.8.1';

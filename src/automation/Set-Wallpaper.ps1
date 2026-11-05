@@ -1,12 +1,12 @@
-Using module ..\common\Environment.psm1
-Using module ..\common\Logging.psm1
-Using module ..\common\Utils.psm1
-Using module ..\common\Scope.psm1
-Using module ..\common\Registry.psm1
-Using module ..\common\Assert.psm1
-Using module ..\common\Ensure.psm1
-Using module ..\common\Exit.psm1
-Using module ..\common\Blob.psm1
+Using module ../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
+
+
+
+
+
+
 
 Using module RunAsUser
 

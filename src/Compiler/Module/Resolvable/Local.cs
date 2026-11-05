@@ -2,7 +2,6 @@
 // Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
 // for license information.
 
-using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Management.Automation.Language;
 using Compiler.Module.Compiled;
@@ -14,9 +13,6 @@ using LanguageExt;
 namespace Compiler.Module.Resolvable;
 
 public partial class ResolvableLocalModule : Resolvable {
-    private static readonly string TempModuleExportPath = Path.Combine(Path.GetTempPath(), "Compiler", $"ExportedModules_{Environment.ProcessId}");
-    private static readonly ConcurrentDictionary<string, Fin<string>> EmbeddedResources = new();
-
     internal readonly ScriptBlockAst RequirementsAst;
 
     public readonly TextEditor Editor;
@@ -140,25 +136,6 @@ public partial class ResolvableLocalModule : Resolvable {
             }
         }
 
-        string[] dontAddTo = ["Analyser", "ModuleUtils"];
-        var dontAddAnalyser = dontAddTo.Contains(this.ModuleSpec.Name) ||
-            this.Requirements.GetRequirements<ModuleSpec>().Any(spec => dontAddTo.Contains(spec.Name, StringComparer.OrdinalIgnoreCase));
-
-        var skipCompilerInjectedModules = string.Equals(
-            Environment.GetEnvironmentVariable("COMPILER_SKIP_INJECTED_MODULES"),
-            bool.TrueString,
-            StringComparison.OrdinalIgnoreCase
-        );
-
-        if (!dontAddAnalyser && !skipCompilerInjectedModules) {
-            lock (this.Requirements) {
-                var analyserPath = GetExportedResource("Analyser.psm1").Unwrap();
-                var moduleUtilsPath = GetExportedResource("ModuleUtils.psm1").Unwrap();
-                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(analyserPath)!.FullName, analyserPath));
-                this.Requirements.AddRequirement<ModuleSpec>(new PathedModuleSpec(Directory.GetParent(moduleUtilsPath)!.FullName, moduleUtilsPath));
-            }
-        }
-
         return Option<Error>.None.AsTask();
     }
 
@@ -212,34 +189,4 @@ public partial class ResolvableLocalModule : Resolvable {
 
         return memoryStream.ToArray();
     }
-
-    private static Fin<string> GetExportedResource(string moduleName) => EmbeddedResources.GetOrAdd(moduleName, name => {
-        var tempModulePath = Path.Combine(TempModuleExportPath, name);
-        if (!Program.GetEmbeddedResource(name).IsSome(out var embeddedStream)) {
-            return (Error)new FileNotFoundException($"The embedded resource {name} was not found.");
-        }
-
-        if (!Directory.Exists(TempModuleExportPath)) {
-            Directory.CreateDirectory(TempModuleExportPath);
-        }
-
-        if (!Path.Exists(tempModulePath)) {
-            using var fileWriter = File.OpenWrite(tempModulePath);
-            embeddedStream.CopyTo(fileWriter);
-        } else {
-            using var fileStream = File.Open(tempModulePath, FileMode.Open);
-            var streamsDiffer = embeddedStream.Length != fileStream.Length;
-            while (!streamsDiffer && fileStream.Position < fileStream.Length) {
-                streamsDiffer = embeddedStream.ReadByte() != fileStream.ReadByte();
-            }
-
-            if (streamsDiffer) {
-                fileStream.SetLength(0);
-                embeddedStream.CopyTo(fileStream);
-            }
-        }
-
-        embeddedStream.Close();
-        return tempModulePath;
-    });
 }
