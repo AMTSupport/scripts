@@ -135,9 +135,10 @@ public sealed class InitializeCompiledRuntimeCommand : Cmdlet {
         return Path.Combine(commonAppData, "AMT", "PowerShell", "Modules", $"PS{psMajorVersion}");
     }
 
-    private static int GetPowerShellMajorVersion() => Environment.OSVersion.Version.Major > 0
-            ? Environment.Version.Major
-            : 5;
+    private static int GetPowerShellMajorVersion() {
+        var automationAssemblyMajor = typeof(PSObject).Assembly.GetName().Version?.Major ?? 0;
+        return automationAssemblyMajor > 0 ? automationAssemblyMajor : 5;
+    }
 
     private static string PrependModulePath(string original, string privateRoot) {
         if (string.IsNullOrWhiteSpace(original)) {
