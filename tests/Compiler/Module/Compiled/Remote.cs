@@ -2,7 +2,9 @@
 // Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
 // for license information.
 
+using System.Collections;
 using System.IO.Compression;
+using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Reflection;
 using System.Text;
@@ -46,15 +48,45 @@ public class CompiledRemoteModuleTests {
 
     [Test]
     public async Task StringifyContent_RenamesEmbeddedArchiveManifestToHash() {
-        var module = await TestData.GetTestRemoteModule();
+        var module = await TestData.GetTestRemoteModule("PowerShellGet");
+        var moduleName = module.ModuleSpec.Name;
+        var originalBytes = module.GetContentBytes().Unwrap();
+
+        using var originalArchive = new ZipArchive(new MemoryStream(originalBytes), ZipArchiveMode.Read, false);
+        var originalManifestEntry = originalArchive.Entries.FirstOrDefault(entry => entry.FullName.Equals($"{moduleName}.psd1", StringComparison.OrdinalIgnoreCase));
+        Assert.That(originalManifestEntry, Is.Not.Null);
+
+        var checkedOriginalVersionedModuleTables = 0;
+        if (originalManifestEntry is not null) {
+            using var originalManifestStream = originalManifestEntry.Open();
+            using var originalReader = new StreamReader(originalManifestStream, Encoding.UTF8, true);
+            var originalManifestText = originalReader.ReadToEnd();
+            var originalManifest = ParseManifest(originalManifestText);
+
+            if (originalManifest["RequiredModules"] is IEnumerable requiredModulesEnumerable and not string) {
+                foreach (var requiredModule in requiredModulesEnumerable) {
+                    var requiredModuleValue = requiredModule is PSObject psObject
+                        ? psObject.BaseObject
+                        : requiredModule;
+                    if (requiredModuleValue is IDictionary requiredModuleTable
+                        && (requiredModuleTable.Contains("ModuleVersion")
+                            || requiredModuleTable.Contains("RequiredVersion")
+                            || requiredModuleTable.Contains("MaximumVersion"))) {
+                        checkedOriginalVersionedModuleTables++;
+                    }
+                }
+            }
+        }
+
+        Assert.That(checkedOriginalVersionedModuleTables, Is.GreaterThan(0));
+
         var stringifiedContent = module.StringifyContent().Unwrap();
         var hash = module.GetNameHash().Unwrap();
-        var moduleName = module.ModuleSpec.Name;
         var bytes = Convert.FromBase64String(stringifiedContent[1..^1]);
 
         using var zipArchive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read, false);
         var entryNames = zipArchive.Entries.Select(entry => entry.FullName).ToArray();
-        var manifestEntry = zipArchive.Entries.FirstOrDefault(entry => entry.FullName.EndsWith(".psd1", StringComparison.OrdinalIgnoreCase));
+        var manifestEntry = zipArchive.Entries.FirstOrDefault(entry => entry.FullName.Equals($"{hash}.psd1", StringComparison.OrdinalIgnoreCase));
 
         Assert.Multiple(() => {
             Assert.That(entryNames, Has.Some.EqualTo($"{hash}.psd1"));
@@ -64,10 +96,33 @@ public class CompiledRemoteModuleTests {
                 using var manifestStream = manifestEntry.Open();
                 using var reader = new StreamReader(manifestStream, Encoding.UTF8, true);
                 var manifestText = reader.ReadToEnd();
+                var parsedManifest = ParseManifest(manifestText);
+                var requiredModules = parsedManifest["RequiredModules"];
 
-                Assert.That(manifestText.Contains("RequiredVersion", StringComparison.Ordinal), Is.False);
+                if (requiredModules is IEnumerable requiredModulesEnumerable and not string) {
+                    foreach (var requiredModule in requiredModulesEnumerable) {
+                        var requiredModuleValue = requiredModule is PSObject psObject
+                            ? psObject.BaseObject
+                            : requiredModule;
+                        if (requiredModuleValue is IDictionary requiredModuleTable) {
+                            Assert.That(requiredModuleTable.Contains("RequiredVersion"), Is.False);
+                        }
+                    }
+                }
             }
         });
+    }
+
+    private static Hashtable ParseManifest(string manifestText) {
+        using var pwsh = PowerShell.Create();
+        _ = pwsh.AddScript(manifestText);
+        var outputs = pwsh.Invoke();
+
+        if (pwsh.HadErrors || outputs.Count == 0 || outputs[0].BaseObject is not Hashtable manifest) {
+            throw new AssertionException("Expected parsed manifest hashtable from rewritten PSD1 output.");
+        }
+
+        return manifest;
     }
 
     public static class TestData {
@@ -78,9 +133,19 @@ public class CompiledRemoteModuleTests {
             ["PSReadLine"] = "2.3.5"
         };
 
-        public static async Task<CompiledRemoteModule> GetTestRemoteModule() {
+        public static async Task<CompiledRemoteModule> GetTestRemoteModule(string? requiredModuleName = null) {
             var random = TestContext.CurrentContext.Random;
-            var (moduleName, moduleVersion) = TestableRemoteModules.ElementAt(random.Next(0, TestableRemoteModules.Count));
+            string moduleName;
+            string moduleVersion;
+            if (requiredModuleName is null) {
+                var selectedModule = TestableRemoteModules.ElementAt(random.Next(0, TestableRemoteModules.Count));
+                moduleName = selectedModule.Key;
+                moduleVersion = selectedModule.Value;
+            } else {
+                moduleName = requiredModuleName;
+                moduleVersion = TestableRemoteModules[requiredModuleName];
+            }
+
             var moduleSpec = new ModuleSpec(moduleName, requiredVersion: new Version(moduleVersion));
             var parent = new ResolvableParent(TestContext.CurrentContext.TestDirectory);
             var resolvable = new ResolvableRemoteModule(moduleSpec);
