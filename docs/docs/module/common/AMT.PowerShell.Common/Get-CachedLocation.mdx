@@ -1,0 +1,188 @@
+---
+id: Get-CachedLocation
+title: Get-CachedLocation
+description: Resolve the filesystem path of a named cache file, invoking CreateBlock to populate it when missing or stale.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Resolve the filesystem path of a named cache file, invoking CreateBlock to populate it when missing or stale.
+
+## SYNTAX
+```powershell
+Get-CachedLocation [-Name] <String> -CreateBlock <ScriptBlock> [-IsValidBlock <ScriptBlock>] [-MaxAge <TimeSpan>] [-NoCache] [-WriteBlock <ScriptBlock>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Derives the cache file path from Name using String) and validates the existing file against MaxAge, IsValidBlock, or NoCache. When the file is absent or invalid it is recreated by calling CreateBlock.
+
+Content is written as plain text via String) unless WriteBlock is supplied, which receives the cache path and raw content object as arguments.
+
+The resolved cache file path is emitted to the pipeline regardless of whether the file was freshly created or already existed.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the path to the cached file, downloading the blob only when needed.
+
+```powershell
+Get-CachedLocation -Name 'wallpaper' -CreateBlock { Download-Blob } -WriteBlock { param($p,$c) [IO.File]::WriteAllBytes($p,$c) }
+```
+
+## PARAMETERS
+
+### -CreateBlock
+
+Script block invoked to generate content when the cache is missing or stale.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -IsValidBlock
+
+Optional script block receiving the cache file path and returning a boolean indicating whether the content is still valid.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -MaxAge
+
+Maximum age of the cache file; when exceeded the file is deleted and recreated via CreateBlock.
+
+```yaml
+Type: TimeSpan
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Name
+
+Unique name that identifies the cache entry and is used to derive the cache file path.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -NoCache
+
+When present, bypasses any existing cache and always invokes CreateBlock to regenerate content.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -WriteBlock
+
+Optional script block to write content to the cache file; receives the cache path and raw content object as arguments.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,96 @@
+---
+id: Test-MemberOfGroup
+title: Test-MemberOfGroup
+description: Tests whether a user is a member of a local group via the ADSI WinNT provider.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Tests whether a user is a member of a local group via the ADSI WinNT provider.
+
+## SYNTAX
+```powershell
+Test-MemberOfGroup [-Group] <Object> [-User] <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns  when the user is a direct member of the group, otherwise . Only works on Windows via the WinNT ADSI provider.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true if localadmin is a member of the Administrators group.
+
+```powershell
+Test-MemberOfGroup -Group (Get-Group -Name 'Administrators') -User 'localadmin'
+```
+
+## PARAMETERS
+
+### -Group
+
+The group to test membership against; accepts an AdsiPrincipal or a group name string.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -User
+
+The user to test; accepts an AdsiPrincipal or a user name string.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

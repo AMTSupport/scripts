@@ -1,0 +1,83 @@
+---
+id: Get-Group
+title: Get-Group
+description: Gets local group accounts from the ADSI WinNT provider.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Gets local group accounts from the ADSI WinNT provider.
+
+## SYNTAX
+```powershell
+Get-Group [[-Name] <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns all local groups when Name is omitted, or a single group by name. Only works on Windows via the WinNT ADSI provider.
+
+## EXAMPLES
+
+### Example 1
+
+Returns every local group account.
+
+```powershell
+Get-Group
+```
+
+
+### Example 2
+
+Returns the local group named Administrators.
+
+```powershell
+Get-Group -Name 'Administrators'
+```
+
+## PARAMETERS
+
+### -Name
+
+The name of the group to retrieve; omit to return all local groups.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Commands.UsersAndAccounts.AdsiPrincipal
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,177 @@
+---
+id: Connect-Service
+title: Connect-Service
+description: Establish authenticated connections to one or more Microsoft cloud services.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Establish authenticated connections to one or more Microsoft cloud services.
+
+## SYNTAX
+```powershell
+Connect-Service [-Services] <String[]> [[-Scopes] <String[]>] [[-AccessToken] <SecureString>] [-CheckOnly] [-DontConfirm] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Iterates over each service in Services, resolving its ServiceDefinition from ConnectionRuntime. For each service the cmdlet:
+
+1. Checks whether an existing connection is already present and optionally re-uses it, prompting for confirmation unless DontConfirm is set.
+
+2. Disconnects and reconnects when the existing connection is missing required Scopes or when multiple services are connected under different accounts.
+
+3. Verifies after connecting that all services share the same account identity when their definitions are marked as matchable.
+
+When CheckOnly is set the cmdlet only verifies connectivity and throws a terminating error for any service that is not already connected.
+
+## EXAMPLES
+
+### Example 1
+
+Connects to Exchange Online and Microsoft Graph, skipping the confirmation prompt.
+
+```powershell
+Connect-Service -Services ExchangeOnline, Graph -Scopes 'Mail.Read' -DontConfirm
+```
+
+
+### Example 2
+
+Throws a terminating error when not already connected to Microsoft Graph.
+
+```powershell
+Connect-Service -Services Graph -CheckOnly
+```
+
+## PARAMETERS
+
+### -AccessToken
+
+Pre-acquired access token for token-based authentication; bypasses the interactive login flow when provided.
+
+```yaml
+Type: SecureString
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 2
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -CheckOnly
+
+When present, only verifies that each service is connected and throws a terminating error for any that are not.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -DontConfirm
+
+When present, skips the interactive confirmation prompt when a service is already connected.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Scopes
+
+Permission scopes to request when connecting; primarily used for Microsoft Graph.
+
+```yaml
+Type: String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Services
+
+One or more service names to connect to; accepted values are ExchangeOnline, SecurityCompliance, and Graph.
+
+```yaml
+Type: String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [Service]
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,96 @@
+---
+id: Wait-LockFile
+title: Wait-LockFile
+description: Waits for and acquires an exclusive write lock on the specified lock file path.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Waits for and acquires an exclusive write lock on the specified lock file path.
+
+## SYNTAX
+```powershell
+Wait-LockFile [-LockPath] <String> [[-LockOwner] <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Polls until the lock is available, up to a 600-second timeout. Writes process metadata (PID, optional owner, timestamp) into the lock file. Returns the open  handle; pass it to Release-LockFile when done.
+
+## EXAMPLES
+
+### Example 1
+
+Acquires the lock and returns the file handle.
+
+```powershell
+$handle = Wait-LockFile -LockPath $lockPath -LockOwner 'DellDrivers'
+```
+
+## PARAMETERS
+
+### -LockOwner
+
+Optional owner name written into the lock file metadata for diagnostics.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -LockPath
+
+Full path to the lock file to acquire.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.IO.FileStream
+
+## NOTES
+
+## RELATED LINKS

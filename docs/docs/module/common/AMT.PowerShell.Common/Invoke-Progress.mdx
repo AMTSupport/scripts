@@ -1,0 +1,204 @@
+---
+id: Invoke-Progress
+title: Invoke-Progress
+description: Iterates a collection with a progress bar, invoking a scriptblock for each item.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Iterates a collection with a progress bar, invoking a scriptblock for each item.
+
+## SYNTAX
+```powershell
+Invoke-Progress [-Activity <String>] [-FailedProcessItem <ScriptBlock>] [-Format <ScriptBlock>] -Get <ScriptBlock> [-Id <Int32>] -Process <ScriptBlock> [-Status <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Items are retrieved via the Get scriptblock, then each item is passed to Process. Progress is reported as a percentage; the bar is completed and dismissed when all items finish. If an item throws, FailedProcessItem is called when provided; otherwise the item is collected and a warning is emitted after the loop.
+
+## EXAMPLES
+
+### Example 1
+
+Removes each file under C:\ with a live progress bar.
+
+```powershell
+Invoke-Progress -Get { Get-ChildItem C:\ } -Process { param($f) Remove-Item $f -Force }
+```
+
+## PARAMETERS
+
+### -Activity
+
+Activity label displayed in the progress bar header; defaults to "Main" when omitted.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -FailedProcessItem
+
+ScriptBlock invoked when Process throws for an item; when omitted, the item is added to a failed-items list and a warning is emitted.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Format
+
+ScriptBlock that returns a display name for an item; falls back to ToString() when omitted.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Get
+
+ScriptBlock that returns the collection of items to iterate.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Id
+
+Progress bar ID used to stack multiple concurrent progress bars; defaults to 0.
+
+```yaml
+Type: Int32
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Process
+
+ScriptBlock invoked for each item; receives the item as the first positional argument.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Status
+
+Format template for the progress status line. Placeholders: {0} = completion percentage, {1} = current index, {2} = total count. Defaults to "Processing [item]..." when omitted.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

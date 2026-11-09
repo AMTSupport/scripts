@@ -1,0 +1,74 @@
+---
+id: Test-ManagedPackage
+title: Test-ManagedPackage
+description: Tests whether a package is installed via the detected package manager.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Tests whether a package is installed via the detected package manager.
+
+## SYNTAX
+```powershell
+Test-ManagedPackage [-PackageName] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Detects the available package manager and queries it for the named package. Returns  if the package is installed,  otherwise.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true if git is installed, $false otherwise.
+
+```powershell
+Test-ManagedPackage -PackageName 'git'
+```
+
+## PARAMETERS
+
+### -PackageName
+
+The name of the package to test for installation.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

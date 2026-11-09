@@ -1,0 +1,209 @@
+---
+id: Get-UserInput
+title: Get-UserInput
+description: Prompts the user for free-form text input and returns the validated value.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Prompts the user for free-form text input and returns the validated value.
+
+## SYNTAX
+```powershell
+Get-UserInput [-AllowEmpty] [-AsSecureString] [-DontSaveInputs] -Question <String> [-SaveInputAsUniqueHistory] -Title <String> [-Validate <ScriptBlock>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Re-prompts until the entered value passes optional  validation and is non-empty (unless  is set). When  is set the value is returned as a  and not persisted to history.
+
+## EXAMPLES
+
+### Example 1
+
+Prompts for a non-empty name and validates it against the supplied script block.
+
+```powershell
+$name = Get-UserInput -Title 'Setup' -Question 'Enter your name:' -Validate { $_ -match '\w+' }
+```
+
+## PARAMETERS
+
+### -AllowEmpty
+
+Allow the user to submit an empty string; writes $null in that case.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -AsSecureString
+
+Return the input as a  and suppress history saving.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -DontSaveInputs
+
+Prevent the entered value from being saved to the session input history.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Question
+
+The prompt text shown to the user; also accessible via the Prompt alias.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [Prompt]
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -SaveInputAsUniqueHistory
+
+Save input to a prompt-specific history file keyed by a hash of  and .
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Title
+
+Heading displayed above the input prompt.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Validate
+
+Optional script block that receives the raw input string and returns a truthy value when valid.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+
+### System.Security.SecureString
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,83 @@
+---
+id: Get-CustomEvent
+title: Get-CustomEvent
+description: Retrieve one or all registered custom event registrations from the event store.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Retrieve one or all registered custom event registrations from the event store.
+
+## SYNTAX
+```powershell
+Get-CustomEvent [[-EventType] <Type>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Without , returns the full registration dictionary (a  keyed by , mirroring the legacy $Script:Events variable) as a single un-enumerated object. With , returns the matching , or nothing if that type has not been registered.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the EventRegistration for MyEvent, or nothing if unregistered.
+
+```powershell
+Get-CustomEvent -EventType ([MyEvent])
+```
+
+
+### Example 2
+
+Returns the entire event-store dictionary.
+
+```powershell
+Get-CustomEvent
+```
+
+## PARAMETERS
+
+### -EventType
+
+CLR type whose  is requested; omit to return all registrations.
+
+```yaml
+Type: Type
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Module.Event.EventRegistration
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,52 @@
+---
+id: Get-RunningFlag
+title: Get-RunningFlag
+description: Returns the well-known  that tracks whether the script is currently executing.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the well-known  that tracks whether the script is currently executing.
+
+## SYNTAX
+```powershell
+Get-RunningFlag [<CommonParameters>]
+```
+
+## DESCRIPTION
+The running flag is a specialised flag with a fixed context. Set it at script startup and clear it on exit to allow other processes to detect whether this script is active.
+
+## EXAMPLES
+
+### Example 1
+
+Retrieves the running flag and marks the script as active.
+
+```powershell
+$running = Get-RunningFlag; $running.Set()
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Module.RunningFlag
+
+## NOTES
+
+## RELATED LINKS

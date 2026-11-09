@@ -1,0 +1,116 @@
+---
+id: Export-Types
+title: Export-Types
+description: Registers .NET types as PowerShell type accelerators and auto-removes them when the module unloads.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Registers .NET types as PowerShell type accelerators and auto-removes them when the module unloads.
+
+## SYNTAX
+```powershell
+Export-Types [-Types] <Type[]> [[-Module] <PSModuleInfo>] [-Clobber] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Each type's FullName is used as the accelerator key. A cleanup callback is registered via Add-ModuleCallback so accelerators are removed when the owning module is removed from the session. Throws a terminating error if an accelerator key is already claimed by another module, unless -Clobber is set.
+
+## EXAMPLES
+
+### Example 1
+
+Registers both types as accelerators scoped to the calling module.
+
+```powershell
+Export-Types -Types ([MyNamespace.MyClass], [MyNamespace.OtherClass])
+```
+
+## PARAMETERS
+
+### -Clobber
+
+When set, overwrites existing accelerators without throwing a conflict error.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Module
+
+The module that owns the exported types; resolved from the call stack when omitted.
+
+```yaml
+Type: PSModuleInfo
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Types
+
+Array of .NET  objects to register as type accelerators.
+
+```yaml
+Type: Type[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

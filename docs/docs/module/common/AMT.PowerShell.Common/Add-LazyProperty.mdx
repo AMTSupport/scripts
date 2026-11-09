@@ -1,0 +1,149 @@
+---
+id: Add-LazyProperty
+title: Add-LazyProperty
+description: Adds a lazily-evaluated script property to a PSObject.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Adds a lazily-evaluated script property to a PSObject.
+
+## SYNTAX
+```powershell
+Add-LazyProperty [-Name] <String> [-Value] <ScriptBlock> -InputObject <PSObject> [-PassThru] [<CommonParameters>]
+```
+
+## DESCRIPTION
+The script block is only executed the first time the property is accessed. Subsequent reads return the memoised value stored as a NoteProperty.
+
+## EXAMPLES
+
+### Example 1
+
+Attaches a lazy Hash property that computes on first access.
+
+```powershell
+$obj | Add-LazyProperty -Name 'Hash' -Value { Get-FileHash $this.Path }
+```
+
+
+### Example 2
+
+Same as above, returning the modified PSObject.
+
+```powershell
+$obj | Add-LazyProperty -Name 'Hash' -Value { Get-FileHash $this.Path } -PassThru
+```
+
+## PARAMETERS
+
+### -InputObject
+
+The PSObject to attach the lazy property to; accepted from the pipeline.
+
+```yaml
+Type: PSObject
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: true
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Name
+
+The name of the property to add.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PassThru
+
+When set, emits the modified InputObject to the pipeline.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Value
+
+Script block invoked on first property access to compute the property value.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 2
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Management.Automation.PSObject
+
+## NOTES
+
+## RELATED LINKS

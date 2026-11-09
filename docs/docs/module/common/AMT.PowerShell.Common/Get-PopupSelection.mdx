@@ -1,0 +1,138 @@
+---
+id: Get-PopupSelection
+title: Get-PopupSelection
+description: Presents a GUI popup list and returns the item(s) the user selects.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Presents a GUI popup list and returns the item(s) the user selects.
+
+## SYNTAX
+```powershell
+Get-PopupSelection [-AllowMultiple] [-AllowNone] -Items <Object[]> [-Title <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Loops until a valid selection is made or  permits an empty result. When  is set, all selected items are enumerated to the pipeline. When  is set and nothing is selected, writes $null.
+
+## EXAMPLES
+
+### Example 1
+
+Displays a popup list of drivers and returns the one the user picks.
+
+```powershell
+$choice = Get-PopupSelection -Title 'Pick a driver' -Items $drivers
+```
+
+## PARAMETERS
+
+### -AllowMultiple
+
+Allow the user to select more than one item; each selected item is written to the pipeline.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -AllowNone
+
+Allow the user to dismiss the dialog without selecting anything; writes $null in that case.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Items
+
+The collection of items to display in the popup list.
+
+```yaml
+Type: Object[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Title
+
+Heading displayed at the top of the popup dialog; defaults to Select a(n) Item.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

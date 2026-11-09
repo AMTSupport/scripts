@@ -1,0 +1,165 @@
+---
+id: Install-ManagedPackage
+title: Install-ManagedPackage
+description: Installs a package using the detected system package manager.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Installs a package using the detected system package manager.
+
+## SYNTAX
+```powershell
+Install-ManagedPackage [-PackageName] <String> [-Confirm] [-NoFail] [-Sha256 <String>] [-WhatIf] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Detects the available package manager (e.g., Chocolatey, Winget) and installs the named package. Uses ShouldProcess to support -WhatIf and -Confirm. Terminates on failure unless -NoFail is specified.
+
+## EXAMPLES
+
+### Example 1
+
+Installs the git package using the available package manager.
+
+```powershell
+Install-ManagedPackage -PackageName 'git'
+```
+
+
+### Example 2
+
+Installs Notepad++ with SHA256 verification; writes a non-terminating error on failure.
+
+```powershell
+Install-ManagedPackage -PackageName 'notepadplusplus' -Sha256 'abc123...' -NoFail
+```
+
+## PARAMETERS
+
+### -Confirm
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [cf]
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -NoFail
+
+When set, writes a non-terminating error instead of terminating if installation fails.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PackageName
+
+The name of the package to install.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Sha256
+
+Expected SHA256 hash of the downloaded package; used for integrity validation.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -WhatIf
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [wi]
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

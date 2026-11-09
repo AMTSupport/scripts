@@ -1,0 +1,182 @@
+---
+id: Invoke-Timeout
+title: Invoke-Timeout
+description: Displays a countdown progress bar for a fixed duration, then invokes a callback.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Displays a countdown progress bar for a fixed duration, then invokes a callback.
+
+## SYNTAX
+```powershell
+Invoke-Timeout -Activity <String> [-AllowCancel] [-CancelScript <ScriptBlock>] -StatusMessage <String> -Timeout <Int32> [-TimeoutScript <ScriptBlock>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+The progress bar ticks approximately every 50 ms. If -AllowCancel is set and a key is pressed before the timeout elapses, CancelScript is invoked instead of TimeoutScript.
+
+## EXAMPLES
+
+### Example 1
+
+Counts down 10 seconds, then restarts the computer.
+
+```powershell
+Invoke-Timeout -Timeout 10 -Activity "Waiting" -StatusMessage "{0}s remaining" -TimeoutScript { Restart-Computer }
+```
+
+## PARAMETERS
+
+### -Activity
+
+Activity label shown in the progress bar header.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -AllowCancel
+
+When set, the user can press any key to cancel the countdown and invoke CancelScript.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -CancelScript
+
+ScriptBlock invoked when the user cancels before the timeout elapses.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -StatusMessage
+
+Format string for the progress status; {0} is replaced with the whole seconds remaining.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Timeout
+
+Timeout duration in seconds.
+
+```yaml
+Type: Int32
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -TimeoutScript
+
+ScriptBlock invoked when the timeout elapses without cancellation.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

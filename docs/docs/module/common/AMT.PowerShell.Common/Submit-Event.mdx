@@ -1,0 +1,72 @@
+---
+id: Submit-Event
+title: Submit-Event
+description: Dispatch an event instance to all subscribers registered for its runtime type.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Dispatch an event instance to all subscribers registered for its runtime type.
+
+## SYNTAX
+```powershell
+Submit-Event -EventInstance <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+The runtime type of  determines which EventRegistration is looked up. wrappers are unwrapped before dispatch. Silently no-ops when no registration exists for the type.
+
+## EXAMPLES
+
+### Example 1
+
+Dispatches a MyEvent instance to all currently registered subscribers.
+
+```powershell
+Submit-Event -EventInstance ([MyEvent]::new('payload'))
+```
+
+## PARAMETERS
+
+### -EventInstance
+
+Event object to dispatch; its runtime type must match a type registered via Register-Event.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

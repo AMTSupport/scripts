@@ -1,0 +1,87 @@
+---
+id: ConvertTo-SasQueryString
+title: ConvertTo-SasQueryString
+description: Parse a raw SAS token into a URL-encoded query string.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Parse a raw SAS token into a URL-encoded query string.
+
+## SYNTAX
+```powershell
+ConvertTo-SasQueryString [-SasToken] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Extracts key-value pairs from the token, URL-encodes the sig value, and reassembles them as an application/x-www-form-urlencoded query string suitable for appending to an Azure Blob Storage URL.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the parsed query string ready to append with
+
+?
+
+to a container URL.
+
+```powershell
+$qs = ConvertTo-SasQueryString -SasToken $env:BLOB_SAS_TOKEN
+```
+
+
+### Example 2
+
+Accepts the token from the pipeline.
+
+```powershell
+$env:BLOB_SAS_TOKEN | ConvertTo-SasQueryString
+```
+
+## PARAMETERS
+
+### -SasToken
+
+The raw SAS token string to parse into a query string.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: true
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,74 @@
+---
+id: Get-BlobMD5
+title: Get-BlobMD5
+description: Retrieve the Content-MD5 header value for an Azure Blob Storage resource.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Retrieve the Content-MD5 header value for an Azure Blob Storage resource.
+
+## SYNTAX
+```powershell
+Get-BlobMD5 [-BlobUri] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Issues an HTTP HEAD request to BlobUri and returns the Content-MD5 response header as a base64-encoded string. Returns  when the header is absent. Use the result with Find-FileByHash to check whether a blob is already cached locally.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the base64-encoded MD5 of the blob, or nothing if the header is missing.
+
+```powershell
+$md5 = Get-BlobMD5 -BlobUri "https://account.blob.core.windows.net/c/file.png?$qs"
+```
+
+## PARAMETERS
+
+### -BlobUri
+
+The full URI of the blob, including any required SAS query string.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

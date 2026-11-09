@@ -1,0 +1,78 @@
+---
+id: Get-FlagPath
+title: Get-FlagPath
+description: Returns the absolute file-system path for a flag identified by context name.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the absolute file-system path for a flag identified by context name.
+
+## SYNTAX
+```powershell
+Get-FlagPath [-Context] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Delegates path resolution to FlagPathResolver; the returned string can be used directly with file-system cmdlets or passed to lower-level flag operations.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the full path to the flag file for context
+
+SoftwareInstalled
+
+.
+
+```powershell
+$path = Get-FlagPath -Context 'SoftwareInstalled'
+```
+
+## PARAMETERS
+
+### -Context
+
+Logical name that identifies this flag; used to derive the flag file path.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,96 @@
+---
+id: Test-RegistryKey
+title: Test-RegistryKey
+description: Returns  if a registry value exists,  otherwise.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns  if a registry value exists,  otherwise.
+
+## SYNTAX
+```powershell
+Test-RegistryKey [-Path] <String> [-Key] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns  if the registry path itself does not exist. Only supported on Windows.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true if the Enabled value is present under HKLM:\SOFTWARE\MyApp.
+
+```powershell
+Test-RegistryKey -Path 'HKLM:\SOFTWARE\MyApp' -Key 'Enabled'
+```
+
+## PARAMETERS
+
+### -Key
+
+The name of the registry value to test for existence.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Path
+
+The registry path to the key container (e.g., HKLM:\SOFTWARE\MyApp).
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

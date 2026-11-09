@@ -1,0 +1,105 @@
+---
+id: Wait-Task
+title: Wait-Task
+description: Waits for one or more AsyncTaskRun or Task objects to complete and emits their results.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Waits for one or more AsyncTaskRun or Task objects to complete and emits their results.
+
+## SYNTAX
+```powershell
+Wait-Task [-Run] <Object> [-PassThru] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Collects all piped run objects in ProcessRecord, then blocks in EndProcessing until each completes. By default emits the result value; with PassThru emits the original run or Task object. Also available as the alias await.
+
+## EXAMPLES
+
+### Example 1
+
+Starts an async task and waits for the result, returning "hello".
+
+```powershell
+async { 'hello' } | await
+```
+
+
+### Example 2
+
+Waits for the task and emits the original AsyncTaskRun object.
+
+```powershell
+Start-AsyncTask { 'data' } | Wait-Task -PassThru
+```
+
+## PARAMETERS
+
+### -PassThru
+
+When set, emits the original AsyncTaskRun or Task object instead of its result.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Run
+
+An AsyncTaskRun or Task object, or a collection of them, to wait for; accepted from the pipeline.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: true
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Object
+
+## NOTES
+
+## RELATED LINKS

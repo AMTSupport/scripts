@@ -1,0 +1,96 @@
+---
+id: Remove-EncodingBom
+title: Remove-EncodingBom
+description: Strips the byte-order mark (BOM) from a byte array for the given encoding.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Strips the byte-order mark (BOM) from a byte array for the given encoding.
+
+## SYNTAX
+```powershell
+Remove-EncodingBom [-Bytes] <Byte[]> [-Encoding] <Encoding> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns the input byte array unchanged when no BOM is present.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $bytes with the UTF-8 BOM removed if present.
+
+```powershell
+Remove-EncodingBom -Bytes $bytes -Encoding ([System.Text.Encoding]::UTF8)
+```
+
+## PARAMETERS
+
+### -Bytes
+
+The byte array to strip the BOM from.
+
+```yaml
+Type: Byte[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Encoding
+
+The encoding whose BOM prefix to remove.
+
+```yaml
+Type: Encoding
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Byte[]
+
+## NOTES
+
+## RELATED LINKS

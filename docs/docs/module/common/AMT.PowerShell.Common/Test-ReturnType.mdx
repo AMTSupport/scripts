@@ -1,0 +1,127 @@
+---
+id: Test-ReturnType
+title: Test-ReturnType
+description: Tests whether a script block's inferred return types are all within the allowed set.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Tests whether a script block's inferred return types are all within the allowed set.
+
+## SYNTAX
+```powershell
+Test-ReturnType [-AllowNull] -InputObject <Object> -ValidTypes <Type[]> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns  when every inferred return type is contained in ValidTypes, otherwise . When AllowNull is specified, void/null returns do not cause a failure.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true because the script block returns string.
+
+```powershell
+Test-ReturnType -InputObject { 'hello' } -ValidTypes ([string])
+```
+
+
+### Example 2
+
+Returns $true because null is allowed.
+
+```powershell
+Test-ReturnType -InputObject { $null } -ValidTypes ([string]) -AllowNull
+```
+
+## PARAMETERS
+
+### -AllowNull
+
+When set, allows void/null return types even if they are not in ValidTypes.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -InputObject
+
+The script block, file path, or Ast node whose return types are tested.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ValidTypes
+
+The set of .NET types that the script block is allowed to return.
+
+```yaml
+Type: Type[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

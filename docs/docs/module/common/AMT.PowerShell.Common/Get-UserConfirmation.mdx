@@ -1,0 +1,118 @@
+---
+id: Get-UserConfirmation
+title: Get-UserConfirmation
+description: Prompts the user with a Yes/No question and returns the boolean answer.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Prompts the user with a Yes/No question and returns the boolean answer.
+
+## SYNTAX
+```powershell
+Get-UserConfirmation [-DefaultChoice <Boolean>] -Question <String> -Title <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Presents a selection prompt with Yes and No choices. If the user enters an empty string on the first attempt, the  is used. Invalid input causes the prompt to repeat. Cancelling throws .
+
+## EXAMPLES
+
+### Example 1
+
+Asks the user to confirm, defaulting to No.
+
+```powershell
+$confirmed = Get-UserConfirmation -Title 'Delete files' -Question 'Are you sure?' -DefaultChoice $false
+```
+
+## PARAMETERS
+
+### -DefaultChoice
+
+Pre-selected answer used when the user submits an empty response; true = Yes, false = No.
+
+```yaml
+Type: Boolean
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Question
+
+The question text presented to the user.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Title
+
+Heading displayed above the Yes/No prompt.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

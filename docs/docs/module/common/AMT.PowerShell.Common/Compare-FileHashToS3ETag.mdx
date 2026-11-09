@@ -1,0 +1,96 @@
+---
+id: Compare-FileHashToS3ETag
+title: Compare-FileHashToS3ETag
+description: Compares a local file's computed hash to an S3 ETag to verify integrity.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Compares a local file's computed hash to an S3 ETag to verify integrity.
+
+## SYNTAX
+```powershell
+Compare-FileHashToS3ETag [-Path] <String> [-ETag] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Supports both single-part (MD5) and multi-part ETags. Returns  when the computed hash matches the ETag.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true if the file's computed hash matches the ETag.
+
+```powershell
+Compare-FileHashToS3ETag -Path 'C:\file.bin' -ETag '"abc123"'
+```
+
+## PARAMETERS
+
+### -ETag
+
+The S3 ETag string to compare against, with or without surrounding quotes.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Path
+
+Path to the local file to hash.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

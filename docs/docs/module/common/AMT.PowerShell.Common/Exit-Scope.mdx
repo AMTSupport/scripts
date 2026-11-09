@@ -1,0 +1,77 @@
+---
+id: Exit-Scope
+title: Exit-Scope
+description: Pops the current scope from the runspace scope stack.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Pops the current scope from the runspace scope stack.
+
+## SYNTAX
+```powershell
+Exit-Scope [-ReturnValue <Object>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Stops the elapsed-time stopwatch for the scope. When $VerbosePreference is Continue, emits a formatted exit message showing the scope name, elapsed time, and optionally the return value.
+
+## EXAMPLES
+
+### Example 1
+
+Closes the scope and logs the return value in verbose mode.
+
+```powershell
+function Invoke-MyFunction {
+                Enter-Scope -Invocation $MyInvocation
+                $result = Get-Something
+                Exit-Scope -ReturnValue $result
+                return $result
+            }
+```
+
+## PARAMETERS
+
+### -ReturnValue
+
+Value to display in the verbose exit message; does not affect pipeline output.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,83 @@
+---
+id: Sync-Time
+title: Sync-Time
+description: Forces a W32TM time resynchronisation if the last sync exceeds the threshold age.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Forces a W32TM time resynchronisation if the last sync exceeds the threshold age.
+
+## SYNTAX
+```powershell
+Sync-Time [-Threshold <TimeSpan>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Checks the age of the last successful sync via Get-LastSyncTime. Returns  when a resync was triggered and succeeded, when the existing sync time is within the threshold. Windows-only; requires the w32tm service to be running.
+
+## EXAMPLES
+
+### Example 1
+
+Resyncs the clock if the last sync was more than 7 days ago.
+
+```powershell
+Sync-Time
+```
+
+
+### Example 2
+
+Resyncs the clock if the last sync was more than 1 hour ago.
+
+```powershell
+Sync-Time -Threshold ([TimeSpan]::FromHours(1))
+```
+
+## PARAMETERS
+
+### -Threshold
+
+Maximum allowed age of the last sync before a resync is triggered; defaults to 7 days.
+
+```yaml
+Type: TimeSpan
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

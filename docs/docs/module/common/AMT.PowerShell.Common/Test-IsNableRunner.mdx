@@ -1,0 +1,50 @@
+---
+id: Test-IsNableRunner
+title: Test-IsNableRunner
+description: Return  when the current session is hosted inside the N-able fmplugin.exe process.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Return  when the current session is hosted inside the N-able fmplugin.exe process.
+
+## SYNTAX
+```powershell
+Test-IsNableRunner [<CommonParameters>]
+```
+
+## DESCRIPTION
+Inspects the console window-title leaf and compares it case-insensitively to fmplugin.exe. Use this to suppress UI-heavy output paths that do not render correctly inside the N-able runner.
+
+## EXAMPLES
+
+### Example 1
+
+Conditionally adjusts output based on the detected host environment.
+
+```powershell
+if (Test-IsNableRunner) { Write-Host 'Running under N-able' }
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

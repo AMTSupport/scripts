@@ -1,0 +1,133 @@
+---
+id: Assert-Equal
+title: Assert-Equal
+description: Assert that two objects are equal, throwing a terminating error if they differ.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Assert that two objects are equal, throwing a terminating error if they differ.
+
+## SYNTAX
+```powershell
+Assert-Equal [-Object] <Object> [-Expected] <Object> [-Message <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Compares Object and Expected using . When they are not equal a terminating  is written with the error ID AMT.Assert.Equal. An optional custom message overrides the default Object [{0}] does not equal expected value [{1}] template.
+
+## EXAMPLES
+
+### Example 1
+
+Throws a terminating error when
+
+$result
+
+is not equal to
+
+'expected-value'
+
+.
+
+```powershell
+Assert-Equal -Object $result -Expected 'expected-value'
+```
+
+
+### Example 2
+
+Passes silently because the pipeline value matches the expected value.
+
+```powershell
+'actual' | Assert-Equal -Expected 'actual'
+```
+
+## PARAMETERS
+
+### -Expected
+
+The value that Object must equal.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Message
+
+Optional error message emitted when the assertion fails; overrides the default template.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Object
+
+The value under test, accepted from the pipeline.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: true
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

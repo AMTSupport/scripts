@@ -1,0 +1,240 @@
+---
+id: Invoke-Error
+title: Invoke-Error
+description: Writes a message to the host at the Error level, or throws a terminating error.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Writes a message to the host at the Error level, or throws a terminating error.
+
+## SYNTAX
+### InputObject
+
+```powershell
+Invoke-Error [[-InputObject] <Hashtable>] [-Caller <InvocationInfo>] [-CallerCmdlet <PSCmdlet>] [-ErrorCategory <ErrorCategory>] [-PassThru] [-Throw] [<CommonParameters>]
+```
+
+### Splat
+
+```powershell
+Invoke-Error [-Message] <String> [[-UnicodePrefix] <String>] [-Caller <InvocationInfo>] [-CallerCmdlet <PSCmdlet>] [-ErrorCategory <ErrorCategory>] [-PassThru] [-Throw] [<CommonParameters>]
+```
+
+### (All)
+
+```powershell
+Invoke-Error [-Caller <InvocationInfo>] [-CallerCmdlet <PSCmdlet>] [-ErrorCategory <ErrorCategory>] [-PassThru] [-Throw] [<CommonParameters>]
+```
+
+## DESCRIPTION
+When -Throw is set the message is wrapped in an  and passed to ThrowTerminatingError. Otherwise the message is suppressed when $ErrorActionPreference is SilentlyContinue or Ignore.
+
+## EXAMPLES
+
+### Example 1
+
+Throws a terminating error with the ObjectNotFound category.
+
+```powershell
+Invoke-Error -Message "File not found" -Throw -ErrorCategory ObjectNotFound
+```
+
+## PARAMETERS
+
+### -Caller
+
+The caller's  used as the error target when throwing; resolved from the call stack when omitted.
+
+```yaml
+Type: InvocationInfo
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -CallerCmdlet
+
+The  on whose behalf ThrowTerminatingError is called; defaults to this cmdlet.
+
+```yaml
+Type: PSCmdlet
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ErrorCategory
+
+The  to assign when -Throw is used; defaults to NotSpecified.
+
+```yaml
+Type: ErrorCategory
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -InputObject
+
+Hashtable of parameters to splat into the cmdlet; when provided, all other parameters are ignored.
+
+```yaml
+Type: Hashtable
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: InputObject
+  Position: 0
+  IsRequired: false
+  ValueFromPipeline: true
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Message
+
+The error message text to write or throw.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PassThru
+
+When set, returns the formatted string to the pipeline instead of writing it to the host.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Throw
+
+When set, throws a terminating error instead of writing the message to the host.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -UnicodePrefix
+
+Unicode prefix to prepend to the message; defaults to ❌ when omitted.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [Prefix]
+ParameterSets:
+- Name: Splat
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

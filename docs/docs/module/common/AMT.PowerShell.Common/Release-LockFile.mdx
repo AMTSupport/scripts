@@ -1,0 +1,94 @@
+---
+id: Release-LockFile
+title: Release-LockFile
+description: Releases a lock file handle and removes the lock file from disk.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Releases a lock file handle and removes the lock file from disk.
+
+## SYNTAX
+```powershell
+Release-LockFile [[-LockHandle] <IDisposable>] [[-LockPath] <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Safely closes the  and deletes the file at . Both parameters are optional; null values are handled gracefully. Prefer Invoke-UnderLock for automatic acquisition and release.
+
+## EXAMPLES
+
+### Example 1
+
+Closes the handle and deletes the lock file.
+
+```powershell
+Release-LockFile -LockHandle $handle -LockPath $lockPath
+```
+
+## PARAMETERS
+
+### -LockHandle
+
+The file handle returned by Wait-LockFile; closed if non-null.
+
+```yaml
+Type: IDisposable
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -LockPath
+
+Full path to the lock file to delete; skipped if null or already absent.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS
