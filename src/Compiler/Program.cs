@@ -324,7 +324,7 @@ public class Program {
         bool forceOverwrite
     ) {
         // All files should use CRLF so we should convert before writing
-        // First normalize to LF to avoid double-converting existing CRLF to \r\r\n
+        // First normalise to LF to avoid double-converting existing CRLF to \r\r\n
         content = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", "\r\n");
 
         if (string.IsNullOrWhiteSpace(outputDirectory)) {

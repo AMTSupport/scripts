@@ -1,3 +1,4 @@
+[CmdletBinding()]
 param(
     # Specifies a path to one or more locations.
     [Parameter(Mandatory=$true,
@@ -53,13 +54,31 @@ function Invoke-Sandbox {
 }
 
 Import-Module $PSScriptRoot/../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1;
-Invoke-RunMain $MyInvocation {
-    Import-Module "$PSScriptRoot/Compiler.ps1" -Function * -Global;
+Invoke-RunMain $PSCmdlet {
+    [String]$Private:CompilerDll = Join-Path $PSScriptRoot '../src/Compiler/bin/Debug/Compiler.dll';
+    if (-not (Test-Path -Path $Private:CompilerDll -PathType Leaf)) {
+        $Private:CompilerDll = Join-Path $PSScriptRoot '../src/Compiler/bin/Release/Compiler.dll';
+    }
+    if (-not (Test-Path -Path $Private:CompilerDll -PathType Leaf)) {
+        throw "Compiler not found. Build it first with: dotnet build src/Compiler/Compiler.csproj";
+    }
 
-    [String]$Private:CompiledScriptPath = [System.IO.Path]::GetTempFileName().Replace('.tmp', '.ps1');
-    [String]$Private:Content = Invoke-Compile -ScriptPath:$ScriptPath;
-    $Private:Content | Set-Content -Path:$Private:CompiledScriptPath -Encoding:UTF8;
+    [String]$Private:OutputFolder = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName());
+    New-Item -Path $Private:OutputFolder -ItemType Directory -Force | Out-Null;
 
-    Invoke-Sandbox -ScriptPath:$Private:CompiledScriptPath -EnableNetworking;
-    Remove-Item -Path:$Private:CompiledScriptPath;
+    try {
+        & dotnet $Private:CompilerDll --input $ScriptPath --output $Private:OutputFolder --force;
+        if ($LASTEXITCODE -ne 0) {
+            throw "Compiler exited with code $LASTEXITCODE.";
+        }
+
+        [String]$Private:CompiledScriptPath = Join-Path $Private:OutputFolder ([System.IO.Path]::GetFileName($ScriptPath));
+        if (-not (Test-Path -Path $Private:CompiledScriptPath -PathType Leaf)) {
+            throw "Compiler did not produce '$Private:CompiledScriptPath'.";
+        }
+
+        Invoke-Sandbox -ScriptPath $Private:CompiledScriptPath -EnableNetworking;
+    } finally {
+        Remove-Item -Path $Private:OutputFolder -Recurse -Force -ErrorAction SilentlyContinue;
+    }
 };

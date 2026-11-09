@@ -8,6 +8,8 @@ on:
       - "docs/**"
       - "src/**"
       - "utils/Generate-Documentation.ps1"
+      - "utils/generate-module-docs.py"
+      - "utils/dump-module-metadata.ps1"
       - ".github/workflows/documentation.yaml"
 
 jobs:

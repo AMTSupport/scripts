@@ -32,6 +32,16 @@ public sealed class ModuleManifestTests {
     }
 
     [Test]
+    public void EveryExportedCmdletHasDocumentationPage() {
+        var documented = Directory
+            .EnumerateFiles(Path.Combine(FindRepositoryRoot(), "docs", "docs", "module", "common"), "*.mdx", SearchOption.AllDirectories)
+            .Select(Path.GetFileNameWithoutExtension)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.That(GetManifestEntries("CmdletsToExport").Except(documented, StringComparer.OrdinalIgnoreCase), Is.Empty);
+    }
+
+    [Test]
     public void ManifestExportsEveryCommandAlias() {
         var implemented = GetImplementedAliases();
         var exported = GetManifestEntries("AliasesToExport");
@@ -71,6 +81,19 @@ public sealed class ModuleManifestTests {
         return Regex.Matches(block.Groups["body"].Value, "'([^']+)'")
             .Select(match => match.Groups[1].Value)
             .ToArray();
+    }
+
+    private static string FindRepositoryRoot() {
+        var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        while (directory is not null) {
+            if (File.Exists(Path.Combine(directory.FullName, "scripts.sln"))) {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the repository root.");
     }
 
     private static string FindManifestPath() {
