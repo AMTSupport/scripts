@@ -184,16 +184,18 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
             Directory.CreateDirectory(this.CachePath);
         }
 
-        var httpResult = await this.CacheResultWithHttp();
-        if (httpResult.IsSucc) {
-            return httpResult;
+        // Prefer PSResourceGet because the v2 PSGallery feed can lag behind the
+        // versions PSResourceGet resolves, producing cross-module version drift.
+        var psResult = this.TryCacheResultWithPowerShell();
+        if (psResult.IsSucc) {
+            return psResult;
         }
 
-        if (httpResult.IsErr(out var httpError, out _)) {
-            Logger.Warn($"Direct PSGallery download failed for {this.ModuleSpec.Name}, falling back to PowerShell bootstrap: {httpError.Message}");
+        if (psResult.IsErr(out var psError, out _)) {
+            Logger.Warn($"PowerShell bootstrap download failed for {this.ModuleSpec.Name}, falling back to direct PSGallery: {psError.Message}");
         }
 
-        return this.TryCacheResultWithPowerShell().BindFail(err => err.Enrich(this.ModuleSpec));
+        return (await this.CacheResultWithHttp()).BindFail(err => err.Enrich(this.ModuleSpec));
     }
 
     private Fin<string> TryCacheResultWithPowerShell() {
@@ -213,8 +215,10 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
             Set-PSResourceRepository -Name PSGallery -Trusted -Confirm:$False;
         }
 
-        $Module = Find-PSResource -Name '{{this.ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}};
-        $Module | Select-Object -First 1 | Save-PSResource -Path '{{this.CachePath}}' -AsNupkg -SkipDependencyCheck;
+        $Module = Find-PSResource -Name '{{this.ModuleSpec.Name}}' {{(versionString != null ? $"-Version '{versionString}'" : "")}} |
+            Sort-Object -Property Version -Descending |
+            Select-Object -First 1;
+        $Module | Save-PSResource -Path '{{this.CachePath}}' -AsNupkg -SkipDependencyCheck;
 
         return "{{this.CachePath}}/{{this.ModuleSpec.Name}}.$($Module.Version).nupkg";
         """;
@@ -227,9 +231,15 @@ public partial class ResolvableRemoteModule(ModuleSpec moduleSpec) : Resolvable(
 
         // Only one process can download a module at a time.
         lock (UsingPSRepoLock) {
-            return Program.RunPowerShell(powerShellCode)
-                .Map(objects => objects.First().ToString())
-                .Tap(this.UpdateCachedFile);
+            try {
+                return Program.RunPowerShell(powerShellCode)
+                    .Map(objects => objects.First().ToString())
+                    .Tap(this.UpdateCachedFile);
+            } catch (Exception ex) {
+                // Terminating PowerShell errors surface as exceptions from Invoke;
+                // convert them so the HTTP fallback can still run.
+                return Fin.Fail<string>(Error.New(ex.Message));
+            }
         }
     }
 
