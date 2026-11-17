@@ -1,0 +1,189 @@
+---
+id: Get-FromBlob
+title: Get-FromBlob
+description: Download a blob from Azure Blob Storage to a local cache directory, returning the local file path.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Download a blob from Azure Blob Storage to a local cache directory, returning the local file path.
+
+## SYNTAX
+### ByDirectUrl
+
+```powershell
+Get-FromBlob [-Url] <String> -CachePath <String> -SasToken <String> [<CommonParameters>]
+```
+
+### ByUrlAndPath
+
+```powershell
+Get-FromBlob [-BaseURL] <String> [-BlobPath] <String> -CachePath <String> -SasToken <String> [<CommonParameters>]
+```
+
+### (All)
+
+```powershell
+Get-FromBlob -CachePath <String> -SasToken <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Checks the cache before downloading: computes the blob's Content-MD5 via Get-BlobMD5 and searches CachePath for an existing file with a matching hash using Find-FileByHash. Returns the existing path without re-downloading when a match is found.
+
+When no cached copy exists the blob is downloaded to a randomly-named .png file inside CachePath and that path is returned.
+
+Two parameter sets are supported: ByDirectUrl (a fully-qualified blob URL) and ByUrlAndPath (a container base URL combined with a relative blob path).
+
+## EXAMPLES
+
+### Example 1
+
+Downloads the blob if not already cached, returns the local file path.
+
+```powershell
+Get-FromBlob -Url 'https://account.blob.core.windows.net/c/image.png' -CachePath 'C:\Cache' -SasToken $token
+```
+
+
+### Example 2
+
+Constructs the blob URL from base URL and path, then downloads or returns from cache.
+
+```powershell
+Get-FromBlob -BaseURL 'https://account.blob.core.windows.net/fonts' -BlobPath 'Arial.ttf' -CachePath 'C:\Cache' -SasToken $token
+```
+
+## PARAMETERS
+
+### -BaseURL
+
+The base container URL (no trailing slash), used with BlobPath in the ByUrlAndPath parameter set.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: ByUrlAndPath
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -BlobPath
+
+The relative path of the blob within the container, combined with BaseURL.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [Path]
+ParameterSets:
+- Name: ByUrlAndPath
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -CachePath
+
+Local directory where downloaded blobs are cached; created automatically if it does not exist.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -SasToken
+
+The raw SAS token used to authenticate blob requests; converted internally via ConvertTo-SasQueryString.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Url
+
+The full blob URL (excluding the SAS query string), used in the ByDirectUrl parameter set.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: ByDirectUrl
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

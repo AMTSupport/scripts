@@ -1,0 +1,83 @@
+---
+id: Get-UserByInputOrName
+title: Get-UserByInputOrName
+description: Resolves a local user from an AdsiPrincipal object or a name string.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Resolves a local user from an AdsiPrincipal object or a name string.
+
+## SYNTAX
+```powershell
+Get-UserByInputOrName [-InputObject] <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Accepts either an already-resolved AdsiPrincipal or a plain string user name. Useful as a normalisation step in pipeline-driven scripts. Only works on Windows via the WinNT ADSI provider.
+
+## EXAMPLES
+
+### Example 1
+
+Resolves the local user localadmin by name.
+
+```powershell
+Get-UserByInputOrName -InputObject 'localadmin'
+```
+
+
+### Example 2
+
+Returns the already-resolved AdsiPrincipal unchanged.
+
+```powershell
+Get-UserByInputOrName -InputObject (Get-User -Name 'localadmin')
+```
+
+## PARAMETERS
+
+### -InputObject
+
+An AdsiPrincipal user object or a user name string to resolve.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Commands.UsersAndAccounts.AdsiPrincipal
+
+## NOTES
+
+## RELATED LINKS

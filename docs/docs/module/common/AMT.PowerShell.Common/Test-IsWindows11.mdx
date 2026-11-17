@@ -1,0 +1,52 @@
+---
+id: Test-IsWindows11
+title: Test-IsWindows11
+description: Tests whether the current operating system is Windows 11 or later.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Tests whether the current operating system is Windows 11 or later.
+
+## SYNTAX
+```powershell
+Test-IsWindows11 [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns  on non-Windows platforms without throwing. Detects Windows 11 by OS description string or build number >= 22000.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true when running on Windows 11 or later.
+
+```powershell
+Test-IsWindows11
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

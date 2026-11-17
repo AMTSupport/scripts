@@ -1,0 +1,74 @@
+---
+id: Get-BlobCompatableHash
+title: Get-BlobCompatableHash
+description: Compute the base64-encoded MD5 hash of a local file, matching Azure Blob Storage's Content-MD5 format.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Compute the base64-encoded MD5 hash of a local file, matching Azure Blob Storage's Content-MD5 format.
+
+## SYNTAX
+```powershell
+Get-BlobCompatableHash [-Path] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Reads the file at Path as a byte array, computes its MD5 digest, and returns the result as a base64 string — the same representation Azure uses for the Content-MD5 response header. Use this to compare a local file against a blob's server-side hash without downloading the blob.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the base64-encoded MD5 hash of the file.
+
+```powershell
+$hash = Get-BlobCompatableHash -Path 'C:\Downloads\image.png'
+```
+
+## PARAMETERS
+
+### -Path
+
+Path to the local file to hash.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

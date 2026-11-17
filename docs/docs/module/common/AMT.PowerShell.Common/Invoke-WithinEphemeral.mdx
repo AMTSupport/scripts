@@ -1,0 +1,77 @@
+---
+id: Invoke-WithinEphemeral
+title: Invoke-WithinEphemeral
+description: Runs a script block inside a newly created ephemeral temporary folder.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Runs a script block inside a newly created ephemeral temporary folder.
+
+## SYNTAX
+```powershell
+Invoke-WithinEphemeral [-ScriptBlock] <ScriptBlock> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Creates a unique temp folder, sets it as the working directory, invokes the script block, then restores the original location and deletes the folder (best-effort) on completion regardless of whether the script block throws.
+
+## EXAMPLES
+
+### Example 1
+
+Downloads and extracts a file into a temp folder that is deleted afterwards.
+
+```powershell
+Invoke-WithinEphemeral -ScriptBlock {
+                Invoke-WebRequest 'https://example.com/archive.zip' -OutFile 'archive.zip'
+                Expand-Archive 'archive.zip' -DestinationPath '.'
+            }
+```
+
+## PARAMETERS
+
+### -ScriptBlock
+
+Script block to execute inside the ephemeral folder; runs with the folder as the current working directory.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Object
+
+## NOTES
+
+## RELATED LINKS

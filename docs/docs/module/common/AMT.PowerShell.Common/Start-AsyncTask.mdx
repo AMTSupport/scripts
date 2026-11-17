@@ -1,0 +1,105 @@
+---
+id: Start-AsyncTask
+title: Start-AsyncTask
+description: Starts a PowerShell script block asynchronously and returns an AsyncTaskRun token.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Starts a PowerShell script block asynchronously and returns an AsyncTaskRun token.
+
+## SYNTAX
+```powershell
+Start-AsyncTask [-ScriptBlock] <ScriptBlock> [-InputObject <Object>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Launches the script in a new PowerShell runspace using BeginInvoke. The returned AsyncTaskRun can be passed to Wait-Task to collect the result. Also available as the alias async.
+
+## EXAMPLES
+
+### Example 1
+
+Starts the script asynchronously and stores the run token.
+
+```powershell
+$run = Start-AsyncTask { Start-Sleep 5; 'done' }
+```
+
+
+### Example 2
+
+Same as above using the async alias.
+
+```powershell
+$run = async { Get-ChildItem C:\ -Recurse }
+```
+
+## PARAMETERS
+
+### -InputObject
+
+Optional pipeline input attached to the AsyncTaskRun token for correlation.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: true
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ScriptBlock
+
+The script block to execute asynchronously in a new PowerShell runspace.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Commands.Utils.AsyncTaskRun
+
+## NOTES
+
+## RELATED LINKS

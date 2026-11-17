@@ -1,0 +1,52 @@
+---
+id: Get-RebootFlag
+title: Get-RebootFlag
+description: Returns the well-known  that tracks whether a reboot is pending.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the well-known  that tracks whether a reboot is pending.
+
+## SYNTAX
+```powershell
+Get-RebootFlag [<CommonParameters>]
+```
+
+## DESCRIPTION
+The reboot flag is a specialised flag with a fixed context. It is set when a component requests a system reboot and cleared after the reboot completes.
+
+## EXAMPLES
+
+### Example 1
+
+Checks whether a reboot is pending and restarts the computer if so.
+
+```powershell
+$reboot = Get-RebootFlag; if ($reboot.IsSet) { Restart-Computer }
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Module.RebootFlag
+
+## NOTES
+
+## RELATED LINKS

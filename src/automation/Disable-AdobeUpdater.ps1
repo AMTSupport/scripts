@@ -19,9 +19,9 @@
     ```
 #>
 
-Using module ..\common\Environment.psm1
-Using module ..\common\Ensure.psm1
-Using module ..\common\Registry.psm1
+Using module ../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
 
 [CmdletBinding()]
 param()

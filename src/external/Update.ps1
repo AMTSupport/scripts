@@ -1,10 +1,10 @@
 #!ignore
 
-Using module ..\common\Environment.psm1
-Using module ..\common\Logging.psm1
-Using module ..\common\Scope.psm1
-Using module ..\common\Utils.psm1
-Using module ..\common\Input.psm1
+Using module ../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
+
+
 
 <#
 .SYNOPSIS

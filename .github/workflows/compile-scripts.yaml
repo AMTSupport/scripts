@@ -3,9 +3,17 @@ name: Powershell Compiler
 on:
   push:
     branches: [master]
-    paths: [ "src/**/*.ps1", "src/**/*.psm1", ".github/workflows/compile-scripts.yaml" ]
+    paths:
+      - "src/**/*.ps1"
+      - "src/**/*.psm1"
+      - "src/AMT.PowerShell.Common/**"
+      - ".github/workflows/compile-scripts.yaml"
   pull_request:
-    paths: [ "src/**/*.ps1", "src/**/*.psm1", ".github/workflows/compile-scripts.yaml" ]
+    paths:
+      - "src/**/*.ps1"
+      - "src/**/*.psm1"
+      - "src/AMT.PowerShell.Common/**"
+      - ".github/workflows/compile-scripts.yaml"
   workflow_dispatch:
 
 jobs:
@@ -15,6 +23,8 @@ jobs:
       compiled: ${{ steps.changes.outputs.compiled }}
       src: ${{ steps.changes.outputs.src }}
       src_deleted: ${{ steps.changes.outputs.src_deleted }}
+      module: ${{ steps.changes.outputs.module }}
+      module_deleted: ${{ steps.changes.outputs.module_deleted }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -33,6 +43,10 @@ jobs:
               - 'src/**/*.(ps1|psm1)'
             src_deleted:
               - deleted: 'src/**/*.(ps1|psm1)'
+            module:
+              - 'src/AMT.PowerShell.Common/**'
+            module_deleted:
+              - deleted: 'src/AMT.PowerShell.Common/**'
 
   cleanup-directory:
     runs-on: ubuntu-latest
@@ -60,7 +74,7 @@ jobs:
   compile-scripts:
     runs-on: windows-latest
     needs: [changes, build]
-    if: ${{ needs.changes.outputs.src == 'true' }}
+    if: ${{ needs.changes.outputs.src == 'true' || needs.changes.outputs.module == 'true' }}
     permissions:
       contents: write
 
@@ -68,20 +82,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Download Compiler Artifact
-        uses: dawidd6/action-download-artifact@v21
+      - name: Setup DotNet
+        uses: actions/setup-dotnet@v4
         with:
-          workflow: build.yaml
-          workflow_conclusion: success
+          cache: true
+          dotnet-version: 10.0.x
+
+      - name: Download Compiler Artifact
+        uses: actions/download-artifact@v4
+        with:
           name: Compiler
           path: /tmp/Compiler
+
+      - name: Build Common Module
+        run: dotnet build src/AMT.PowerShell.Common/AMT.PowerShell.Common.csproj -c Release
 
       - name: Run Compiler
         shell: pwsh
         run: /tmp/Compiler/Compiler.exe --input src --output compiled --force -vvv -f
 
       - name: Commit Changes
-        if: ${{ github.event_name == 'workflow_dispatch' || (needs.changes.outputs.src == 'true' && github.event_name == 'push') }}
+        if: ${{ github.event_name == 'workflow_dispatch' || (needs.changes.outputs.src == 'true' || needs.changes.outputs.module == 'true') && github.event_name == 'push' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(compiled): Compile scripts"

@@ -1,0 +1,118 @@
+---
+id: Invoke-UnderLock
+title: Invoke-UnderLock
+description: Acquires an exclusive file lock, executes a script block, then releases the lock.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Acquires an exclusive file lock, executes a script block, then releases the lock.
+
+## SYNTAX
+```powershell
+Invoke-UnderLock [-ResourceId] <String> [-ScriptBlock] <ScriptBlock> [[-ArgumentList] <Object[]>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Derives the script name from the caller, builds the lock path, and waits for the lock before invoking . The lock is always released in a finally block, so it is safe even when the script block throws. Pipeline output from the script block is forwarded to the caller.
+
+## EXAMPLES
+
+### Example 1
+
+Runs driver installation exclusively, preventing concurrent runs for the same resource.
+
+```powershell
+Invoke-UnderLock -ResourceId 'DellDrivers' -ScriptBlock { Install-DellDrivers }
+```
+
+## PARAMETERS
+
+### -ArgumentList
+
+Optional arguments splatted to the script block when it is invoked.
+
+```yaml
+Type: Object[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 2
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ResourceId
+
+Resource identifier used to construct the lock file name.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ScriptBlock
+
+The script block to execute while holding the lock.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Object
+
+## NOTES
+
+## RELATED LINKS

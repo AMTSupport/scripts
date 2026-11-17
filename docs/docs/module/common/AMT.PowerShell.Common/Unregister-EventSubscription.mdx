@@ -1,0 +1,96 @@
+---
+id: Unregister-EventSubscription
+title: Unregister-EventSubscription
+description: Remove a subscription from a registered event, returning  if it was found and removed.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Remove a subscription from a registered event, returning  if it was found and removed.
+
+## SYNTAX
+```powershell
+Unregister-EventSubscription -EventType <Type> -Id <Guid> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns  when the event type is not registered, or no subscription with the given GUID exists. Idempotent — calling with an already-removed  returns without error.
+
+## EXAMPLES
+
+### Example 1
+
+Removes the subscription identified by $subscriptionId from the MyEvent registration.
+
+```powershell
+Unregister-EventSubscription -EventType ([MyEvent]) -Id $subscriptionId
+```
+
+## PARAMETERS
+
+### -EventType
+
+CLR type whose event registration contains the subscription to remove.
+
+```yaml
+Type: Type
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Id
+
+GUID returned by Register-EventSubscription when the subscription was created.
+
+```yaml
+Type: Guid
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

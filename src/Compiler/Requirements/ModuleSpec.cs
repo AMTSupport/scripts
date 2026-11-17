@@ -32,6 +32,8 @@ public sealed class PathedModuleSpec : ModuleSpec {
         protected set => this.LazyHash = Some(value);
     }
 
+    internal void SetHash(byte[] hash) => this.LazyHash = Some(hash);
+
     /// <summary>
     /// Creates a new PathedModuleSpec from a full path.
     /// </summary>

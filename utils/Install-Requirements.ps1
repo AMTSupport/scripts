@@ -1,5 +1,4 @@
-Using module ../src/common/Environment.psm1
-Using module ../src/common/Logging.psm1
+Using module ../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
 
 Using namespace System.Management.Automation.Language
 
@@ -25,6 +24,7 @@ Invoke-RunMain $PSCmdlet {
 
                 $ast.UsingStatementKind -eq 'Module' `
                     -and $ast.Name.Value -notlike '*.psm1' `
+                    -and $ast.Name.Value -notlike '*.psd1' `
                     -and $ast.Name.Value -notlike '*.ps1';
             }, $True);
 

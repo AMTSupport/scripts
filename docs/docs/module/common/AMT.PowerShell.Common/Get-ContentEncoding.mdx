@@ -1,0 +1,113 @@
+---
+id: Get-ContentEncoding
+title: Get-ContentEncoding
+description: Detects the text encoding of a file or byte array by inspecting its BOM.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Detects the text encoding of a file or byte array by inspecting its BOM.
+
+## SYNTAX
+### Bytes
+
+```powershell
+Get-ContentEncoding -ContentBytes <Byte[]> [<CommonParameters>]
+```
+
+### Path
+
+```powershell
+Get-ContentEncoding -Path <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Reads up to the first four bytes of the input to identify a byte-order mark. Falls back to UTF-8 when no recognised BOM is present.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the Encoding detected from the file's BOM.
+
+```powershell
+Get-ContentEncoding -Path 'C:\file.txt'
+```
+
+
+### Example 2
+
+Returns the Encoding detected from the leading bytes.
+
+```powershell
+Get-ContentEncoding -ContentBytes $bytes
+```
+
+## PARAMETERS
+
+### -ContentBytes
+
+Raw bytes to inspect for a BOM (Bytes parameter set).
+
+```yaml
+Type: Byte[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Bytes
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Path
+
+Path to the file whose leading bytes are inspected for a BOM (Path parameter set).
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Path
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Text.Encoding
+
+## NOTES
+
+## RELATED LINKS

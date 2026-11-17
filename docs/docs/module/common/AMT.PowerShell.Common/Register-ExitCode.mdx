@@ -1,0 +1,78 @@
+---
+id: Register-ExitCode
+title: Register-ExitCode
+description: Registers a human-readable description for a new exit code and returns the assigned code.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Registers a human-readable description for a new exit code and returns the assigned code.
+
+## SYNTAX
+```powershell
+Register-ExitCode [-Description] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Each call allocates the next sequential exit code for the current runspace and stores the supplied description. The description is later retrieved by Invoke-FailedExit to display a meaningful message. Exit codes are runspace-scoped and not shared across sessions.
+
+## EXAMPLES
+
+### Example 1
+
+Registers the description and assigns an integer exit code, returned to
+
+$exitCode
+
+.
+
+```powershell
+$exitCode = Register-ExitCode -Description 'Network connection failed'
+```
+
+## PARAMETERS
+
+### -Description
+
+Human-readable description shown when this exit code is used with Invoke-FailedExit.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Int32
+
+## NOTES
+
+## RELATED LINKS

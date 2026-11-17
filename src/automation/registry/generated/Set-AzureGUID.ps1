@@ -7,10 +7,10 @@
 	None
 #>
 
-using module ../../../../src\common\Registry.psm1
-using module ../../../../src\common\Environment.psm1
-using module ../../../../src\common\Ensure.psm1
-using module ../../../../src\common\Logging.psm1
+Using module ../../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
+
 
 [CmdletBinding()]
 param(

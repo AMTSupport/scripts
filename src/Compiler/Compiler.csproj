@@ -83,8 +83,55 @@
     <EmbeddedResource Include="Resources/ScriptTemplate.ps1" />
     <EmbeddedResource Include="Resources/ExtraModuleInfo/*.jsonc" />
     <EmbeddedResource Include="Resources/ExtraModuleInfo/*.json" />
-    <EmbeddedResource Include="Resources/*.psm1" />
   </ItemGroup>
+
+  <!-- Build runtime module first, then copy assets as embedded resources -->
+  <PropertyGroup>
+    <RuntimeModuleProject>$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/AMT.PowerShell.Common.csproj</RuntimeModuleProject>
+    <RuntimeModuleDll>$(MSBuildThisFileDirectory)../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.dll</RuntimeModuleDll>
+    <RuntimeModulePsd1>$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/Module/AMT.PowerShell.Common.psd1</RuntimeModulePsd1>
+    <RuntimeModuleDest>$(MSBuildThisFileDirectory)obj/RuntimeModule/</RuntimeModuleDest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <RuntimeModuleBuildInputs Include="$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/AMT.PowerShell.Common.csproj" />
+    <RuntimeModuleBuildInputs
+      Include="$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/**/*.cs"
+      Exclude="$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/bin/**;$(MSBuildThisFileDirectory)../AMT.PowerShell.Common/obj/**" />
+    <RuntimeModuleBuildInputs Include="$(RuntimeModulePsd1)" />
+  </ItemGroup>
+
+  <Target
+    Name="BuildRuntimeModuleDependency"
+    BeforeTargets="PrepareRuntimeModule"
+    Inputs="@(RuntimeModuleBuildInputs)"
+    Outputs="$(RuntimeModuleDll)">
+    <MSBuild
+      Projects="$(RuntimeModuleProject)"
+      Targets="Build"
+      Properties="Configuration=$(Configuration)"
+      RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained;PublishSingleFile;PublishTrimmed;PublishTrimmedMode;PublishReadyToRun;PublishReadyToRunComposite;PublishAot" />
+  </Target>
+
+  <Target Name="PrepareRuntimeModule" BeforeTargets="AssignTargetPaths">
+    <MakeDir Directories="$(RuntimeModuleDest)" />
+    <Error
+      Condition="!Exists('$(RuntimeModuleDll)')"
+      Text="Runtime module binary missing at '$(RuntimeModuleDll)'. Build src/AMT.PowerShell.Common/AMT.PowerShell.Common.csproj before publishing Compiler." />
+    <Error
+      Condition="!Exists('$(RuntimeModulePsd1)')"
+      Text="Runtime module manifest missing at '$(RuntimeModulePsd1)'." />
+    <Copy SourceFiles="$(RuntimeModuleDll)" DestinationFolder="$(RuntimeModuleDest)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(RuntimeModulePsd1)" DestinationFolder="$(RuntimeModuleDest)" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <EmbeddedResource
+        Include="$(RuntimeModuleDest)AMT.PowerShell.Common.dll"
+        LogicalName="Compiler.Resources.RuntimeModule.AMT.PowerShell.Common.dll" />
+      <EmbeddedResource
+        Include="$(RuntimeModuleDest)AMT.PowerShell.Common.psd1"
+        LogicalName="Compiler.Resources.RuntimeModule.AMT.PowerShell.Common.psd1" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <!-- Misc -->

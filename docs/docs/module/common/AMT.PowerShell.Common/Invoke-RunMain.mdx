@@ -1,0 +1,138 @@
+---
+id: Invoke-RunMain
+title: Invoke-RunMain
+description: Run a script's main entry-point block with lifecycle management, restart support, and exit-code handling.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Run a script's main entry-point block with lifecycle management, restart support, and exit-code handling.
+
+## SYNTAX
+```powershell
+Invoke-RunMain [-Cmdlet] <PSCmdlet> [-Main] <ScriptBlock> [-HideDisclaimer] [-NotStrict] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Applies Set-StrictMode -Version 3 and prints a legal disclaimer before invoking , unless suppressed via  or . Handles the QuickExit, FailedExit, and RestartScript control-flow error signals, and always invokes registered exit handlers when the run loop terminates. Bound parameters from the calling  are splatted onto .
+
+## EXAMPLES
+
+### Example 1
+
+Runs the script block as the script entry point with strict mode and the disclaimer enabled.
+
+```powershell
+Invoke-RunMain -Cmdlet $PSCmdlet -Main { Write-Host 'Hello' }
+```
+
+## PARAMETERS
+
+### -Cmdlet
+
+Calling cmdlet context; its bound parameters are splatted onto .
+
+```yaml
+Type: PSCmdlet
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -HideDisclaimer
+
+When set, suppresses the legal disclaimer message printed before Main runs.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Main
+
+Script block executed as the script's entry point.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -NotStrict
+
+When set, skips applying Set-StrictMode -Version 3 to the runspace before Main runs.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

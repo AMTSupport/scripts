@@ -1,0 +1,52 @@
+---
+id: Test-IsRunningAsSystem
+title: Test-IsRunningAsSystem
+description: Tests whether the current process is running as the NT AUTHORITY\SYSTEM account.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Tests whether the current process is running as the NT AUTHORITY\SYSTEM account.
+
+## SYNTAX
+```powershell
+Test-IsRunningAsSystem [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns  on non-Windows platforms without throwing.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true when the PowerShell host is running as SYSTEM.
+
+```powershell
+Test-IsRunningAsSystem
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

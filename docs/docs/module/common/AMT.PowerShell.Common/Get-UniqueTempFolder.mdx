@@ -1,0 +1,52 @@
+---
+id: Get-UniqueTempFolder
+title: Get-UniqueTempFolder
+description: Creates and returns a new uniquely-named temporary folder under the system temp directory.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Creates and returns a new uniquely-named temporary folder under the system temp directory.
+
+## SYNTAX
+```powershell
+Get-UniqueTempFolder [<CommonParameters>]
+```
+
+## DESCRIPTION
+Each call generates a distinct folder path using a random or GUID-based name. The caller is responsible for cleaning up the folder when finished. Use Invoke-WithinEphemeral for automatic cleanup.
+
+## EXAMPLES
+
+### Example 1
+
+Creates a new unique temp folder and returns its full path.
+
+```powershell
+$dir = Get-UniqueTempFolder
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

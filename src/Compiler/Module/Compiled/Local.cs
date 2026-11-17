@@ -34,7 +34,7 @@ public class CompiledLocalModule : Compiled {
     protected virtual Fin<string> GetRawContentText() {
         var content = new StringBuilder();
 
-        foreach (var requirement in this.Requirements.GetRequirements()) {
+        foreach (var requirement in this.Requirements.GetRequirements().Where(this.ShouldEmitRequirementLine)) {
             var hashResult = requirement switch {
                 ModuleSpec req => this.FindSibling(req) is { } sibling
                     ? sibling.GetIdentityHash().Map(hash => hash[..6])
@@ -58,6 +58,12 @@ public class CompiledLocalModule : Compiled {
 
     public override Fin<string> StringifyContent() =>
         this.GetRawContentText().Map(text => $"'{Convert.ToBase64String(Encoding.UTF8.GetBytes(text))}'");
+
+    // The runtime bootstrap imports this module by explicit path before any
+    // embedded module is loaded, so it must not be referenced through the
+    // name-hash module folder.
+    protected virtual bool ShouldEmitRequirementLine(Requirement requirement) =>
+        requirement is not ModuleSpec spec || spec.Name != CompiledScript.RuntimeModuleName;
 
     public Fin<Unit> ValidateRequirementsResolved() {
         foreach (var requirement in this.Requirements.GetRequirements<ModuleSpec>()) {

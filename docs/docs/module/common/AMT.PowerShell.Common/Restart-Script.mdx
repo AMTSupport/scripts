@@ -1,0 +1,50 @@
+---
+id: Restart-Script
+title: Restart-Script
+description: Runs exit handlers and signals the host to restart the current script.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Runs exit handlers and signals the host to restart the current script.
+
+## SYNTAX
+```powershell
+Restart-Script [<CommonParameters>]
+```
+
+## DESCRIPTION
+Executes all registered exit handlers (non-failure mode), writes an informational restart message, then throws a terminating error with identifier RestartScript. The calling harness is responsible for catching this error and re-launching the script.
+
+## EXAMPLES
+
+### Example 1
+
+Runs all non-failure exit handlers then signals a restart.
+
+```powershell
+Restart-Script
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

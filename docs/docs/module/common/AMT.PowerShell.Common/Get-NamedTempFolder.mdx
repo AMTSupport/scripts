@@ -1,0 +1,105 @@
+---
+id: Get-NamedTempFolder
+title: Get-NamedTempFolder
+description: Returns the path to a named temporary folder, creating it if necessary.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the path to a named temporary folder, creating it if necessary.
+
+## SYNTAX
+```powershell
+Get-NamedTempFolder [-Name] <String> [-ForceEmpty] [<CommonParameters>]
+```
+
+## DESCRIPTION
+The folder is created under the system temp directory using the supplied name as a subdirectory. The folder persists between calls unless -ForceEmpty is specified, which clears its contents before returning the path.
+
+## EXAMPLES
+
+### Example 1
+
+Returns (or creates) a stable temp folder named MyScript.
+
+```powershell
+$dir = Get-NamedTempFolder -Name 'MyScript'
+```
+
+
+### Example 2
+
+Returns the MyScript temp folder after removing any existing contents.
+
+```powershell
+$dir = Get-NamedTempFolder -Name 'MyScript' -ForceEmpty
+```
+
+## PARAMETERS
+
+### -ForceEmpty
+
+When set, removes all existing contents from the folder before returning its path.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Name
+
+Logical name used as the subdirectory name within the system temp directory.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

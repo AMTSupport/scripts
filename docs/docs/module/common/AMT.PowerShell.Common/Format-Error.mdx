@@ -1,0 +1,196 @@
+---
+id: Format-Error
+title: Format-Error
+description: Formats an  or  into human-readable diagnostic rows.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Formats an  or  into human-readable diagnostic rows.
+
+## SYNTAX
+### ErrorRecord
+
+```powershell
+Format-Error -ErrorRecord <Object> [-Message <String>] [-PassThru] [-PreviewExtraLines <Int32>] [-UnicodePrefix <String>] [<CommonParameters>]
+```
+
+### InvocationInfo
+
+```powershell
+Format-Error -InvocationInfo <InvocationInfo> [-Message <String>] [-PassThru] [-PreviewExtraLines <Int32>] [-UnicodePrefix <String>] [<CommonParameters>]
+```
+
+### (All)
+
+```powershell
+Format-Error [-Message <String>] [-PassThru] [-PreviewExtraLines <Int32>] [-UnicodePrefix <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Produces labelled rows for File, Where, Preview, and Message. When PassThru is set the rows are returned as strings instead of written to the information stream.
+
+## EXAMPLES
+
+### Example 1
+
+Writes formatted diagnostic rows for the current invocation.
+
+```powershell
+Format-Error -InvocationInfo $MyInvocation -Message "Unexpected state"
+```
+
+## PARAMETERS
+
+### -ErrorRecord
+
+The error record to format; accepts ParseError or any object exposing an Extent property.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: ErrorRecord
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -InvocationInfo
+
+The invocation info of the error to format.
+
+```yaml
+Type: InvocationInfo
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: InvocationInfo
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Message
+
+An optional message to append to the formatted output rows.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PassThru
+
+When set, returns the formatted rows as strings instead of writing them to the information stream.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PreviewExtraLines
+
+Number of extra source lines to include around the error location in the Preview row.
+
+```yaml
+Type: Int32
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -UnicodePrefix
+
+Unicode prefix to prepend to the output if the terminal supports Unicode.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [Prefix]
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

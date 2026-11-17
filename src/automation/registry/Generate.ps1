@@ -20,10 +20,10 @@
     System.Void
 #>
 
-using module ..\..\common\Logging.psm1
-using module ..\..\common\Registry.psm1
-using module ..\..\common\Environment.psm1
-using module ..\..\common\Utils.psm1
+Using module ../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
+
 
 [CmdletBinding()]
 param(

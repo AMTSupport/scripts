@@ -1,0 +1,74 @@
+---
+id: Get-ConsoleColour
+title: Get-ConsoleColour
+description: Returns the PSStyle ANSI foreground escape sequence for a given  value.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the PSStyle ANSI foreground escape sequence for a given  value.
+
+## SYNTAX
+```powershell
+Get-ConsoleColour [-Colour] <ConsoleColor> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Maps  enum members to the corresponding $PSStyle.Foreground.* string so callers can embed colour sequences in strings without depending on the PSStyle variable directly.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the ANSI foreground escape sequence for red.
+
+```powershell
+$red = Get-ConsoleColour -Colour Red
+```
+
+## PARAMETERS
+
+### -Colour
+
+The  value to map to a PSStyle foreground sequence.
+
+```yaml
+Type: ConsoleColor
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

@@ -10,17 +10,17 @@ Use this when working on PowerShell code.
 ## Module Structure
 
 ### Imports
-Use `Using module .\X.psm1` at file top (compile-time binding), NOT `Import-Module`.
+Use `Using module <relative>/Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1` at file top (compile-time binding), NOT `Import-Module`.
 
 ### Logging
 Use `Invoke-{Info,Warn,Error,Verbose,Debug}` instead of PowerShell `Write` Cmdlets.
 
-### Common Modules
-- `Logging.psm1` — `Invoke-Write`, `Invoke-Info`, `Invoke-Warn`, `Invoke-Error`, `Invoke-Debug`, `Invoke-Verbose`
-- `Scope.psm1` — `Enter-Scope`, `Exit-Scope` (flow control)
-- `Exit.psm1` — `Invoke-FailedExit` (controlled exits)
-- `Utils.psm1` — `Test-NetworkConnection`, general utilities
-- `Flag.psm1` — `Get-Flag`, `Set-Flag` (idempotency)
+### Common Cmdlets
+- `Invoke-Write`, `Invoke-Info`, `Invoke-Warn`, `Invoke-Error`, `Invoke-Debug`, `Invoke-Verbose`
+- `Enter-Scope`, `Exit-Scope` (flow control)
+- `Invoke-FailedExit` (controlled exits)
+- `Test-NetworkConnection`, general utilities
+- `Get-Flag`, `Set-Flag` (idempotency)
 
 ### Function Template
 ```powershell
@@ -53,7 +53,7 @@ function Verb-Noun {
 - Never use global scope
 
 ### Exports
-Always explicit: `Export-ModuleMember -Function Verb-Noun, Verb-Other;`
+For the binary module, add cmdlets to `CmdletsToExport` in `src/AMT.PowerShell.Common/Module/AMT.PowerShell.Common.psd1`.
 
 ### Error Handling
 ```powershell
@@ -95,13 +95,15 @@ if ($condition) {
 
 ### Testing
 Add tests under `tests/` mirroring the source structure:
-- `src/common/Assert.psm1` → `tests/common/Assert/Assert-NotNull.Tests.ps1`
-- Run single test: `Invoke-Pester tests/common/Assert/Assert-NotNull.Tests.ps1`
+- C# cmdlets → `tests/AMT.PowerShell.Common/Commands/**`
+- PowerShell integration → `tests/microsoft/windows/DriverLock.Tests.ps1`
+- Run single test: `dotnet test tests/AMT.PowerShell.Common/AMT.PowerShell.Common.Tests.csproj --filter "ClassName"`
 
 ## Commands
 - **Lint**: `Invoke-ScriptAnalyzer -Path src -Recurse -Settings PSScriptAnalyzerSettings.psd1`
 - **Test**: `Invoke-Pester -Configuration (Import-PowerShellDataFile tests/PesterConfiguration.psd1)`
 
 ## Reference Files
-- `src/common/PackageManager.psm1` — canonical module example
+- `src/AMT.PowerShell.Common/Commands/PackageManager/InstallManagedPackageCommand.cs` — canonical cmdlet example
+- `src/AMT.PowerShell.Common/Module/AMT.PowerShell.Common.psd1` — export surface
 - `PSScriptAnalyzerSettings.psd1` — linter rules

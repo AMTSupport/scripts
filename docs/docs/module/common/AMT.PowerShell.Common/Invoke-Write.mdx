@@ -1,0 +1,243 @@
+---
+id: Invoke-Write
+title: Invoke-Write
+description: Writes a formatted, coloured message to the host or returns it as a string.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Writes a formatted, coloured message to the host or returns it as a string.
+
+## SYNTAX
+### InputObject
+
+```powershell
+Invoke-Write [[-InputObject] <Hashtable>] [<CommonParameters>]
+```
+
+### Splat
+
+```powershell
+Invoke-Write [-InformationTag <String>] [-MultiLineIndent <Int32>] -PSColour <String> -PSMessage <String> [-PSPrefix <String>] [-PassThru] [-ShouldWrite <Boolean>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+This is the low-level write helper used by all level-specific cmdlets. When ShouldWrite is false the call is a no-op. When PassThru is set the formatted string is returned to the pipeline instead. An optional InformationTag is attached when writing to the information stream.
+
+## EXAMPLES
+
+### Example 1
+
+Writes "Done" in green to the console.
+
+```powershell
+Invoke-Write -PSMessage "Done" -PSColour "Green" -ShouldWrite $true
+```
+
+
+### Example 2
+
+Returns the formatted string via the pipeline.
+
+```powershell
+Invoke-Write @{ PSMessage = "Hello"; PSColour = "Cyan"; PassThru = $true }
+```
+
+## PARAMETERS
+
+### -InformationTag
+
+Optional tag attached to the information stream record, used to filter output downstream.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -InputObject
+
+Hashtable of parameters to splat into the cmdlet; when provided, all other parameters are ignored.
+
+```yaml
+Type: Hashtable
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: InputObject
+  Position: 0
+  IsRequired: false
+  ValueFromPipeline: true
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -MultiLineIndent
+
+Number of spaces to indent continuation lines of a multi-line message.
+
+```yaml
+Type: Int32
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PSColour
+
+Console colour name for the message text (e.g., "Cyan", "Red").
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PSMessage
+
+The message text to format and write.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PSPrefix
+
+Optional Unicode prefix (e.g., an emoji) to prepend to the message.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PassThru
+
+When set, returns the formatted string to the pipeline instead of writing it to the host.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ShouldWrite
+
+When explicitly false, suppresses all output; null or true allows writing.
+
+```yaml
+Type: Boolean
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: Splat
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: true
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

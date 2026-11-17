@@ -1,0 +1,72 @@
+---
+id: Register-Event
+title: Register-Event
+description: Register a CLR type as a dispatchable event in the event store.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Register a CLR type as a dispatchable event in the event store.
+
+## SYNTAX
+```powershell
+Register-Event [-EventType] <Type> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Creates an empty  for the given type. Must be called before Register-EventSubscription or Submit-Event can be used with that type.
+
+## EXAMPLES
+
+### Example 1
+
+Registers MyEvent so that subscriptions and dispatches can target it.
+
+```powershell
+Register-Event -EventType ([MyEvent])
+```
+
+## PARAMETERS
+
+### -EventType
+
+CLR type to register as a dispatchable event.
+
+```yaml
+Type: Type
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

@@ -3,10 +3,7 @@
 
 Using namespace System.Management.Automation
 
-Using module ../src/common/Environment.psm1
-Using module ../src/common/Logging.psm1
-Using module ../src/common/Exit.psm1
-Using module ../src/common/Input.psm1
+Using module ../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
 
 Using module 'PSWindowsUpdate'
 

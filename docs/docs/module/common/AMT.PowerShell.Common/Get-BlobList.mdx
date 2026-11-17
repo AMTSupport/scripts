@@ -1,0 +1,96 @@
+---
+id: Get-BlobList
+title: Get-BlobList
+description: Return the names of all blobs in an Azure Blob Storage container.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Return the names of all blobs in an Azure Blob Storage container.
+
+## SYNTAX
+```powershell
+Get-BlobList [-ContainerUrl] <String> [-SasQueryString] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Issues paginated comp=list requests against the container, following NextMarker tokens until all pages are retrieved. Each blob name is emitted individually to the pipeline.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the names of every blob in the container.
+
+```powershell
+Get-BlobList -ContainerUrl 'https://account.blob.core.windows.net/fonts' -SasQueryString $qs
+```
+
+## PARAMETERS
+
+### -ContainerUrl
+
+The base URL of the Azure Blob Storage container (no trailing slash, no query string).
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -SasQueryString
+
+The pre-parsed SAS query string used to authenticate the request; obtained from ConvertTo-SasQueryString.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String[]
+
+## NOTES
+
+## RELATED LINKS

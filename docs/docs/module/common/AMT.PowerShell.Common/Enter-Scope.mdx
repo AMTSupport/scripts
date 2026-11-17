@@ -1,0 +1,142 @@
+---
+id: Enter-Scope
+title: Enter-Scope
+description: Pushes the caller's invocation onto the runspace scope stack.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Pushes the caller's invocation onto the runspace scope stack.
+
+## SYNTAX
+```powershell
+Enter-Scope [-ArgumentFormatter <Hashtable>] [-IgnoreParams <String[]>] [-Invocation <InvocationInfo>] [-PassThru] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Records the caller's  and starts an elapsed-time stopwatch for the scope. When $VerbosePreference is Continue, emits a formatted entry message showing the scope name and bound parameters. Pair with Exit-Scope to close the scope.
+
+## EXAMPLES
+
+### Example 1
+
+Wraps a function body in a named, timed scope.
+
+```powershell
+function Invoke-MyFunction {
+                Enter-Scope -Invocation $MyInvocation
+                # ... work ...
+                Exit-Scope
+            }
+```
+
+## PARAMETERS
+
+### -ArgumentFormatter
+
+Hashtable mapping parameter names to script blocks that format their values in verbose output.
+
+```yaml
+Type: Hashtable
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -IgnoreParams
+
+Parameter names to omit from the verbose parameter listing.
+
+```yaml
+Type: String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Invocation
+
+Explicit  to record; defaults to the caller's $MyInvocation when omitted.
+
+```yaml
+Type: InvocationInfo
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PassThru
+
+When set, writes the formatted scope-entry message to the pipeline instead of the information stream.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

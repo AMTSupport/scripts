@@ -1,0 +1,76 @@
+---
+id: Invoke-Handlers
+title: Invoke-Handlers
+description: Runs all registered exit handlers for the current runspace.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Runs all registered exit handlers for the current runspace.
+
+## SYNTAX
+```powershell
+Invoke-Handlers [-IsFailure] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Iterates every handler registered via Register-ExitHandler. Handlers marked OnlyFailure are skipped unless  is set. Debug and warning messages produced by handlers are forwarded to the calling stream.
+
+## EXAMPLES
+
+### Example 1
+
+Runs all exit handlers, including those registered with
+
+-OnlyFailure
+
+.
+
+```powershell
+Invoke-Handlers -IsFailure
+```
+
+## PARAMETERS
+
+### -IsFailure
+
+Indicate that the current exit is a failure, enabling handlers registered with -OnlyFailure.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

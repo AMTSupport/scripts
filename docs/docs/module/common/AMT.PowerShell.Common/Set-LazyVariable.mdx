@@ -1,0 +1,127 @@
+---
+id: Set-LazyVariable
+title: Set-LazyVariable
+description: Defines a read-only script variable whose value is computed lazily on first access.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Defines a read-only script variable whose value is computed lazily on first access.
+
+## SYNTAX
+```powershell
+Set-LazyVariable [-Name] <String> [-Value] <ScriptBlock> [-PassThru] [<CommonParameters>]
+```
+
+## DESCRIPTION
+The variable is set in the caller's local scope as read-only. The first time it is read, the Value script block executes and the result is memoised. Also available as the alias lazy.
+
+## EXAMPLES
+
+### Example 1
+
+Creates a lazy $Config variable that loads the config file on first use.
+
+```powershell
+Set-LazyVariable -Name 'Config' -Value { Import-PowerShellDataFile 'config.psd1' }
+```
+
+
+### Example 2
+
+Same as above using the lazy alias.
+
+```powershell
+lazy Config { Import-PowerShellDataFile 'config.psd1' }
+```
+
+## PARAMETERS
+
+### -Name
+
+The variable name to create in the caller's local scope.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PassThru
+
+When set, emits the generated lazy script block to the pipeline.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Value
+
+Script block invoked on first access to compute the variable's value.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 2
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Management.Automation.ScriptBlock
+
+## NOTES
+
+## RELATED LINKS

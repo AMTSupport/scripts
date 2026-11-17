@@ -1,0 +1,74 @@
+---
+id: Get-Ast
+title: Get-Ast
+description: Returns the PowerShell AST for a script block, script file path, or existing Ast node.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the PowerShell AST for a script block, script file path, or existing Ast node.
+
+## SYNTAX
+```powershell
+Get-Ast -InputObject <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Accepts a ScriptBlock, a file path string, or an existing Ast node. Returns nothing when the input cannot be parsed as a script.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the ScriptBlockAst for the given script block.
+
+```powershell
+Get-Ast -InputObject { param($x) $x }
+```
+
+## PARAMETERS
+
+### -InputObject
+
+The script block, file path, or Ast node to parse into an Ast tree.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Management.Automation.Language.Ast
+
+## NOTES
+
+## RELATED LINKS

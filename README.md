@@ -25,7 +25,7 @@ ______________________________________________________________________
 - [**compiled**](./compiled/): Contains compiled versions of the scripts for usage outside of the repository.
 - [**src**](./src): Contains the source code for all the scripts.
   - [**Compiler**](./src/Compiler): Contains the C# Compiler which is used to compile the scripts.
-  - [**Common**](./src/common): Contains common utility modules.
+  - [**AMT.PowerShell.Common**](./src/AMT.PowerShell.Common): Contains the C# common utility module.
   - [**External**](./src/external): Contains scripts that are from external sources which are patched or modified.
   - [**Automation/Registry**](./src/automation/registry): Contains generated registry scripts.
 - [**tests**](./tests): Test scripts and test data for ensuring script reliability.

@@ -1,0 +1,52 @@
+---
+id: Test-NetworkConnection
+title: Test-NetworkConnection
+description: Tests whether any network interface with internet connectivity is available.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Tests whether any network interface with internet connectivity is available.
+
+## SYNTAX
+```powershell
+Test-NetworkConnection [<CommonParameters>]
+```
+
+## DESCRIPTION
+Inspects local network interfaces for an operational adapter that is internet-capable. Returns  when such an interface exists, otherwise .
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true if at least one internet-capable network interface is up.
+
+```powershell
+Test-NetworkConnection
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

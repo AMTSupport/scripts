@@ -1,6 +1,6 @@
 #Requires -RunAsAdministrator
 
-Using module ..\..\common\Environment.psm1
+Using module ../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
 Using module .\Update-ToWin11.psm1
 
 [CmdletBinding()]

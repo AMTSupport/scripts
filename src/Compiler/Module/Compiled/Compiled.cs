@@ -196,7 +196,9 @@ public abstract class Compiled(ModuleSpec moduleSpec, RequirementGroup requireme
 
         var rootParent = this.GetRootParent();
         if (rootParent is not CompiledScript rootGraphParent) {
-            return Error.New($"Module {this.ModuleSpec.Name} has no root parent while computing requirement hash bytes.");
+            return Error.New(
+                $"Module {this.ModuleSpec.Name} has no root parent while computing requirement hash bytes "
+                + $"(RootScript={this.RootScript.IsSome}, Parents={this.Parents.Count}).");
         }
 
         var rootGraph = rootGraphParent.Graph;

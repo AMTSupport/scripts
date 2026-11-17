@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<?xml-model href="https://github.com/msbuild/msbuild/blob/main/src/MSBuild/Microsoft.Build.xsd"?>
+<Project Sdk="Microsoft.NET.Sdk" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AMT.PowerShell.Common</RootNamespace>
+    <AssemblyName>AMT.PowerShell.Common</AssemblyName>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1416;CS1591</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <OutputModuleName>AMT.PowerShell.Common</OutputModuleName>
+    <OutputModuleRoot>$(MSBuildThisFileDirectory)..\..\Output\PowerShellModules\$(OutputModuleName)</OutputModuleRoot>
+    <OutputModuleRoot
+      Condition="$([System.String]::Copy('$(OutputModuleRoot)').Contains('\\'))"
+    >$([System.String]::Copy('$(OutputModuleRoot)').Replace('\\', '/'))</OutputModuleRoot>
+    <ManifestFileName>$(OutputModuleRoot)/$(OutputModuleName).psd1</ManifestFileName>
+    <RuntimeTargetsDir>$(MSBuildThisFileDirectory)runtimes</RuntimeTargetsDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <Optimize>false</Optimize>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <Optimize>true</Optimize>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Module\$(OutputModuleName).psd1" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="PreparePowerShellModule" BeforeTargets="Build">
+    <MakeDir Directories="$(OutputModuleRoot)" />
+  </Target>
+
+  <Target Name="CopyPowerShellModuleFiles" AfterTargets="Build">
+    <ItemGroup>
+      <_PowerShellModuleFiles Include="$(TargetDir)$(TargetFileName)" />
+      <_PowerShellModuleFiles Include="$(TargetDir)*.dll" Exclude="$(TargetDir)$(TargetFileName)" />
+      <_PowerShellModuleFiles
+        Include="$(ProjectDir)Module/$(OutputModuleName).psd1"
+        Condition="Exists('$(ProjectDir)Module/$(OutputModuleName).psd1')"
+      />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_PowerShellModuleFiles)" DestinationFolder="$(OutputModuleRoot)" SkipUnchangedFiles="true" />
+
+    <!-- Copy en-AU help directory if it exists -->
+    <ItemGroup>
+      <_HelpFiles Include="$(ProjectDir)Module/en-AU/*" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutputModuleRoot)/en-AU" Condition="@(_HelpFiles->Count()) &gt; 0" />
+    <Copy SourceFiles="@(_HelpFiles)" DestinationFolder="$(OutputModuleRoot)/en-AU" SkipUnchangedFiles="true" Condition="@(_HelpFiles->Count()) &gt; 0" />
+  </Target>
+</Project>

@@ -1,0 +1,96 @@
+---
+id: Test-Parameters
+title: Test-Parameters
+description: Tests whether all parameters in a script block are declared with types from the allowed set.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Tests whether all parameters in a script block are declared with types from the allowed set.
+
+## SYNTAX
+```powershell
+Test-Parameters -InputObject <Object> -ValidTypes <String[]> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Statically analyses the param block of the input script to verify that every parameter type name is present in ValidTypes.
+
+## EXAMPLES
+
+### Example 1
+
+Returns $true because the parameter is typed as string.
+
+```powershell
+Test-Parameters -InputObject { param([string]$x) } -ValidTypes 'string'
+```
+
+## PARAMETERS
+
+### -InputObject
+
+The script block, file path, or Ast node whose parameters are validated.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ValidTypes
+
+The set of type name strings that parameters are permitted to use.
+
+```yaml
+Type: String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS
