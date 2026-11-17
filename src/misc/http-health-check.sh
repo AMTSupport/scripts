@@ -10,6 +10,9 @@
 # Debug mode:
 #   DEBUG=1 ./script.sh <url> <jq_arg>
 
+# Set to "true" by validate_jq_arg; reused in fetch_response to avoid re-running jq.
+IS_ARRAY=false
+
 debug() {
     [ "$DEBUG" = "1" ] && echo "[DEBUG] $*"
 }
@@ -56,29 +59,21 @@ validate_jq_arg() {
 
     debug "Validating jq arguments"
 
-    # Try to parse as JSON first
-    if ! echo "$jq_arg" | jq . >/dev/null 2>&1; then
+    local jq_type
+    jq_type=$(echo "$jq_arg" | jq -r 'type' 2>/dev/null)
+    if [ $? -ne 0 ]; then
         echo "Error: JQ argument is not valid JSON"
         echo "Received: $jq_arg"
         exit 1
     fi
 
-    # Check if it's an array (multiple checks)
-    if echo "$jq_arg" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    if [ "$jq_type" = "array" ]; then
+        IS_ARRAY=true
         debug "Validating multiple checks"
 
-        local count
-        count=$(echo "$jq_arg" | jq '. | length')
-        debug "Found $count checks"
-
-        # Validate each check has required fields and valid queries
         local check_num=0
-        while IFS= read -r check; do
+        while IFS=$'\t' read -r name query; do
             ((check_num++))
-            local name
-            local query
-            name=$(echo "$check" | jq -r '.name // empty')
-            query=$(echo "$check" | jq -r '.query // empty')
 
             if [ -z "$name" ]; then
                 echo "Error: Check $check_num missing 'name' field"
@@ -95,12 +90,14 @@ validate_jq_arg() {
                 echo "Error: Check $check_num (name: $name) has invalid jq query: $query"
                 exit 1
             fi
-        done < <(echo "$jq_arg" | jq -c '.[]')
+        done < <(echo "$jq_arg" | jq -r '.[] | "\(.name // "")\t\(.query // "")"')
+
+        debug "Found $check_num checks"
     else
         # Single check - validate it's valid jq syntax
         debug "Validating single jq query: $jq_arg"
 
-        if ! echo "{}" | jq "$jq_arg" >/dev/null 2>&1; then
+        if ! echo "{}" | jq -e "$jq_arg" >/dev/null 2>&1; then
             echo "Error: Invalid jq query: $jq_arg"
             exit 1
         fi
@@ -109,7 +106,7 @@ validate_jq_arg() {
     debug "JQ validation passed"
 }
 
-# Fetch the response from the endpoint with a retry mechanism
+# Fetch the response from the endpoint with a retry mechanism.
 # Retries up to 3 times with a 5-second delay between attempts.
 fetch_response() {
     local url="$1"
@@ -134,7 +131,7 @@ fetch_response() {
 
         if [ "$http_status" -ge 200 ] && [ "$http_status" -lt 300 ]; then
             debug "Got 2xx response, checking jq condition"
-            if echo "$jq_arg" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            if [ "$IS_ARRAY" = "true" ]; then
                 debug "Multiple checks detected"
                 check_multiple "$response" "$jq_arg" && return 0
             else
@@ -146,14 +143,17 @@ fetch_response() {
                     echo "$output"
                     debug "Check passed, returning success"
                     return 0
-                else
-                    debug "Check failed (false or null), will retry"
                 fi
             fi
+            debug "Check failed, will retry"
         else
             echo "Attempt $attempt: Received HTTP status $http_status. Retrying in $delay seconds..."
+        fi
+
+        # Increment unconditionally so a 2xx-but-failing check also advances.
+        ((attempt++))
+        if [ $attempt -le $max_retries ]; then
             sleep $delay
-            ((attempt++))
         fi
     done
 
@@ -168,19 +168,12 @@ check_multiple() {
 
     debug "Checking multiple conditions"
 
-    # Use process substitution to avoid subshell
-    while IFS= read -r check; do
-        local name
-        name=$(echo "$check" | jq -r '.name')
-        local query
-        query=$(echo "$check" | jq -r '.query')
-
+    while IFS=$'\t' read -r name query; do
         debug "Checking: $name with query: $query"
 
         local result
-        local exit_code
         result=$(echo "$response" | jq "$query" 2>/dev/null)
-        exit_code=$?
+        local exit_code=$?
 
         debug "$name result: $result (exit: $exit_code)"
 
@@ -189,13 +182,13 @@ check_multiple() {
             return 1
         fi
 
-        if echo "$result" | jq -e . >/dev/null 2>&1 && [ "$result" != "false" ] && [ "$result" != "null" ]; then
-            echo "✓ $name: $result"
-        else
+        if [ "$result" = "false" ] || [ "$result" = "null" ]; then
             echo "✗ $name: $result"
             return 1
         fi
-    done < <(echo "$checks_json" | jq -r '.[] | @json')
+
+        echo "✓ $name: $result"
+    done < <(echo "$checks_json" | jq -r '.[] | "\(.name)\t\(.query)"')
 
     debug "All checks passed"
     return 0
