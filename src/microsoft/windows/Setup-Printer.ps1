@@ -26,13 +26,15 @@ Using module ..\..\common\Lock.psm1
     A 5 minute timeout will be used to wait for the driver to be installed asychronously.
 
 .PARAMETER Manufacturer
-    If specified and one of 'Ricoh', 'HP', 'Konica Minolta', or 'Kyocera', the driver will be installed based on the manufacturer.
+    If specified and one of 'Ricoh', 'HP', 'Konica Minolta', 'Kyocera', or 'Canon', the driver will be installed based on the manufacturer.
 
 .PARAMETER DriverFile
     Path to a pre-downloaded driver archive file.
     If specified, the script uses this file instead of downloading it.
     Only valid for manufacturer-based installations.
     Must point to an existing file on disk.
+    For Canon this may be either the vendor self-extracting executable or an already-extracted driver package directory.
+    If omitted and no cached copy exists at C:\temp\AMT_SetupPrinter_Driver_Canon.exe, the package is downloaded from Canon's CDN and verified against a pinned SHA256 before use.
 
 .PARAMETER Force
     If specified, printer will be added even if the computer cannot contact the printer.
@@ -58,7 +60,7 @@ Param(
     [String]$ChocoDriver,
 
     [Parameter(Mandatory, Position = 2, ParameterSetName = 'ByManufacturer')]
-    [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera')]
+    [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera', 'Canon')]
     [String]$Manufacturer,
 
     [Parameter(ParameterSetName = 'ByManufacturer')]
@@ -83,6 +85,80 @@ function Invoke-DownloadWithProgress {
         Invoke-WebRequest -Uri $Uri -OutFile $OutFile;
     } finally {
         $ProgressPreference = $OriginalProgressPreference;
+    }
+}
+
+function Expand-WinZipSfxArchive {
+    param(
+        [Parameter(Mandatory)]
+        [String]$Path,
+        [Parameter(Mandatory)]
+        [String]$Destination
+    )
+    # WinZip self-extractors store central directory offsets relative to the start of the
+    # executable, so the embedded ZIP cannot be opened directly. Carve it out and rebase
+    # the offsets onto the start of the archive.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem;
+
+    # .NET file APIs resolve relative paths against the process working directory, which does
+    # not follow Set-Location; anchor both paths to the caller's PowerShell location.
+    if (-not [System.IO.Path]::IsPathRooted($Path)) {
+        $Path = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $Path));
+    }
+    if (-not [System.IO.Path]::IsPathRooted($Destination)) {
+        $Destination = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).ProviderPath $Destination));
+    }
+
+    [Byte[]]$Local:Bytes = [System.IO.File]::ReadAllBytes($Path);
+
+    [Int32]$Local:Eocd = -1;
+    [Int32]$Local:Floor = [Math]::Max(0, $Local:Bytes.Length - 65558);
+    for ([Int32]$i = $Local:Bytes.Length - 22; $i -ge $Local:Floor; $i--) {
+        if ($Local:Bytes[$i] -eq 0x50 -and $Local:Bytes[$i + 1] -eq 0x4B -and $Local:Bytes[$i + 2] -eq 0x05 -and $Local:Bytes[$i + 3] -eq 0x06) {
+            $Local:Eocd = $i;
+            break;
+        }
+    }
+    if ($Local:Eocd -lt 0) {
+        throw "Could not locate an embedded ZIP archive in $Path.";
+    }
+
+    [Int32]$Local:CdSize = [BitConverter]::ToUInt32($Local:Bytes, $Local:Eocd + 12);
+    [Int32]$Local:CdOffset = [BitConverter]::ToUInt32($Local:Bytes, $Local:Eocd + 16);
+
+    if ($Local:Bytes[$Local:CdOffset] -ne 0x50 -or $Local:Bytes[$Local:CdOffset + 2] -ne 0x01) {
+        throw "Unexpected central directory signature in $Path; unsupported self-extractor layout.";
+    }
+
+    [Int32]$Local:ArchiveStart = [Int32]::MaxValue;
+    for ([Int32]$Local:Entry = $Local:CdOffset; $Local:Entry -lt ($Local:CdOffset + $Local:CdSize);) {
+        [Int32]$Local:LocalOffset = [BitConverter]::ToUInt32($Local:Bytes, $Local:Entry + 42);
+        if ($Local:LocalOffset -lt $Local:ArchiveStart) { $Local:ArchiveStart = $Local:LocalOffset; }
+        $Local:Entry += 46 + [BitConverter]::ToUInt16($Local:Bytes, $Local:Entry + 28) + [BitConverter]::ToUInt16($Local:Bytes, $Local:Entry + 30) + [BitConverter]::ToUInt16($Local:Bytes, $Local:Entry + 32);
+    }
+    if ($Local:ArchiveStart -lt 0 -or $Local:ArchiveStart -ge $Local:CdOffset) {
+        throw "Computed an invalid archive start offset ($($Local:ArchiveStart)).";
+    }
+
+    [Int32]$Local:Length = ($Local:Eocd + 22) - $Local:ArchiveStart;
+    [Byte[]]$Local:Archive = New-Object Byte[] $Local:Length;
+    [Array]::Copy($Local:Bytes, $Local:ArchiveStart, $Local:Archive, 0, $Local:Length);
+
+    [Int32]$Local:RelativeCdOffset = $Local:CdOffset - $Local:ArchiveStart;
+    [Array]::Copy([BitConverter]::GetBytes([UInt32]$Local:RelativeCdOffset), 0, $Local:Archive, $Local:Eocd - $Local:ArchiveStart + 16, 4);
+
+    for ([Int32]$Local:Entry = $Local:RelativeCdOffset; $Local:Entry -lt ($Local:RelativeCdOffset + $Local:CdSize);) {
+        [Int32]$Local:LocalOffset = [BitConverter]::ToUInt32($Local:Archive, $Local:Entry + 42);
+        [Array]::Copy([BitConverter]::GetBytes([UInt32]($Local:LocalOffset - $Local:ArchiveStart)), 0, $Local:Archive, $Local:Entry + 42, 4);
+        $Local:Entry += 46 + [BitConverter]::ToUInt16($Local:Archive, $Local:Entry + 28) + [BitConverter]::ToUInt16($Local:Archive, $Local:Entry + 30) + [BitConverter]::ToUInt16($Local:Archive, $Local:Entry + 32);
+    }
+
+    [String]$Local:ZipPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
+    try {
+        [System.IO.File]::WriteAllBytes($Local:ZipPath, $Local:Archive);
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($Local:ZipPath, $Destination);
+    } finally {
+        Remove-Item -LiteralPath $Local:ZipPath -Force -ErrorAction SilentlyContinue;
     }
 }
 
@@ -230,6 +306,112 @@ function Install-Driver_KonciaMinolta() {
     return $DriverName;
 }
 
+function Install-Driver_Canon {
+    [OutputType([String])]
+    param(
+        [String]$DriverFile
+    )
+    # The package ships two self-consistent driver packages that share the same binaries but
+    # register different driver names against the same hardware IDs:
+    #   Driver\ -> "Canon Generic Plus PCL6"      (DataFile Cnp61M.XPD,    DriverVer 06/23/2026)
+    #   etc\    -> "Canon Generic Plus PCL6 V350" (DataFile CNP6350M.XPD,  DriverVer 06/22/2026)
+    # Driver\ is the default; the V350 variant exists so a build can sit alongside an existing
+    # Generic Plus queue under a version-stamped name.
+    [String]$DriverName = 'Canon Generic Plus PCL6';
+    [String]$VersionedDriverName = 'Canon Generic Plus PCL6 V350';
+    [String]$InfName = 'CNP60MA64.INF';
+    # Canon's redirector is the stable entry point; the object URL behind it needs gds/<shard>/
+    # which cannot be derived (shard 5 for this build, 404 on every other shard). Returns a 302
+    # to the exact package with no cookie, referer or user-agent requirement.
+    # Article: https://asia.canon/en/support/0101313501 (Generic Plus PCL6 V3.50, Windows 64bit)
+    [String]$DownloadUrl = 'https://pdisp01.c-wss.com/gdl/WWUFORedirectTarget.do?id=MDEwMDAxMzEzNTAx&cmp=ACB&lang=EN';
+    [String]$DownloadFile = 'GPlus_PCL6_Driver_V350_W64_00.exe';
+    [String]$PackageHash = '2e47a2fbbdb047e71c78a0dfc72756d86eeedceb28d2ff5dcfefdbc053a87bac';
+
+    if (Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue) {
+        Invoke-Info "Driver $DriverName already installed, skipping...";
+        return $DriverName;
+    }
+    if (Get-PrinterDriver -Name $VersionedDriverName -ErrorAction SilentlyContinue) {
+        Invoke-Info "Driver $VersionedDriverName already installed, skipping...";
+        return $VersionedDriverName;
+    }
+
+    [Hashtable]$Local:Selection = @{ DriverName = $DriverName; };
+
+    Invoke-WithinEphemeral {
+        [String]$Local:PackagePath = $DriverFile;
+        [Boolean]$Local:Downloaded = $false;
+
+        if (-not $Local:PackagePath) {
+            Invoke-UnderLock -ResourceId 'Canon' -ScriptBlock {
+                param([String]$Url, [String]$File)
+                Invoke-Info "Downloading Canon Generic Plus PCL6 driver from $Url...";
+                Invoke-DownloadWithProgress -Uri $Url -OutFile $File;
+            } -ArgumentList $DownloadUrl, $DownloadFile;
+            $Local:PackagePath = $DownloadFile;
+            $Local:Downloaded = $true;
+        }
+
+        if (-not (Test-Path -LiteralPath $Local:PackagePath)) {
+            throw "Canon driver package $Local:PackagePath does not exist.";
+        }
+
+        if ($Local:Downloaded) {
+            [String]$Local:ActualHash = (Get-FileHash -LiteralPath $Local:PackagePath -Algorithm SHA256).Hash;
+            if ($Local:ActualHash -ne $PackageHash) {
+                throw "Canon driver package hash mismatch: expected $PackageHash, got $Local:ActualHash. Update the pinned hash deliberately after validating a new release.";
+            }
+            Invoke-Info "Canon driver package verified (SHA256 $Local:ActualHash).";
+        }
+
+        [String]$Local:ExpandedPath = 'Canon';
+
+        if (Test-Path -LiteralPath $Local:PackagePath -PathType Container) {
+            Invoke-Info "Using pre-extracted Canon driver package at $Local:PackagePath";
+            $Local:ExpandedPath = $Local:PackagePath;
+        } else {
+            Invoke-Info 'Extracting Canon Generic Plus PCL6 driver package...';
+            Expand-WinZipSfxArchive -Path $Local:PackagePath -Destination $Local:ExpandedPath;
+        }
+
+        [System.IO.FileInfo]$Local:InfPath = Get-ChildItem -Path (Join-Path $Local:ExpandedPath 'Driver') -Filter $InfName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1;
+        [String]$Local:SelectedDriverName = $DriverName;
+        if (-not $Local:InfPath) {
+            # Fall back to etc\, where the same package registers the version-stamped driver name.
+            $Local:InfPath = Get-ChildItem -Path (Join-Path $Local:ExpandedPath 'etc') -Filter $InfName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1;
+            $Local:SelectedDriverName = $VersionedDriverName;
+        }
+        if (-not $Local:InfPath) {
+            throw "Could not find $InfName in the extracted Canon driver package at $Local:ExpandedPath";
+        }
+        $Selection.DriverName = $Local:SelectedDriverName;
+        Invoke-Info "Driver name selected: $Local:SelectedDriverName";
+
+        Invoke-Info "Inf file found: $($Local:InfPath.FullName)";
+        Invoke-Info 'Staging Canon driver package...';
+        pnputil.exe /add-driver $Local:InfPath.FullName /install | Out-Null;
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            throw "pnputil failed to stage $InfName (exit code $LASTEXITCODE).";
+        }
+
+        [String]$Local:WindowsDriverPath = 'C:\Windows\System32\DriverStore\FileRepository';
+        [System.IO.DirectoryInfo]$Local:DriverPath = Get-ChildItem -Path $Local:WindowsDriverPath -Filter 'cnp60ma64.inf_*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.PSIsContainer } |
+            Select-Object -First 1;
+
+        if ($Local:DriverPath) {
+            Invoke-Info "Driver path: $($Local:DriverPath.FullName)";
+            Add-PrinterDriver -Name $Local:SelectedDriverName -InfPath (Join-Path $Local:DriverPath.FullName $InfName);
+        } else {
+            Invoke-Warn "Could not locate $InfName in the driver store, adding driver by name.";
+            Add-PrinterDriver -Name $Local:SelectedDriverName;
+        }
+    }
+
+    return $Selection.DriverName;
+}
+
 function Install-Driver_ByDriverName(
     [String]$DriverName,
     [String]$ChocolateyPackage
@@ -277,7 +459,7 @@ function Install-Driver_ByManufacturer {
     [OutputType([String])]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera')]
+        [ValidateSet('Ricoh', 'HP', 'Konica Minolta', 'Kyocera', 'Canon')]
         [String]$Manufacturer,
 
         [String]$PrinterDriver,
@@ -289,7 +471,8 @@ function Install-Driver_ByManufacturer {
     end { Exit-Scope; }
 
     process {
-        $Local:DefaultDriverPath = "C:\temp\AMT_SetupPrinter_Driver_$Manufacturer.zip";
+        $Local:DefaultDriverExtension = if ($Manufacturer -eq 'Canon') { '.exe' } else { '.zip' };
+        $Local:DefaultDriverPath = "C:\temp\AMT_SetupPrinter_Driver_$Manufacturer$($Local:DefaultDriverExtension)";
 
         if ($DriverFile) {
             Invoke-Info "Using specified driver file $DriverFile for manufacturer $Manufacturer";
@@ -306,6 +489,7 @@ function Install-Driver_ByManufacturer {
             'HP' { Install-Driver_HP; }
             'Konica Minolta' { Install-Driver_KonciaMinolta; }
             'Kyocera' { Install-Driver_Kyocera -DriverFile $DriverFile; }
+            'Canon' { Install-Driver_Canon -DriverFile $DriverFile; }
             default { throw "Unknown manufacturer $Manufacturer"; }
         }
 
