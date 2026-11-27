@@ -1,0 +1,75 @@
+---
+id: Invoke-OnEachUserHive
+title: Invoke-OnEachUserHive
+description: Runs a script block against each local user's registry hive.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Runs a script block against each local user's registry hive.
+
+## SYNTAX
+```powershell
+Invoke-OnEachUserHive [-ScriptBlock] <ScriptBlock> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Enumerates all user profiles under HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList (filtering to standard and AzureAD SIDs). For each profile, temporarily loads the ntuser.dat hive via reg.exe if it is not already mounted, invokes the script block, then unloads the hive if it was loaded by this cmdlet. The script block receives a PSObject with SID, UserHive, and Username properties. Only supported on Windows.
+
+## EXAMPLES
+
+### Example 1
+
+Writes a DWord registry value to every loaded user hive.
+
+```powershell
+Invoke-OnEachUserHive -ScriptBlock {
+                param($hive)
+                Set-RegistryKey -Path "Registry::HKEY_USERS\$($hive.SID)\SOFTWARE\MyApp" -Key 'Setting' -Value '1' -Kind DWord
+            }
+```
+
+## PARAMETERS
+
+### -ScriptBlock
+
+Script block to execute for each user profile; receives a PSObject with SID, UserHive, and Username.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

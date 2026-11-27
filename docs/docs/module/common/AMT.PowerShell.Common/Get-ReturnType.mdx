@@ -1,0 +1,74 @@
+---
+id: Get-ReturnType
+title: Get-ReturnType
+description: Infers the .NET return types of a PowerShell script block or AST.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Infers the .NET return types of a PowerShell script block or AST.
+
+## SYNTAX
+```powershell
+Get-ReturnType -InputObject <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Performs static analysis of the AST output pipeline to determine possible return types. Variable references in the script are resolved against the current session state.
+
+## EXAMPLES
+
+### Example 1
+
+Returns typeof(string).
+
+```powershell
+Get-ReturnType -InputObject { [string]'hello' }
+```
+
+## PARAMETERS
+
+### -InputObject
+
+The script block, file path, or Ast node to analyse for return types.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Type[]
+
+## NOTES
+
+## RELATED LINKS

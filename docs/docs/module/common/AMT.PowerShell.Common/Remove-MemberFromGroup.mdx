@@ -1,0 +1,96 @@
+---
+id: Remove-MemberFromGroup
+title: Remove-MemberFromGroup
+description: Removes a user from a local group via the ADSI WinNT provider.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Removes a user from a local group via the ADSI WinNT provider.
+
+## SYNTAX
+```powershell
+Remove-MemberFromGroup [-Group] <Object> [-Member] <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns  when the user was removed, or  when the user was not a member of the group. Only works on Windows via the WinNT ADSI provider.
+
+## EXAMPLES
+
+### Example 1
+
+Removes the local user localadmin from the Administrators group.
+
+```powershell
+Remove-MemberFromGroup -Group (Get-Group -Name 'Administrators') -Member 'localadmin'
+```
+
+## PARAMETERS
+
+### -Group
+
+The group to remove the member from; accepts an AdsiPrincipal or a group name string.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Member
+
+The user to remove from the group; accepts an AdsiPrincipal or a user name string.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

@@ -1,13 +1,13 @@
 #Requires -Version 5.1
 
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
-Using module ..\..\common\Input.psm1
-Using module ..\..\common\Ensure.psm1
-Using module ..\..\common\Utils.psm1
-Using module ..\..\common\PackageManager.psm1
-Using module ..\..\common\UsersAndAccounts.psm1
-Using module ..\..\common\Registry.psm1
+Using module ../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
+
+
+
+
+
 
 [CmdletBinding(SupportsShouldProcess)]
 param (
@@ -32,8 +32,8 @@ Invoke-RunMain $PSCmdlet {
     if (Get-UserConfirmation -Title 'Add Users' -Question 'Do you want to add any users to Network Configuration Operators?' -Default $True) {
         Invoke-Info 'Preparing to add users to Network Configuration Operators, this may take a while...';
 
-        [ADSI]$Local:Group = Get-Group 'Network Configuration Operators';
-        [ADSI]$Local:UserGroup = Get-Group 'Users';
+        $Local:Group = Get-Group 'Network Configuration Operators';
+        $Local:UserGroup = Get-Group 'Users';
         [HashTable[]]$Local:Users = Get-MembersOfGroup $Local:UserGroup | ForEach-Object {
             [PSCustomObject]$Local:Formatted = Format-ADSIUser $_;
             @{

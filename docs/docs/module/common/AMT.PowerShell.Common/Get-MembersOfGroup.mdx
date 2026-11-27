@@ -1,0 +1,83 @@
+---
+id: Get-MembersOfGroup
+title: Get-MembersOfGroup
+description: Gets the members of a local group via the ADSI WinNT provider.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Gets the members of a local group via the ADSI WinNT provider.
+
+## SYNTAX
+```powershell
+Get-MembersOfGroup [-Group] <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Enumerates all principals that are direct members of the specified group. Only works on Windows via the WinNT ADSI provider.
+
+## EXAMPLES
+
+### Example 1
+
+Returns all members of the Administrators group.
+
+```powershell
+Get-MembersOfGroup -Group (Get-Group -Name 'Administrators')
+```
+
+
+### Example 2
+
+Pipes the Administrators group and returns its members.
+
+```powershell
+Get-Group -Name 'Administrators' | Get-MembersOfGroup
+```
+
+## PARAMETERS
+
+### -Group
+
+The group whose members to enumerate; accepts an AdsiPrincipal or a group name string.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Commands.UsersAndAccounts.AdsiPrincipal
+
+## NOTES
+
+## RELATED LINKS

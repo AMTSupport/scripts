@@ -1,0 +1,52 @@
+---
+id: Get-LastSyncTime
+title: Get-LastSyncTime
+description: Gets the timestamp of the last successful W32TM time synchronisation.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Gets the timestamp of the last successful W32TM time synchronisation.
+
+## SYNTAX
+```powershell
+Get-LastSyncTime [<CommonParameters>]
+```
+
+## DESCRIPTION
+Calls w32tm /query /status and parses the "Last Successful Sync Time" field. Returns the Unix epoch (1970-01-01) when the query fails or no sync time is found. Windows-only; requires the w32tm service to be running.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the DateTime of the last successful Windows time synchronisation.
+
+```powershell
+Get-LastSyncTime
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.DateTime
+
+## NOTES
+
+## RELATED LINKS

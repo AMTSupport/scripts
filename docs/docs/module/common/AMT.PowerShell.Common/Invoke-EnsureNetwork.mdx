@@ -1,0 +1,105 @@
+---
+id: Invoke-EnsureNetwork
+title: Invoke-EnsureNetwork
+description: Verify an internet connection is available, optionally connecting to a named Wi-Fi network.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Verify an internet connection is available, optionally connecting to a named Wi-Fi network.
+
+## SYNTAX
+```powershell
+Invoke-EnsureNetwork [-Name <String>] [-Password <SecureString>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Pings 8.8.8.8 to test reachability. If no connection exists and  is supplied, uses netsh wlan to add and connect a WPA2-PSK (or open) profile, then polls for up to 60 seconds. Outputs  when a connection was established by this invocation, when one was already present. Throws a terminating ConnectionError if no network can be reached. The Wi-Fi connect path is Windows-only.
+
+## EXAMPLES
+
+### Example 1
+
+Passes silently when already connected; throws if no network is available.
+
+```powershell
+Invoke-EnsureNetwork
+```
+
+
+### Example 2
+
+Attempts to connect to the Corp-WiFi SSID using the supplied password before asserting connectivity.
+
+```powershell
+Invoke-EnsureNetwork -Name 'Corp-WiFi' -Password $securePassword
+```
+
+## PARAMETERS
+
+### -Name
+
+SSID of the Wi-Fi network to connect to when internet is not already reachable.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Password
+
+Pre-shared key for the Wi-Fi network; omit for open (unauthenticated) networks.
+
+```yaml
+Type: SecureString
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Boolean
+
+## NOTES
+
+## RELATED LINKS

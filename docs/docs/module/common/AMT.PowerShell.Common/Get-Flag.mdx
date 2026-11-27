@@ -1,0 +1,78 @@
+---
+id: Get-Flag
+title: Get-Flag
+description: Returns a  instance for the specified context name.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns a  instance for the specified context name.
+
+## SYNTAX
+```powershell
+Get-Flag [-Context] <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+A flag is a persistent on-disk marker used to track whether a particular operation has already been performed. The returned object exposes methods to test, set, and clear the flag.
+
+## EXAMPLES
+
+### Example 1
+
+Retrieves a flag object for the context
+
+SoftwareInstalled
+
+.
+
+```powershell
+$flag = Get-Flag -Context 'SoftwareInstalled'
+```
+
+## PARAMETERS
+
+### -Context
+
+Logical name that identifies this flag; used to derive the flag file path.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Module.Flag
+
+## NOTES
+
+## RELATED LINKS

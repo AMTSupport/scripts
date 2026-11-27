@@ -1,0 +1,118 @@
+---
+id: Register-EventSubscription
+title: Register-EventSubscription
+description: Subscribe a script block to a registered event type, returning the subscription GUID.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Subscribe a script block to a registered event type, returning the subscription GUID.
+
+## SYNTAX
+```powershell
+Register-EventSubscription [-EventType] <Type> -Callback <ScriptBlock> [-Priority <Priority>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+The event type must have been registered with Register-Event before subscribing. Callbacks are invoked in  order (High before Normal before Low); within the same priority, dispatch order is deterministic by subscription GUID.
+
+## EXAMPLES
+
+### Example 1
+
+Subscribes to MyEvent and stores the GUID for later removal.
+
+```powershell
+$id = Register-EventSubscription -EventType ([MyEvent]) -Callback { param($e) Write-Host $e }
+```
+
+## PARAMETERS
+
+### -Callback
+
+Script block invoked when an event of  is dispatched; receives the event instance as its first argument.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -EventType
+
+CLR type whose event this callback subscribes to; must already be registered via Register-Event.
+
+```yaml
+Type: Type
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Priority
+
+Dispatch priority relative to other subscribers for the same event type; defaults to .
+
+```yaml
+Type: Priority
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Guid
+
+## NOTES
+
+## RELATED LINKS

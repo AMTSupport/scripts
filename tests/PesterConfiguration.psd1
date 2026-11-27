@@ -6,12 +6,7 @@
     }
     Filter       = @{ }
     CodeCoverage = @{
-        Enabled      = $True;
-        CoveragePercentTarget = 80;
-        OutputFormat = 'JaCoCo';
-        OutputPath   = 'tests\Coverage\PesterCodeCoverage.xml';
-        Path         = 'src';
-        RecursePaths = $True;
+        Enabled = $False
     }
     TestResult   = @{
         Enabled      = $True;

@@ -1,12 +1,12 @@
 #Requires -Version 5.1
 
-Using module ..\..\common\Environment.psm1
-Using module ..\..\common\Logging.psm1
-Using module ..\..\common\Scope.psm1
-Using module ..\..\common\PackageManager.psm1
-Using module ..\..\common\Temp.psm1
-Using module ..\..\common\Exit.psm1
-Using module ..\..\common\Lock.psm1
+Using module ../../../Output/PowerShellModules/AMT.PowerShell.Common/AMT.PowerShell.Common.psd1
+
+
+
+
+
+
 
 <#
 .PARAMETER PrinterName

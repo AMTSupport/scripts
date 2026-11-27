@@ -1,0 +1,50 @@
+---
+id: Invoke-EnsureUser
+title: Invoke-EnsureUser
+description: Terminate the pipeline if the current process is running elevated as Administrator.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Terminate the pipeline if the current process is running elevated as Administrator.
+
+## SYNTAX
+```powershell
+Invoke-EnsureUser [<CommonParameters>]
+```
+
+## DESCRIPTION
+Windows-only; on non-Windows platforms the check is silently skipped. Counterpart to Invoke-EnsureAdministrator: use this where a script must not run elevated. A  or  from the P/Invoke elevation query is treated as an indeterminate soft-pass.
+
+## EXAMPLES
+
+### Example 1
+
+Throws a terminating PermissionDenied error when the session is elevated.
+
+```powershell
+Invoke-EnsureUser
+```
+
+## PARAMETERS
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

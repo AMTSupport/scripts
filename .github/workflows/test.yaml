@@ -55,6 +55,14 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v6
 
+      - name: Setup DotNet
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build Common Module
+        run: dotnet build src/AMT.PowerShell.Common/AMT.PowerShell.Common.csproj
+
       - name: Install Dependencies
         shell: pwsh
         run: Install-Module -Name Pester -Scope CurrentUser -Force
@@ -73,10 +81,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           gist_token: ${{ secrets.PESTER_GIST_GH_TOKEN }}
           test_results_path: "tests/TestResults/PesterTestResults.xml"
-          coverage_paths: "tests/Coverage/PesterCodeCoverage.xml"
           tests_fail_step: true
           skip_check_run: true
-          coverage_gist: true
           gist_name: "Pester Test Results on ${{ matrix.os }}"
           report_name: "TEST_RESULTS_${{ github.run_id }}_${{ github.run_number }}_${{ matrix.os }}"
 
@@ -96,9 +102,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           gist_token: ${{ secrets.PESTER_GIST_GH_TOKEN }}
           test_results_path: "tests/TestResults/PesterTestResults.xml"
-          coverage_paths: "tests/Coverage/PesterCodeCoverage.xml"
           tests_fail_step: true
           skip_check_run: true
-          coverage_gist: true
           gist_name: "Pester Test Results on Windows Desktop"
           report_name: "TEST_RESULTS_${{ github.run_id }}_${{ github.run_number }}_Windows_Desktop"

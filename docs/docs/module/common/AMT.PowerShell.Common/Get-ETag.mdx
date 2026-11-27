@@ -1,0 +1,96 @@
+---
+id: Get-ETag
+title: Get-ETag
+description: Computes an S3-compatible ETag for a local file using the specified chunk size.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Computes an S3-compatible ETag for a local file using the specified chunk size.
+
+## SYNTAX
+```powershell
+Get-ETag [-Path] <String> [-ChunkSize] <Int32> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Splits the file into chunks of ChunkSize bytes, hashes each chunk with MD5, then hashes the concatenated digests to produce a multi-part ETag of the form "hash-N".
+
+## EXAMPLES
+
+### Example 1
+
+Returns the S3 ETag for the file using 8 MiB parts.
+
+```powershell
+Get-ETag -Path 'C:\file.bin' -ChunkSize 8388608
+```
+
+## PARAMETERS
+
+### -ChunkSize
+
+The chunk size in bytes used for multi-part ETag calculation; must be at least 1.
+
+```yaml
+Type: Int32
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Path
+
+Path to the file to compute the ETag for.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

@@ -2,8 +2,12 @@
 // Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
 // for license information.
 
+using System.Collections;
+using System.Collections.ObjectModel;
+using System.IO.Compression;
 using System.Management.Automation.Language;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Compiler.Analyser;
@@ -17,8 +21,8 @@ using QuikGraph.Algorithms;
 namespace Compiler.Module.Compiled;
 
 public partial class CompiledScript : CompiledLocalModule {
+    internal const string RuntimeModuleName = "AMT.PowerShell.Common";
     private static readonly Lazy<string> Template = new(() => {
-
         var info = Assembly.GetExecutingAssembly().GetName();
         using var templateStream = Assembly.GetExecutingAssembly().GetManifestResourceStream($"{info.Name}.Resources.ScriptTemplate.ps1")!;
         using var streamReader = new StreamReader(templateStream, Encoding.UTF8);
@@ -26,13 +30,17 @@ public partial class CompiledScript : CompiledLocalModule {
     });
 
     public readonly BidirectionalGraph<Compiled, Edge<Compiled>> Graph = new();
+    private readonly CompiledLocalArchiveModule RuntimeModule;
 
     public CompiledScript(
         PathedModuleSpec moduleSpec,
         CompiledDocument document,
         RequirementGroup requirements
     ) : base(moduleSpec, document, requirements) {
+        this.RuntimeModule = GetRuntimeModule(moduleSpec.SourceRoot, requirements);
+        this.RuntimeModule.RootScript = this;
         this.Graph.AddVertex(this);
+        this.Graph.AddVertex(this.RuntimeModule);
         this.Graph.EdgeAdded += edge => {
             lock (edge.Target.Parents) {
                 edge.Target.Parents.Add(edge.Source);
@@ -78,11 +86,13 @@ public partial class CompiledScript : CompiledLocalModule {
             }
 
             Compiled? compiledModule = resolvable.ModuleSpec == thisResolvable.ModuleSpec ? script : null;
+            compiledModule ??= script.Graph.Vertices.FirstOrDefault(module => module.ModuleSpec.Name == resolvable.ModuleSpec.Name);
             if (compiledModule is null) {
                 if (GetCompiledFromSpec(resolvableParent, resolvable.ModuleSpec).IsErr(out var error, out var compiled)) {
                     return error;
                 }
 
+                compiled.RootScript = script;
                 compiledModule = compiled;
             }
 
@@ -115,7 +125,7 @@ public partial class CompiledScript : CompiledLocalModule {
         var template = Template.Value;
         var embeddedModules = new StringBuilder();
         embeddedModules.AppendLine("$Script:EMBEDDED_MODULES = @(");
-        foreach (var module in this.Graph.Vertices) {
+        foreach (var module in this.Graph.Vertices.Where(module => module != this.RuntimeModule)) {
             var moduleObjectResult = module switch {
                 CompiledScript script when script == this => base.GetPowerShellObject(),
                 _ => module.GetPowerShellObject()
@@ -126,11 +136,14 @@ public partial class CompiledScript : CompiledLocalModule {
             }
 
             var lineCount = moduleObject.Count(character => character == '\n');
-            // Only skip the lines of the content of the module object.
             var skipLines = Enumerable.Range(6, lineCount - 6);
             embeddedModules.AppendLine(IndentString(moduleObject, 8, skipLines));
         }
         embeddedModules.AppendLine(IndentString(");", 4));
+
+        if (this.RuntimeModule.GetPowerShellObject().IsErr(out var runtimeModuleError, out var runtimeModuleObject)) {
+            return runtimeModuleError;
+        }
 
         var paramBlock = new StringBuilder();
         var scriptParamBlock = this.Document.Ast.ParamBlock;
@@ -144,7 +157,7 @@ public partial class CompiledScript : CompiledLocalModule {
         var importOrder = string.Empty;
         if (this.Graph.VertexCount > 1) {
             var importNames = new List<string>();
-            foreach (var module in this.Graph.TopologicalSort().Skip(1).Reverse()) {
+            foreach (var module in this.Graph.TopologicalSort().Skip(1).Reverse().Where(module => module != this.RuntimeModule)) {
                 if (module.GetNameHash().IsErr(out var nameHashError, out var nameHash)) {
                     return nameHashError;
                 }
@@ -152,13 +165,17 @@ public partial class CompiledScript : CompiledLocalModule {
                 importNames.Add($"'{nameHash}'");
             }
 
-            importOrder = importNames.Aggregate((a, b) => $"{a}, {b}");
+            if (importNames.Count > 0) {
+                importOrder = importNames.Aggregate((a, b) => $"{a}, {b}");
+            }
         }
 
         var replacements = new Dictionary<string, string> {
             { "EMBEDDED_MODULES", embeddedModules.ToString() },
             { "PARAM_BLOCK", paramBlock.ToString() },
-            { "IMPORT_ORDER", $"$Script:REMOVE_ORDER = @({importOrder});" }
+            { "IMPORT_ORDER", $"$Script:REMOVE_ORDER = @({importOrder});" },
+            { "RUNTIME_MODULE", "$RUNTIME_MODULE = " + runtimeModuleObject },
+            { "RUNTIME_MODULE_NAME", "$RUNTIME_MODULE_NAME = '" + RuntimeModuleName + "'" }
         };
 
         if (FillTemplate(template, replacements).IsErr(out var error, out var filledTemplate)) {
@@ -171,31 +188,14 @@ public partial class CompiledScript : CompiledLocalModule {
 
     public override CompiledScript GetRootParent() => this;
 
-    /// <summary>
-    /// Utility method for indenting a string.
-    ///
-    /// As indentation is optional in PowerShell this will not add any indentations
-    /// if the program is running without the Debug flag to conserve space.
-    /// </summary>
-    /// <param name="str">
-    /// The string to indent.
-    /// </param>
-    /// <param name="indentBy">
-    /// The amount of spaces to indent by.
-    /// </param>
-    /// <param name="skipLines">
-    /// The lines to skip when indenting.
-    /// </param>
-    /// <returns>
-    /// The indented string.
-    /// </returns>
+
     private static string IndentString(string str, int indentBy, IEnumerable<int>? skipLines = null) {
         if (!Program.IsDebugging) { return str; }
 
         var indent = new string(' ', indentBy);
         var lines = str.Split('\n');
         var indentedLines = lines.Select((line, index) => {
-            if (string.IsNullOrWhiteSpace(line)) { return line; } // Skip empty lines.
+            if (string.IsNullOrWhiteSpace(line)) { return line; }
             if (skipLines != null && skipLines.Contains(index)) { return line; }
             return indent + line;
         });
@@ -253,4 +253,67 @@ public partial class CompiledScript : CompiledLocalModule {
     ) => resolvableParent.Resolvables.GetValueOrDefault(moduleSpec).AsOption()
         .Bind(resolvableInfo => resolvableInfo.Compiled)
         .IfNone(() => Fin.Fail<Compiled>(Error.New($"No resolvable found for {moduleSpec}.")));
+
+    private static CompiledLocalArchiveModule GetRuntimeModule(string sourceRoot, RequirementGroup requirements) {
+        var assembly = Assembly.GetExecutingAssembly();
+        var assemblyName = assembly.GetName().Name;
+        var resourcePrefix = $"{assemblyName}.Resources.RuntimeModule.";
+
+        var dllResourceName = $"{resourcePrefix}{RuntimeModuleName}.dll";
+        var psd1ResourceName = $"{resourcePrefix}{RuntimeModuleName}.psd1";
+
+        using var dllStream = assembly.GetManifestResourceStream(dllResourceName)
+            ?? throw new InvalidOperationException($"Embedded runtime module DLL resource '{dllResourceName}' not found in compiler assembly. Ensure the pre-build target copies the runtime module files.");
+        using var psd1Stream = assembly.GetManifestResourceStream(psd1ResourceName)
+            ?? throw new InvalidOperationException($"Embedded runtime module PSD1 resource '{psd1ResourceName}' not found in compiler assembly. Ensure the pre-build target copies the runtime module files.");
+
+        using var dllMemoryStream = new MemoryStream();
+        dllStream.CopyTo(dllMemoryStream);
+        var dllBytes = dllMemoryStream.ToArray();
+
+        using var psd1MemoryStream = new MemoryStream();
+        psd1Stream.CopyTo(psd1MemoryStream);
+        var psd1Bytes = psd1MemoryStream.ToArray();
+
+        // Build zip archive in-memory with both files at root level.
+        var archiveBytes = BuildRuntimeModuleZip(dllBytes, psd1Bytes);
+
+        // Parse manifest from PSD1 bytes via PowerShell.
+        var psd1Content = Encoding.UTF8.GetString(psd1Bytes);
+        var manifestResult = Program.RunPowerShell(psd1Content);
+        var manifest = manifestResult.Match(
+            Succ: objects => (Hashtable)objects[0].BaseObject,
+            Fail: error => throw new InvalidOperationException($"Failed to parse runtime module manifest: {error}")
+        );
+
+        // Build PathedModuleSpec with synthetic path. Hash computed from DLL bytes
+        // and set directly to avoid filesystem access for embedded resources.
+        var relativePath = $"embedded/{RuntimeModuleName}/{RuntimeModuleName}.psd1";
+        var fullPath = Path.Combine(sourceRoot, relativePath);
+        var spec = new PathedModuleSpec(sourceRoot, fullPath);
+
+        var hash = SHA256.HashData(dllBytes);
+        spec.SetHash(hash);
+
+        return new CompiledLocalArchiveModule(spec, requirements, archiveBytes, manifest) {
+            ResolvableParent = null!
+        };
+    }
+
+    private static byte[] BuildRuntimeModuleZip(byte[] dllBytes, byte[] psd1Bytes) {
+        using var memoryStream = new MemoryStream();
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true)) {
+            var dllEntry = archive.CreateEntry($"{RuntimeModuleName}.dll", CompressionLevel.Optimal);
+            using (var dllEntryStream = dllEntry.Open()) {
+                dllEntryStream.Write(dllBytes, 0, dllBytes.Length);
+            }
+
+            var psd1Entry = archive.CreateEntry($"{RuntimeModuleName}.psd1", CompressionLevel.Optimal);
+            using (var psd1EntryStream = psd1Entry.Open()) {
+                psd1EntryStream.Write(psd1Bytes, 0, psd1Bytes.Length);
+            }
+        }
+
+        return memoryStream.ToArray();
+    }
 }

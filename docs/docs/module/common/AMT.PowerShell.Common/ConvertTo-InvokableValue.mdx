@@ -1,0 +1,83 @@
+---
+id: ConvertTo-InvokableValue
+title: ConvertTo-InvokableValue
+description: Converts a value to a PowerShell-invokable string representation.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Converts a value to a PowerShell-invokable string representation.
+
+## SYNTAX
+```powershell
+ConvertTo-InvokableValue -Value <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Null, strings, numbers, booleans, and PSObjects are each serialised to a canonical form that can be embedded in a script and re-evaluated.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the string "42".
+
+```powershell
+ConvertTo-InvokableValue -Value 42
+```
+
+
+### Example 2
+
+Returns the string "$null".
+
+```powershell
+ConvertTo-InvokableValue -Value $null
+```
+
+## PARAMETERS
+
+### -Value
+
+The value to convert; accepts null and any PowerShell-compatible type.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

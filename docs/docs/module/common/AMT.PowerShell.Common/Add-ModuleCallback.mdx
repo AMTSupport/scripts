@@ -1,0 +1,94 @@
+---
+id: Add-ModuleCallback
+title: Add-ModuleCallback
+description: Registers a ScriptBlock to be invoked when a module is removed from the session.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Registers a ScriptBlock to be invoked when a module is removed from the session.
+
+## SYNTAX
+```powershell
+Add-ModuleCallback [-ScriptBlock] <ScriptBlock> [[-Module] <PSModuleInfo>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+The target module is resolved from the PowerShell call stack when -Module is omitted, so this cmdlet must be called from within module-level code. Throws a terminating error if no module context can be resolved.
+
+## EXAMPLES
+
+### Example 1
+
+Registers a cleanup handler for the calling module.
+
+```powershell
+Add-ModuleCallback -ScriptBlock { Write-Host "Module unloaded" }
+```
+
+## PARAMETERS
+
+### -Module
+
+The module to register the callback for; resolved from the call stack when omitted.
+
+```yaml
+Type: PSModuleInfo
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ScriptBlock
+
+The ScriptBlock to invoke when the target module is removed.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

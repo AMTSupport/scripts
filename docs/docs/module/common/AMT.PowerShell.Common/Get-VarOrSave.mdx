@@ -1,0 +1,127 @@
+---
+id: Get-VarOrSave
+title: Get-VarOrSave
+description: Returns the cached value of a process environment variable, computing and saving it on first access.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the cached value of a process environment variable, computing and saving it on first access.
+
+## SYNTAX
+```powershell
+Get-VarOrSave -LazyValue <ScriptBlock> [-Validate <ScriptBlock>] -VariableName <String> [<CommonParameters>]
+```
+
+## DESCRIPTION
+If the variable already exists and passes optional validation, its value is returned immediately. Otherwise the LazyValue script block is invoked, the result is stored in the environment variable, and the value is returned.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the value of MY_VAR, computing it via the script block on first call.
+
+```powershell
+Get-VarOrSave -VariableName 'MY_VAR' -LazyValue { 'computed' }
+```
+
+
+### Example 2
+
+Recomputes MY_VAR if the existing value fails validation.
+
+```powershell
+Get-VarOrSave -VariableName 'MY_VAR' -LazyValue { Get-Thing } -Validate { $_ -ne $null }
+```
+
+## PARAMETERS
+
+### -LazyValue
+
+Script block invoked to compute the value when the variable is absent or invalid.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Validate
+
+Optional script block that validates the cached value; a falsy result triggers recomputation.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -VariableName
+
+The process environment variable name used to cache the value.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Object
+
+## NOTES
+
+## RELATED LINKS

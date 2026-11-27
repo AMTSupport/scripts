@@ -1,0 +1,83 @@
+---
+id: Format-ADSIUser
+title: Format-ADSIUser
+description: Formats one or more ADSI user principals as hashtables containing Name and Domain.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Formats one or more ADSI user principals as hashtables containing Name and Domain.
+
+## SYNTAX
+```powershell
+Format-ADSIUser [-User] <AdsiPrincipal[]> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Each input AdsiPrincipal must have a SchemaClassName of "User". The returned hashtable contains the keys "Name" and "Domain" split from the ADSI path.
+
+## EXAMPLES
+
+### Example 1
+
+Formats all local users as Name/Domain hashtables.
+
+```powershell
+Get-User | Format-ADSIUser
+```
+
+
+### Example 2
+
+Formats the localadmin user as a Name/Domain hashtable.
+
+```powershell
+Format-ADSIUser -User (Get-User -Name 'localadmin')
+```
+
+## PARAMETERS
+
+### -User
+
+One or more ADSI user principals to format; must have SchemaClassName "User".
+
+```yaml
+Type: AdsiPrincipal[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.Collections.Hashtable
+
+## NOTES
+
+## RELATED LINKS

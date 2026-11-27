@@ -1,0 +1,100 @@
+---
+id: Get-LockPath
+title: Get-LockPath
+description: Returns the full path to the lock file for the given resource and script.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Returns the full path to the lock file for the given resource and script.
+
+## SYNTAX
+```powershell
+Get-LockPath [-ResourceId] <String> [[-ScriptName] <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Builds a path of the form $TempPath\AMT_{ScriptName}_{ResourceId}.lock. When  is omitted, the name is derived from the caller's script file or command name via MyInvocation.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the lock file path for the
+
+DellDrivers
+
+resource in the current script.
+
+```powershell
+$lockPath = Get-LockPath -ResourceId 'DellDrivers'
+```
+
+## PARAMETERS
+
+### -ResourceId
+
+Resource identifier included in the lock file name (e.g. a manufacturer or component name).
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ScriptName
+
+Caller script name used in the lock file name; derived from the call stack when omitted.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

@@ -1,0 +1,127 @@
+---
+id: Install-ModuleFromGitHub
+title: Install-ModuleFromGitHub
+description: Downloads and installs a PowerShell module from a GitHub repository archive.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Downloads and installs a PowerShell module from a GitHub repository archive.
+
+## SYNTAX
+```powershell
+Install-ModuleFromGitHub -Branch <String> -GitHubRepo <String> [-Scope <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Fetches the branch's zip archive from GitHub, extracts the module, copies it into the appropriate PowerShell modules directory, and returns the installed module name. Requires internet access.
+
+## EXAMPLES
+
+### Example 1
+
+Installs the module for the current user from the main branch.
+
+```powershell
+Install-ModuleFromGitHub -GitHubRepo 'org/repo' -Branch 'main'
+```
+
+
+### Example 2
+
+Installs the module for all users (requires elevation).
+
+```powershell
+Install-ModuleFromGitHub -GitHubRepo 'org/repo' -Branch 'main' -Scope AllUsers
+```
+
+## PARAMETERS
+
+### -Branch
+
+The branch name to download the archive from.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -GitHubRepo
+
+The GitHub repository in "owner/repo" format from which to download the module.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Scope
+
+The installation scope; "CurrentUser" (default) or "AllUsers" (requires elevation).
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

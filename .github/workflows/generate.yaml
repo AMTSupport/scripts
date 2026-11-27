@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 'Force generation of scripts'
+        description: "Force generation of scripts"
         required: false
         default: false
         type: boolean
@@ -20,8 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Setup DotNet
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build Common Module
+        run: dotnet build src/AMT.PowerShell.Common/AMT.PowerShell.Common.csproj
+
       - name: Collect Changes
-        if : ${{ inputs.force != true }}
+        if: ${{ inputs.force != true }}
         uses: dorny/paths-filter@v4.0.3
         id: changes
         with:

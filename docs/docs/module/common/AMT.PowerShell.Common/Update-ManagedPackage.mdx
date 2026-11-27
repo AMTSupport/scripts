@@ -1,0 +1,112 @@
+---
+id: Update-ManagedPackage
+title: Update-ManagedPackage
+description: Updates a package to its latest version using the detected system package manager.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Updates a package to its latest version using the detected system package manager.
+
+## SYNTAX
+```powershell
+Update-ManagedPackage [-PackageName] <String> [-Confirm] [-WhatIf] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Detects the available package manager (e.g., Chocolatey, Winget) and updates the named package. Uses ShouldProcess to support -WhatIf and -Confirm. Writes a non-terminating error if the update fails.
+
+## EXAMPLES
+
+### Example 1
+
+Updates the git package to its latest available version.
+
+```powershell
+Update-ManagedPackage -PackageName 'git'
+```
+
+## PARAMETERS
+
+### -Confirm
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [cf]
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PackageName
+
+The name of the package to update.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -WhatIf
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: [wi]
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

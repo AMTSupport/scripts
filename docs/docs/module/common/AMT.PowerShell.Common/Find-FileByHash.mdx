@@ -1,0 +1,126 @@
+---
+id: Find-FileByHash
+title: Find-FileByHash
+description: Search a directory for a file whose blob-compatible MD5 hash matches the given value.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Search a directory for a file whose blob-compatible MD5 hash matches the given value.
+
+## SYNTAX
+```powershell
+Find-FileByHash [-Hash] <String> [-Path] <String> [-Filter <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Iterates over files in Path that match Filter, computes the base64-encoded MD5 hash of each using , and returns the full path of the first file whose hash equals Hash. Returns nothing (no pipeline output) when no matching file is found.
+
+## EXAMPLES
+
+### Example 1
+
+Returns the full path of the first PNG in
+
+C:\Cache
+
+whose hash matches
+
+$md5
+
+.
+
+```powershell
+Find-FileByHash -Hash $md5 -Path 'C:\Cache' -Filter '*.png'
+```
+
+## PARAMETERS
+
+### -Filter
+
+Wildcard filter applied to filenames when enumerating Path; defaults to *.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Hash
+
+The base64-encoded MD5 hash to match against files in Path.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Path
+
+The directory to search for matching files.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### System.String
+
+## NOTES
+
+## RELATED LINKS

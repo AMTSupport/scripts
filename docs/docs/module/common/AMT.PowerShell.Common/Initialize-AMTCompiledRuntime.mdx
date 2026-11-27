@@ -1,0 +1,96 @@
+---
+id: Initialize-AMTCompiledRuntime
+title: Initialize-AMTCompiledRuntime
+description: Extracts embedded modules and prepares a private PSModulePath for a compiled script runtime.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Extracts embedded modules and prepares a private PSModulePath for a compiled script runtime.
+
+## SYNTAX
+```powershell
+Initialize-AMTCompiledRuntime [-EmbeddedModules] <Hashtable[]> [-PrivateModuleRoot <String>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Iterates the EmbeddedModules descriptors produced by the AMT compiler, extracts each into a content-addressed folder under the private module root, and prepends that root to PSModulePath. Returns a RuntimeState object describing the original and updated module paths. Intended for use by compiled script templates; not for interactive use.
+
+## EXAMPLES
+
+### Example 1
+
+Extracts the embedded modules into the default private root and updates PSModulePath.
+
+```powershell
+Initialize-AMTCompiledRuntime -EmbeddedModules $embeddedModules
+```
+
+## PARAMETERS
+
+### -EmbeddedModules
+
+Hashtable array of embedded module descriptors produced by the AMT compiler.
+
+```yaml
+Type: Hashtable[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -PrivateModuleRoot
+
+Override for the private module extraction root; uses a system-default path when omitted.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Module.RuntimeState
+
+## NOTES
+
+## RELATED LINKS

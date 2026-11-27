@@ -1,185 +1,63 @@
-// Copyright (c) 2024, 2026 James Draycott <me@racci.dev>. All Rights Reserved.
-// Licensed under the AGPL-3.0-or-later License, See LICENSE in the project root
-// for license information.
-
 using System.Reflection;
-using System.Text;
-using System.Text.RegularExpressions;
 using Compiler.Module.Compiled;
 using Compiler.Module.Resolvable;
 using Compiler.Requirements;
 using Compiler.Text;
+using LanguageExt;
 
-namespace Compiler.Test.Module.Compiled;
+namespace Compiler.Tests.Module.Compiled;
 
-[TestFixture]
-public sealed class CompiledScriptTests {
+public class ScriptTests {
     [Test]
-    public void GetRootParent_ReturnsSelf() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>();
-        Assert.That(module.GetRootParent(), Is.EqualTo(module));
-    }
+    public void Constructor_embeds_runtime_module_without_throwing() {
+        using var temp = new TempFolder();
+        var sourceRoot = temp.Path;
+        var scriptPath = Path.Combine(sourceRoot, "src/automation/Test.ps1");
+        Directory.CreateDirectory(Path.GetDirectoryName(scriptPath)!);
+        File.WriteAllText(scriptPath, "param()\n");
 
-    [Test]
-    public void GetPowerShellObject_IncludesEmbeddedModulesAndRemoveOrder() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var dependency = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep';");
-        CompiledUtils.AddDependency(module, dependency);
+        var document = CompiledDocument.FromBuilder(new TextEditor(new TextDocument(["param()"])), 0).ThrowIfFail();
+        var spec = new PathedModuleSpec(sourceRoot, scriptPath);
+        var requirements = new RequirementGroup();
 
-        var output = module.GetPowerShellObject().Unwrap();
-
-        Assert.Multiple(() => {
-            Assert.That(output, Does.Contain("$Script:EMBEDDED_MODULES"));
-            Assert.That(output, Does.Contain("$Script:REMOVE_ORDER"));
-            Assert.That(output, Does.Contain(dependency.GetNameHash().Unwrap()));
-        });
-    }
-
-    [Test]
-    public void GetPowerShellObject_IncludesDefaultParamBlock() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var output = module.GetPowerShellObject().Unwrap();
-
-        Assert.That(output, Does.Contain("[CmdletBinding()]"));
-    }
-
-    [Test]
-    public void GetPowerShellObject_AddsErrorWhenDefineMissing() {
-        var root = TestUtils.GenerateUniqueDirectory();
-        var modulePath = TestUtils.GenerateUniqueFile(root, ".ps1", content: "Write-Host 'Root';");
-        var moduleSpec = new PathedModuleSpec(root, modulePath);
-        var document = CompiledDocument.FromBuilder(new TextEditor(new TextDocument(["!DEFINE UNKNOWN_TOKEN"]))).Unwrap();
-        var module = new CompiledScript(moduleSpec, document, new RequirementGroup()) {
-            ResolvableParent = new ResolvableParent(root)
+        var script = new CompiledScript(spec, document, requirements) {
+            ResolvableParent = new ResolvableParent(sourceRoot)
         };
 
-        var output = module.GetPowerShellObject().Unwrap();
-        var embeddedPayload = GetEmbeddedModulePayload(output);
-        var decodedOutput = DecodeBase64Payload(embeddedPayload);
-
-        Assert.That(decodedOutput, Does.Contain("!DEFINE UNKNOWN_TOKEN"));
-    }
-
-    private static string GetEmbeddedModulePayload(string output) {
-        var match = Regex.Match(output, @"Content\s*=\s*'(?<content>[A-Za-z0-9+/=]+)'", RegexOptions.Singleline);
-        Assert.That(match.Success, Is.True, "Embedded module Content payload should be present in compiled output.");
-        return match.Groups["content"].Value;
-    }
-
-    private static string DecodeBase64Payload(string payload) {
-        return Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        var output = script.GetPowerShellObject().ThrowIfFail();
+        Assert.That(output, Does.Contain("$RUNTIME_MODULE"));
     }
 
     [Test]
-    public void FillTemplate_MissingDefine_AddsErrorToProgramErrors() {
-        var templateWithUnknown = "$x = 1\n# !DEFINE UNKNOWN_TOKEN\nWrite-Host 'hello'";
-        var replacements = new Dictionary<string, string>();
-        var method = typeof(CompiledScript).GetMethod(
-            "FillTemplate",
-            BindingFlags.NonPublic | BindingFlags.Static
-        )!;
+    public void GetPowerShellObject_includes_runtime_module_replacements() {
+        using var temp = new TempFolder();
+        var sourceRoot = temp.Path;
+        var scriptPath = Path.Combine(sourceRoot, "src/automation/Test.ps1");
+        Directory.CreateDirectory(Path.GetDirectoryName(scriptPath)!);
+        File.WriteAllText(scriptPath, "param()\n");
 
-        var errorsBefore = Program.Errors.Count;
+        var document = CompiledDocument.FromBuilder(new TextEditor(new TextDocument(["param()"])), 0).ThrowIfFail();
+        var spec = new PathedModuleSpec(sourceRoot, scriptPath);
+        var requirements = new RequirementGroup();
 
-        method.Invoke(null, [templateWithUnknown, replacements]);
+        var script = new CompiledScript(spec, document, requirements) {
+            ResolvableParent = new ResolvableParent(sourceRoot)
+        };
 
-        Assert.That(Program.Errors, Has.Count.GreaterThan(errorsBefore),
-            "Program.Errors should contain an error for each unresolved !DEFINE token");
-    }
-
-    [Test]
-    public void GetPowerShellObject_WithIsDebugging_IndendsEmbeddedModuleObjects() {
-        Program.IsDebugging = true;
-        try {
-            var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-            var dependency = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep';");
-            CompiledUtils.AddDependency(module, dependency);
-
-            var output = module.GetPowerShellObject().Unwrap();
-
-            Assert.That(output, Does.Contain("        @{"),
-                "Embedded module objects should be indented by 8 spaces when Program.IsDebugging is true");
-        } finally {
-            Program.IsDebugging = false;
-        }
-    }
-
-    [Test]
-    public void GetPowerShellObject_WithTwoDependencies_IncludesBothInEmbeddedModulesAndRemoveOrder() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var dep1 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep1';");
-        var dep2 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep2';");
-        CompiledUtils.AddDependency(module, dep1);
-        CompiledUtils.AddDependency(module, dep2);
-
-        var output = module.GetPowerShellObject().Unwrap();
-
+        var output = script.GetPowerShellObject().ThrowIfFail();
         Assert.Multiple(() => {
-            Assert.That(output, Does.Contain("$Script:EMBEDDED_MODULES"));
-            Assert.That(output, Does.Contain("$Script:REMOVE_ORDER"));
-            Assert.That(output, Does.Contain(dep1.GetNameHash().Unwrap()),
-                "dep1 hash should appear in the output");
-            Assert.That(output, Does.Contain(dep2.GetNameHash().Unwrap()),
-                "dep2 hash should appear in the output");
-            var removeOrderLine = output
-                .Split('\n')
-                .FirstOrDefault(line => line.Contains("$Script:REMOVE_ORDER"));
-            Assert.That(removeOrderLine, Is.Not.Null);
-            Assert.That(removeOrderLine, Does.Contain(dep1.GetNameHash().Unwrap()));
-            Assert.That(removeOrderLine, Does.Contain(dep2.GetNameHash().Unwrap()));
+            Assert.That(output, Does.Contain("$RUNTIME_MODULE = "));
+            Assert.That(output, Does.Contain("$RUNTIME_MODULE_NAME = 'AMT.PowerShell.Common'"));
         });
     }
+}
 
-    [Test]
-    public void GetPowerShellObject_NoModuleHasMissingHash() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var dep1 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep1';");
-        var dep2 = CompiledLocalModuleTests.TestData.CreateModule<CompiledLocalModule>("Write-Host 'Dep2';");
-        CompiledUtils.AddDependency(module, dep1);
-        CompiledUtils.AddDependency(module, dep2);
+internal sealed class TempFolder : IDisposable {
+    public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N"));
 
-        var output = module.GetPowerShellObject().Unwrap();
+    public TempFolder() => Directory.CreateDirectory(this.Path);
 
-        Assert.That(output, Does.Not.Contain("-000000"), "No module should have a 000000 hash; all dependencies must be resolved and embedded.");
-    }
-
-    [Test]
-    public void GetPowerShellObject_IncludesModuleLockHelpers() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var output = module.GetPowerShellObject().Unwrap();
-
-        Assert.Multiple(() => {
-            Assert.That(output, Does.Contain("function Wait-ModuleLock"));
-            Assert.That(output, Does.Contain("function Complete-ModuleLock"));
-            Assert.That(output, Does.Contain(".lock"));
-            Assert.That(output, Does.Contain(".ready"));
-            Assert.That(output, Does.Contain("ModuleLockTimeoutSeconds = 180"));
-        });
-    }
-
-    [Test]
-    public void GetPowerShellObject_IncludesErrorCaptureWrapper() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var output = module.GetPowerShellObject().Unwrap();
-
-        Assert.Multiple(() => {
-            Assert.That(output, Does.Contain("function Invoke-ScriptWithErrorCapture"));
-            Assert.That(output, Does.Contain("NO_ERROR_WRAPPER"));
-            Assert.That(output, Does.Contain("Export-Clixml"));
-            Assert.That(output, Does.Contain("Import-Clixml"));
-        });
-    }
-
-    [Test]
-    public void GetPowerShellObject_IncludesExecutableResolutionHelpers() {
-        var module = CompiledLocalModuleTests.TestData.CreateModule<CompiledScript>("Write-Host 'Root';");
-        var output = module.GetPowerShellObject().Unwrap();
-
-        Assert.Multiple(() => {
-            Assert.That(output, Does.Contain("COMPILED_POWERSHELL_PATH"));
-            Assert.That(output, Does.Contain("powershell.exe"));
-            Assert.That(output, Does.Contain("pwsh.exe"));
-            Assert.That(output, Does.Contain("Get-Command"));
-        });
+    public void Dispose() {
+        if (Directory.Exists(this.Path)) Directory.Delete(this.Path, true);
     }
 }

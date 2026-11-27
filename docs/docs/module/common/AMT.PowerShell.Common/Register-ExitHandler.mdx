@@ -1,0 +1,116 @@
+---
+id: Register-ExitHandler
+title: Register-ExitHandler
+description: Registers a script block to run when the script exits.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Registers a script block to run when the script exits.
+
+## SYNTAX
+```powershell
+Register-ExitHandler [-Name] <String> [-ExitHandler] <ScriptBlock> [-OnlyFailure] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Handlers are stored per-runspace and executed in registration order by Invoke-Handlers and Invoke-FailedExit. Re-registering a handler with the same name overwrites the previous entry with a warning. Use  to restrict a handler to failure exits only.
+
+## EXAMPLES
+
+### Example 1
+
+Registers a cleanup handler that runs on every exit.
+
+```powershell
+Register-ExitHandler -Name 'Cleanup' -ExitHandler { Remove-Item $tempDir -Recurse }
+```
+
+## PARAMETERS
+
+### -ExitHandler
+
+The script block to execute when the script exits.
+
+```yaml
+Type: ScriptBlock
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 1
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -Name
+
+Unique name for this handler; re-using an existing name overwrites the prior registration.
+
+```yaml
+Type: String
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -OnlyFailure
+
+Restrict this handler to failure exits; skip it when exiting successfully.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

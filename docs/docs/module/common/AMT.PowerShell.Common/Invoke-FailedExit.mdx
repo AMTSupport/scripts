@@ -1,0 +1,139 @@
+---
+id: Invoke-FailedExit
+title: Invoke-FailedExit
+description: Runs exit handlers and terminates the pipeline with a non-zero exit code.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Runs exit handlers and terminates the pipeline with a non-zero exit code.
+
+## SYNTAX
+```powershell
+Invoke-FailedExit [-ExitCode] <Int32> [-DontExit] [-ErrorRecord <ErrorRecord>] [-FormatArgs <String[]>] [<CommonParameters>]
+```
+
+## DESCRIPTION
+Looks up the registered description for  and writes it as an error display message. If an  is supplied the deepest exception message is also shown. All registered exit handlers are executed before the terminating error is thrown. Pass  to suppress the terminating error (useful in tests).
+
+## EXAMPLES
+
+### Example 1
+
+Displays the description registered for exit code 1, runs all exit handlers,
+            then throws a terminating error carrying exit code 1.
+
+```powershell
+Invoke-FailedExit -ExitCode 1 -ErrorRecord $err
+```
+
+## PARAMETERS
+
+### -DontExit
+
+Suppress the terminating error after running handlers; the cmdlet returns normally instead.
+
+```yaml
+Type: SwitchParameter
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ErrorRecord
+
+The error record that caused the exit; its deepest exception message is displayed.
+
+```yaml
+Type: ErrorRecord
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -ExitCode
+
+The numeric exit code to return to the caller.
+
+```yaml
+Type: Int32
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### -FormatArgs
+
+Format arguments applied to the registered exit-code description string via string.Format.
+
+```yaml
+Type: String[]
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: Named
+  IsRequired: false
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+## NOTES
+
+## RELATED LINKS

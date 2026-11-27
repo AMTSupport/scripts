@@ -1,0 +1,83 @@
+---
+id: Get-UserGroups
+title: Get-UserGroups
+description: Gets the groups that a local user belongs to via the ADSI WinNT provider.
+keywords:
+  - PowerShell
+  - Help
+  - Documentation
+hide_title: false
+hide_table_of_contents: false
+custom_edit_url: null
+---
+
+## SYNOPSIS
+Gets the groups that a local user belongs to via the ADSI WinNT provider.
+
+## SYNTAX
+```powershell
+Get-UserGroups [-User] <Object> [<CommonParameters>]
+```
+
+## DESCRIPTION
+Returns one GroupObject per group the user is a direct member of. Only works on Windows via the WinNT ADSI provider.
+
+## EXAMPLES
+
+### Example 1
+
+Returns all groups the local user localadmin belongs to.
+
+```powershell
+Get-UserGroups -User 'localadmin'
+```
+
+
+### Example 2
+
+Pipes the localadmin user and returns its group memberships.
+
+```powershell
+Get-User -Name 'localadmin' | Get-UserGroups
+```
+
+## PARAMETERS
+
+### -User
+
+The user whose group memberships to enumerate; accepts an AdsiPrincipal or a user name string.
+
+```yaml
+Type: Object
+DefaultValue: ''
+SupportsWildcards: false
+Aliases: []
+ParameterSets:
+- Name: (All)
+  Position: 0
+  IsRequired: true
+  ValueFromPipeline: false
+  ValueFromPipelineByPropertyName: false
+  ValueFromRemainingArguments: false
+DontShow: false
+AcceptedValues: []
+HelpMessage: ''
+```
+
+
+### CommonParameters
+
+This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable,
+-InformationAction, -InformationVariable, -OutBuffer, -OutVariable, -PipelineVariable,
+-ProgressAction, -Verbose, -WarningAction, and -WarningVariable. For more information, see
+[about_CommonParameters](https://go.microsoft.com/fwlink/?LinkID=113216).
+
+## INPUTS
+
+## OUTPUTS
+
+### AMT.PowerShell.Common.Commands.UsersAndAccounts.GroupObject
+
+## NOTES
+
+## RELATED LINKS
