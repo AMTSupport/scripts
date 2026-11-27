@@ -82,7 +82,9 @@ function Invoke-DownloadWithProgress {
     $OriginalProgressPreference = $ProgressPreference;
     $ProgressPreference = 'Continue';
     try {
-        Invoke-WebRequest -Uri $Uri -OutFile $OutFile;
+        # -UseBasicParsing: Windows PowerShell 5.1 prompts before parsing web content after the
+        # December 2025 hardening (CVE-2025-54100), which hangs unattended runs.
+        Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing;
     } finally {
         $ProgressPreference = $OriginalProgressPreference;
     }
@@ -153,7 +155,7 @@ function Expand-WinZipSfxArchive {
         $Local:Entry += 46 + [BitConverter]::ToUInt16($Local:Archive, $Local:Entry + 28) + [BitConverter]::ToUInt16($Local:Archive, $Local:Entry + 30) + [BitConverter]::ToUInt16($Local:Archive, $Local:Entry + 32);
     }
 
-    [String]$Local:ZipPath = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.zip');
+    [String]$Local:ZipPath = [System.IO.Path]::GetTempFileName();
     try {
         [System.IO.File]::WriteAllBytes($Local:ZipPath, $Local:Archive);
         [System.IO.Compression.ZipFile]::ExtractToDirectory($Local:ZipPath, $Destination);
@@ -328,19 +330,42 @@ function Install-Driver_Canon {
     [String]$DownloadFile = 'GPlus_PCL6_Driver_V350_W64_00.exe';
     [String]$PackageHash = '2e47a2fbbdb047e71c78a0dfc72756d86eeedceb28d2ff5dcfefdbc053a87bac';
 
-    if (Get-PrinterDriver -Name $DriverName -ErrorAction SilentlyContinue) {
-        Invoke-Info "Driver $DriverName already installed, skipping...";
-        return $DriverName;
+    # Resolve a caller-supplied -DriverFile before Invoke-WithinEphemeral changes location,
+    # otherwise a relative path such as .\Canon350 is checked inside the temporary directory.
+    [String]$Local:PackagePath = $null;
+    if ($DriverFile) {
+        try {
+            [String]$Local:PackagePath = (Resolve-Path -LiteralPath $DriverFile -ErrorAction Stop).ProviderPath;
+        } catch {
+            throw "Canon driver package $DriverFile does not exist.";
+        }
     }
-    if (Get-PrinterDriver -Name $VersionedDriverName -ErrorAction SilentlyContinue) {
+
+    # A package directory without a Driver\ tree is the version-stamped etc\ variant; the caller
+    # asked for that name by supplying it, so only that name may short-circuit installation.
+    [String]$Local:RequestedName = $DriverName;
+    [Boolean]$Local:VariantRequested = $false;
+    if ($Local:PackagePath -and (Test-Path -LiteralPath $Local:PackagePath -PathType Container) -and
+        -not (Test-Path -LiteralPath (Join-Path $Local:PackagePath 'Driver') -PathType Container)) {
+        $Local:RequestedName = $VersionedDriverName;
+        $Local:VariantRequested = $true;
+    }
+
+    if (Get-PrinterDriver -Name $Local:RequestedName -ErrorAction SilentlyContinue) {
+        Invoke-Info "Driver $Local:RequestedName already installed, skipping...";
+        return $Local:RequestedName;
+    }
+    if (-not $Local:VariantRequested -and (Get-PrinterDriver -Name $VersionedDriverName -ErrorAction SilentlyContinue)) {
         Invoke-Info "Driver $VersionedDriverName already installed, skipping...";
         return $VersionedDriverName;
     }
 
-    [Hashtable]$Local:Selection = @{ DriverName = $DriverName; };
+    [Hashtable]$Local:Selection = @{ DriverName = $Local:RequestedName; };
 
     Invoke-WithinEphemeral {
-        [String]$Local:PackagePath = $DriverFile;
+        # Inside this scriptblock $Local: is the scriptblock's own scope; read the enclosing
+        # function's values without a scope qualifier.
+        [String]$Local:PackagePath = $PackagePath;
         [Boolean]$Local:Downloaded = $false;
 
         if (-not $Local:PackagePath) {
@@ -375,12 +400,18 @@ function Install-Driver_Canon {
             Expand-WinZipSfxArchive -Path $Local:PackagePath -Destination $Local:ExpandedPath;
         }
 
-        [System.IO.FileInfo]$Local:InfPath = Get-ChildItem -Path (Join-Path $Local:ExpandedPath 'Driver') -Filter $InfName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1;
-        [String]$Local:SelectedDriverName = $DriverName;
+        [String]$Local:SelectedDriverName = $RequestedName;
+        [String]$Local:InfTree = if ($VariantRequested) { 'etc' } else { 'Driver' };
+
+        [System.IO.FileInfo]$Local:InfPath = Get-ChildItem -LiteralPath (Join-Path $Local:ExpandedPath $Local:InfTree) -Filter $InfName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1;
         if (-not $Local:InfPath) {
-            # Fall back to etc\, where the same package registers the version-stamped driver name.
-            $Local:InfPath = Get-ChildItem -Path (Join-Path $Local:ExpandedPath 'etc') -Filter $InfName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1;
-            $Local:SelectedDriverName = $VersionedDriverName;
+            # The package may only carry the other tree; fall back and take the name that tree registers.
+            [String]$Local:FallbackTree = if ($Local:InfTree -eq 'Driver') { 'etc' } else { 'Driver' };
+            $Local:InfPath = Get-ChildItem -LiteralPath (Join-Path $Local:ExpandedPath $Local:FallbackTree) -Filter $InfName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1;
+            $Local:SelectedDriverName = if ($Local:FallbackTree -eq 'Driver') { $DriverName } else { $VersionedDriverName };
+            if ($Local:InfPath) {
+                Invoke-Warn "No $($Local:InfTree)\ package in $($Local:ExpandedPath), falling back to $($Local:FallbackTree)\ ($Local:SelectedDriverName).";
+            }
         }
         if (-not $Local:InfPath) {
             throw "Could not find $InfName in the extracted Canon driver package at $Local:ExpandedPath";
@@ -390,22 +421,30 @@ function Install-Driver_Canon {
 
         Invoke-Info "Inf file found: $($Local:InfPath.FullName)";
         Invoke-Info 'Staging Canon driver package...';
-        pnputil.exe /add-driver $Local:InfPath.FullName /install | Out-Null;
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-            throw "pnputil failed to stage $InfName (exit code $LASTEXITCODE).";
+        [Object[]]$Local:PnputilOutput = pnputil.exe /add-driver $Local:InfPath.FullName /install 2>&1;
+        [Int32]$Local:PnputilExitCode = $LASTEXITCODE;
+        [String]$Local:PnputilText = ($Local:PnputilOutput | Out-String).Trim();
+        [String]$Local:PublishedInf = [regex]::Match($Local:PnputilText, 'oem\d+\.inf', 'IgnoreCase').Value;
+
+        if ($Local:PnputilExitCode -eq 259 -and $Local:PublishedInf) {
+            # 259 is ERROR_NO_MORE_ITEMS: no matching device to install onto. Staging still
+            # succeeded, which is all a TCP/IP print queue needs, but only accept it when the
+            # package really did land in the driver store.
+            Invoke-Info "pnputil reported no matching device (exit 259); package staged as $Local:PublishedInf.";
+        } elseif ($Local:PnputilExitCode -ne 0 -and $Local:PnputilExitCode -ne 3010) {
+            throw "pnputil failed to stage $InfName (exit code $Local:PnputilExitCode). $Local:PnputilText";
         }
 
-        [String]$Local:WindowsDriverPath = 'C:\Windows\System32\DriverStore\FileRepository';
-        [System.IO.DirectoryInfo]$Local:DriverPath = Get-ChildItem -Path $Local:WindowsDriverPath -Filter 'cnp60ma64.inf_*' -ErrorAction SilentlyContinue |
-            Where-Object { $_.PSIsContainer } |
-            Select-Object -First 1;
+        # Register from the published package that pnputil just created, so the INF path and the
+        # driver name come from the same package instead of whichever store directory enumerates first.
+        [String]$Local:StoreInfPath = if ($Local:PublishedInf) { Join-Path $env:SystemRoot "INF\$Local:PublishedInf" } else { $null };
 
-        if ($Local:DriverPath) {
-            Invoke-Info "Driver path: $($Local:DriverPath.FullName)";
-            Add-PrinterDriver -Name $Local:SelectedDriverName -InfPath (Join-Path $Local:DriverPath.FullName $InfName);
+        if ($Local:StoreInfPath -and (Test-Path -LiteralPath $Local:StoreInfPath -PathType Leaf)) {
+            Invoke-Info "Driver inf in driver store: $Local:StoreInfPath";
+            Add-PrinterDriver -Name $Local:SelectedDriverName -InfPath $Local:StoreInfPath -ErrorAction Stop;
         } else {
-            Invoke-Warn "Could not locate $InfName in the driver store, adding driver by name.";
-            Add-PrinterDriver -Name $Local:SelectedDriverName;
+            Invoke-Warn 'Could not resolve the published driver package path, adding driver by name.';
+            Add-PrinterDriver -Name $Local:SelectedDriverName -ErrorAction Stop;
         }
     }
 
